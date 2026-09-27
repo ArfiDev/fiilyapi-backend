@@ -57,8 +57,10 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from app.core.db import Base
+from app.core.errors import EarnedValueValidationError
+from app.modules.earned_value import guards
 from app.modules.earned_value.engine import ContractorType
-from app.modules.earned_value.labels import normalize_label
+from app.modules.earned_value.labels import NAME_KEY_MAX_LEN, UOM_KEY_MAX_LEN, normalize_label
 
 #: Dagilim tipleri (B1-1/B1-2). DB enum'u motorun `Distribution` enum'undan BAGIMSIZ
 #: tanimlanir (model motor surumune kilitlenmesin); esitligi
@@ -163,6 +165,12 @@ class EvCatalogItem(Base):
     (`labels.normalize_label`, TEK kaynak; `_sync_key` ad/birim her atandiginda), DB yalniz
     ESITLIGI zorlar. Ifade indeksi (`lower()` …) KULLANILMAZ: Postgres'in kucultmesi DB
     ctype'ina ve glibc/ICU surumune bagli, Python'la birebir degil (KATALOG-UQ K1).
+
+    KATALOG-UQ-2 duzeltme turu (2026-09-27): `name_key`/`uom_key` kolonlari `name`/`uom`dan
+    DAHA GENIS (800/200) — NFKC normalizasyonu bazi kod noktalarinda metni UZATIR (en fazla
+    18 kat, `…`→`"..."` gibi), "normalize metni UZATMAZ" varsayimi YANLISTI. Genisletme
+    migration'i `3102e435238c`; `_sync_key` yine de asiri uzun (kolon sinirini asan) bir
+    anahtar dogarsa ACIK Turkce hatayla durur (bkz. asagida).
     """
 
     __tablename__ = "ev_catalog_items"
@@ -181,10 +189,13 @@ class EvCatalogItem(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     uom: Mapped[str] = mapped_column(String(50), nullable=False)
     #: `normalize_label(name)` / `normalize_label(uom)` — elle YAZILMAZ, `_sync_key` turetir.
-    #: Uzunluk kaynaginkiyle ayni: normalize metni UZATMAZ (tek genisleyen `İ`→`i̇` once
-    #: `replace` ile tek harfe cevrilir; bosluk dizisi tek bosluga iner).
-    name_key: Mapped[str] = mapped_column(String(200), nullable=False)
-    uom_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    #: 🔴 Uzunluk kaynaginkiyle AYNI DEGIL: NFKC normalizasyonu metni UZATABILIR (1268 kod
+    #: noktasi, en fazla 18 kat — ör. `…`→`"..."`, `½`→`"1⁄2"`, `㎡`→`"m2"`); bu yuzden
+    #: kolonlar `name`/`uom`dan (200/50) DAHA GENIS (800/200, KATALOG-UQ-2 duzeltme turu,
+    #: migration `3102e435238c`). Sinirlar `labels.NAME_KEY_MAX_LEN`/`UOM_KEY_MAX_LEN` ile
+    #: AYNI olmali — `_sync_key` bunu asan degeri kolona ULASMADAN reddeder.
+    name_key: Mapped[str] = mapped_column(String(NAME_KEY_MAX_LEN), nullable=False)
+    uom_key: Mapped[str] = mapped_column(String(UOM_KEY_MAX_LEN), nullable=False)
     standard_unit_mhr: Mapped[Decimal] = mapped_column(Numeric(*RATE_PRECISION), nullable=False)
     default_contractor_type: Mapped[ContractorType] = mapped_column(
         _contractor_enum(), nullable=False
@@ -199,8 +210,22 @@ class EvCatalogItem(Base):
     @validates("name", "uom")
     def _sync_key(self, field: str, value: str) -> str:
         """Ad/birim her atandiginda (kurucu dahil) anahtar yeniden turer — bayat anahtar
-        olamaz. Toplu `update()` ifadesi bu kancayi ATLAR: katalogda oyle bir yazar yoktur."""
-        setattr(self, f"{field}_key", normalize_label(value))
+        olamaz. Toplu `update()` ifadesi bu kancayi ATLAR: katalogda oyle bir yazar yoktur.
+
+        KATALOG-UQ-2 duzeltme turu: NFKC normalizasyonu metni UZATABILIR — `name`/`uom`
+        kolon sinirinda (200/50) kalan bir deger, turetilen anahtarda kolon sinirini
+        (800/200) ASABILIR. Kontrol edilmezse DB `22001` (metin tasmasi) fırlatirdi ve
+        `_field_overflow_handler` bunu genel "Gönderilen değer alanın sınırını aşıyor"
+        422'sine cevirirdi — kullanici ADIN degil ANAHTARIN tastigini hic ogrenemezdi.
+        Bu kontrol ACIK ve alana ozel Turkce mesajla ERKEN durur."""
+        key = normalize_label(value)
+        max_len = NAME_KEY_MAX_LEN if field == "name" else UOM_KEY_MAX_LEN
+        if len(key) > max_len:
+            field_label = "Ad" if field == "name" else "Birim"
+            raise EarnedValueValidationError(
+                guards.CATALOG_KEY_TOO_LONG.format(field=field_label, max_len=max_len)
+            )
+        setattr(self, f"{field}_key", key)
         return value
 
 
