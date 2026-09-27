@@ -1,8 +1,13 @@
-"""KATALOG-UQ — `aab10fbf5471` migration: dondurulmus normalize + doldurma + cift durdurma.
+"""KATALOG-UQ — `aab10fbf5471` migration: dondurulmus normalize (v1) + doldurma + cift durdurma.
 
 `Dockerfile` acilista `alembic upgrade head` kosar; patlarsa uvicorn hic baslamaz. Bu yuzden:
-* dondurulmus `_normalize` BUGUNKU `labels.normalize_label` ile TUM kod noktalarinda ayni
-  (migration `app`i import etmez; bu test ikisini baglar);
+* dondurulmus `_normalize` (v1) bu dosyadaki TARIHSEL sabit `_V1_HISTORICAL` ile TUM kod
+  noktalarinda ayni kalmali (migration `app`i import etmez; bu test aab10'un dondurulmus
+  kopyasini KORUR). 🔴 KATALOG-UQ-2 (2026-09-27): `app.modules.earned_value.labels.
+  normalize_label` v2'ye GENISLEDI (NFKC + casefold + genis Cf silme) — bu dosya artik
+  BUGUNKU app fonksiyonuyla KARSILASTIRMAZ; v1 dondurulmus kopya sonsuza dek `_V1_HISTORICAL`
+  ile sinanir (bkz. `tests/earned_value/test_kq2_catalog_normalize_v2_migration.py` v2 icin
+  ayni desen);
 * doldurma Python iledir: saklanan anahtar = `_normalize(ham)` BAYT BAYT (SQL `lower()` YOK);
 * canlida normalize cift varsa migration ACIK MESAJLA durur, sema DEGISMEZ, mesaj
   `_duplicate_groups`un (canli sayim betiginin kullandigi TEK tanim) gruplarini listeler;
@@ -15,8 +20,10 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import subprocess
 import sys
+import unicodedata
 import uuid
 from types import ModuleType
 
@@ -113,14 +120,29 @@ def _load() -> ModuleType:
 
 # ------------------------------------------------------------------ DB'siz: dondurulmus kopya
 
+#: TARIHSEL SABIT — KATALOG-UQ v1 kuralinin (2026-09-25) BIREBIR kopyasi, app'ten BAGIMSIZ.
+#: `app.modules.earned_value.labels.normalize_label` KATALOG-UQ-2'de v2'ye GENISLEDIGI icin
+#: bu dosyadaki testler artik app ile DEGIL, bu sabitle karsilastirir: aab10'un dondurulmus
+#: `_normalize`si SONSUZA DEK bu tarihsel davranisi korumali (migration UYGULANMIS, DEGISMEZ).
+_V1_ZERO_WIDTH_HISTORICAL = str.maketrans("", "", "​‌‍﻿")
 
-def test_KQ_frozen_normalize_equals_app_normalize_on_k1_cases() -> None:
+
+def _v1_historical(text: str) -> str:
+    s = unicodedata.normalize("NFC", text)
+    s = s.replace("İ", "i").replace("I", "ı").lower()
+    s = s.replace("³", "3").replace("²", "2")
+    s = s.translate(_V1_ZERO_WIDTH_HISTORICAL)
+    s = re.sub(r"\s+", " ", s).strip()
+    return unicodedata.normalize("NFC", s)
+
+
+def test_KQ_frozen_normalize_equals_v1_historical_on_k1_cases() -> None:
     mig = _load()
-    diffs = [c for c in K1_CASES if mig._normalize(c) != normalize_label(c)]  # noqa: SLF001
+    diffs = [c for c in K1_CASES if mig._normalize(c) != _v1_historical(c)]  # noqa: SLF001
     assert diffs == []
 
 
-def test_KQ_frozen_normalize_equals_app_normalize_on_every_code_point() -> None:
+def test_KQ_frozen_normalize_equals_v1_historical_on_every_code_point() -> None:
     """Her kod noktasi (vekil haric) 'x'+c+'x' icinde ve TEK BASINA (uc kirpma)."""
     mig = _load()
     frozen = mig._normalize  # noqa: SLF001
@@ -130,7 +152,7 @@ def test_KQ_frozen_normalize_equals_app_normalize_on_every_code_point() -> None:
             continue
         c = chr(cp)
         for s in (f"x{c}x", c):
-            if frozen(s) != normalize_label(s):
+            if frozen(s) != _v1_historical(s):
                 diffs.append((hex(cp), s))
     assert diffs == []
 
@@ -317,7 +339,9 @@ async def test_KQ_migration_backfill_duplicate_stop_and_round_trip() -> None:
             for r in rows:
                 expect = (mig._normalize(r["name"]), mig._normalize(r["uom"]))  # noqa: SLF001
                 assert (r["name_key"], r["uom_key"]) == expect, r["name"]
-                assert expect == (normalize_label(r["name"]), normalize_label(r["uom"]))
+                # `mig._normalize` v1'dir (bu migration `aab10fbf5471`); app artik v2 —
+                # tarihsel sabitle karsilastirilir (bkz. dosya basi `_v1_historical`).
+                assert expect == (_v1_historical(r["name"]), _v1_historical(r["uom"]))
         finally:
             await conn.close()
 
