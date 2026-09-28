@@ -45,7 +45,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -113,7 +113,7 @@ async def _audit(
 )
 async def list_financial_instruments_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     direction: FinancialInstrumentDirection | None = None,
     instrument_kind: FinancialInstrumentKind | None = None,
     status_filter: Annotated[FinancialInstrumentStatus | None, Query(alias="status")] = None,
@@ -167,7 +167,7 @@ async def create_financial_instrument_endpoint(
     request: Request,
     data: FinancialInstrumentCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> FinancialInstrumentResponse:
     """E10:65 `+ Cek Ekle`.
 
@@ -200,7 +200,7 @@ async def create_financial_instrument_endpoint(
 )
 async def financial_instruments_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> FinancialInstrumentSummaryResponse:
     """E10:69-90 — dort kart, DORDU DE TUREV (K8).
 
@@ -226,7 +226,7 @@ async def financial_instruments_summary_endpoint(
 async def get_financial_instrument_endpoint(
     instrument_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> FinancialInstrumentResponse:
     """Tek kayit + turev `is_due`. Gorunmeyen kayit ile var OLMAYAN kayit AYNI
     404 govdesini dondurur (repo kanonu)."""
@@ -248,7 +248,7 @@ async def update_financial_instrument_endpoint(
     instrument_id: uuid.UUID,
     data: FinancialInstrumentUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> FinancialInstrumentResponse:
     """Kismi guncelleme; kayit DENETIMLERDEN ONCE kilitlenir (TOCTOU).
 
@@ -278,7 +278,7 @@ async def change_financial_instrument_status_endpoint(
     instrument_id: uuid.UUID,
     data: FinancialInstrumentStatusChange,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> FinancialInstrumentResponse:
     """🔴 K7 — durumun TEK yazma kapisi (K2 tablosu burada koşar).
 
@@ -306,7 +306,7 @@ async def delete_financial_instrument_endpoint(
     request: Request,
     instrument_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """**YALNIZ `admin`** (modul docstring'i) → 204; terminal durumda **409**.
 

@@ -40,10 +40,9 @@ Sayfalama K7 standardi: varsayilan 50, tavan 200, asim 422 (kirpma YOK).
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
@@ -74,7 +73,7 @@ _OFFSET = Annotated[int, Query(ge=0)]
 @router.get("/sites", response_model=SiteOptionListResponse, dependencies=[_VIEW])
 async def list_site_options_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     limit: _LIMIT = 50,
     offset: _OFFSET = 0,
 ) -> SiteOptionListResponse:

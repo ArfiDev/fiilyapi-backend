@@ -62,7 +62,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -138,7 +138,7 @@ async def _audit(
 @router.get("/journal-entries", response_model=JournalEntryListResponse, dependencies=[_VIEW])
 async def list_journal_entries_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     status_filter: Annotated[JournalEntryStatus | None, Query(alias="status")] = None,
     year: _YEAR = None,
     month: _MONTH = None,
@@ -177,7 +177,7 @@ async def create_journal_entry_endpoint(
     request: Request,
     data: JournalEntryCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> JournalEntryDetailResponse:
     """Yeni fiş (E8:67 `+ Yevmiye Kaydı`) — başlık + bacaklar TEK gövde, ATOMİK.
 
@@ -214,7 +214,7 @@ async def create_journal_entry_endpoint(
 @router.get("/journal-entries/summary", response_model=JournalSummaryResponse, dependencies=[_VIEW])
 async def journal_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR = None,
     month: _MONTH = None,
 ) -> JournalSummaryResponse:
@@ -247,7 +247,7 @@ async def journal_summary_endpoint(
 async def get_journal_entry_endpoint(
     entry_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> JournalEntryDetailResponse:
     """Başlık + bacaklar. Toplamlar okuma anında YENİDEN HESAPLANMAZ: fiş,
     kayıtlaştırıldıktan sonra donmuş bir belgedir."""
@@ -269,7 +269,7 @@ async def update_journal_entry_endpoint(
     entry_id: uuid.UUID,
     data: JournalEntryUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> JournalEntryDetailResponse:
     """**Yalnız `draft`** — aksi **409** (yetki değil DURUM engeli).
 
@@ -302,7 +302,7 @@ async def delete_journal_entry_endpoint(
     request: Request,
     entry_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """**YALNIZ `admin`** → 204; `posted`/`reversed` fiş **409**.
 
@@ -335,7 +335,7 @@ async def replace_journal_lines_endpoint(
     entry_id: uuid.UUID,
     data: JournalLinesReplace,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> JournalEntryDetailResponse:
     """Bacak kümesini TOPTAN yazar (hakediş/puantaj emsali) — **yalnız `draft`**.
 
@@ -368,7 +368,7 @@ async def post_journal_entry_endpoint(
     request: Request,
     entry_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> JournalEntryDetailResponse:
     """`draft → posted` — fişi MALİ İZE sokar.
 
@@ -408,7 +408,7 @@ async def reverse_journal_entry_endpoint(
     request: Request,
     entry_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> JournalEntryDetailResponse:
     """`posted → reversed` + 🔴 **YENİ bir storno fişi** → **201**.
 
@@ -440,7 +440,7 @@ async def reverse_journal_entry_endpoint(
 @router.get("/journal", response_model=LedgerResponse, dependencies=[_VIEW])
 async def journal_ledger_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR = None,
     month: _MONTH = None,
     account_id: uuid.UUID | None = None,
@@ -485,7 +485,7 @@ async def journal_ledger_endpoint(
 )
 async def journal_export_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR = None,
     month: _MONTH = None,
     account_id: uuid.UUID | None = None,

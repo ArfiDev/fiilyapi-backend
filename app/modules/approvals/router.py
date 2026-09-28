@@ -25,10 +25,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
 from app.core.openapi import COMMON_ERROR_RESPONSES
@@ -57,7 +56,7 @@ _ADMIN = require_permission("approvals", AccessLevel.admin)
 @router.get("", response_model=ApprovalInboxResponse)
 async def list_my_approvals_endpoint(
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ApprovalInboxResponse:
@@ -82,7 +81,7 @@ async def list_my_approvals_endpoint(
 @router.get("/settings", response_model=ApprovalSettingsRead)
 async def get_approval_settings_endpoint(
     _user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ApprovalSettingsRead:
     """Esik OKUMASI kapisizdir (`GET /company` emsali): ekran, zincirin neden
     Patron adimi tasidigini aciklamak icin esigi bilmek zorundadir."""
@@ -94,7 +93,7 @@ async def update_approval_settings_endpoint(
     request: Request,
     data: ApprovalSettingsUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ApprovalSettingsRead:
     """Esigi YALNIZ `admin` degistirir (K3).
 
@@ -115,7 +114,7 @@ async def update_approval_settings_endpoint(
 @router.get("/roles", response_model=ApprovalRoleAssignmentListResponse, dependencies=[_ADMIN])
 async def list_approval_role_assignments_endpoint(
     _user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ApprovalRoleAssignmentListResponse:
@@ -144,7 +143,7 @@ async def set_approval_roles_endpoint(
     user_id: uuid.UUID,
     data: ApprovalRoleAssignmentUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ApprovalRoleAssignmentRead:
     """Bir kullanicinin onay rollerini TAM KUME olarak yazar (K1).
 

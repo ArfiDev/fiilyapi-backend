@@ -48,7 +48,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
 from app.core.config import settings
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -56,7 +56,7 @@ from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.documents import files, guards, service
-from app.modules.documents.deps import get_storage_backend
+from app.modules.documents.deps import get_storage_backend, get_streaming_storage_backend
 from app.modules.documents.schemas import (
     DESCRIPTION_MAX_LENGTH,
     DocumentFolderCreate,
@@ -106,7 +106,7 @@ async def _audit(
 async def list_document_folders_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     site_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> DocumentFolderListResponse:
     """Bir KÖKÜN klasörleri — düz liste, hiyerarşiyi `parent_id` taşır.
@@ -137,7 +137,7 @@ async def create_document_folder_endpoint(
     project_id: uuid.UUID,
     data: DocumentFolderCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> DocumentFolderRead:
     """Yeni klasör. Kategori seti SERBESTTİR (spec §7 S3) — otomatik seed YOKTUR.
 
@@ -162,7 +162,7 @@ async def rename_document_folder_endpoint(
     folder_id: uuid.UUID,
     data: DocumentFolderUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> DocumentFolderRead:
     """YALNIZ ad değişir. Klasör TAŞIMA ucu yoktur (gerekçe `schemas`ta)."""
     context = await service.visible_folder(session, user, folder_id)
@@ -181,7 +181,7 @@ async def delete_document_folder_endpoint(
     request: Request,
     folder_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """YALNIZ BOŞ klasör silinir; belge ya da alt klasör varsa 409.
 
@@ -246,7 +246,7 @@ async def _read_within_limit(file: UploadFile) -> bytes:
 async def upload_document_endpoint(
     request: Request,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     storage: Annotated[StorageBackend, Depends(get_storage_backend)],
     file: Annotated[UploadFile, File(...)],
     project_id: Annotated[uuid.UUID, Form()],
@@ -300,7 +300,7 @@ async def upload_document_endpoint(
 @router.get("/documents", response_model=DocumentListResponse, dependencies=[_VIEW])
 async def list_documents_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     project_id: Annotated[uuid.UUID, Query()],
     site_id: Annotated[uuid.UUID | None, Query()] = None,
     folder_id: Annotated[uuid.UUID | None, Query()] = None,
@@ -331,8 +331,8 @@ async def list_documents_endpoint(
 async def download_document_endpoint(
     document_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
-    storage: Annotated[StorageBackend, Depends(get_storage_backend)],
+    session: DbSession,
+    storage: Annotated[StorageBackend, Depends(get_streaming_storage_backend)],
 ) -> StreamingResponse:
     """İçeriği PARÇALI akıtır — 48 MB'lık bir ZIP tam-bellek OKUNMAZ (spec §3).
 
@@ -373,7 +373,7 @@ async def update_document_endpoint(
     document_id: uuid.UUID,
     data: DocumentUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> DocumentRead:
     """Ad / açıklama / klasör taşıma (spec §3). Kapsam (proje/şantiye) DEĞİŞMEZ.
 
@@ -395,7 +395,7 @@ async def delete_document_endpoint(
     request: Request,
     document_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     storage: Annotated[StorageBackend, Depends(get_storage_backend)],
 ) -> None:
     """Künye + baytlar silinir (`admin`; `full` silmeyi KAPSAMAZ).

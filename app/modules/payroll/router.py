@@ -43,7 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -111,7 +111,7 @@ async def _audit(
 
 @router.get("/payroll/periods", response_model=PayrollPeriodListResponse, dependencies=[_VIEW])
 async def list_payroll_periods_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     limit: _LIMIT = 50,
     offset: _OFFSET = 0,
 ) -> PayrollPeriodListResponse:
@@ -136,7 +136,7 @@ async def list_payroll_periods_endpoint(
     },
 )
 async def export_payroll_periods_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> Response:
     """BG "Excel İndir": bordro GEÇMİŞİNİN Excel çıktısı — EKRANLA AYNI KÜME.
 
@@ -169,7 +169,7 @@ async def create_payroll_period_endpoint(
     request: Request,
     data: PayrollPeriodCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollPeriodDetailResponse:
     """Ay AÇAR, doldurmaz — satırlar `compute` ucundan gelir.
 
@@ -192,7 +192,7 @@ async def update_payroll_period_endpoint(
     period_id: uuid.UUID,
     data: PayrollPeriodUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollPeriodDetailResponse:
     """Ödeme takvimi (BY 63 "Son ödeme") düzeltmesi — T4b.
 
@@ -219,7 +219,7 @@ async def update_payroll_period_endpoint(
 )
 async def get_payroll_period_endpoint(
     period_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollPeriodDetailResponse:
     """BY ekranı: dört özet kartı (69-93) + tip bazında gruplanmış satırlar.
 
@@ -244,7 +244,7 @@ async def compute_payroll_period_endpoint(
     request: Request,
     period_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollComputeResult:
     """Puantaj + ücret + oranlardan satırları üretir/günceller (T2 akışı).
 
@@ -278,7 +278,7 @@ async def update_payroll_line_endpoint(
     line_id: uuid.UUID,
     data: PayrollLineUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollLineResponse:
     """Brüt override (K3) + banka/elden bölüşümü (S3) — BY 142-147.
 
@@ -331,7 +331,7 @@ async def approve_payroll_line_endpoint(
     request: Request,
     line_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollLineResponse:
     """Satır onayı — `pending → approved`.
 
@@ -357,7 +357,7 @@ async def reject_payroll_line_endpoint(
     request: Request,
     line_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollLineResponse:
     """Satır reddi = ONAYIN GERİ ALINMASI — `approved → pending` (S5 düzeltme yolu).
 
@@ -387,7 +387,7 @@ async def approve_payroll_period_endpoint(
     request: Request,
     period_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollPeriodApproveResult:
     """BY 303 "Tümünü Onayla" — dönemi TEK ADIM ilerletir, `pending` satırları onaylar.
 
@@ -423,7 +423,7 @@ async def pay_payroll_period_endpoint(
     request: Request,
     period_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollPeriodPayResult:
     """Ödendi damgası (`paid_at`) — dönem ve ONAYLI satırlar `paid`.
 
@@ -464,7 +464,7 @@ async def pay_payroll_period_endpoint(
 )
 async def payroll_sgk_summary_endpoint(
     period_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollSgkSummaryResponse:
     """SGK bildirim ekranının prim hesabı — SGK **55-95**.
 
@@ -493,7 +493,7 @@ async def payroll_sgk_submit_endpoint(
     request: Request,
     period_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollSgkSubmitResult:
     """SGK 44 "SGK'ya Gönder" — YALNIZ `sgk_submitted_at` damgası (spec §1).
 
@@ -512,7 +512,7 @@ async def payroll_sgk_submit_endpoint(
 
 @router.get("/payroll/rates", response_model=PayrollRateListResponse, dependencies=[_VIEW])
 async def list_payroll_rates_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: int | None = None,
 ) -> PayrollRateListResponse:
     """Oran setleri (K1) — `(yıl, personel tipi)` anahtarlı, yedi oran + `is_active`.
@@ -538,7 +538,7 @@ async def upsert_payroll_rate_endpoint(
     source: WorkerSource,
     data: PayrollRateUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollRateResponse:
     """Oran seti açar ya da DEĞİŞTİRİR (K1: oranlar VERİDİR, koda gömülmez).
 
@@ -567,7 +567,7 @@ async def upsert_payroll_rate_endpoint(
     "/payroll/tax-brackets", response_model=PayrollTaxBracketListResponse, dependencies=[_VIEW]
 )
 async def list_payroll_tax_brackets_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: int | None = None,
     income_kind: IncomeKind | None = None,
 ) -> PayrollTaxBracketListResponse:
@@ -597,7 +597,7 @@ async def replace_payroll_tax_brackets_endpoint(
     income_kind: IncomeKind,
     data: PayrollTaxBracketSetUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PayrollTaxBracketListResponse:
     """Yılın tarifesini **TAM KÜME** olarak değiştirir (K1: mevzuat VERİDİR).
 
@@ -625,7 +625,7 @@ async def replace_payroll_tax_brackets_endpoint(
 )
 async def export_payroll_period_endpoint(
     period_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> Response:
     """BY 55 "Excel" — dönem tablosunun çıktısı (puantaj export emsali).
 

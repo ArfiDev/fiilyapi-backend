@@ -1,17 +1,24 @@
 """🔴 YAPISAL BEKÇİ (kayıt 2 + 3, `kalan_is` madde "YAPISAL BEKÇİ"): yeni bir
 `deferrable=True` kısıt sessizce eklenemez.
 
-## Neden bu bekçi var
+## Neden bu bekçi var (TEARDOWN-B1 sonrası: İKİNCİ SAVUNMA HATTI)
 
-`app/core/db.py:83`teki `await session.commit()` `get_db`nin TEARDOWN'undadır.
-`get_db` bir async generator olduğu için FastAPI onu hesaplanmış
-`scope="request"` ile ele alır (ölçüldü:
-`.venv/.../fastapi/dependencies/models.py:229-234` `_get_computed_scope`),
-yani teardown `routing.py:145`teki `await response(scope, receive, send)`ten
-SONRA çalışır (ayrıca `tests/core/test_teardown_commit_http_olcum.py`de gerçek
-bir uvicorn sunucusuyla ÖLÇÜLDÜ: istemci `200 {"ok": true}` görüyor, sunucu
-`ERROR: Exception in ASGI application` logluyor — kayıtlı hiçbir exception
-handler ÇAĞRILMIYOR).
+`app/core/db.py`deki `await session.commit()` `get_db`nin TEARDOWN'undadır.
+Eskiden `get_db` çıplak `Depends` ile hesaplanmış `scope="request"` alır,
+teardown yanıttan SONRA koşar ve istemci `200 {"ok": true}` görürdü. Artık
+uçlar `DbSession` takma adını (`scope="function"`) kullanır: commit yanıttan
+ÖNCE koşar, ertelenmiş bir UQ ihlali commit'te patlayınca `IntegrityError`
+kayıtlı handler'a ulaşır ve istemci **409** görür
+(`tests/core/test_teardown_commit_http_olcum.py`). Yani "istemci 200 görüp veri
+yazılmamış olur" öncülü GEÇERSİZDİR.
+
+Bu bekçi bu yüzden artık BİRİNCİL güvenlik ağı değil, İKİNCİ savunma hattıdır:
+ertelenmiş kısıtta ihlal flush'ta değil COMMIT'te doğar; commit'te 409 dönmesi
+kabul edilebilir ama (a) hata mesajı/uç bazlı özel 409 gövdesi yerine genel
+"Veri bütünlüğü hatası" görünür, (b) `SET CONSTRAINTS IMMEDIATE`/kilit desenleri
+ihlali daha erken ve anlamlı bir hatayla yakalar, (c) yazma sırası garantileri
+(yanıt öncesi commit) kapsam kayarsa yine bozulur. Yeni bir deferrable kısıt
+bilinçli seçim gerektirsin diye allowlist korunur.
 
 `DEFERRABLE INITIALLY DEFERRED` bir UNIQUE kısıt tam olarak bu pencereyi açar:
 ihlal `flush()`ta DEĞİL, transaction COMMIT'inde patlar — yani tam bu
@@ -30,12 +37,12 @@ korunuyor:
 
 Bu bekçi YENİ bir `deferrable=True` kısıtın bu ALLOWLIST'e bilerek
 eklenmesini zorunlu kılar — eklenmezse test KIRMIZI olur ve yazarı yukarıdaki
-iki desenden birini (ya da `Depends(get_db, scope="function")` geçişini)
+iki desenden birini (flush'ta erken yakalama ya da kilitle serileştirme)
 seçmeye iter.
 
-⚠️ Bu bekçi teardown deliğini KAPATMAZ (o `app/core/db.py`nin 362 çağrı
-yerini etkileyen daha büyük bir onarım ister, bkz. ölçüm raporu). Yalnız
-deliğin SESSİZCE BÜYÜMESİNİ engeller.
+Bu bekçi teardown deliğini kapatan mekanizma DEĞİLDİR (onu `DbSession`in
+function kapsamı ve `test_getdb_kapsam_bekcisi.py` kapatır); yalnız yeni
+ertelenmiş kısıtların sessizce, savunmasız eklenmesini engeller.
 """
 
 from __future__ import annotations
@@ -86,9 +93,9 @@ def test_YENI_deferrable_kisit_allowlistsiz_eklenemez() -> None:
     yeni_ve_korunmasiz = bulunanlar - bilinen
     assert not yeni_ve_korunmasiz, (
         "YENİ bir deferrable=True UNIQUE kısıt bulundu ama ALLOWLIST'te yok: "
-        f"{yeni_ve_korunmasiz}. Bu kısıt `app/core/db.py:83`teki teardown "
-        "commit'inde patlayabilir ve istemci 200 görüp veri hiç yazılmamış "
-        "olabilir (bkz. tests/core/test_teardown_commit_http_olcum.py). "
+        f"{yeni_ve_korunmasiz}. Bu kısıt `app/core/db.py`deki teardown "
+        "commit'inde patlayabilir (function kapsamında 409 döner, bkz. "
+        "tests/core/test_teardown_commit_http_olcum.py) ama flush'ta yakalanmaz. "
         "Ya `site_plan_rows` desenini (SET CONSTRAINTS IMMEDIATE) ya da "
         "`boq_item_section_allocations` desenini (FOR UPDATE serileştirme) "
         "uygula, sonra bu dosyadaki BILINEN_DEFERRABLE_KISITLAR'a ekle."

@@ -46,7 +46,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -108,7 +108,7 @@ async def _audit(
 @router.get("/bank-accounts", response_model=BankAccountListResponse, dependencies=[_VIEW])
 async def list_bank_accounts_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     is_active: bool | None = None,
     limit: _LIMIT = 50,
     offset: _OFFSET = 0,
@@ -138,7 +138,7 @@ async def create_bank_account_endpoint(
     request: Request,
     data: BankAccountCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BankAccountResponse:
     """Yeni banka ya da kasa hesabı.
 
@@ -174,7 +174,7 @@ async def create_bank_account_endpoint(
 async def get_bank_account_endpoint(
     account_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BankAccountResponse:
     """Tek hesap + türetilmiş bakiye. Bakiye liste ucuyla AYNI kaynaktan gelir."""
     return await service.get_account_response(session, account_id)
@@ -194,7 +194,7 @@ async def update_bank_account_endpoint(
     account_id: uuid.UUID,
     data: BankAccountUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BankAccountResponse:
     """Kısmi güncelleme; kayıt DENETİMLERDEN ÖNCE kilitlenir (TOCTOU).
 
@@ -223,7 +223,7 @@ async def delete_bank_account_endpoint(
     request: Request,
     account_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """**YALNIZ `admin`** → 204; ödemesi olan hesap **409**.
 
@@ -257,7 +257,7 @@ async def delete_bank_account_endpoint(
 )
 async def list_upcoming_payments_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     days: Annotated[int, Query(ge=upcoming.MIN_DAYS, le=upcoming.MAX_DAYS)] = upcoming.DEFAULT_DAYS,
 ) -> UpcomingPaymentsResponse:
     """E9:109-125 — önümüzdeki `days` gün içinde ödenecekler.
@@ -285,7 +285,7 @@ async def list_upcoming_payments_endpoint(
 @router.get("/treasury/cash-flow", response_model=CashFlowResponse, dependencies=[_VIEW])
 async def get_cash_flow_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int | None, Query(ge=cash_flow.MIN_YEAR, le=cash_flow.MAX_YEAR)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
 ) -> CashFlowResponse:

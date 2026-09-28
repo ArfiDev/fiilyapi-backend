@@ -12,10 +12,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -53,7 +52,7 @@ _DRAFT = require_permission("progress_payments", AccessLevel.draft)
 )
 async def list_subcontractor_progress_payments_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     project_id: uuid.UUID | None = None,
     site_id: Annotated[
         uuid.UUID | None,
@@ -102,7 +101,7 @@ async def list_subcontractor_progress_payments_endpoint(
 )
 async def subcontractor_progress_payment_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     project_id: uuid.UUID | None = None,
     site_id: Annotated[
         uuid.UUID | None,
@@ -149,7 +148,7 @@ async def subcontractor_progress_payment_summary_endpoint(
 async def get_subcontractor_progress_payment_endpoint(
     payment_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorProgressPaymentDetail:
     """URL-4 — yol parametresi UUID **ya da** `<sözleşme-slug>-<sıra>` slug'ı
     kabul eder (`/hakedisler/taseron/tsz-2025-001-48`). Mockup ölçüldü:
@@ -170,7 +169,7 @@ async def create_subcontractor_progress_payment_endpoint(
     contract_id: uuid.UUID,
     data: SubcontractorProgressPaymentCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorProgressPaymentDetail:
     """O66: satırlar sözleşme kalemlerinden OTOMATİK yüklenir; gövdede satır YOK.
 
@@ -201,7 +200,7 @@ async def update_subcontractor_progress_payment_endpoint(
     payment_id: uuid.UUID,
     data: SubcontractorProgressPaymentUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorProgressPaymentDetail:
     """Yalnız `status=draft` (spec §5); aksi 409 `INVALID_STATUS_TRANSITION`."""
     context = await service.update(session, user, payment_id, data)
@@ -227,7 +226,7 @@ async def save_subcontractor_progress_payment_lines_endpoint(
     payment_id: uuid.UUID,
     data: SubcontractorProgressPaymentLinesSave,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorProgressPaymentDetail:
     """O formunun tek "Taslak Kaydet" gövdesi — **DEĞİŞTİRME** semantiği.
 
@@ -265,7 +264,7 @@ async def refresh_subcontractor_progress_payment_prices_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorRefreshPricesResponse:
     """Yalnız `draft`ta snapshot beşlisini + yüzde üçlüsünü bilinçli tazeler.
 
@@ -297,7 +296,7 @@ async def delete_subcontractor_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Kapı `_DRAFT`tir (işveren silme ucunun aynı gerekçesi): `_ADMIN` olsaydı
     taslağı üreten şef/saha rollerinin KENDİ taslağını silme istisnası ölü kural

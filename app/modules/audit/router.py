@@ -10,11 +10,10 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.modules.audit import repository
@@ -80,7 +79,7 @@ def _to_item(row: AuditRow) -> AuditItem:
     dependencies=[require_permission("settings", AccessLevel.view)],
 )
 async def list_audit_log_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     filters: Annotated[AuditFilters, Depends()],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -101,7 +100,7 @@ async def list_audit_log_endpoint(
     responses={200: {"content": {XLSX_MEDIA_TYPE: {}}, "description": "Excel dosyasi"}},
 )
 async def export_audit_log_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     filters: Annotated[AuditFilters, Depends()],
 ) -> Response:
     """Filtrelenmis denetim gunlugunu Excel dosyasi olarak doner.

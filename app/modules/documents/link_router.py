@@ -72,7 +72,7 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -142,7 +142,7 @@ async def _audit(
     dependencies=[_CATALOG_VIEW],
 )
 async def list_slot_types_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     scope: EntityDocumentScope | None = None,
 ) -> EntityDocumentTypeListResponse:
     """18 sabit slot (3+3+6+6), `scope` ile süzülür. CRUD ucu YOK."""
@@ -173,7 +173,7 @@ def _register(spec: OwnerSpec) -> None:
     async def list_endpoint(
         owner_id: uuid.UUID,
         user: Annotated[User, Depends(get_current_user)],
-        session: Annotated[AsyncSession, Depends(get_db)],
+        session: DbSession,
     ) -> EntityDocumentLinkListResponse:
         rows = await service.list_links(session, user, spec, owner_id)
         return EntityDocumentLinkListResponse(items=[_to_read(spec, r) for r in rows])
@@ -195,7 +195,7 @@ def _register(spec: OwnerSpec) -> None:
         owner_id: uuid.UUID,
         data: EntityDocumentLinkCreate,
         user: Annotated[User, Depends(get_current_user)],
-        session: Annotated[AsyncSession, Depends(get_db)],
+        session: DbSession,
     ) -> EntityDocumentLinkRead:
         row, detail = await service.attach(session, user, spec, owner_id, data)
         await _audit(request, session, user, AuditAction.create, detail)
@@ -214,7 +214,7 @@ def _register(spec: OwnerSpec) -> None:
         link_id: uuid.UUID,
         data: EntityDocumentLinkUpdate,
         user: Annotated[User, Depends(get_current_user)],
-        session: Annotated[AsyncSession, Depends(get_db)],
+        session: DbSession,
     ) -> EntityDocumentLinkRead:
         row, detail = await service.update(session, user, spec, link_id, data)
         # `detail is None` = boş gövde, hiçbir alan değişmedi → denetim satırı YOK.
@@ -234,7 +234,7 @@ def _register(spec: OwnerSpec) -> None:
         request: Request,
         link_id: uuid.UUID,
         user: Annotated[User, Depends(get_current_user)],
-        session: Annotated[AsyncSession, Depends(get_db)],
+        session: DbSession,
     ) -> None:
         detail = await service.detach(session, user, spec, link_id)
         await _audit(request, session, user, AuditAction.delete, detail)

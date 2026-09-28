@@ -2,10 +2,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
 from app.core.openapi import COMMON_ERROR_RESPONSES
@@ -35,7 +34,7 @@ router = APIRouter(tags=["roles"], responses=COMMON_ERROR_RESPONSES)
     dependencies=[require_permission("user_management", AccessLevel.view)],
 )
 async def list_roles_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> list[RoleResponse]:
     return [RoleResponse.model_validate(r) for r in await repository.list_roles(session)]
 
@@ -46,7 +45,7 @@ async def list_roles_endpoint(
     dependencies=[require_permission("user_management", AccessLevel.view)],
 )
 async def list_modules_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> list[ModuleResponse]:
     return [ModuleResponse.model_validate(m) for m in await repository.list_modules(session)]
 
@@ -58,7 +57,7 @@ async def list_modules_endpoint(
 )
 async def get_role_permissions_endpoint(
     role_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> list[PermissionCell]:
     if await repository.get_role(session, role_id) is None:
         raise NotFoundError("Rol bulunamadı")
@@ -79,7 +78,7 @@ async def create_role_endpoint(
     request: Request,
     data: RoleCreate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RoleResponse:
     role = await service.create_custom_role(session, data)
     await record_audit(
@@ -102,7 +101,7 @@ async def rename_role_endpoint(
     role_id: uuid.UUID,
     data: RoleRename,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RoleResponse:
     # Eski ad yeniden adlandirmadan ONCE okunmali; sonra okunursa yeni ad iki kez yazilir.
     existing = await repository.get_role(session, role_id)
@@ -129,7 +128,7 @@ async def update_permission_endpoint(
     module_key: str,
     data: PermissionUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PermissionCell:
     # system_admin -> PermissionLockedError(403); satir/rol yok -> NotFoundError(404)
     # Reddedilen degisiklik denetim satiri URETMEZ: istisna asagidaki koda hic ulasmaz.
@@ -160,7 +159,7 @@ async def delete_role_endpoint(
     request: Request,
     role_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     # Ad silmeden ONCE okunmali; sonra okunursa satir yoktur.
     existing = await repository.get_role(session, role_id)

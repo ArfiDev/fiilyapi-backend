@@ -45,7 +45,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -106,7 +106,7 @@ async def _audit(
 
 @router.get("/stock/items", response_model=StockItemListResponse, dependencies=[_VIEW])
 async def list_stock_items_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     category: StockCategory | None = None,
     q: str | None = None,
     is_active: bool | None = None,
@@ -146,7 +146,7 @@ async def create_stock_item_endpoint(
     request: Request,
     data: StockItemCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> StockItemResponse:
     """Yeni malzeme kartı. `code` GLOBAL tekildir; çakışma → 409."""
     item, detail = await service.create_stock_item(session, data)
@@ -165,7 +165,7 @@ async def update_stock_item_endpoint(
     item_id: uuid.UUID,
     data: StockItemUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> StockItemResponse:
     """Kısmi güncelleme. **Kullanımdan kaldırma da buradan geçer**
     (`{"is_active": false}`) — DELETE ucu yoktur (modül docstring'i)."""
@@ -180,7 +180,7 @@ async def update_stock_item_endpoint(
 @router.get("/warehouses", response_model=WarehouseListResponse, dependencies=[_VIEW])
 async def list_warehouses_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> WarehouseListResponse:
@@ -215,7 +215,7 @@ async def create_warehouse_endpoint(
     request: Request,
     data: WarehouseCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> WarehouseResponse:
     """Yeni depo. `site_id` verilmezse MERKEZ depodur (SG 84).
 
@@ -239,7 +239,7 @@ async def rename_warehouse_endpoint(
     warehouse_id: uuid.UUID,
     data: WarehouseUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> WarehouseResponse:
     """YALNIZ ad değişir. Depo TAŞIMA ucu yoktur (gerekçe `schemas`ta)."""
     warehouse, site = await service.visible_warehouse(session, user, warehouse_id)
@@ -258,7 +258,7 @@ async def delete_warehouse_endpoint(
     request: Request,
     warehouse_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """YALNIZ HAREKETSİZ depo silinir; hareketi varsa 409.
 
@@ -289,7 +289,7 @@ async def create_stock_entry_endpoint(
     request: Request,
     data: StockEntryCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> StockEntryResponse:
     """SG formunun kaydı: başlık + satırlar TEK gövde, ATOMİK.
 
@@ -312,7 +312,7 @@ async def create_stock_entry_endpoint(
 @router.get("/stock/entries", response_model=StockEntryListResponse, dependencies=[_VIEW])
 async def list_stock_entries_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     entry_type: StockEntryType | None = None,
     warehouse_id: uuid.UUID | None = None,
     date_from: date | None = None,
@@ -348,7 +348,7 @@ async def list_stock_entries_endpoint(
 @router.get("/stock/summary", response_model=StockSummaryResponse, dependencies=[_VIEW])
 async def stock_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     status_filter: Annotated[StockStatus | None, Query(alias="status")] = None,
     category: StockCategory | None = None,
     q: str | None = None,
@@ -372,7 +372,7 @@ async def stock_summary_endpoint(
 async def site_stock_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     section_id: uuid.UUID | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -407,7 +407,7 @@ async def site_stock_endpoint(
 async def section_stock_endpoint(
     section_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> SectionStockResponse:

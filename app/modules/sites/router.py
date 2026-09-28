@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
@@ -90,7 +90,7 @@ async def _detail_of(session: AsyncSession, site: Site, actor: User) -> SiteDeta
 async def list_sites_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SiteListResponse:
     return await service.list_sites_overview(session, user, project_id)
 
@@ -106,7 +106,7 @@ async def create_site_endpoint(
     project_id: uuid.UUID,
     data: SiteCreate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SiteDetailResponse:
     site = await service.create_site(session, current_user, project_id, data)
     # Taslak ve yayin AYRI metinlerdir (spec §10): denetim ekraninda "gercekten
@@ -134,7 +134,7 @@ async def create_site_endpoint(
 async def get_site_endpoint(
     site_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     project: Annotated[str | None, Query()] = None,
 ) -> SiteDetailResponse:
     """URL-2 — yol parametresi UUID **ya da** slug (karar 2).
@@ -160,7 +160,7 @@ async def update_site_endpoint(
     site_id: uuid.UUID,
     data: SiteUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SiteDetailResponse:
     # Metin SERVISTEN gelir: `is_draft: true -> false` gecisi ("yayına alındı")
     # duz guncellemeden ayirt edilebilsin diye — onceki `is_draft` degeri yalniz
@@ -175,7 +175,7 @@ async def delete_site_endpoint(
     request: Request,
     site_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Spec §7.1. CASCADE KORKULUGU servistedir — bolum/poz/blok varsa 409.
 
@@ -195,7 +195,7 @@ async def delete_site_endpoint(
 async def list_sections_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SectionListResponse:
     return await service.list_sections_for_site(session, user, site_id)
 
@@ -218,7 +218,7 @@ async def create_section_endpoint(
     site_id: uuid.UUID,
     data: SectionCreate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SectionDetailResponse:
     section = await service.create_section(session, current_user, site_id, data)
     await _audit(
@@ -235,7 +235,7 @@ async def create_section_endpoint(
 async def get_section_endpoint(
     section_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     site: Annotated[str | None, Query()] = None,
     project: Annotated[str | None, Query()] = None,
 ) -> SectionDetailResponse:
@@ -262,7 +262,7 @@ async def delete_section_endpoint(
     request: Request,
     section_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Spec §7.1. 🔴 **BU CUMLE BAYATTI VE DUZELTILDI (BC-3, 2026-09-05).**
 
@@ -293,7 +293,7 @@ async def update_section_endpoint(
     section_id: uuid.UUID,
     data: SectionUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SectionDetailResponse:
     # Metin SERVISTEN gelir (`update_site` deseni): `is_draft: true -> false`
     # gecisi ("yayına alındı") duz guncellemeden ayirt edilebilsin diye — onceki

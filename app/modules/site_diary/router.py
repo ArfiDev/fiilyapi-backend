@@ -18,10 +18,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import SiteValidationError
 from app.core.openapi import COMMON_ERROR_RESPONSES
@@ -62,7 +61,7 @@ _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
 async def list_site_diary_entries_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int | None, Query(ge=guards.MIN_YEAR, le=guards.MAX_YEAR)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -101,7 +100,7 @@ async def list_site_diary_entries_endpoint(
 async def get_site_diary_summary_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int | None, Query(ge=guards.MIN_YEAR, le=guards.MAX_YEAR)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
 ) -> SiteDiarySummary:
@@ -120,7 +119,7 @@ async def get_site_diary_summary_endpoint(
 async def get_site_diary_entry_endpoint(
     entry_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     section_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> SiteDiaryEntryDetail:
     """DET-1.B `section_id`: `prev_id`/`next_id` bu bölümün Kural A kümesinde; verilmezse
@@ -139,7 +138,7 @@ async def create_site_diary_entry_endpoint(
     site_id: uuid.UUID,
     data: SiteDiaryEntryCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SiteDiaryEntryDetail:
     """Satır iskeleti şantiyenin BOQ pozlarından OTOMATİK üretilir; gövdede satır YOK.
 
@@ -169,7 +168,7 @@ async def update_site_diary_entry_endpoint(
     entry_id: uuid.UUID,
     data: SiteDiaryEntryUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SiteDiaryEntryDetail:
     """Yalnız `status=draft`; gönderilmiş kayda YAZMA YASAK (409). Kesin karar
     `service.update`tedir — kural burada TEKRARLANMAZ."""
@@ -192,7 +191,7 @@ async def save_site_diary_lines_endpoint(
     entry_id: uuid.UUID,
     data: SiteDiaryLinesSave,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SiteDiaryEntryDetail:
     """GK'nin miktar girişi — **DEĞİŞTİRME** semantiği.
 
@@ -226,7 +225,7 @@ async def delete_site_diary_entry_endpoint(
     request: Request,
     entry_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Kapı `_FULL`dur, `_ADMIN` DEĞİL (taşeron silme ucunun aynı gerekçesi):
     admin kapısı olsaydı taslağı üreten şef/saha rollerinin KENDİ taslağını

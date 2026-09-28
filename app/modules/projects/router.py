@@ -2,10 +2,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
@@ -70,7 +69,7 @@ employers_router = APIRouter(
     dependencies=[require_permission("projects", AccessLevel.view)],
 )
 async def list_employers_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     q: str | None = None,
     active_only: bool = True,
 ) -> EmployerListResponse:
@@ -88,7 +87,7 @@ async def create_employer_endpoint(
     request: Request,
     data: EmployerCreate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EmployerResponse:
     employer = await service.create_employer(session, data)
     await record_audit(
@@ -108,7 +107,7 @@ async def create_employer_endpoint(
 )
 async def list_projects_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     type: ProjectType | None = None,
     status_filter: Annotated[ProjectStatus | None, Query(alias="status")] = None,
     limit: _LIMIT = 50,
@@ -135,7 +134,7 @@ async def list_projects_endpoint(
 )
 async def get_projects_timeline_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProjectTimelineResponse:
     """Portfoy Gantt'i (P11). HAM veri — ay/zoom parametresi YOKTUR (spec §6 S4)."""
     return await timeline.get_timeline(session, user)
@@ -149,7 +148,7 @@ async def get_projects_timeline_endpoint(
 async def get_project_endpoint(
     project_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProjectDetailResponse:
     """URL-2 — yol parametresi UUID **ya da** slug kabul eder (karar 2).
 
@@ -179,7 +178,7 @@ async def get_project_endpoint(
 async def get_project_costs_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProjectCostsResponse:
     return await cost_summary.get_project_costs(session, user, project_id)
 
@@ -201,7 +200,7 @@ async def get_project_costs_endpoint(
 async def get_land_share_summary_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> LandShareSummaryResponse:
     return await land_share.get_summary(session, user, project_id)
 
@@ -214,7 +213,7 @@ async def get_land_share_summary_endpoint(
 async def list_land_share_units_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     owner_side: UnitOwnerSideFilter | None = None,
     block_id: uuid.UUID | None = None,
     q: str | None = None,
@@ -247,7 +246,7 @@ async def create_project_endpoint(
     request: Request,
     data: ProjectCreate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProjectDetailResponse:
     project = await service.create_project(session, data)
     await record_audit(
@@ -270,7 +269,7 @@ async def update_project_endpoint(
     project_id: uuid.UUID,
     data: ProjectUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProjectDetailResponse:
     project = await service.update_project(session, current_user, project_id, data)
     await record_audit(

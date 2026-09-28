@@ -40,7 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
 from app.core.config import settings
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -153,7 +153,7 @@ def _document_payload(document, doc_type) -> EquipmentDocumentResponse:
     dependencies=[_VIEW],
 )
 async def list_equipment_document_types_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EquipmentDocumentTypeListResponse:
     """Altı sabit slot (M2:134-159). CRUD ucu YOK — yönetimi ayarlar dilimine
     ertelenmiştir (İK-1 emsali)."""
@@ -168,7 +168,7 @@ async def list_equipment_document_types_endpoint(
 )
 async def equipment_documents_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EquipmentDocumentsSummaryResponse:
     """K7 özeti: `expiring_soon` (30 gün) + `expired` + `missing` (zorunlu tip
     eksikleri, yalnız AKTİF ekipman) — hepsi K20 kapsamından GEÇER."""
@@ -183,7 +183,7 @@ async def equipment_documents_summary_endpoint(
 async def list_equipment_documents_endpoint(
     equipment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EquipmentDocumentListResponse:
     """Görünmeyen ekipman → 404 (K9/K20, IDOR deseni)."""
     rows = await service.list_documents(session, user, equipment_id)
@@ -205,7 +205,7 @@ async def create_equipment_document_endpoint(
     request: Request,
     equipment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     file: Annotated[UploadFile, File(...)],
     type_id: Annotated[uuid.UUID, Form()],
     valid_until: Annotated[date | None, Form()] = None,
@@ -249,7 +249,7 @@ async def update_equipment_document_endpoint(
     document_id: uuid.UUID,
     data: EquipmentDocumentUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EquipmentDocumentResponse:
     """Kısmi künye güncellemesi (K2) — DÖRT alan: `document_no` · `issued_at` ·
     `note` · `valid_until`.
@@ -274,7 +274,7 @@ async def update_equipment_document_endpoint(
 async def download_equipment_document_endpoint(
     document_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> StreamingResponse:
     """`documents/router.download_document_endpoint`in AYNI başlık deseni:
     `Content-Type` künyeden, `Content-Length` `size_bytes`ten, `Content-Disposition`
@@ -282,8 +282,12 @@ async def download_equipment_document_endpoint(
     tarayıcıda ÇALIŞTIRILMASI engellenir."""
     document = await service.get_document_for_download(session, user, document_id)
 
+    # Akış gövdesi function_stack kapandıktan sonra üretilir: ORM nesnesine değil,
+    # önceden okunmuş yerel değere bağlanılır.
+    icerik = document.content
+
     async def _stream():
-        yield document.content
+        yield icerik
 
     return StreamingResponse(
         _stream(),
@@ -306,7 +310,7 @@ async def delete_equipment_document_endpoint(
     request: Request,
     document_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     detail = await service.delete_document(session, user, document_id)
     await _audit(request, session, user, AuditAction.delete, detail)

@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -122,7 +122,7 @@ async def personnel_items(
 
 @router.get("/personnel", response_model=PersonnelListResponse, dependencies=[_VIEW])
 async def list_personnel_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     filters: Annotated[PersonnelFilters, Depends()],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -149,7 +149,7 @@ async def list_personnel_endpoint(
     responses={200: {"content": {XLSX_MEDIA_TYPE: {}}, "description": "Excel dosyasi"}},
 )
 async def personnel_export_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     filters: Annotated[PersonnelFilters, Depends()],
 ) -> Response:
     """PE "Dışa Aktar": kartoteksin Excel çıktısı — EKRANLA AYNI KÜME.
@@ -179,7 +179,7 @@ async def personnel_export_endpoint(
     dependencies=[_VIEW],
 )
 async def hr_documents_summary_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> HrDocumentsSummaryResponse:
     """BT özet ucu: 5 KPI + belge tipi dağılımı + süresi-dolan/yaklaşan listeleri.
 
@@ -200,7 +200,7 @@ async def create_personnel_endpoint(
     request: Request,
     data: PersonnelCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PersonnelResponse:
     personnel = await service.create_personnel(session, data)
     await record_audit(
@@ -216,7 +216,7 @@ async def create_personnel_endpoint(
 @router.get("/personnel/{personnel_id}", response_model=PersonnelResponse, dependencies=[_VIEW])
 async def get_personnel_endpoint(
     personnel_id: str,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PersonnelResponse:
     """URL-4 — yol parametresi UUID **ya da** ad slug'ı kabul eder.
 
@@ -235,7 +235,7 @@ async def update_personnel_endpoint(
     personnel_id: uuid.UUID,
     data: PersonnelUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PersonnelResponse:
     """Pasifleştirme de BURADAN geçer (`{"is_active": false}`) — DELETE ucu yoktur."""
     personnel = await service.update_personnel(session, personnel_id, data)
@@ -264,7 +264,7 @@ async def update_personnel_endpoint(
 )
 async def list_personnel_documents_endpoint(
     personnel_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> list[PersonnelDocumentResponse]:
     """O personelin belgeleri (tip künyeli, N+1 yok). Personel yok → 404.
 
@@ -284,7 +284,7 @@ async def create_personnel_document_endpoint(
     personnel_id: uuid.UUID,
     data: PersonnelDocumentCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PersonnelDocumentResponse:
     """Belge kaydı. `type_id` XOR `free_label`; pasif tip → 422, yok → 404;
 
@@ -311,7 +311,7 @@ async def update_personnel_document_endpoint(
     document_id: uuid.UUID,
     data: PersonnelDocumentUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PersonnelDocumentResponse:
     """Kısmi güncelleme. Belge yok → 404; `document_id` değişimi aynı BC görünürlük
     denetiminden geçer."""
@@ -335,7 +335,7 @@ async def delete_personnel_document_endpoint(
     request: Request,
     document_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """İK takip kaydını siler (`admin`; `full` silmeyi KAPSAMAZ). SET NULL: bağlı
     BC arşiv künyesi DURUR (dosya arşivde kalır). Yanıt 204, gövdesiz."""
@@ -367,7 +367,7 @@ async def delete_personnel_document_endpoint(
     dependencies=[Depends(get_current_user)],
 )
 async def list_leave_types_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> list[LeaveTypeResponse]:
     """Aktif izin tipleri (`sort_order`). Yazma ucu YOKTUR — katalog ayarlar dilimidir.
 
@@ -391,7 +391,7 @@ async def list_leave_types_endpoint(
 
 @router.get("/leave-requests", response_model=LeaveRequestListResponse, dependencies=[_VIEW])
 async def list_leave_requests_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     status_filter: Annotated[LeaveStatus | None, Query(alias="status")] = None,
     personnel_id: uuid.UUID | None = None,
     project_id: uuid.UUID | None = None,
@@ -425,7 +425,7 @@ async def create_leave_request_endpoint(
     request: Request,
     data: LeaveRequestCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> LeaveRequestResponse:
     """`days` SUNUCU hesabıdır ve `status` `pending` başlar (spec §5 K2); ikisi de
     gövdeden alınmaz — gönderilirse 422 (şema `extra="forbid"`).
@@ -462,7 +462,7 @@ async def create_leave_request_endpoint(
 @router.get("/leave-requests/self", response_model=LeaveRequestListResponse)
 async def list_self_leave_requests_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     status_filter: Annotated[LeaveStatus | None, Query(alias="status")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -487,7 +487,7 @@ async def create_self_leave_request_endpoint(
     request: Request,
     data: SelfLeaveRequestCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> LeaveRequestResponse:
     """Personelin KENDİ izin talebi — onay akışı DEĞİŞMEZ, İK'da kalır.
 
@@ -513,7 +513,7 @@ async def create_self_leave_request_endpoint(
 )
 async def get_leave_request_endpoint(
     request_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> LeaveRequestResponse:
     return await service.get_leave_request(session, request_id)
 
@@ -526,7 +526,7 @@ async def update_leave_request_endpoint(
     request_id: uuid.UUID,
     data: LeaveRequestUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> LeaveRequestResponse:
     """YALNIZ `pending` kayıt düzenlenebilir (karara bağlanmış → 409). Tarih
     değişirse `days` YENİDEN sunucu hesabıdır."""
@@ -550,7 +550,7 @@ async def delete_leave_request_endpoint(
     request: Request,
     request_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Bekleyen talebi siler. Kapı BİLİNÇLİ olarak `_VIEW`dir: gerçek kural İKİ
     yoldan açılır (`admin` seviyesi YA DA talebin SAHİBİ olmak, spec §3) ve tek
@@ -587,7 +587,7 @@ async def approve_leave_request_endpoint(
     request: Request,
     request_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     data: LeaveApproveRequest | None = None,
 ) -> LeaveRequestResponse:
     """Talebi onaylar (TEK adım). Karar alanları SUNUCU damgasıdır — gövde ALAN
@@ -620,7 +620,7 @@ async def reject_leave_request_endpoint(
     request_id: uuid.UUID,
     data: LeaveRejectRequest,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> LeaveRequestResponse:
     """Talebi reddeder — `reason` ZORUNLU (boş/boşluk → 422).
 
@@ -644,7 +644,7 @@ async def withdraw_leave_request_endpoint(
     request: Request,
     request_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> LeaveRequestResponse:
     """Talebi SAHİBİ geri çeker (İK-2.2, kullanıcı kararı 2026-08-22).
 
@@ -684,7 +684,7 @@ _YEAR_PATH = Path(ge=2000, le=2100)
 )
 async def get_leave_balance_endpoint(
     personnel_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int, _YEAR_PATH],
 ) -> LeaveBalanceResponse:
     """İZ bakiye satırı: hak / devreden / kullanılan / kalan / kullanım yüzdesi.
@@ -710,7 +710,7 @@ async def upsert_leave_balance_endpoint(
     personnel_id: uuid.UUID,
     data: LeaveBalanceUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int, _YEAR_PATH],
 ) -> LeaveBalanceResponse:
     """Devreden günü yazar (UPSERT) — YALNIZ `carried_over` (İZ 137).
@@ -742,7 +742,7 @@ _YEAR_QUERY = Query(ge=2000, le=2100)
     dependencies=[_VIEW],
 )
 async def hr_leaves_summary_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int | None, _YEAR_QUERY] = None,
 ) -> HrLeavesSummaryResponse:
     """İZ özet ucu: 5 KPI + personel bazlı izin bakiyesi tablosu.

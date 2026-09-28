@@ -17,10 +17,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
@@ -62,7 +61,7 @@ _FULL = require_permission("sales", AccessLevel.full)
 
 @router.get("/customers", response_model=CustomerListResponse, dependencies=[_VIEW])
 async def list_customers_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     q: str | None = None,
 ) -> CustomerListResponse:
     """`q` ad / TCKN / VKN üzerinde kısmi arar (spec §4)."""
@@ -80,7 +79,7 @@ async def create_customer_endpoint(
     request: Request,
     data: CustomerCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> CustomerResponse:
     customer = await service.create_customer(session, data)
     await record_audit(
@@ -96,7 +95,7 @@ async def create_customer_endpoint(
 @router.get("/customers/{customer_id}", response_model=CustomerResponse, dependencies=[_VIEW])
 async def get_customer_endpoint(
     customer_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> CustomerResponse:
     customer = await service.get_customer(session, customer_id)
     return CustomerResponse.model_validate(customer)
@@ -108,7 +107,7 @@ async def update_customer_endpoint(
     customer_id: uuid.UUID,
     data: CustomerUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> CustomerResponse:
     customer = await service.update_customer(session, customer_id, data)
     await record_audit(

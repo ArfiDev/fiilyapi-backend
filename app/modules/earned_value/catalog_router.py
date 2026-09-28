@@ -20,7 +20,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
@@ -41,7 +41,7 @@ from app.modules.users.models import User
 router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES)
 
 _User = Annotated[User, Depends(get_current_user)]
-_Session = Annotated[AsyncSession, Depends(get_db)]
+_Session = DbSession
 
 
 async def _audit(

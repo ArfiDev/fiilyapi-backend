@@ -52,7 +52,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -114,7 +114,7 @@ async def _audit(
 @router.get("/chart-of-accounts", response_model=ChartAccountListResponse, dependencies=[_VIEW])
 async def list_chart_accounts_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     q: str | None = None,
     account_type: ChartAccountType | None = None,
     is_active: bool | None = None,
@@ -154,7 +154,7 @@ async def create_chart_account_endpoint(
     request: Request,
     data: ChartAccountCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ChartAccountResponse:
     """Yeni hesap (HP:50 `+ Hesap Ekle`).
 
@@ -185,7 +185,7 @@ async def create_chart_account_endpoint(
 )
 async def export_chart_accounts_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     q: str | None = None,
     account_type: ChartAccountType | None = None,
     is_active: bool | None = None,
@@ -242,7 +242,7 @@ async def export_chart_accounts_endpoint(
 async def get_chart_account_endpoint(
     account_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ChartAccountResponse:
     """Tek hesap + türetilmiş bakiye. Bakiye liste ucuyla AYNI kaynaktan gelir."""
     return await accounts_service.get_account_response(session, account_id)
@@ -262,7 +262,7 @@ async def update_chart_account_endpoint(
     account_id: uuid.UUID,
     data: ChartAccountUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ChartAccountResponse:
     """Kısmi güncelleme; kayıt DENETİMLERDEN ÖNCE kilitlenir (TOCTOU).
 
@@ -293,7 +293,7 @@ async def delete_chart_account_endpoint(
     request: Request,
     account_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """**YALNIZ `admin`** → 204; fiş satırı ya da alt hesabı olan hesap **409**.
 

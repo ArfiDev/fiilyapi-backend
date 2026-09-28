@@ -18,7 +18,7 @@ from fastapi.responses import Response
 from openpyxl import Workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import ConflictError, NotFoundError
 from app.core.http import content_disposition
@@ -51,7 +51,7 @@ from app.modules.users.models import User
 router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES)
 
 _User = Annotated[User, Depends(get_current_user)]
-_Db = Annotated[AsyncSession, Depends(get_db)]
+_Db = DbSession
 _Writable = Annotated[SiteContext, Depends(completed_site_guard(SITE_COMPLETED_BUDGET_READ_ONLY))]
 _BASE = "/sites/{site_id}/earned-value/reports"
 NO_WEEK = "Hafta proje takviminde yok"

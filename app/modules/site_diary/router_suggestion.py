@@ -28,10 +28,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import SiteValidationError
 from app.core.openapi import COMMON_ERROR_RESPONSES
@@ -70,7 +69,7 @@ def _assert_period(year: int | None, month: int | None) -> None:
 async def employer_diary_suggestion_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int | None, Query(ge=MIN_YEAR, le=MAX_YEAR)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
 ) -> EmployerDiarySuggestion:
@@ -92,7 +91,7 @@ async def employer_diary_suggestion_endpoint(
 async def subcontractor_diary_suggestion_endpoint(
     contract_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int | None, Query(ge=MIN_YEAR, le=MAX_YEAR)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
 ) -> SubcontractorDiarySuggestion:

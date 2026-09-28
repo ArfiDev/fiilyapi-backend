@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import UnitValidationError
 from app.core.openapi import COMMON_ERROR_RESPONSES
@@ -107,7 +107,7 @@ async def _audit(
 async def list_blocks_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BlockListResponse:
     """Spec §7.1. Blok seciciler (unite formu, toplu uretim formu) bu ucu kullanir."""
     return await service.list_blocks(session, user, project_id)
@@ -117,7 +117,7 @@ async def list_blocks_endpoint(
 async def list_units_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     block_id: Annotated[uuid.UUID | None, Query()] = None,
     site_id: Annotated[uuid.UUID | None, Query()] = None,
     kind: Annotated[UnitKind | None, Query()] = None,
@@ -151,7 +151,7 @@ async def create_block_endpoint(
     project_id: uuid.UUID,
     data: BlockCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BlockResponse:
     """Spec §7.2. Tek santiyeli projede `site_id` gonderilmezse otomatik atanir
     (§4.5) — mockup'ta santiye secici yoktur (KY 38 / KK 39)."""
@@ -166,7 +166,7 @@ async def update_block_endpoint(
     block_id: uuid.UUID,
     data: BlockUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BlockResponse:
     """Spec §7.3. Kimlik YUKARI cozumlenir (blok → proje → gorunurluk);
     gorunmeyen projenin blogu 404 doner, 403 DEGIL."""
@@ -186,7 +186,7 @@ async def create_unit_endpoint(
     project_id: uuid.UUID,
     data: UnitCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitResponse:
     """Spec §7.5. Govdedeki `block_id` bu projeye ait olmali (IDOR-9), aksi hâlde 404."""
     unit, detail = await service.create_unit(session, user, project_id, data)
@@ -200,7 +200,7 @@ async def update_unit_endpoint(
     unit_id: uuid.UUID,
     data: UnitUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitResponse:
     """Spec §7.6. Kimlik YUKARI cozumlenir (unite → proje → gorunurluk);
     `block_id` ile ayni proje icinde tasima serbesttir."""
@@ -214,7 +214,7 @@ async def delete_unit_endpoint(
     request: Request,
     unit_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Spec §7.9. Unite silme kosulsuzdur (P3'te uniteye bagli tablo yok, §1.3).
 
@@ -239,7 +239,7 @@ async def delete_block_endpoint(
     request: Request,
     block_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Spec §7.9. CASCADE YOK: unitesi olan blok 409 ile reddedilir — 24 daireyi
     tek istekte silmek geri alinamaz veri kaybidir.
@@ -263,7 +263,7 @@ async def bulk_create_units_endpoint(
     project_id: uuid.UUID,
     data: UnitBulkCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitListResponse:
     """Spec §7.7. HEP-YA-HIC: uretilen numaralardan biri bile blokta varsa
     HICBIRI yazilmaz (409). Yanit guncel tam listedir — ekran tabloyu yeniden
@@ -284,7 +284,7 @@ async def preview_bulk_units_endpoint(
     project_id: uuid.UUID,
     data: UnitBulkCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitBulkPreview:
     """Spec §5.4 (TU 159-182). **HICBIR SEY YAZMAZ** ve **DENETIM URETMEZ**.
 
@@ -314,7 +314,7 @@ async def update_allocation_endpoint(
     project_id: uuid.UUID,
     data: UnitAllocationRequest,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitListResponse:
     """Spec §7.10 (KKP 25). Paylar TOPLU URETIMDE atanmaz, SONRADAN bu ucla
     girilir: paylasim noterden sonra belli olur (KKP 78).
@@ -339,7 +339,7 @@ async def update_allocation_endpoint(
 async def validate_import_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     file: Annotated[UploadFile, File()],
     site_id: Annotated[uuid.UUID | None, Form()] = None,
     include_warnings: Annotated[bool, Form()] = True,
@@ -382,7 +382,7 @@ async def import_units_endpoint(
     request: Request,
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     file: Annotated[UploadFile, File()],
     site_id: Annotated[uuid.UUID | None, Form()] = None,
     include_warnings: Annotated[bool, Form()] = True,
@@ -428,7 +428,7 @@ async def import_units_endpoint(
 async def units_import_template_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> Response:
     """Spec §6.7 (EI 37, 87 "Şablon İndir"). 12 baslikli BOS `.xlsx`.
 
@@ -461,7 +461,7 @@ async def units_import_template_endpoint(
 async def units_export_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> Response:
     """P9 T4 (KKP 24 "Excel"): paylasim tablosunun Excel ciktisi (spec §5).
 
