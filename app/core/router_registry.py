@@ -102,6 +102,9 @@ from app.modules.earned_value.day_router import router as earned_value_day_route
 from app.modules.earned_value.report_router import router as earned_value_report_router
 from app.modules.earned_value.router import router as earned_value_budget_router
 from app.modules.earned_value.settings_router import router as earned_value_settings_router
+from app.modules.earned_value.user_discipline_router import (
+    router as earned_value_user_discipline_router,
+)
 from app.modules.equipment.document_router import router as equipment_document_router
 from app.modules.equipment.rental_router import router as equipment_rental_router
 from app.modules.equipment.router import router as equipment_router
@@ -192,6 +195,7 @@ ROUTERS: tuple[APIRouter, ...] = (
     earned_value_budget_router,
     earned_value_day_router,
     earned_value_report_router,
+    earned_value_user_discipline_router,
     # Düz `GET /sites` (SITE-1a) TEK segmentlidir; `sites_router`ın
     # `/sites/{site_id}` yolu İKİ segmentlidir ve FastAPI segment sayısına göre
     # ayırdığı için çakışma YOKTUR (ölçüldü — `personnel/document-types`

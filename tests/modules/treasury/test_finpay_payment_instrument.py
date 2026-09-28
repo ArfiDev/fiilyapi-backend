@@ -796,6 +796,10 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     **YALNIZ CANLIDA 404** döner — jsdom görmez, backend CI yeşil kalır (bu
     deponun kanonik BFF tuzağı). `units` kökünü izin listesine eklemek
     FRONTEND diliminin işidir; backend tarafında yapılacak bir şey yoktur.
+
+    🔴 **DSC-B0 (+1 yol / +2 operasyon):** `GET`/`PUT /users/{user_id}/disciplines` —
+    kullanıcı disiplin ataması (EV uzantısı; DISIPLIN-KAPSAMI-SPEC). Tek yol üzerinde iki
+    operasyon. Yani 286→**287** · 408→**410**.
     """
     from app.main import app
 
@@ -818,5 +822,5 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # EXPORT-XLSX bunun ÜSTÜNE +6 yol / +6 operasyon ekler (aşağıdaki
     # docstring girdisi). Rebase sonrası sayılar YENİDEN ÖLÇÜLDÜ, eski
     # 243/351'den türetilmedi: 239→245 · 348→354.
-    assert len(yollar) == 286
-    assert operasyonlar == 408
+    assert len(yollar) == 287
+    assert operasyonlar == 410

@@ -37,6 +37,7 @@ from app.modules.earned_value.models import (
     EvItemSettings,
     EvRevision,
     EvWindow,
+    UserDiscipline,
 )
 from app.modules.earned_value.schemas_catalog import (
     CatalogActual,
@@ -113,17 +114,18 @@ async def update_discipline(
 class DisciplineUsage:
     item_count: int  # katalog is tipi sayisi
     site_count: int  # disipline BOQ grubu eslenmis (ya da donmus baseline'i olan) santiye
+    user_count: int = 0  # disipline atanmis kullanici (`user_disciplines`; DSC-B0)
 
 
 async def discipline_usage(
     session: AsyncSession, discipline_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, DisciplineUsage]:
-    """Liste icin TOPLU sayim — iki sorgu, disiplin basina sorgu YOK (N+1 degil).
+    """Liste icin TOPLU sayim — uc sorgu, disiplin basina sorgu YOK (N+1 degil).
 
     Santiye sayisi = grup eslemesi (aktif/taslak/arsiv fark etmez) ∪ donmus baseline yapragi.
     🔴 Baseline'i da saymak zorunlu: BOQ grubu silinince eslemesi CASCADE ile gider ama
     baseline yapragi disipline RESTRICT ile bagli kalir — saymasaydik "0 santiye" deyip
-    silmeye izin verir, sonra FK'ya carpardik (500).
+    silmeye izin verir, sonra FK'ya carpardik (genel 409 'Veri butunlugu hatasi').
     """
     if not discipline_ids:
         return {}
@@ -152,11 +154,23 @@ async def discipline_usage(
             )
         ).all()
     )
-    return {d: DisciplineUsage(items.get(d, 0), sites.get(d, 0)) for d in discipline_ids}
+    users = dict(
+        (
+            await session.execute(
+                select(UserDiscipline.discipline_id, func.count())
+                .where(UserDiscipline.discipline_id.in_(discipline_ids))
+                .group_by(UserDiscipline.discipline_id)
+            )
+        ).all()
+    )
+    return {
+        d: DisciplineUsage(items.get(d, 0), sites.get(d, 0), users.get(d, 0))
+        for d in discipline_ids
+    }
 
 
 async def delete_discipline(session: AsyncSession, discipline_id: uuid.UUID) -> EvDiscipline:
-    """Kullanilmayan disiplini siler (kural = sayaclar: is tipi 0 VE santiye 0).
+    """Kullanilmayan disiplini siler (kural = sayaclar: is tipi, santiye, atanmis kullanici 0).
 
     Sayaclar sifirken kalabilecek tek iz, eslemesi kalmamis revizyonlardaki dagilim tipi /
     pencere EZMESIDIR — grubu olmayan disiplin icin anlamsizdir, disiplinle birlikte silinir.
@@ -165,6 +179,8 @@ async def delete_discipline(session: AsyncSession, discipline_id: uuid.UUID) -> 
     usage = (await discipline_usage(session, [discipline.id]))[discipline.id]
     if usage.item_count or usage.site_count:
         raise RelatedRecordsExistError(guards.DISCIPLINE_IN_USE)
+    if usage.user_count:  # genel 409 'Veri butunlugu' yerine anlamli 409 (DSC-B0)
+        raise RelatedRecordsExistError(guards.DISCIPLINE_ASSIGNED_TO_USERS)
     for model in (EvDistribution, EvWindow):
         await session.execute(delete(model).where(model.discipline_id == discipline.id))
     await session.delete(discipline)

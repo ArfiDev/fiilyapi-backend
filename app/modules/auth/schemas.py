@@ -36,3 +36,6 @@ class MeResponse(BaseModel):
     # İzin satırı olmayan modül haritada YER ALMAZ; frontend bunu "bilinmezlik"
     # sayıp kontrolü görünür bırakır (güvenlik sınırı her zaman backend'dedir).
     permissions: dict[str, AccessLevel]
+    # Kullanicinin atanmis disiplinleri (DSC-B0; id'ye gore sirali). Bos = atamasiz =
+    # KISITSIZ (proje muduru/admin). Modul kaydi yoksa da bos.
+    disciplines: list[uuid.UUID]

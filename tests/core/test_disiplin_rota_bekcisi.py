@@ -1,0 +1,297 @@
+"""🔴 ROTA BEKÇİSİ İSKELETİ (DSC-B0): "disipline duyarlı" her rota ya SÜZÜLMÜŞ olarak
+İŞARETLİ ya da izin listesinde (DISIPLIN-KAPSAMI-SPEC dilimleri B1-B5).
+
+## İşaret
+Rota, `app.core.discipline_deps.resolve_discipline_scope` bağımlılığını (`DisciplineScoped`)
+bağımlılık ağacında taşıyorsa süzülmüş sayılır (gerekçe: o modülün docstring'i). Bugün
+HİÇBİR rota taşımaz → izin listesi bugünkü duyarlı rotaların TAMAMIdır; B1-B5 rotaları
+işaretledikçe girdiyi siler, B6 listeyi boşaltır (`IZIN_LISTESI == {}`).
+
+## Sınıflandırıcı — TAM DEĞİLDİR
+"Duyarlı rota" = spec'in dilim listesindeki modüllerin uçları (ucun `endpoint.__module__`
+kökü): BOQ, günlük (site_diary), earned_value, hakediş (progress_payments +
+subcontractor_progress_payments) ve inventory'nin YALNIZ stok satırı uçları. Bu önek
+kümesinin DIŞINDA kalan duyarlı uçlar (ör. `boq/progress.py` agregatlarını okuyan
+sites/sections/projects kartları — B4) sınıflandırıcıya B dilimlerinde EKLENİR; bu bekçi
+onları bugün görmez. Bilinçli dışlananlar: `/users/{id}/disciplines` (kullanıcı yönetimi),
+EV `settings` GET/PUT (santiye yapılandırması; satır verisi yok), inventory kalem/depo
+tanımları.
+
+## Modül-kökü dışı EK duyarlı rotalar (CEO kararı 2026-09-29) — `EK_DUYARLI_ROTALAR`
+(a) `GET/PUT /projects/{project_id}/contract/distribution` (`contracts/distribution.py:154,498`)
+    → DSC-B5: ticari/proje düzeyi belge, Ü2 (hakediş) ile aynı sınıf → kısıtlıya 403.
+(b) `GET /dashboard/summary` (`dashboard/risks.py:141-143`) → DSC-B4: stok riskleri
+    `/stock/summary` ile aynı kaynak; Ü3 kendi disiplini üzerinden yeniden hesap.
+
+⚠️ `iter_route_contexts` + EFEKTİF bağlam (`ctx.dependant`): FastAPI 0.141 `include_router`ı
+`_IncludedRouter` tutar, `app.routes` düz dolaşımı alt yönlendirici rotalarını GÖRMEZ
+(`test_getdb_kapsam_bekcisi.py`). "Sıfır rota tarandı" ve "her aile ≥1 rota" kontrolleri
+sessiz-boş taramayı (sınıflandırıcı bozulması) KIRMIZI yapar.
+"""
+
+from __future__ import annotations
+
+import re
+
+from fastapi.dependencies.models import Dependant
+from fastapi.routing import APIRoute, iter_route_contexts
+
+from app.core.discipline_deps import resolve_discipline_scope
+from app.main import app
+
+Rota = tuple[str, str]
+
+#: endpoint modülü kökü -> aile adı (ailelerin hepsi ≥1 rota taramalı).
+AILE_KOKLERI: dict[str, str] = {
+    "app.modules.boq.": "boq",
+    "app.modules.site_diary.": "gunluk",
+    "app.modules.earned_value.": "ev",
+    "app.modules.progress_payments.": "hakedis",
+    "app.modules.subcontractor_progress_payments.": "tas_hakedis",
+    "app.modules.inventory.": "stok",
+}
+
+#: Duyarlı OLMAYAN uçlar (gerekçe modül docstring'inde).
+KAPSAM_DISI_EV_MODULLERI = ("app.modules.earned_value.user_discipline_router",)
+STOK_SATIR_YOLLARI = frozenset(
+    {"/stock/entries", "/stock/summary", "/sites/{site_id}/stock", "/sections/{section_id}/stock"}
+)
+_EV_B3_YOLU = re.compile(r"/earned-value/(panel|reports/|settings/preview)")
+_EV_AYAR_YOLU = re.compile(r"/earned-value/settings$")
+#: Modül kökü sınıflandırıcısının DIŞINDA kalan duyarlı rotalar: (yöntem, yol) -> (dilim,
+#: gerekçe). Her girdi gerçekten var olmalı (bayat → kırmızı).
+EK_DUYARLI_ROTALAR: dict[Rota, tuple[str, str]] = {
+    ("GET", "/projects/{project_id}/contract/distribution"): (
+        "DSC-B5",
+        "sözleşme dağıtımı ticari/proje düzeyi belge; Ü2 (hakediş) ile aynı sınıf → 403",
+    ),
+    ("PUT", "/projects/{project_id}/contract/distribution"): (
+        "DSC-B5",
+        "sözleşme dağıtımı ticari/proje düzeyi belge; Ü2 (hakediş) ile aynı sınıf → 403",
+    ),
+    ("GET", "/dashboard/summary"): (
+        "DSC-B4",
+        "stok riskleri /stock/summary ile aynı kaynak (Ü3 yeniden hesap; NULL stok satırı Ü1)",
+    ),
+}
+_YAZMA = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _aile(modul: str) -> str | None:
+    if modul.startswith(KAPSAM_DISI_EV_MODULLERI):
+        return None
+    return next((ad for kok, ad in AILE_KOKLERI.items() if modul.startswith(kok)), None)
+
+
+def _dilim(aile: str, yontem: str, yol: str) -> str | None:
+    """Duyarlı rotanın HEDEF dilimi (spec dilim tanımı); duyarlı değilse None."""
+    yazma = yontem in _YAZMA
+    if aile in ("hakedis", "tas_hakedis"):
+        return "DSC-B5"
+    if aile == "stok":
+        if yol not in STOK_SATIR_YOLLARI:
+            return None
+        return "DSC-B5" if yazma else "DSC-B1"
+    if aile == "ev" and _EV_AYAR_YOLU.search(yol):
+        return None
+    if aile == "ev" and not yazma and _EV_B3_YOLU.search(yol):
+        return "DSC-B3"
+    return "DSC-B2" if yazma else "DSC-B1"
+
+
+def duyarli_rotalar() -> tuple[dict[Rota, str], dict[str, int]]:
+    """(yöntem, yol) -> hedef dilim; ayrıca aile başına taranan rota sayısı."""
+    sonuc: dict[Rota, str] = {}
+    aile_sayilari: dict[str, int] = {}
+    for ctx in iter_route_contexts(app.routes):
+        rota = ctx.original_route
+        if not isinstance(rota, APIRoute):
+            continue
+        aile = _aile(rota.endpoint.__module__)
+        if aile is None:
+            continue
+        for yontem in sorted(ctx.methods):
+            dilim = _dilim(aile, yontem, ctx.path)
+            if dilim is None:
+                continue
+            sonuc[(yontem, ctx.path)] = dilim
+            aile_sayilari[aile] = aile_sayilari.get(aile, 0) + 1
+    mevcut = {(y, c.path) for c in iter_route_contexts(app.routes) for y in c.methods}
+    for rota_anahtari, (dilim, _gerekce) in EK_DUYARLI_ROTALAR.items():
+        if rota_anahtari in mevcut:
+            sonuc[rota_anahtari] = dilim
+    return sonuc, aile_sayilari
+
+
+def _isaretli(dependant: Dependant, gorulen: set[int] | None = None) -> bool:
+    gorulen = gorulen if gorulen is not None else set()
+    if id(dependant) in gorulen:
+        return False
+    gorulen.add(id(dependant))
+    if dependant.call is resolve_discipline_scope:
+        return True
+    return any(_isaretli(alt, gorulen) for alt in dependant.dependencies)
+
+
+def isaretli_rotalar() -> set[Rota]:
+    sonuc: set[Rota] = set()
+    for ctx in iter_route_contexts(app.routes):
+        if not isinstance(ctx.original_route, APIRoute):
+            continue
+        dependant = ctx.dependant or ctx.original_route.dependant
+        if _isaretli(dependant):
+            sonuc |= {(yontem, ctx.path) for yontem in ctx.methods}
+    return sonuc
+
+
+#: (yöntem, yol) -> hedef dilim. B1-B5 girdi siler; B6 boşaltır.
+IZIN_LISTESI: dict[Rota, str] = {
+    ("GET", "/projects/{project_id}/contract/distribution"): "DSC-B5",
+    ("PUT", "/projects/{project_id}/contract/distribution"): "DSC-B5",
+    ("GET", "/dashboard/summary"): "DSC-B4",
+    ("GET", "/boq/items/{item_id}/allocations"): "DSC-B1",
+    ("GET", "/diary/{entry_id}"): "DSC-B1",
+    ("GET", "/earned-value/catalog"): "DSC-B1",
+    ("GET", "/earned-value/disciplines"): "DSC-B1",
+    ("GET", "/projects/{project_id}/progress-payments/diary-suggestion"): "DSC-B1",
+    ("GET", "/sections/{section_id}/stock"): "DSC-B1",
+    ("GET", "/sites/{site_id}/boq"): "DSC-B1",
+    ("GET", "/sites/{site_id}/boq/export"): "DSC-B1",
+    ("GET", "/sites/{site_id}/diary"): "DSC-B1",
+    ("GET", "/sites/{site_id}/diary/summary"): "DSC-B1",
+    ("GET", "/sites/{site_id}/earned-value/budget"): "DSC-B1",
+    ("GET", "/sites/{site_id}/earned-value/budget/items/{boq_item_id}/suggestions"): "DSC-B1",
+    ("GET", "/sites/{site_id}/earned-value/budget/revisions"): "DSC-B1",
+    ("GET", "/sites/{site_id}/earned-value/budget/revisions/{revision_id}/diff"): "DSC-B1",
+    ("GET", "/sites/{site_id}/earned-value/budget/schedule"): "DSC-B1",
+    ("GET", "/sites/{site_id}/earned-value/code-tree"): "DSC-B1",
+    ("GET", "/sites/{site_id}/earned-value/days/{day}"): "DSC-B1",
+    ("GET", "/sites/{site_id}/earned-value/days/{day}/previous-allocation"): "DSC-B1",
+    ("GET", "/sites/{site_id}/stock"): "DSC-B1",
+    ("GET", "/stock/entries"): "DSC-B1",
+    ("GET", "/stock/summary"): "DSC-B1",
+    ("GET", "/subcontractor-contracts/{contract_id}/progress-payments/diary-suggestion"): "DSC-B1",
+    ("DELETE", "/boq/groups/{group_id}"): "DSC-B2",
+    ("PATCH", "/boq/groups/{group_id}"): "DSC-B2",
+    ("DELETE", "/boq/items/{item_id}"): "DSC-B2",
+    ("PATCH", "/boq/items/{item_id}"): "DSC-B2",
+    ("PUT", "/boq/items/{item_id}/allocations"): "DSC-B2",
+    ("DELETE", "/diary/{entry_id}"): "DSC-B2",
+    ("PATCH", "/diary/{entry_id}"): "DSC-B2",
+    ("PUT", "/diary/{entry_id}/lines"): "DSC-B2",
+    ("POST", "/diary/{entry_id}/reopen"): "DSC-B2",
+    ("POST", "/diary/{entry_id}/submit"): "DSC-B2",
+    ("POST", "/earned-value/catalog"): "DSC-B2",
+    ("PATCH", "/earned-value/catalog/{item_id}"): "DSC-B2",
+    ("POST", "/earned-value/catalog/{item_id}/adopt-actual"): "DSC-B2",
+    ("POST", "/earned-value/disciplines"): "DSC-B2",
+    ("DELETE", "/earned-value/disciplines/{discipline_id}"): "DSC-B2",
+    ("PATCH", "/earned-value/disciplines/{discipline_id}"): "DSC-B2",
+    ("POST", "/sites/{site_id}/boq/groups"): "DSC-B2",
+    ("POST", "/sites/{site_id}/boq/items"): "DSC-B2",
+    ("POST", "/sites/{site_id}/diary"): "DSC-B2",
+    ("PUT", "/sites/{site_id}/earned-value/budget/distributions"): "DSC-B2",
+    ("POST", "/sites/{site_id}/earned-value/budget/fill-from-catalog"): "DSC-B2",
+    ("POST", "/sites/{site_id}/earned-value/budget/freeze"): "DSC-B2",
+    ("PUT", "/sites/{site_id}/earned-value/budget/group-disciplines"): "DSC-B2",
+    ("PATCH", "/sites/{site_id}/earned-value/budget/items/{boq_item_id}"): "DSC-B2",
+    ("PATCH", "/sites/{site_id}/earned-value/budget/leaves"): "DSC-B2",
+    ("POST", "/sites/{site_id}/earned-value/budget/preview"): "DSC-B2",
+    ("POST", "/sites/{site_id}/earned-value/budget/revisions"): "DSC-B2",
+    ("DELETE", "/sites/{site_id}/earned-value/budget/revisions/{revision_id}"): "DSC-B2",
+    ("PUT", "/sites/{site_id}/earned-value/budget/windows"): "DSC-B2",
+    ("PUT", "/sites/{site_id}/earned-value/days/{day}/allocation"): "DSC-B2",
+    ("POST", "/sites/{site_id}/earned-value/days/{day}/unlock"): "DSC-B2",
+    ("POST", "/sites/{site_id}/earned-value/reports/daily/{day}/approve"): "DSC-B2",
+    ("GET", "/sites/{site_id}/earned-value/panel"): "DSC-B3",
+    ("GET", "/sites/{site_id}/earned-value/reports/daily"): "DSC-B3",
+    ("GET", "/sites/{site_id}/earned-value/reports/weekly"): "DSC-B3",
+    ("GET", "/sites/{site_id}/earned-value/reports/weekly.xlsx"): "DSC-B3",
+    ("GET", "/sites/{site_id}/earned-value/settings/preview"): "DSC-B3",
+    ("GET", "/sites/{site_id}/earned-value/settings/preview/composite"): "DSC-B3",
+    ("GET", "/progress-payments"): "DSC-B5",
+    ("DELETE", "/progress-payments/{payment_id}"): "DSC-B5",
+    ("GET", "/progress-payments/{payment_id}"): "DSC-B5",
+    ("PATCH", "/progress-payments/{payment_id}"): "DSC-B5",
+    ("POST", "/progress-payments/{payment_id}/approve"): "DSC-B5",
+    ("PUT", "/progress-payments/{payment_id}/lines"): "DSC-B5",
+    ("POST", "/progress-payments/{payment_id}/mark-paid"): "DSC-B5",
+    ("POST", "/progress-payments/{payment_id}/refresh-prices"): "DSC-B5",
+    ("POST", "/progress-payments/{payment_id}/reject"): "DSC-B5",
+    ("POST", "/progress-payments/{payment_id}/submit"): "DSC-B5",
+    ("POST", "/progress-payments/{payment_id}/unapprove"): "DSC-B5",
+    ("POST", "/projects/{project_id}/progress-payments"): "DSC-B5",
+    ("GET", "/projects/{project_id}/progress-payments/summary"): "DSC-B5",
+    ("POST", "/stock/entries"): "DSC-B5",
+    ("POST", "/subcontractor-contracts/{contract_id}/progress-payments"): "DSC-B5",
+    ("GET", "/subcontractor-progress-payments"): "DSC-B5",
+    ("GET", "/subcontractor-progress-payments/summary"): "DSC-B5",
+    ("DELETE", "/subcontractor-progress-payments/{payment_id}"): "DSC-B5",
+    ("GET", "/subcontractor-progress-payments/{payment_id}"): "DSC-B5",
+    ("PATCH", "/subcontractor-progress-payments/{payment_id}"): "DSC-B5",
+    ("POST", "/subcontractor-progress-payments/{payment_id}/approve"): "DSC-B5",
+    ("PUT", "/subcontractor-progress-payments/{payment_id}/lines"): "DSC-B5",
+    ("POST", "/subcontractor-progress-payments/{payment_id}/mark-paid"): "DSC-B5",
+    ("POST", "/subcontractor-progress-payments/{payment_id}/refresh-prices"): "DSC-B5",
+    ("POST", "/subcontractor-progress-payments/{payment_id}/reject"): "DSC-B5",
+    ("POST", "/subcontractor-progress-payments/{payment_id}/submit"): "DSC-B5",
+    ("POST", "/subcontractor-progress-payments/{payment_id}/unapprove"): "DSC-B5",
+}
+
+
+# --------------------------------------------------------------------- testler
+
+
+def test_siniflandirici_bos_donmez_ve_her_aile_rota_tarar() -> None:
+    """🔴 Sessiz-boş tarama (önek/`_IncludedRouter` bozulması) KIRMIZI olur."""
+    duyarli, aile_sayilari = duyarli_rotalar()
+    assert duyarli, "sıfır rota tarandı — sınıflandırıcı ya da rota dolaşımı bozuk"
+    eksik = set(AILE_KOKLERI.values()) - aile_sayilari.keys()
+    assert not eksik, f"şu ailelerde HİÇ rota taranmadı (önek bozuk?): {sorted(eksik)}"
+
+
+def test_ek_duyarli_rotalar_bayat_girdi_icermez() -> None:
+    mevcut = {(y, c.path) for c in iter_route_contexts(app.routes) for y in c.methods}
+    bayat = sorted(set(EK_DUYARLI_ROTALAR) - mevcut)
+    assert not bayat, f"BAYAT ek duyarlı rota (artık yok): {bayat}"
+    duyarli, _ = duyarli_rotalar()
+    assert set(EK_DUYARLI_ROTALAR) <= set(duyarli)
+
+
+def test_kullanici_disiplin_uclari_duyarli_degildir() -> None:
+    duyarli, _ = duyarli_rotalar()
+    assert ("GET", "/users/{user_id}/disciplines") not in duyarli
+    assert ("PUT", "/users/{user_id}/disciplines") not in duyarli
+    assert not [r for r in duyarli if "/disciplines" in r[1] and r[1].startswith("/users")]
+
+
+def test_duyarli_her_rota_isaretli_ya_da_izin_listesinde() -> None:
+    duyarli, _ = duyarli_rotalar()
+    isaretli = isaretli_rotalar()
+    sorunlu = sorted(r for r in duyarli if r not in isaretli and r not in IZIN_LISTESI)
+    assert not sorunlu, (
+        "Duyarlı ama ne `DisciplineScoped` işaretli ne de izin listesinde olan rotalar "
+        f"(yeni uç mü eklendi? süz + işaretle ya da hedef dilimle listeye ekle): {sorunlu}"
+    )
+
+
+def test_izin_listesi_bayat_girdi_icermez() -> None:
+    duyarli, _ = duyarli_rotalar()
+    isaretli = isaretli_rotalar()
+    yok = sorted(r for r in IZIN_LISTESI if r not in duyarli)
+    assert not yok, f"BAYAT: izin listesindeki rota artık yok / duyarlı değil: {yok}"
+    islenmis = sorted(r for r in IZIN_LISTESI if r in isaretli)
+    assert not islenmis, f"BAYAT: rota artık işaretli, izin listesinden SİL: {islenmis}"
+
+
+def test_izin_listesi_hedef_dilim_etiketleri_gecerli() -> None:
+    gecersiz = {r: d for r, d in IZIN_LISTESI.items() if not re.fullmatch(r"DSC-B[1-5]", d)}
+    assert not gecersiz, f"geçersiz dilim etiketi: {gecersiz}"
+
+
+def test_izin_listesi_tam_olarak_duyarli_eksi_isaretli_kumedir() -> None:
+    """KALICI DEĞİŞMEZ: izin listesi anahtarları == duyarlı ∖ işaretli. Bugün işaretli yok →
+    liste tüm duyarlı rotalar; B1-B5 işaretledikçe girdi silinir (bu test SİLİNMEZ), B6'da
+    liste boş kalır."""
+    duyarli, _ = duyarli_rotalar()
+    assert set(IZIN_LISTESI) == set(duyarli) - isaretli_rotalar()
