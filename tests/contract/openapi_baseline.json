@@ -6772,6 +6772,11 @@
             "default": 0,
             "title": "Used By Site Count",
             "type": "integer"
+          },
+          "user_count": {
+            "default": 0,
+            "title": "User Count",
+            "type": "integer"
           }
         },
         "required": [
@@ -16897,6 +16902,14 @@
       },
       "MeResponse": {
         "properties": {
+          "disciplines": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Disciplines",
+            "type": "array"
+          },
           "email": {
             "format": "email",
             "title": "Email",
@@ -16937,7 +16950,8 @@
           "title",
           "role_key",
           "status",
-          "permissions"
+          "permissions",
+          "disciplines"
         ],
         "title": "MeResponse",
         "type": "object"
@@ -41976,6 +41990,44 @@
           "role_id"
         ],
         "title": "UserCreate",
+        "type": "object"
+      },
+      "UserDisciplinesInput": {
+        "additionalProperties": false,
+        "description": "`PUT /users/{id}/disciplines` govdesi: TAM DEGISTIRME. Bos liste = tum atamalar silinir\n= kullanici kisitsiz. Yinelenen id'ler serviste tekillestirilir.",
+        "properties": {
+          "discipline_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Discipline Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "discipline_ids"
+        ],
+        "title": "UserDisciplinesInput",
+        "type": "object"
+      },
+      "UserDisciplinesRead": {
+        "description": "Kullanicinin atanmis disiplinleri (id'ye gore sirali; atamasiz = []).",
+        "properties": {
+          "discipline_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Discipline Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "discipline_ids"
+        ],
+        "title": "UserDisciplinesRead",
         "type": "object"
       },
       "UserListResponse": {
@@ -69240,6 +69292,124 @@
         ],
         "summary": "Update User Endpoint",
         "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{user_id}/disciplines": {
+      "get": {
+        "operationId": "get_user_disciplines_endpoint_users__user_id__disciplines_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDisciplinesRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get User Disciplines Endpoint",
+        "tags": [
+          "earned-value",
+          "users"
+        ]
+      },
+      "put": {
+        "operationId": "set_user_disciplines_endpoint_users__user_id__disciplines_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserDisciplinesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDisciplinesRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set User Disciplines Endpoint",
+        "tags": [
+          "earned-value",
           "users"
         ]
       }

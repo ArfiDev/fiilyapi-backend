@@ -26,7 +26,7 @@ from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
-from app.modules.earned_value import audit_messages, catalog_service
+from app.modules.earned_value import audit_messages, catalog_service, discipline_adapter
 from app.modules.earned_value.access import ADMIN, CATALOG, VIEW
 from app.modules.earned_value.schemas_catalog import (
     CatalogItemCreate,
@@ -37,6 +37,9 @@ from app.modules.earned_value.schemas_catalog import (
     DisciplineUpdate,
 )
 from app.modules.users.models import User
+
+# Disiplin kapsami portuna kayit (DSC-B0) — import yan etkisi; `day_router` emsali.
+discipline_adapter.register()
 
 router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES)
 
@@ -64,6 +67,7 @@ def _discipline_read(row, usage: catalog_service.DisciplineUsage) -> DisciplineR
         update={
             "used_by_item_count": usage.item_count,
             "used_by_site_count": usage.site_count,
+            "user_count": usage.user_count,
         }
     )
 

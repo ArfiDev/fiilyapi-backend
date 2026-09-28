@@ -5,6 +5,7 @@ from __future__ import annotations
 DISCIPLINE_MISSING = "Disiplin bulunamadı"
 DISCIPLINE_CODE_TAKEN = "Bu disiplin kodu zaten kayıtlı"
 DISCIPLINE_IN_USE = "Disiplin kullanımda (BOQ grubu eşlemesi, katalog ya da baseline); silinemez"
+DISCIPLINE_ASSIGNED_TO_USERS = "Disiplin kullanıcılara atanmış; önce atamalar kaldırılmalı"
 CATALOG_ITEM_MISSING = "Katalog iş tipi bulunamadı"
 #: EV-BORC-5: ad alanına özel — normalize eşleşmede VAR OLAN kaydın yazımı gösterilir.
 CATALOG_ITEM_TAKEN_AS = (

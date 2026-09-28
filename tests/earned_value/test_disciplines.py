@@ -63,6 +63,7 @@ async def test_liste_sort_order_sonra_kod_sirali(
         "sort_order",
         "used_by_item_count",
         "used_by_site_count",
+        "user_count",
     }
     assert rows[1]["color"] == "#123ABC"
 

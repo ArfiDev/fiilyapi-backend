@@ -92,6 +92,29 @@ class DisciplineRead(BaseModel):
     sort_order: int
     used_by_item_count: int = 0  # katalog is tipi sayisi
     used_by_site_count: int = 0  # BOQ grubu eslenmis / baseline'i olan santiye; >0 silinemez
+    user_count: int = 0  # disiplinin atandigi kullanici sayisi (DSC-B0); >0 silinemez
+
+
+#: Bir kullaniciya atanabilecek en fazla disiplin (sirket katalogu kucuktur; sinir govdeyi
+#: sinirlamak icindir, is kurali degil).
+MAX_USER_DISCIPLINES = 100
+
+
+class UserDisciplinesInput(BaseModel):
+    """`PUT /users/{id}/disciplines` govdesi: TAM DEGISTIRME. Bos liste = tum atamalar silinir
+    = kullanici kisitsiz. Yinelenen id'ler serviste tekillestirilir."""
+
+    model_config = _STRICT
+
+    # `max_length` TEKILLESTIRMEDEN ONCE uygulanir (101 kez ayni id → 422). Yorum: docstring
+    # openapi aciklamasina girer ve sozlesme baseline'ini degistirirdi.
+    discipline_ids: list[uuid.UUID] = Field(max_length=MAX_USER_DISCIPLINES)
+
+
+class UserDisciplinesRead(BaseModel):
+    """Kullanicinin atanmis disiplinleri (id'ye gore sirali; atamasiz = [])."""
+
+    discipline_ids: list[uuid.UUID]
 
 
 class DisciplineRef(BaseModel):
