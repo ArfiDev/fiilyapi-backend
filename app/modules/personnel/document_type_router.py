@@ -44,13 +44,10 @@ MALİYETTİ: bir dropdown için tüm personel×belge özet sorgusu koşuyordu. B
 o israfı giderir.
 """
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.modules.personnel import repository, service
@@ -70,7 +67,7 @@ _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
     dependencies=[_VIEW],
 )
 async def list_personnel_document_types_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PersonnelDocumentTypeListResponse:
     """Katalog tipleri, `sort_order` sırasıyla. CRUD ucu YOK (K5 notu)."""
     types = await repository.list_document_types(session)

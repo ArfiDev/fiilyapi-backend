@@ -2,11 +2,10 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
@@ -73,7 +72,7 @@ _SECTION_FILTER = Annotated[
 async def get_boq_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     section_id: _SECTION_FILTER = None,
 ) -> BoqListResponse:
     """`section_id` YOKSA davranis birebir eskisidir (BOQ-SEC K5).
@@ -93,7 +92,7 @@ async def get_boq_endpoint(
 async def export_boq_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     section_id: _SECTION_FILTER = None,
 ) -> Response:
     """Spec §5.3: BOQ'yu xlsx olarak indirir. Okuma ucudur — `record_audit`
@@ -146,7 +145,7 @@ async def create_boq_group_endpoint(
     site_id: uuid.UUID,
     data: BoqGroupCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BoqGroupResponse:
     group = await service.create_group(session, user, site_id, data)
     await record_audit(
@@ -170,7 +169,7 @@ async def create_boq_item_endpoint(
     site_id: uuid.UUID,
     data: BoqItemCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BoqItemResponse:
     item = await service.create_item(session, user, site_id, data)
     await record_audit(
@@ -189,7 +188,7 @@ async def update_boq_group_endpoint(
     group_id: uuid.UUID,
     data: BoqGroupUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BoqGroupResponse:
     group = await service.update_group(session, user, group_id, data)
     await record_audit(
@@ -208,7 +207,7 @@ async def update_boq_item_endpoint(
     item_id: uuid.UUID,
     data: BoqItemUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BoqItemResponse:
     item = await service.update_item(session, user, item_id, data)
     await record_audit(
@@ -229,7 +228,7 @@ async def update_boq_item_endpoint(
 async def get_boq_item_allocations_endpoint(
     item_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BoqItemAllocationsResponse:
     """BOQ-ALLOC — pozun bolum tahsislerinin TAMAMI, TEK cagrida.
 
@@ -254,7 +253,7 @@ async def replace_boq_item_allocations_endpoint(
     item_id: uuid.UUID,
     data: BoqItemAllocationsReplace,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> BoqItemAllocationsResponse:
     """BOQ-SEC K4 — pozun bolum tahsislerini TAM KUME olarak degistirir.
 
@@ -284,7 +283,7 @@ async def delete_boq_group_endpoint(
     request: Request,
     group_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """TB3-C: YALNIZ BOS grup silinir; kalemi olan grup 409 doner.
 
@@ -311,7 +310,7 @@ async def delete_boq_item_endpoint(
     request: Request,
     item_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Frontend F13 (kalem silme) bu uca baglidir.
 

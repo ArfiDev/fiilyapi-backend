@@ -54,7 +54,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -142,7 +142,7 @@ async def _audit(
 @router.get("/suppliers", response_model=SupplierListResponse, dependencies=[_VIEW])
 async def list_suppliers_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     q: str | None = None,
     category: str | None = None,
     is_active: bool | None = None,
@@ -174,7 +174,7 @@ async def create_supplier_endpoint(
     request: Request,
     data: SupplierCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SupplierResponse:
     """Yeni tedarikçi kartı. Ad ve VKN tekilliği ZORLANMAZ (`service` gerekçesi).
 
@@ -190,7 +190,7 @@ async def create_supplier_endpoint(
 async def get_supplier_endpoint(
     supplier_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SupplierCard:
     """Tekil kart — liste ile AYNI türetmeyi kullanır (iki ekran aynı tutarı
     göstersin diye ikinci bir formül yazılmaz)."""
@@ -203,7 +203,7 @@ async def update_supplier_endpoint(
     supplier_id: uuid.UUID,
     data: SupplierUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SupplierResponse:
     """Kısmi güncelleme. **Kullanımdan kaldırma da buradan geçer**
     (`{"is_active": false}`) — DELETE ucu yoktur (modül docstring'i)."""
@@ -218,7 +218,7 @@ async def update_supplier_endpoint(
 @router.get("/purchase-requests", response_model=PurchaseRequestListResponse, dependencies=[_VIEW])
 async def list_purchase_requests_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     status_filter: Annotated[PurchaseRequestStatus | None, Query(alias="status")] = None,
     project_id: uuid.UUID | None = None,
     priority: PurchasePriority | None = None,
@@ -257,7 +257,7 @@ async def create_purchase_request_endpoint(
     request: Request,
     data: PurchaseRequestCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseRequestResponse:
     """FST formunun kaydı: başlık + kalemler TEK gövde, ATOMİK.
 
@@ -285,7 +285,7 @@ async def create_purchase_request_endpoint(
 async def get_purchase_request_endpoint(
     request_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseRequestResponse:
     """FST detayı: başlık + kalemler + TÜREVLER (satır tutarı · tahmini toplam ·
     "Mevcut Stok"). Görünmeyen talep var olmayanla AYNI 404'ü alır.
@@ -318,7 +318,7 @@ async def update_purchase_request_endpoint(
     request_id: uuid.UUID,
     data: PurchaseRequestUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseRequestResponse:
     """**YALNIZ taslakta** (spec §4); değilse **409** — yetki değil DURUM engeli.
 
@@ -344,7 +344,7 @@ async def delete_purchase_request_endpoint(
     request: Request,
     request_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """**YALNIZ taslak** silinir (409 aksi hâlde) ve kararı `can_delete` verir
     (403 aksi hâlde) — kapı gerekçesi modül docstring'indedir.
@@ -381,7 +381,7 @@ async def submit_purchase_request_endpoint(
     request: Request,
     request_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseRequestResponse:
     """`draft → pending_approval`. **SIKI doğrulama buradadır.**
 
@@ -411,7 +411,7 @@ async def approve_purchase_request_endpoint(
     request: Request,
     request_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseRequestResponse:
     """`pending_approval → quote_wait` (§3: onay ARA durum üretmez).
 
@@ -448,7 +448,7 @@ async def reject_purchase_request_endpoint(
     request_id: uuid.UUID,
     data: PurchaseRequestRejection,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseRequestResponse:
     """`pending_approval → rejected`. **Gerekçe ZORUNLUDUR** (boş → 422).
 
@@ -488,7 +488,7 @@ async def reject_purchase_request_endpoint(
 async def list_quotes_endpoint(
     request_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseQuoteListResponse:
     """TEK karşılaştırma ekranı. **Okuma her durumda açıktır** — siparişe dönmüş
     bir talebin karşılaştırma geçmişi silinmez.
@@ -512,7 +512,7 @@ async def list_quotes_endpoint(
 async def export_quote_comparison_endpoint(
     request_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> Response:
     """TEK 38 "Excel" düğmesi — karşılaştırmanın dışa aktarımı (§7 S5).
 
@@ -549,7 +549,7 @@ async def create_quote_endpoint(
     request_id: uuid.UUID,
     data: PurchaseQuoteCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseQuoteResponse:
     """Yalnız `quote_wait` (aksi **409**). `delivery_time` SERBEST metindir."""
     purchase_request = await service.visible_request_locked(session, user, request_id)
@@ -573,7 +573,7 @@ async def update_quote_endpoint(
     quote_id: uuid.UUID,
     data: PurchaseQuoteUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseQuoteResponse:
     """Kısmi güncelleme. Nakliye kuralı BİRLEŞİK değerlerde koşar (**422**):
     gövde yalnız `shipping_cost` taşısa bile DB'deki `shipping_included`
@@ -598,7 +598,7 @@ async def delete_quote_endpoint(
     request_id: uuid.UUID,
     quote_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Yanlış girilmiş bir teklif SİLİNİR (talep hâlâ `quote_wait` iken).
 
@@ -626,7 +626,7 @@ async def select_and_order_endpoint(
     request_id: uuid.UUID,
     quote_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseOrderResponse:
     """TEK'in "Sipariş Ver" düğmesi — **ATOMİK** üçlü (spec §3).
 
@@ -675,7 +675,7 @@ async def select_and_order_endpoint(
 @router.get("/purchase-orders", response_model=PurchaseOrderListResponse, dependencies=[_VIEW])
 async def list_orders_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     status_filter: Annotated[PurchaseOrderStatus | None, Query(alias="status")] = None,
     project_id: uuid.UUID | None = None,
     supplier_id: uuid.UUID | None = None,
@@ -711,7 +711,7 @@ async def create_order_endpoint(
     request: Request,
     data: PurchaseOrderCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseOrderResponse:
     """DOĞRUDAN (talepsiz) sipariş — §7 S3, SIP 35 "+ Sipariş Oluştur".
 
@@ -729,7 +729,7 @@ async def create_order_endpoint(
 async def get_order_endpoint(
     order_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseOrderResponse:
     """Görünmeyen projenin siparişi var olmayanla AYNI 404'ü alır."""
     return await service.get_order_detail(session, user, order_id)
@@ -749,7 +749,7 @@ async def update_order_endpoint(
     order_id: uuid.UUID,
     data: PurchaseOrderUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PurchaseOrderResponse:
     """Tek meşru geçiş `approved → in_transit`tir.
 
@@ -783,7 +783,7 @@ async def update_order_endpoint(
 @router.get("/purchasing/summary", response_model=PurchasingSummaryResponse, dependencies=[_VIEW])
 async def purchasing_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     project_id: uuid.UUID | None = None,
 ) -> PurchasingSummaryResponse:
     """SAT 69-86 + SIP 38-43 KPI'ları — alan gerekçeleri `summary.py`dedir.

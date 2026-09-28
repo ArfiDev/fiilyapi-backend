@@ -34,7 +34,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.permissions import require_permission
 from app.modules.approvals import service
@@ -105,7 +105,7 @@ def require_permission_or_chain_step(
     async def _check(
         request: Request,
         user: Annotated[User, Depends(get_current_user)],
-        session: Annotated[AsyncSession, Depends(get_db)],
+        session: DbSession,
     ) -> None:
         try:
             await require_permission(module_key, min_level).dependency(user=user, session=session)

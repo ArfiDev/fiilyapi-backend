@@ -1,10 +1,9 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.ratelimit import client_ip, limiter
 from app.core.security import TokenError, create_access_token, create_refresh_token, decode_token
@@ -24,7 +23,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def login(
     request: Request,
     payload: LoginRequest,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> TokenPair:
     try:
         user = await authenticate(session, payload.email, payload.password)
@@ -54,7 +53,7 @@ async def login(
 async def refresh(
     request: Request,
     payload: RefreshRequest,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> TokenPair:
     try:
         decoded = decode_token(payload.refresh_token, expected_type="refresh")
@@ -95,7 +94,7 @@ async def refresh(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """token_version'ı artırır — o ana dek basılmış tüm token'lar (access + refresh) geçersiz
     olur (gerçek sunucu-taraflı çıkış). BFF ayrıca httpOnly cookie'yi siler."""
@@ -107,7 +106,7 @@ async def logout(
 @router.get("/me", response_model=MeResponse)
 async def me(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> MeResponse:
     """Matris mantigi YENIDEN YAZILMAZ: `roles.repository.get_role_matrix`
     aynen kullanilir — `/roles/{id}/permissions` ucuyla ayni kaynak, tek fark

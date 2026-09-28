@@ -2,10 +2,9 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.security import TokenError, decode_token
 from app.modules.users.models import User, UserStatus
 
@@ -20,7 +19,7 @@ _UNAUTHORIZED = HTTPException(
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> User:
     if credentials is None:
         raise _UNAUTHORIZED

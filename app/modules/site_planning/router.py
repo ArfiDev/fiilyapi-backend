@@ -20,10 +20,9 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -61,7 +60,7 @@ _WEEK_START = Annotated[date, Query()]
 async def get_site_plan_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     week_start: Annotated[date, Query()],
 ) -> SitePlanWeek:
     """P (Planlama) ızgarasının bir haftası: gruplar + hücreler + hedefler + sprint.
@@ -81,7 +80,7 @@ async def get_site_plan_endpoint(
 async def get_site_plan_day_summary_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     start: Annotated[date, Query()],
     days: Annotated[int, Query(ge=1, le=service.MAX_SUMMARY_DAYS)] = 5,
 ) -> SitePlanDaySummaryRange:
@@ -109,7 +108,7 @@ async def save_site_plan_rows_endpoint(
     site_id: uuid.UUID,
     data: SitePlanRowsSave,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SitePlanRowsResult:
     """Izgaranın satır listesi — **DEĞİŞTİRME** semantiği.
 
@@ -149,7 +148,7 @@ async def save_site_plan_cells_endpoint(
     site_id: uuid.UUID,
     data: SitePlanCellsSave,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     week_start: _WEEK_START,
 ) -> SitePlanWeek:
     """Izgaranın hücreleri — **YALNIZ `week_start` haftası**, DEĞİŞTİRME semantiği.
@@ -183,7 +182,7 @@ async def save_site_plan_goals_endpoint(
     site_id: uuid.UUID,
     data: SitePlanGoalsSave,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     week_start: _WEEK_START,
 ) -> SitePlanWeek:
     """P203-227 haftalık hedefler — DEĞİŞTİRME semantiği.
@@ -215,7 +214,7 @@ async def save_site_plan_sprint_endpoint(
     site_id: uuid.UUID,
     data: SitePlanSprintSave,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SitePlanSprintRead | None:
     """P107 "Aktif Sprint" şeridi. Boş/`null` ad aktif sprinti KAPATIR (`null` döner).
 

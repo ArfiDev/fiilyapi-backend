@@ -22,15 +22,15 @@ Session `async with` kapanışında yalnız `close()` edilir (ölçüldü:
 ## ⚠️ BU DOSYANIN SINIRI — neyi ölçmez
 
 Bu testler `get_db`nin AKIŞ SIRASINI ölçer, HTTP kodunu DEĞİL. Teardown
-commit'inde doğan bir hatanın 409'a dönememesi AYRI ve DAHA BÜYÜK bir kusurdur
-(FastAPI 0.141.1 `routing.py:140-146`: `get_db` `request_stack`te sonlanır ve o
-stack `await response(...)`ten SONRA çözülür; Starlette 1.6.0
-`_exception_handler.py:55` `response_started` olduğu için işleyiciyi ÇAĞIRMAZ).
-Onun onarımı 362 çağrı yerini `Depends(get_db, scope="function")`a çevirmeyi
-gerektirir ve ÖLÇÜLMEDEN yapılamaz (`StreamingResponse` uçları gövdelerini
-`function_stack` çözüldükten SONRA üretir — session kapanmış olurdu).
-Ulaşılabilir somut hâli `tests/site_planning/test_ertelenmis_uq_http.py`de
-kapatıldı.
+commit'inde doğan hatanın 409/500'e dönüp dönmediği `get_db`nin KAPSAMINA bağlıdır
+ve AYRI yerde ölçülür: üretim takma adı `DbSession`
+(`Depends(get_db, scope="function")`, TEARDOWN-B1) commit'i yanıttan ÖNCE
+koşturur; hata exception handler'lara ulaşır
+(`tests/core/test_teardown_commit_http_olcum.py`: gerçek soket → 500/409).
+Kapsamın kaymaması yapısal bekçiyle korunur
+(`tests/core/test_getdb_kapsam_bekcisi.py`). `scope="request"` yalnız
+`documents/deps.py` akış varyantında izinlidir (gövde function kapsamı
+kapandıktan sonra üretilir; uç yazmaz).
 """
 
 import pytest

@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
@@ -91,7 +91,7 @@ async def _audit(
 async def list_sales_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitSaleListResponse:
     """S150-212. "Tahsil Edilen"/"Kalan" TÜREVDİR (`sale_installments`), kolon değil."""
     return await service.list_sales(session, user, project_id)
@@ -108,7 +108,7 @@ async def create_sale_endpoint(
     project_id: uuid.UUID,
     data: UnitSaleCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitSaleResponse:
     """Üç kapı: ünite bu projeye ait olmalı (404) · `landowner` ünite satılamaz
 
@@ -123,7 +123,7 @@ async def create_sale_endpoint(
 async def get_sale_endpoint(
     sale_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitSaleResponse:
     """Kimlik YUKARI çözümlenir (satış → proje → görünürlük); görünmeyen projenin
     satışı 404 döner, 403 DEĞİL — üstelik var olmayanla AYNI gövdeyi verir."""
@@ -136,7 +136,7 @@ async def update_sale_endpoint(
     sale_id: uuid.UUID,
     data: UnitSaleUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitSaleResponse:
     """Durum geçişleri BU UÇTAN YAPILMAZ: `status` şemada yoktur, `activate` /
     `transfer-deed` / `cancel` uçları T5'in işidir."""
@@ -150,7 +150,7 @@ async def delete_sale_endpoint(
     request: Request,
     sale_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Spec §4: YALNIZ `reservation` silinir; `active`/`deed_transferred` 409 ile
 
@@ -173,7 +173,7 @@ async def generate_sale_plan_endpoint(
     request: Request,
     sale_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SalePlanResponse:
     """F100 "Plan Oluştur" — SUNUCU OTORİTESİ: satırlar satış kaydının plan
     sütunlarından (F103-106) üretilir, gövde ALINMAZ.
@@ -191,7 +191,7 @@ async def save_sale_installments_endpoint(
     sale_id: uuid.UUID,
     data: SaleInstallmentsSave,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SalePlanResponse:
     """⚠️ **DEĞİŞTİRME** semantiği (`PUT /progress-payments/{id}/lines` ikizi):
 
@@ -216,7 +216,7 @@ async def pay_sale_installment_endpoint(
     installment_id: uuid.UUID,
     data: InstallmentPayInput,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SaleInstallmentResponse:
     """§8 S2 tahsilatı — kısmi ödeme destekli; aşırı ödeme 422.
 
@@ -244,7 +244,7 @@ async def pay_sale_installment_endpoint(
 async def get_sale_plan_endpoint(
     sale_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SalePlanResponse:
     """F110-147 plan tablosunu OKUR (T5'te eklendi).
 
@@ -288,7 +288,7 @@ async def activate_sale_endpoint(
     request: Request,
     sale_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitSaleResponse:
     """S56 "Rezerve" → S55 "Satılan": kapora sözleşmeye dönüştü.
 
@@ -305,7 +305,7 @@ async def transfer_sale_deed_endpoint(
     request: Request,
     sale_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitSaleResponse:
     """S166 "Tapu Devredildi" — TERMİNAL durum; ünite `sold` KALIR (spec §3)."""
     return await _transition(request, session, user, sale_id, transitions.SaleAction.transfer_deed)
@@ -317,7 +317,7 @@ async def cancel_sale_endpoint(
     sale_id: uuid.UUID,
     data: SaleCancelInput,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UnitSaleResponse:
     """`reservation`/`active` → `cancelled`; ünite vitrine (`listed`) döner.
 
@@ -340,7 +340,7 @@ async def cancel_sale_endpoint(
 async def sales_summary_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SalesSummaryResponse:
     """S55-59 KPI'ları + S218-234 "Yaklaşan Tahsilatlar (30 Gün)".
 

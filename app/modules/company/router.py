@@ -10,11 +10,10 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
 from app.core.config import settings
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
 from app.core.openapi import COMMON_ERROR_RESPONSES
@@ -33,7 +32,7 @@ router = APIRouter(prefix="/company", tags=["company"], responses=COMMON_ERROR_R
 @router.get("", response_model=CompanyRead)
 async def get_company_endpoint(
     _user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> CompanyRead:
     company = await service.get_company(session)
     return CompanyRead.from_model(company)
@@ -48,7 +47,7 @@ async def update_company_endpoint(
     request: Request,
     data: CompanyUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> CompanyRead:
     company = await service.update_company(session, data)
     await record_audit(
@@ -73,7 +72,7 @@ async def update_company_endpoint(
 async def upload_logo_endpoint(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     file: Annotated[UploadFile, File(...)],
 ) -> CompanyRead:
     if file.content_type not in settings.allowed_logo_content_type_set:
@@ -112,7 +111,7 @@ async def upload_logo_endpoint(
 @router.get("/logo")
 async def get_logo_endpoint(
     _user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> Response:
     company = await service.get_company(session)
     if company.logo_data is None:
@@ -136,7 +135,7 @@ async def get_logo_endpoint(
 async def delete_logo_endpoint(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     await service.clear_logo(session)
     await record_audit(

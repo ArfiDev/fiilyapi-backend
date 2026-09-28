@@ -37,11 +37,10 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -85,7 +84,7 @@ _AS_OF = Annotated[date, Query(ge=date(2000, 1, 1), le=date(2100, 12, 31))]
 @router.get("/trial-balance", response_model=TrialBalanceResponse, dependencies=[_VIEW])
 async def trial_balance_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR,
     month: _MONTH,
     include_empty: bool = False,
@@ -120,7 +119,7 @@ async def trial_balance_endpoint(
 )
 async def trial_balance_export_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR,
     month: _MONTH,
     include_empty: bool = False,
@@ -158,7 +157,7 @@ async def trial_balance_export_endpoint(
 @router.get("/vat-return", response_model=VatReturnResponse, dependencies=[_VIEW])
 async def vat_return_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR,
     month: _MONTH,
 ) -> VatReturnResponse:
@@ -187,7 +186,7 @@ async def vat_return_endpoint(
 @router.get("/balance-sheet", response_model=BalanceSheetResponse, dependencies=[_VIEW])
 async def balance_sheet_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     as_of: _AS_OF,
 ) -> BalanceSheetResponse:
     """Bilanço — AKTİF/PASİF, üç seviye (bölüm bandı → kalem → ara toplam).
@@ -222,7 +221,7 @@ async def balance_sheet_endpoint(
 @router.get("/cash-flow-statement", response_model=CashFlowStatementResponse, dependencies=[_VIEW])
 async def cash_flow_statement_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR,
     month: _MONTH,
 ) -> CashFlowStatementResponse:
@@ -261,7 +260,7 @@ async def cash_flow_statement_endpoint(
 @router.get("/income-statement", response_model=IncomeStatementResponse, dependencies=[_VIEW])
 async def income_statement_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR,
     month: _MONTH,
 ) -> IncomeStatementResponse:

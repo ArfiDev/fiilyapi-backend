@@ -10,10 +10,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -63,7 +62,7 @@ _CHAIN_APPROVE = require_permission_or_chain_step(
 )
 async def list_progress_payments_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     project_id: uuid.UUID | None = None,
     site_id: uuid.UUID | None = None,
     status_filter: Annotated[ProgressPaymentStatus | None, Query(alias="status")] = None,
@@ -81,7 +80,7 @@ async def list_progress_payments_endpoint(
 async def get_progress_payment_summary_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProgressPaymentSummary:
     """E14 127-147 "Hakediş Özeti" kartı + SHK 82-84 şantiye kartları (spec §9.6).
 
@@ -102,7 +101,7 @@ async def get_progress_payment_summary_endpoint(
 async def get_progress_payment_endpoint(
     payment_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProgressPaymentDetail:
     """URL-4 — yol parametresi UUID **ya da** `<proje-slug>-<sıra>` slug'ı
     kabul eder (`/hakedisler/kopru-guclendirme-5`).
@@ -126,7 +125,7 @@ async def create_progress_payment_endpoint(
     project_id: uuid.UUID,
     data: ProgressPaymentCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProgressPaymentDetail:
     """D8/K9: sözleşmede açık hakediş varsa 409; sözleşme yoksa 422 (spec §9.2).
 
@@ -158,7 +157,7 @@ async def update_progress_payment_endpoint(
     payment_id: uuid.UUID,
     data: ProgressPaymentUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProgressPaymentDetail:
     """Yalnız `status=draft` (spec §7); aksi 409 `INVALID_STATUS_TRANSITION`."""
     payment, project = await service.update(session, user, payment_id, data)
@@ -182,7 +181,7 @@ async def save_progress_payment_lines_endpoint(
     payment_id: uuid.UUID,
     data: ProgressPaymentLinesSave,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProgressPaymentDetail:
     """OLU formunun tek "Taslak Kaydet" gövdesi — **DEĞİŞTİRME** semantiği.
 
@@ -228,7 +227,7 @@ async def refresh_progress_payment_prices_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RefreshPricesResponse:
     """§5.1/§9.3: yalnız `draft`'ta bağı kopmamış satırların snapshot beşlisini
     + hakedişin yüzde üçlüsünü kalemden/sözleşmeden bilinçli tazeler.
@@ -267,7 +266,7 @@ async def submit_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProgressPaymentDetail:
     """E15 71 / OLU 25 "Onaya Gönder" — `draft → pending_approval`.
 
@@ -294,7 +293,7 @@ async def approve_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProgressPaymentDetail:
     """🔴 **OK-1A T3: YOL ve KAPI KORUNDU, ANLAM DEĞİŞTİ.**
 
@@ -336,7 +335,7 @@ async def reject_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     data: RejectBody,
 ) -> ProgressPaymentDetail:
     """`pending_approval → draft` — ret sonrası taslak yeniden düzenlenebilir.
@@ -376,7 +375,7 @@ async def mark_paid_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProgressPaymentDetail:
     """`approved → paid` (K11: onay seviyesi). Ödeme detayı formu mockup'ta YOK
     → tek tıkla işaretleme, yalnız `paid_at` damgalanır."""
@@ -402,7 +401,7 @@ async def unapprove_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProgressPaymentDetail:
     """`approved → pending_approval` (geri çek) — YALNIZ `admin` (§7 tablosu).
 
@@ -454,7 +453,7 @@ async def delete_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """K8 iki katmanlı kural (spec §7.1). Kapı `_DRAFT`dir — `_ADMIN` olsaydı
 

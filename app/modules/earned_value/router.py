@@ -16,7 +16,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
@@ -63,7 +63,7 @@ router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES)
 
 _BASE = "/sites/{site_id}/earned-value/budget"
 _User = Annotated[User, Depends(get_current_user)]
-_Db = Annotated[AsyncSession, Depends(get_db)]
+_Db = DbSession
 #: Yazma uclarinin kapsami + "tamamlanmis santiye salt okunur" (PLN-B3.0): 404 → 409 → 422.
 _Writable = Annotated[SiteContext, Depends(completed_site_guard(SITE_COMPLETED_BUDGET_READ_ONLY))]
 

@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -81,7 +81,7 @@ async def _audit(
 @router.get("/rental-invoices", response_model=RentalInvoiceListResponse, dependencies=[_VIEW])
 async def list_rental_invoices_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     supplier_id: uuid.UUID | None = None,
     site_id: uuid.UUID | None = None,
     #: 🔴 MK-4 — Ekipman Detay ekranının "bu makinenin hakedişleri" bloğu.
@@ -128,7 +128,7 @@ async def create_rental_invoice_endpoint(
     request: Request,
     data: RentalInvoiceCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RentalInvoiceDetailResponse:
     """M5 üst formu. 🔴 Satırlar GÖVDEDE YOKTUR: sunucu onları çalışma kaydından
     KURAR (K2 snapshot'ı, M5:83 "Çalışma kaydından otomatik yüklendi")."""
@@ -145,7 +145,7 @@ async def create_rental_invoice_endpoint(
 async def get_rental_invoice_endpoint(
     invoice_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RentalInvoiceDetailResponse:
     """M5'in TAMAMI: tablo + tfoot + proje dağılımı (spec §4).
 
@@ -173,7 +173,7 @@ async def update_rental_invoice_endpoint(
     invoice_id: uuid.UUID,
     data: RentalInvoiceUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RentalInvoiceDetailResponse:
     """Kısmi güncelleme — `draft` + `pending_verification`; ötesi 409.
 
@@ -195,7 +195,7 @@ async def reload_rental_invoice_endpoint(
     request: Request,
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RentalInvoiceDetailResponse:
     """🔴 K2'nin AÇIK tazeleme eylemi — YALNIZ `draft` (ötesi 409)."""
     detay, detail = await rental_service.reload_invoice(session, user, invoice_id)
@@ -213,7 +213,7 @@ async def approve_rental_invoice_endpoint(
     request: Request,
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RentalInvoiceResponse:
     """**"Onayla ve Ödemeye Gönder"** (ONAYLI SAPMA — M5:27 "Kiracıya Gönder"
     diyor ama akış yönüyle çelişiyor: gelen faturayı BİZ ödüyoruz).
@@ -235,7 +235,7 @@ async def pay_rental_invoice_endpoint(
     request: Request,
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RentalInvoiceResponse:
     """🔴 ÖDENDİ damgası. `paid` bir UÇ DURUMDUR: ikinci çağrı 409.
 
@@ -256,7 +256,7 @@ async def reject_rental_invoice_endpoint(
     request: Request,
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RentalInvoiceResponse:
     """Onayın GERİ ALINMASI (`approved → pending_verification`).
 
@@ -282,7 +282,7 @@ async def update_rental_invoice_line_endpoint(
     line_id: uuid.UUID,
     data: RentalInvoiceLineUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> RentalInvoiceLineResponse:
     """M5'in İKİ input'u: `rate_amount` (Kira B.F.) + `invoiced_hours` (Fatura
     Saati). Başka alan taşıyan gövde 422'dir — `worked_hours` gövdeden
@@ -302,7 +302,7 @@ async def delete_rental_invoice_line_endpoint(
     request: Request,
     line_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> Response:
     """YALNIZ `draft` (spec §4): doğrulama aşamasında bir satırın yok olması,
     firmanın faturasıyla karşılaştırılan kümeyi sessizce küçültürdü."""

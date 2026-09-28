@@ -17,9 +17,8 @@ import anyio
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -72,7 +71,7 @@ _PROJE_KIMLIKLERI_NOTU = (
 @router.get("/tools", response_model=AiToolListResponse, dependencies=[_VIEW])
 async def list_ai_tools_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> AiToolListResponse:
     """Aktörün **görebildiği** araçlar (Kapı A'nın yayınlanmış hâli).
 
@@ -93,7 +92,7 @@ async def list_ai_tools_endpoint(
 @router.get("/context", response_model=AiContextResponse, dependencies=[_VIEW])
 async def get_ai_context_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> AiContextResponse:
     """AI'ın sınırı — S14'ün korkuluğu."""
     actor = await aktor_baglami(session, user)
@@ -189,7 +188,7 @@ async def ai_chat_endpoint(
     request: Request,
     govde: AiChatRequest,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> StreamingResponse:
     """Tek bir kullanıcı mesajı için ajan turunu akıtır.
 
@@ -267,18 +266,20 @@ async def ai_chat_endpoint(
     # ise `cevabi_sakla`yı **ayrı bir session'da** koşturur ve ayrı bir session
     # commit edilmemiş bir satırı GÖREMEZ.
     #
-    # 🔴 SIRA ÖLÇÜLDÜ ve bu dosyanın eski varsayımının TERSİ çıktı: FastAPI'nin
-    # `yield` bağımlılıkları akış gövdesi BİTTİKTEN SONRA sökülür. Yani
-    # `get_db`nin commit'i `cevabi_sakla`dan SONRA gelir — çok geç. Canlıda her
+    # 🔴 SIRA ÖLÇÜLDÜ: eski `request` kapsamında `get_db`nin commit'i akış gövdesi
+    # BİTTİKTEN SONRA gelirdi — `cevabi_sakla`dan sonra, çok geç. Canlıda her
     # turda olan tam olarak buydu:
     #     ForeignKeyViolationError: ai_messages_conversation_id_fkey
     #     → istisna `get_db`ye kaçtı → ROLLBACK → sohbet VE kullanıcı mesajı
     #       birlikte kayboldu (canlı sayım: ai_conversations 0 · ai_messages 0,
     #       oysa ai_tool_calls 16 — çünkü o zaten kendi session'ında commit eder).
     #
-    # 🔴 `get_db`nin GENEL DAVRANIŞI DEĞİŞMEZ: commit burada, bu uçta, akış
-    # sınırının geçildiği noktada çağrılır. `get_db` temiz çıkışta yine commit
-    # eder (boş transaction üzerinde zararsız), istisnada yine rollback eder.
+    # 🔴 Artık `DbSession` function kapsamlıdır: teardown (commit/rollback) yanıt
+    # gövdesi başlamadan ÖNCE koşar; akış sırasında bu oturum çoktan kapalıdır.
+    # Buradaki AÇIK commit yine de KALIR ve zararsızdır: `cevabi_sakla` ayrı bir
+    # session'da koşar ve commit edilmemiş satırı göremez, bu yüzden sohbet
+    # akış başlamadan kalıcı olmalıdır; teardown'daki commit boş transaction
+    # üzerinde no-op'tur, istisnada yine rollback eder.
     #
     # 🔴 YERİ ÜÇ KISITLA ÇAKILIDIR, tercih değildir:
     #   · sahiplik kapısından SONRA → 404 yolu geride hiçbir iz bırakmaz;
@@ -430,7 +431,7 @@ async def ai_chat_endpoint(
 @router.get("/conversations", response_model=AiConversationListResponse, dependencies=[_VIEW])
 async def list_ai_conversations_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> AiConversationListResponse:
@@ -461,7 +462,7 @@ async def list_ai_conversations_endpoint(
 async def get_ai_conversation_endpoint(
     conversation_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> AiConversationDetail:
     """Tek bir sohbet + mesajları. 🔴 Başkasınınki **404** (403 DEĞİL, S14)."""
     sohbet = await conversations.sohbetim(session, user_id=user.id, conversation_id=conversation_id)
@@ -499,7 +500,7 @@ async def get_ai_conversation_endpoint(
 async def delete_ai_conversation_endpoint(
     conversation_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Kendi sohbetini siler. Mesajlar FK CASCADE ile gider.
 

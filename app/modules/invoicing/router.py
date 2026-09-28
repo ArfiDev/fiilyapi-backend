@@ -47,7 +47,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -105,7 +105,7 @@ async def _audit(
 @router.get("/invoices", response_model=InvoiceListResponse, dependencies=[_VIEW])
 async def list_invoices_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     direction: InvoiceDirection | None = None,
     status_filter: Annotated[InvoiceStatus | None, Query(alias="status")] = None,
     project_id: uuid.UUID | None = None,
@@ -161,7 +161,7 @@ async def create_invoice_endpoint(
     request: Request,
     data: InvoiceCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> InvoiceDetailResponse:
     """FK formunun kaydı: başlık + kalemler TEK gövde, ATOMİK.
 
@@ -196,7 +196,7 @@ async def create_invoice_endpoint(
 @router.get("/invoices/summary", response_model=InvoiceSummaryResponse, dependencies=[_VIEW])
 async def invoices_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> InvoiceSummaryResponse:
     """FY:69-75 KPI şeridi — beş kart.
 
@@ -223,7 +223,7 @@ async def invoices_summary_endpoint(
 async def get_invoice_endpoint(
     invoice_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> InvoiceDetailResponse:
     """FGI/FGE detayı: başlık + kalemler + SAKLANAN toplamlar.
 
@@ -265,7 +265,7 @@ async def update_invoice_endpoint(
     invoice_id: uuid.UUID,
     data: InvoiceUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> InvoiceDetailResponse:
     """**Giden faturada yalnız `draft`, gelen faturada yalnız `pending`** —
     aksi **409** (yetki değil DURUM engeli).
@@ -299,7 +299,7 @@ async def delete_invoice_endpoint(
     request: Request,
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """**YALNIZ `admin` + yalnız `draft`** → 204; başka durum **409**.
 
@@ -328,7 +328,7 @@ async def replace_invoice_lines_endpoint(
     invoice_id: uuid.UUID,
     data: InvoiceLinesReplace,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> InvoiceDetailResponse:
     """Kalem kümesini TOPTAN yazar (hakediş/puantaj emsali) — yalnız `draft`.
 
@@ -402,7 +402,7 @@ async def send_invoice_endpoint(
     request: Request,
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> InvoiceDetailResponse:
     """`draft → sent` (FK:25 `GİB'e Gönder`) — YALNIZ giden fatura.
 
@@ -426,7 +426,7 @@ async def mark_collected_invoice_endpoint(
     request: Request,
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> InvoiceDetailResponse:
     """`sent → collected` (FY:130 `Tahsil Edildi`) — YALNIZ giden fatura.
 
@@ -457,7 +457,7 @@ async def approve_invoice_endpoint(
     request: Request,
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> InvoiceDetailResponse:
     """`pending → approved` (FGE:25 `Onayla & Muhasebeleştir`) — YALNIZ gelen.
 
@@ -480,7 +480,7 @@ async def dispute_invoice_endpoint(
     request: Request,
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> InvoiceDetailResponse:
     """`pending → disputed` (FGE:24 `İtiraz Et`) — YALNIZ gelen fatura.
 
@@ -531,7 +531,7 @@ _ODEME_YANITLARI = {
 async def list_invoice_payments_endpoint(
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     limit: _LIMIT = 50,
     offset: _OFFSET = 0,
 ) -> PaymentListResponse:
@@ -560,7 +560,7 @@ async def create_invoice_payment_endpoint(
     invoice_id: uuid.UUID,
     data: PaymentCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> PaymentResponse:
     """FGI:220-247 formunun kaydı — tahsilat DA ödeme DE aynı uçtur (K4).
 
@@ -588,7 +588,7 @@ async def delete_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """**YALNIZ `admin`** → 204: yanlış tahsilat geri alınabilmelidir.
 

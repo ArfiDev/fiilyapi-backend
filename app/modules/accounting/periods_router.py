@@ -41,10 +41,9 @@ LİTERALDİR (`close`/`reopen`) — UUID sanılabilecek bir yol yoktur.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -85,7 +84,7 @@ _DONEM_CAKISMASI = {
 @router.get("", response_model=AccountingPeriodListResponse, dependencies=[_VIEW])
 async def list_accounting_periods_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR_QUERY = None,
     limit: _LIMIT = 50,
     offset: _OFFSET = 0,
@@ -117,7 +116,7 @@ async def close_accounting_period_endpoint(
     year: _YEAR_PATH,
     month: _MONTH_PATH,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> AccountingPeriodResponse:
     """Dönemi kapatır — kapandıktan sonra o aya HİÇBİR fiş yazılamaz.
 
@@ -153,7 +152,7 @@ async def reopen_accounting_period_endpoint(
     year: _YEAR_PATH,
     month: _MONTH_PATH,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> AccountingPeriodResponse:
     """Dönemi yeniden açar — **YALNIZ `admin`** (gerekçe modül docstring'inde).
 

@@ -34,11 +34,10 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import SiteValidationError
 from app.core.openapi import COMMON_ERROR_RESPONSES
@@ -73,7 +72,7 @@ _ISO_WEEK = Annotated[int, Query(ge=1, le=53)]
 async def get_site_timesheet_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR,
     month: _MONTH,
     section_id: uuid.UUID | None = None,
@@ -97,7 +96,7 @@ async def get_site_timesheet_endpoint(
 async def export_site_timesheet_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: _YEAR,
     month: _MONTH,
     section_id: uuid.UUID | None = None,
@@ -136,7 +135,7 @@ def _assert_week_exists(iso_year: int, iso_week: int) -> None:
 async def get_site_timesheet_week_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     iso_year: _ISO_YEAR,
     iso_week: _ISO_WEEK,
     section_id: uuid.UUID | None = None,
@@ -158,7 +157,7 @@ async def save_site_timesheet_week_endpoint(
     site_id: uuid.UUID,
     data: TimesheetWeekSave,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     iso_year: _ISO_YEAR,
     iso_week: _ISO_WEEK,
     section_id: uuid.UUID | None = None,

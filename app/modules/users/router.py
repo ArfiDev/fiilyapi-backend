@@ -2,10 +2,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
 from app.core.openapi import COMMON_ERROR_RESPONSES
@@ -36,7 +35,7 @@ router = APIRouter(prefix="/users", tags=["users"], responses=COMMON_ERROR_RESPO
     dependencies=[require_permission("user_management", AccessLevel.view)],
 )
 async def list_users_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> UserListResponse:
@@ -57,7 +56,7 @@ async def list_users_endpoint(
 )
 async def get_user_endpoint(
     user_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UserResponse:
     user = await repository.get_user(session, user_id)
     if user is None:
@@ -75,7 +74,7 @@ async def create_user_endpoint(
     request: Request,
     data: UserCreate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UserResponse:
     user = await service.create_user(session, current_user, data)
     # Rol servis katmaninda dogrulanirken kimlik haritasina girdigi icin ek sorgu cikmaz.
@@ -100,7 +99,7 @@ async def update_user_endpoint(
     user_id: uuid.UUID,
     data: UserUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> UserResponse:
     user = await service.update_user(session, current_user, user_id, data)
     await record_audit(
@@ -123,7 +122,7 @@ async def reset_password_endpoint(
     user_id: uuid.UUID,
     data: PasswordReset,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     await service.set_user_password(session, user_id, data.new_password)
     target = await repository.get_user(session, user_id)
@@ -146,7 +145,7 @@ async def delete_user_endpoint(
     request: Request,
     user_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     # Ad silmeden ONCE okunmali; sonra okunursa satir yoktur.
     target = await repository.get_user(session, user_id)
@@ -171,7 +170,7 @@ async def set_project_access_endpoint(
     user_id: uuid.UUID,
     data: ProjectAccessInput,
     current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProjectAccessResponse:
     rows = await service.set_project_access(session, user_id, data)
     target = await repository.get_user(session, user_id)
@@ -194,7 +193,7 @@ async def set_project_access_endpoint(
 )
 async def get_project_access_endpoint(
     user_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ProjectAccessResponse:
     rows = await repository.get_project_access(session, user_id)
     all_projects = any(r.all_projects for r in rows)

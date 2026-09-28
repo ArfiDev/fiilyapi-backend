@@ -21,10 +21,9 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -74,7 +73,7 @@ async def submit_subcontractor_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorProgressPaymentDetail:
     """`draft → pending_approval`. Zorunluluk kuralları (dönem + Σmiktar>0)
     YALNIZ burada koşar: taslak eksik veriyle serbestçe saklanır.
@@ -103,7 +102,7 @@ async def approve_subcontractor_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorProgressPaymentDetail:
     """🔴 **OK-1A T3: YOL ve KAPI KORUNDU, ANLAM DEĞİŞTİ.**
 
@@ -146,7 +145,7 @@ async def reject_subcontractor_progress_payment_endpoint(
     payment_id: uuid.UUID,
     data: SubcontractorRejectBody,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorProgressPaymentDetail:
     """`pending_approval → draft` — ret BEŞİNCİ durum DEĞİLDİR (spec §5).
 
@@ -182,7 +181,7 @@ async def mark_paid_subcontractor_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorProgressPaymentDetail:
     """`approved → paid`. Ödeme detayı formu mockup'ta YOK → tek tıkla
     işaretleme, yalnız `paid_at` damgalanır (fatura/ödeme bağı mali dilimlere)."""
@@ -208,7 +207,7 @@ async def unapprove_subcontractor_progress_payment_endpoint(
     request: Request,
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorProgressPaymentDetail:
     """`approved → pending_approval` (geri çek) — YALNIZ `admin`.
 

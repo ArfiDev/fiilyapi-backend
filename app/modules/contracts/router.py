@@ -9,10 +9,9 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
@@ -75,7 +74,7 @@ _ADMIN = require_permission("contracts", AccessLevel.admin)
 async def list_contracts_endpoint(
     contract_type: Annotated[ContractType, Query(alias="type")],
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     project_id: uuid.UUID | None = None,
     status_filter: Annotated[ContractStatus | None, Query(alias="status")] = None,
     q: str | None = None,
@@ -104,7 +103,7 @@ async def list_contracts_endpoint(
 async def get_employer_contract_endpoint(
     project_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EmployerContractDetail:
     """URL-4 — proje anahtarı UUID **ya da** PROJE SLUG'ı olabilir
     (`/sozlesmeler/isveren/kopru-guclendirme`).
@@ -125,7 +124,7 @@ async def get_employer_contract_endpoint(
 async def get_employer_contract_items_endpoint(
     project_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EmployerContractItemsResponse:
     """URL-4 — proje anahtarı UUID ya da proje slug'ı (ekranın ikinci isteği)."""
     return await service.get_employer_contract_items(session, user, parse_ref(project_id))
@@ -139,7 +138,7 @@ async def get_employer_contract_items_endpoint(
 async def get_contract_distribution_endpoint(
     project_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ContractDistributionResponse:
     """URL-4 — proje anahtarı UUID ya da proje slug'ı (ekranın üçüncü isteği).
 
@@ -159,7 +158,7 @@ async def save_contract_distribution_endpoint(
     project_id: uuid.UUID,
     data: ContractDistributionSave,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> ContractDistributionResponse:
     """`POZ` 24 "Dağılımı Kaydet" — ekranın tamamı tek atomik istekte."""
     result = await distribution.save_distribution(session, user, project_id, data)
@@ -185,7 +184,7 @@ async def create_employer_contract_group_endpoint(
     project_id: uuid.UUID,
     data: EmployerContractGroupCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EmployerContractGroupResponse:
     group, project = await service.create_employer_group(session, user, project_id, data)
     await record_audit(
@@ -208,7 +207,7 @@ async def update_employer_contract_group_endpoint(
     group_id: uuid.UUID,
     data: EmployerContractGroupUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EmployerContractGroupResponse:
     group, project = await service.update_employer_group(session, user, group_id, data)
     await record_audit(
@@ -230,7 +229,7 @@ async def delete_employer_contract_group_endpoint(
     request: Request,
     group_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Spec §7. 409 `GROUP_HAS_ITEMS`: grupta poz varsa silinmez. Kapı `_ADMIN`
 
@@ -257,7 +256,7 @@ async def create_employer_contract_item_endpoint(
     project_id: uuid.UUID,
     data: EmployerContractItemCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EmployerContractItemResponse:
     item, project = await service.create_employer_item(session, user, project_id, data)
     await record_audit(
@@ -282,7 +281,7 @@ async def update_employer_contract_item_endpoint(
     item_id: uuid.UUID,
     data: EmployerContractItemUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EmployerContractItemResponse:
     item, project, refreshed_boq_count = await service.update_employer_item(
         session, user, item_id, data
@@ -308,7 +307,7 @@ async def delete_employer_contract_item_endpoint(
     request: Request,
     item_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Spec §7. Engel YOK: bağlı `boq_items.contract_item_id` DB'de `ON DELETE
 
@@ -339,7 +338,7 @@ async def delete_employer_contract_item_endpoint(
     dependencies=[_VIEW],
 )
 async def list_subcontractors_endpoint(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     q: str | None = None,
     active_only: bool = True,
 ) -> SubcontractorListResponse:
@@ -357,7 +356,7 @@ async def create_subcontractor_endpoint(
     request: Request,
     data: SubcontractorCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorResponse:
     subcontractor = await subcontractors.create_subcontractor(session, data)
     await record_audit(
@@ -380,7 +379,7 @@ async def update_subcontractor_endpoint(
     subcontractor_id: uuid.UUID,
     data: SubcontractorUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorResponse:
     subcontractor = await subcontractors.update_subcontractor(session, subcontractor_id, data)
     await record_audit(
@@ -402,7 +401,7 @@ async def delete_subcontractor_endpoint(
     request: Request,
     subcontractor_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Spec §7. 409 `SUBCONTRACTOR_HAS_CONTRACTS`: taşeronun sözleşmesi varsa
 
@@ -441,7 +440,7 @@ async def create_subcontractor_contract_endpoint(
     project_id: uuid.UUID,
     data: SubcontractorContractCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorContractDetail:
     contract, project = await subcontracts.create_subcontractor_contract(
         session, user, project_id, data
@@ -471,7 +470,7 @@ async def create_subcontractor_contract_endpoint(
 )
 async def list_subcontractor_contracts_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     project_id: uuid.UUID | None = None,
     site_id: uuid.UUID | None = None,
     status_filter: Annotated[ContractStatus | None, Query(alias="status")] = None,
@@ -507,7 +506,7 @@ async def list_subcontractor_contracts_endpoint(
 async def get_subcontractor_contract_endpoint(
     contract_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorContractDetail:
     """URL-4 — yol parametresi UUID **ya da** sözleşme slug'ı kabul eder
     (`/sozlesmeler/taseron/tsz-2026-004`). Yol adı `contract_id` KALIR.
@@ -530,7 +529,7 @@ async def update_subcontractor_contract_endpoint(
     contract_id: uuid.UUID,
     data: SubcontractorContractUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorContractDetail:
     (
         contract,
@@ -571,7 +570,7 @@ async def delete_subcontractor_contract_endpoint(
     request: Request,
     contract_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Spec §7, §5.0. KAPI KARARI (task C12, belirsizlik notu): bu ucun dısındaki
 
@@ -621,7 +620,7 @@ async def create_subcontract_item_endpoint(
     contract_id: uuid.UUID,
     data: SubcontractorContractItemCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorContractItemResponse:
     item, contract, _ = await subcontracts.create_subcontract_item(session, user, contract_id, data)
     await record_audit(
@@ -644,7 +643,7 @@ async def update_subcontract_item_endpoint(
     item_id: uuid.UUID,
     data: SubcontractorContractItemUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorContractItemResponse:
     item, contract, _ = await subcontracts.update_subcontract_item(session, user, item_id, data)
     await record_audit(
@@ -666,7 +665,7 @@ async def delete_subcontract_item_endpoint(
     request: Request,
     item_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> None:
     """Spec §7. Engel YOK. Kapı `_ADMIN` — `can_delete` istisnası burada YOK,
 
@@ -692,7 +691,7 @@ async def load_subcontract_items_from_employer_endpoint(
     request: Request,
     contract_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> SubcontractorContractItemsLoadResponse:
     created_count, skipped_count, contract, _ = await subcontracts.load_items_from_employer(
         session, user, contract_id

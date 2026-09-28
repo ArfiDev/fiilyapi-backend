@@ -1,30 +1,31 @@
-"""ÖLÇÜM (kayıt 2 + 3): `get_db` teardown commit'i patladığında istemci NE görür.
+"""ÖLÇÜM (kayıt 2 + 3, TEARDOWN-B1 sonrası): `get_db` teardown commit'i
+patladığında istemci NE görür.
 
-Bu dosya kalıcı bir bekçi DEĞİL, kayıt 2/3'ün "kalan kol" iddiasını bugünün
-kodunda (`app/core/db.py:83`, FastAPI 0.141.1) fiilen üretip belgelemek için
-yazıldı. `get_db` bir async generator olduğu için FastAPI onu hesaplanmış
-`scope="request"` ile ele alır (ölçüldü:
-`.venv/.../fastapi/dependencies/models.py:229-234` `_get_computed_scope` —
-generator/async-generator `call`larda `scope` açıkça verilmemişse "request"
-döner), yani teardown `routing.py:145`teki
-`await response(scope, receive, send)`ten SONRA çalışır.
+Bu dosya ÜRETİM `DbSession` takma adının (`app/core/db.py`,
+`Depends(get_db, scope="function")`) kapsamını gerçek HTTP davranışıyla ölçer.
+Rotalar takma adı kullanır, `get_db` `dependency_overrides` ile commit'te
+patlayan bir taklitle değiştirilir (bkz. `_teardown_commit_asgi_app.py`).
 
-## İki ayrı ölçüm, iki farklı görünür sonuç
+## Tarihçe
 
-1. `test_INPROCESS_asgi_transport_istisnayi_ceteveir` — `httpx.ASGITransport`
-   ile İÇ SÜREÇTE çağrı: `request_stack.__aexit__`teki hata hiçbir ASGI
-   sunucu sınırı geçmeden doğrudan çağırana (`await client.post(...)`)
-   fırlar. Bu, hiçbir kayıtlı exception handler'ın (409 IntegrityError, 422
-   DomainError, ...) ÇAĞRILMADIĞININ kanıtıdır: hata FastAPI'nin
-   `wrap_app_handling_exceptions` sınırının DIŞINDA doğar.
+Eskiden `get_db` çıplak `Depends(get_db)` ile kullanılırdı; FastAPI generator
+bağımlılığı hesaplanmış `scope="request"` ile ele alır (`fastapi/dependencies/
+models.py` `_get_computed_scope`), teardown `await response(...)`ten SONRA
+koşardı: istemci `200 {"ok": true}` görür, sunucu `Exception in ASGI
+application` loglardı ve hiçbir exception handler çağrılmazdı. Bu dosya o
+ayrışmayı ölçüyordu. Takma ad `scope="function"` olunca ölçüm TERSİNE döndü.
 
-2. `test_GERCEK_soket_uzerinden_istemci_200_gorur` — gerçek bir uvicorn
-   sürecini alt süreç olarak başlatıp GERÇEK bir TCP soketi üzerinden
-   isteği yapar. Burada ASGI sunucusu `await response(...)`i tamamlayıp
-   yanıtı SOKETE YAZDIKTAN SONRA teardown patlar; istemci `200 {"ok": true}`
-   görür (yazı zaten gönderilmiştir), sunucu ise `ERROR: Exception in ASGI
-   application` diye ayrıca loglar. Kayıt 3'ün "istemci 200+gövde görür,
-   veritabanına hiçbir şey yazılmamış olabilir" iddiası TAM BURADA doğrulanır.
+## Şimdi ölçülenler
+
+1. Gerçek soket (ayrı süreç uvicorn) + teardown `RuntimeError` → istemci
+   **500** görür, gövde `{"ok": true}` DEĞİLDİR.
+2. Gerçek soket + teardown `IntegrityError` → **409**: hata, kayıtlı
+   `_integrity_error_handler`a ULAŞIR (function kapsamı, yanıt yazılmadan önce).
+3. İç süreç (`httpx.ASGITransport`, `raise_app_exceptions=False`): 500 / 409.
+4. NEGATİF KONTROL: açıkça `Depends(get_db, scope="request")` kullanan rota
+   HÂLÂ 200 döner (yazılan yanıt zaten gitmiştir). Request kapsamının neden
+   YALNIZ yazmasız akış ucuna (`documents/deps.py`) izinli olduğunu belgeler;
+   yapısal bekçi: `test_getdb_kapsam_bekcisi.py`.
 """
 
 from __future__ import annotations
@@ -33,56 +34,15 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import AsyncGenerator
-from typing import Annotated
 
 import httpx
 import pytest
-from fastapi import Depends, FastAPI
 
-from app.core.exception_handlers import register_exception_handlers
-
-
-class _PatlayanSession:
-    async def commit(self) -> None:
-        raise RuntimeError("teardown commit anında patladı")
-
-
-async def _get_db_taklit() -> AsyncGenerator[_PatlayanSession, None]:
-    session = _PatlayanSession()
-    try:
-        yield session
-        await session.commit()
-    except Exception:
-        raise
-
-
-#: 🔴 Rota kasıtlı olarak MODÜL DÜZEYİNDEDİR, `_uygulama_kur()`nun İÇİNE
-#: gömülmez: `from __future__ import annotations` altında bir kapanış
-#: (closure) fonksiyonunun `Annotated[...]` imzası `typing.get_type_hints`
-#: ile çözülürken çevreleyen fonksiyonun yerel adlarını GÖRMEZ — bu da
-#: FastAPI'nin `Depends()`i hiç fark etmeyip `db`yi sıradan bir ZORUNLU QUERY
-#: parametresi sanmasına yol açar (ölçüldü: istemci `422 "db" query eksik`
-#: görür, endpoint hiç çağrılmaz). Modül düzeyinde tanımlamak bu çözümleme
-#: sorununu ortadan kaldırır.
-_olcum_app = FastAPI()
-register_exception_handlers(_olcum_app)
-
-
-@_olcum_app.post("/kaydet")
-async def _kaydet(
-    db: Annotated[_PatlayanSession, Depends(_get_db_taklit)],
-) -> dict[str, bool]:
-    return {"ok": True}
-
-
-async def test_INPROCESS_asgi_transport_istisnayi_ceteveir() -> None:
-    """İç süreç çağrısında teardown hatası ASGI sınırını hiç geçmeden çağırana
-    fırlar — yani HİÇBİR kayıtlı exception handler'a UĞRAMAZ."""
-    transport = httpx.ASGITransport(app=_olcum_app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        with pytest.raises(RuntimeError, match="teardown commit anında patladı"):
-            await client.post("/kaydet")
+from tests.core._teardown_commit_asgi_app import (
+    TEARDOWN_MESAJI,
+    app_integrity,
+    app_runtime,
+)
 
 
 def _bos_port_bul() -> int:
@@ -91,21 +51,15 @@ def _bos_port_bul() -> int:
         return s.getsockname()[1]
 
 
-def test_GERCEK_soket_uzerinden_istemci_200_gorur() -> None:
-    """🔴 ASIL ÖLÇÜM. Gerçek uvicorn süreci + gerçek TCP soketi.
-
-    İstemci 200 + `{"ok": true}` görür; sunucu STDERR'ine ayrıca
-    `Exception in ASGI application` basılır. İkisi birlikte kayıt 3'ün
-    iddiasını KANITLAR: teardown'da patlayan commit istemciye SESSİZCE
-    başarı gibi görünür.
-    """
+def _gercek_soketten_istek(uygulama_adi: str, yol: str) -> tuple[httpx.Response, str]:
+    """Ayrı süreçte uvicorn başlatır, `POST yol` yapar, (yanıt, sunucu stderr) döner."""
     port = _bos_port_bul()
     proc = subprocess.Popen(
         [
             sys.executable,
             "-m",
             "uvicorn",
-            "tests.core._teardown_commit_asgi_app:app",
+            f"tests.core._teardown_commit_asgi_app:{uygulama_adi}",
             "--host",
             "127.0.0.1",
             "--port",
@@ -119,7 +73,7 @@ def test_GERCEK_soket_uzerinden_istemci_200_gorur() -> None:
     )
     try:
         base_url = f"http://127.0.0.1:{port}"
-        for _ in range(50):
+        for _ in range(100):
             try:
                 httpx.get(f"{base_url}/openapi.json", timeout=0.2)
                 break
@@ -128,23 +82,81 @@ def test_GERCEK_soket_uzerinden_istemci_200_gorur() -> None:
         else:
             pytest.fail("uvicorn alt süreci zamanında ayağa kalkmadı")
 
-        response = httpx.post(f"{base_url}/kaydet", timeout=5)
-        assert response.status_code == 200, (
-            "Beklenmedik: teardown hatası gerçek soket üzerinde 200 DIŞINDA bir "
-            f"kod üretti (yani BEKLENENDEN İYİ davranıyor olabilir): "
-            f"{response.status_code} {response.text}"
-        )
-        assert response.json() == {"ok": True}, response.text
+        response = httpx.post(f"{base_url}{yol}", timeout=5)
     finally:
         proc.terminate()
         try:
-            stdout, stderr = proc.communicate(timeout=5)
+            _, stderr = proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
-            stdout, stderr = proc.communicate(timeout=5)
+            _, stderr = proc.communicate(timeout=5)
+    return response, stderr
 
-    assert "Exception in ASGI application" in stderr, (
-        "Sunucu STDERR'inde beklenen 'Exception in ASGI application' izi yok; "
-        f"ölçüm koşulları değişmiş olabilir. STDERR:\n{stderr}"
+
+async def _ic_surec_istek(uygulama, yol: str) -> httpx.Response:
+    transport = httpx.ASGITransport(app=uygulama, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        return await client.post(yol)
+
+
+def test_GERCEK_soket_teardown_RuntimeError_istemciye_500_doner() -> None:
+    """🔴 ASIL ÖLÇÜM. Function kapsamında teardown hatası yanıttan ÖNCE koşar:
+    istemci 500 görür, `{"ok": true}` GÖRMEZ (eski davranış: 200)."""
+    response, stderr = _gercek_soketten_istek("app_runtime", "/kaydet")
+
+    assert response.status_code == 500, (
+        "Teardown commit hatası istemciye 500 olarak ulaşmalıydı; 200 görülüyorsa "
+        "`DbSession` takma adı yeniden request kapsamına düşmüş demektir "
+        f"(başarısız yazma sessizce başarı görünür): {response.status_code} {response.text}"
     )
-    assert "teardown commit anında patladı" in stderr, stderr
+    assert response.text != '{"ok":true}', response.text
+    assert TEARDOWN_MESAJI in stderr, stderr
+
+
+def test_GERCEK_soket_teardown_IntegrityError_409_doner() -> None:
+    """Function kapsamında teardown `IntegrityError`ı KAYITLI
+    `_integrity_error_handler`a ulaşır → 409 (request kapsamında ulaşamazdı)."""
+    response, _ = _gercek_soketten_istek("app_integrity", "/kaydet")
+
+    assert response.status_code == 409, (
+        "IntegrityError kayıtlı handler'a ulaşıp 409 dönmeliydi: "
+        f"{response.status_code} {response.text}"
+    )
+    assert response.json() == {"detail": "Veri bütünlüğü hatası"}, response.text
+
+
+async def test_INPROCESS_teardown_RuntimeError_500_doner() -> None:
+    """İç süreç: hata sunucu sınırında 500'e çevrilir (`raise_app_exceptions=False`)."""
+    response = await _ic_surec_istek(app_runtime, "/kaydet")
+
+    assert response.status_code == 500, f"{response.status_code} {response.text}"
+
+
+async def test_INPROCESS_teardown_IntegrityError_409_doner() -> None:
+    """İç süreç: `IntegrityError` kayıtlı handler'a ulaşır → 409."""
+    response = await _ic_surec_istek(app_integrity, "/kaydet")
+
+    assert response.status_code == 409, f"{response.status_code} {response.text}"
+    assert response.json() == {"detail": "Veri bütünlüğü hatası"}, response.text
+
+
+def test_NEGATIF_KONTROL_acik_request_kapsami_hala_200_doner() -> None:
+    """Açıkça `Depends(get_db, scope="request")` kullanan rota teardown
+    `RuntimeError`ında bile istemciye 200 + gövde döner: yanıt soketa yazıldıktan
+    SONRA patlar. Bu yüzden request kapsamı YALNIZ yazmasız akış ucuna izinlidir."""
+    response, stderr = _gercek_soketten_istek("app_runtime", "/kaydet-request")
+
+    assert response.status_code == 200, f"{response.status_code} {response.text}"
+    assert response.json() == {"ok": True}, response.text
+    assert "Exception in ASGI application" in stderr, stderr
+    assert TEARDOWN_MESAJI in stderr, stderr
+
+
+async def test_NEGATIF_KONTROL_INPROCESS_request_kapsami_hatayi_ceteveir() -> None:
+    """İç süreç aynası: request kapsamında yanıt ZATEN başlamıştır; Starlette
+    handler'ı çağıramaz ("response already started") ve hata çağırana fırlar —
+    409 ÜRETİLEMEZ."""
+    transport = httpx.ASGITransport(app=app_integrity)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        with pytest.raises(RuntimeError, match="response already started"):
+            await client.post("/kaydet-request")

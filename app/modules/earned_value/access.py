@@ -41,7 +41,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import ConflictError, NotFoundError
 from app.core.permissions import require_permission
@@ -109,7 +109,7 @@ def completed_site_guard(message: str) -> Callable[..., Awaitable[SiteContext]]:
     async def _guard(
         site_id: uuid.UUID,
         user: Annotated[User, Depends(get_current_user)],
-        session: Annotated[AsyncSession, Depends(get_db)],
+        session: DbSession,
     ) -> SiteContext:
         context = await visible_site(session, user, site_id)
         _refuse_completed(context.site.status, message)

@@ -1,5 +1,7 @@
 from collections.abc import AsyncGenerator
+from typing import Annotated
 
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -84,3 +86,13 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+
+# 🔴 Uçların ve bağımlılıkların KULLANDIĞI takma ad budur; çıplak `Depends(get_db)`
+# yazılmaz. `scope="function"`da `get_db`nin commit'i YANITTAN ÖNCE koşar:
+# teardown hatası (ör. IntegrityError→409) exception handler'lara ve istemciye
+# 5xx olarak ulaşır. Varsayılan "request" kapsamında commit yanıt yazıldıktan
+# SONRA koşar, başarısız yazma 200 döner. "request" kapsamlı `get_db` yalnız
+# `documents/deps.py`daki akış varyantında izinlidir. FastAPI önbellek anahtarı
+# kapsamı içerir: aynı istekte iki kapsam karışırsa İKİ oturum açılır.
+DbSession = Annotated[AsyncSession, Depends(get_db, scope="function")]

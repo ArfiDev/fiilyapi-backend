@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel, Scope, satisfies
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.scoped_route import kapsam_bagimligi_kur
 from app.modules.roles.repository import get_permission
@@ -24,7 +24,7 @@ def require_permission(module_key: str, min_level: AccessLevel):
 
     async def _check(
         user: Annotated[User, Depends(get_current_user)],
-        session: Annotated[AsyncSession, Depends(get_db)],
+        session: DbSession,
     ) -> None:
         permission = await get_permission(session, user.role_id, module_key)
         if permission is None or not satisfies(permission.access_level, min_level):
@@ -74,8 +74,12 @@ def kapsam_kapisi(module_key: str):
 
     async def _cozucu(
         user: Annotated[User, Depends(get_current_user)],
-        session: Annotated[AsyncSession, Depends(get_db)],
+        session: DbSession,
     ) -> Scope:
         return await actor_scope(session, user, module_key)
 
-    return Depends(kapsam_bagimligi_kur(_cozucu))
+    # Kapsam bağımlılığı async generator'dır; function kapsamlı `get_db`ye
+    # bağlanabilmesi için kendisinin de function olması şart (yoksa import'ta
+    # DependencyScopeError). Maske ve serileştirme function_stack kapanmadan önce
+    # koştuğundan davranış değişmez.
+    return Depends(kapsam_bagimligi_kur(_cozucu), scope="function")

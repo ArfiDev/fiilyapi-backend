@@ -44,7 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import http
 from app.core.access import AccessLevel
-from app.core.db import get_db
+from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -105,7 +105,7 @@ async def _audit(
 @router.get("", response_model=EquipmentListResponse, dependencies=[_VIEW])
 async def list_equipment_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     status_filter: Annotated[EquipmentStatus | None, Query(alias="status")] = None,
     category: EquipmentCategory | None = None,
     site_id: uuid.UUID | None = None,
@@ -148,7 +148,7 @@ async def list_equipment_endpoint(
 @router.get("/summary", response_model=EquipmentSummaryResponse, dependencies=[_VIEW])
 async def equipment_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EquipmentSummaryResponse:
     """M1 KPI'ları: DÖRT durum sayacı (K21) + cari ay çalışma maliyeti.
 
@@ -172,7 +172,7 @@ async def create_equipment_endpoint(
     request: Request,
     data: EquipmentCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EquipmentResponse:
     """M2 formunun kaydı. `site_id` verilmezse makine DEPODADIR (K4)."""
     equipment, detail = await service.create_equipment(session, user, data)
@@ -183,7 +183,7 @@ async def create_equipment_endpoint(
 @router.get("/work-logs", response_model=WorkLogListResponse, dependencies=[_VIEW])
 async def list_work_logs_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     equipment_id: uuid.UUID | None = None,
     site_id: uuid.UUID | None = None,
     date_from: date | None = None,
@@ -219,7 +219,7 @@ async def list_work_logs_endpoint(
 @router.get("/work-summary", response_model=WorkSummaryResponse, dependencies=[_VIEW])
 async def work_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int, Query(ge=2000, le=2200)],
     month: Annotated[int, Query(ge=1, le=12)],
     site_id: uuid.UUID | None = None,
@@ -245,7 +245,7 @@ async def work_summary_endpoint(
 )
 async def work_summary_export_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int, Query(ge=2000, le=2200)],
     month: Annotated[int, Query(ge=1, le=12)],
     site_id: uuid.UUID | None = None,
@@ -287,7 +287,7 @@ async def create_work_log_endpoint(
     request: Request,
     data: WorkLogCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> WorkLogResponse:
     """M3 kaydı. `hours` SUNUCU hesabıdır (K11); günlük tavan KİLİTLİDİR (K12)."""
     log, detail = await service.create_work_log(session, user, data)
@@ -299,7 +299,7 @@ async def create_work_log_endpoint(
 async def get_work_log_endpoint(
     log_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> WorkLogResponse:
     """Görünmeyen kayıt var olmayanla AYNI 404'ü döner."""
     return WorkLogResponse.model_validate(await service.visible_work_log(session, user, log_id))
@@ -316,7 +316,7 @@ async def update_work_log_endpoint(
     log_id: uuid.UUID,
     data: WorkLogUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> WorkLogResponse:
     """Kayıt hatası düzeltilebilir; K11/K12 BİRLEŞİK değerler üzerinde koşar."""
     log = await service.visible_work_log(session, user, log_id)
@@ -330,7 +330,7 @@ async def delete_work_log_endpoint(
     request: Request,
     log_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> Response:
     """🔴 Çalışma kaydı MALİ İZ DEĞİLDİR (maliyet ondan türev) — silinebilir.
 
@@ -344,7 +344,7 @@ async def delete_work_log_endpoint(
 @router.get("/fuel-logs", response_model=FuelLogListResponse, dependencies=[_VIEW])
 async def list_fuel_logs_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     equipment_id: uuid.UUID | None = None,
     site_id: uuid.UUID | None = None,
     date_from: date | None = None,
@@ -374,7 +374,7 @@ async def list_fuel_logs_endpoint(
 @router.get("/fuel-summary", response_model=FuelSummaryResponse, dependencies=[_VIEW])
 async def fuel_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     year: Annotated[int, Query(ge=2000, le=2200)],
     month: Annotated[int, Query(ge=1, le=12)],
     equipment_id: uuid.UUID | None = None,
@@ -400,7 +400,7 @@ async def create_fuel_log_endpoint(
     request: Request,
     data: FuelLogCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> FuelLogResponse:
     """M4 kaydı. `entered_by_id` oturum kullanıcısından DAMGALANIR (K14)."""
     log, detail = await service.create_fuel_log(session, user, data)
@@ -412,7 +412,7 @@ async def create_fuel_log_endpoint(
 async def get_fuel_log_endpoint(
     log_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> FuelLogResponse:
     """Görünmeyen kayıt var olmayanla AYNI 404'ü döner."""
     return FuelLogResponse.model_validate(await service.visible_fuel_log(session, user, log_id))
@@ -424,7 +424,7 @@ async def update_fuel_log_endpoint(
     log_id: uuid.UUID,
     data: FuelLogUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> FuelLogResponse:
     """Kayıt hatası düzeltilebilir."""
     log = await service.visible_fuel_log(session, user, log_id)
@@ -438,7 +438,7 @@ async def delete_fuel_log_endpoint(
     request: Request,
     log_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> Response:
     """🔴 Yakıt kaydı MALİ İZ DEĞİLDİR (maliyet ondan türev) — silinebilir."""
     detail = await service.delete_fuel_log(session, user, log_id)
@@ -450,7 +450,7 @@ async def delete_fuel_log_endpoint(
 async def get_equipment_endpoint(
     equipment_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EquipmentResponse:
     """Görünmeyen kayıt var olmayanla AYNI 404'ü döner (spec §4).
 
@@ -471,7 +471,7 @@ async def get_equipment_endpoint(
 async def get_equipment_detail_endpoint(
     equipment_id: str,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
     as_of: date | None = None,
 ) -> EquipmentDetailResponse:
     """MK-4 — Ekipman Detay ekranının künye + İKİ TÜREV bloğu.
@@ -504,7 +504,7 @@ async def update_equipment_endpoint(
     equipment_id: uuid.UUID,
     data: EquipmentUpdate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: DbSession,
 ) -> EquipmentResponse:
     """Kısmi güncelleme. **Kullanımdan kaldırma da buradan geçer**
     (`{"is_active": false}`) — DELETE ucu yoktur (modül docstring'i).
