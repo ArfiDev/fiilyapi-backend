@@ -1,0 +1,42 @@
+{
+  "body": {
+    "items": [
+      {
+        "created_at": "<ts>",
+        "created_by": "<user:atamasiz>",
+        "entry_date": "2026-05-06",
+        "has_incident": false,
+        "id": "<entry:e2>",
+        "lines_total": "40.00",
+        "project_id": "<proje>",
+        "section_id": "<S2>",
+        "section_line_count": 0,
+        "section_name": "B Blok",
+        "site_id": "<site>",
+        "status": "submitted",
+        "weather": null,
+        "worker_total": 2
+      },
+      {
+        "created_at": "<ts>",
+        "created_by": "<user:atamasiz>",
+        "entry_date": "2026-05-05",
+        "has_incident": false,
+        "id": "<entry:e1>",
+        "lines_total": "225.00",
+        "project_id": "<proje>",
+        "section_id": "<S1>",
+        "section_line_count": 2,
+        "section_name": "A Blok",
+        "site_id": "<site>",
+        "status": "submitted",
+        "weather": null,
+        "worker_total": 4
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "total": 2
+  },
+  "status": 200
+}

@@ -38,15 +38,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import day_hooks
 from app.core.access import AccessLevel, satisfies
 from app.core.day_hooks import SubmitContext, SubmitReason
+from app.core.discipline_scope import DisciplineScope
 from app.core.errors import ConflictError, EarnedValueValidationError
 from app.modules.contracts.models import Subcontractor
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import guards
 from app.modules.earned_value.access import PERMISSION_MODULE, assert_site_writable
 from app.modules.earned_value.budget_snapshot import frozen_tree
-from app.modules.earned_value.budget_tree import BudgetTree
+from app.modules.earned_value.budget_tree import (
+    BudgetTree,
+    discipline_node_id,
+    group_node_id,
+    item_node_id,
+    leaf_node_id,
+)
 from app.modules.earned_value.models import (
     ALLOCATION_RULE_VALUES,
+    EvBaselineLeaf,
     EvDayCell,
     EvDayCode,
     EvDayNote,
@@ -165,6 +173,39 @@ async def active_tree(session: AsyncSession, site_id: uuid.UUID) -> BudgetTree |
     return await frozen_tree(
         session, rev, await repo.load_disciplines(session), calendar.is_working_day
     )
+
+
+async def visible_node_ids(
+    session: AsyncSession, site_id: uuid.UUID, scope: DisciplineScope
+) -> frozenset[str]:
+    """Kisitli kapsamda AKTIF baseline'in gorunur dugum kimlikleri (`d:`/`g:`/`i:`/`l:`),
+    agaci KURMADAN tek sorguyla donmus yaprak fotografindan (`active_tree` + `budget_scope.
+    prune_tree(frozen)` ile ayni kume: d: koku = fotograftaki disiplin; d:none hep disarida)."""
+    stmt = (
+        select(
+            EvBaselineLeaf.discipline_id,
+            EvBaselineLeaf.boq_group_id,
+            EvBaselineLeaf.boq_item_id,
+            EvBaselineLeaf.section_id,
+        )
+        .join(EvRevision, EvRevision.id == EvBaselineLeaf.revision_id)
+        .where(
+            EvRevision.site_id == site_id,
+            EvRevision.status == RevisionStatus.ACTIVE,
+            EvBaselineLeaf.discipline_id.in_(sorted(scope.discipline_ids or (), key=str)),
+        )
+    )
+    out: set[str] = set()
+    for disc, group, item, section in (await session.execute(stmt)).all():
+        out.update(
+            (
+                discipline_node_id(disc),
+                group_node_id(group),
+                item_node_id(item),
+                leaf_node_id(item, section),
+            )
+        )
+    return frozenset(out)
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,0 +1,38 @@
+{
+  "body": {
+    "codes": [
+      {
+        "node_id": "l:<I1>:<S1>",
+        "rule": "direct"
+      },
+      {
+        "node_id": "l:<I2>:<S1>",
+        "rule": "direct"
+      }
+    ],
+    "day": "2026-05-05",
+    "rows": [
+      {
+        "kind": "personnel",
+        "ref_id": "<kisi:1>",
+        "shares": [
+          {
+            "node_id": "l:<I1>:<S1>",
+            "share": "1"
+          }
+        ]
+      },
+      {
+        "kind": "personnel",
+        "ref_id": "<kisi:2>",
+        "shares": [
+          {
+            "node_id": "l:<I2>:<S1>",
+            "share": "1"
+          }
+        ]
+      }
+    ]
+  },
+  "status": 200
+}

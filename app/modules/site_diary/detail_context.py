@@ -12,14 +12,16 @@ izni olmayan günlük görüntüleyicisine de ulaşır.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import day_hooks
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.modules.site_diary import repository
-from app.modules.site_diary.models import SiteDiaryEntry
+from app.modules.site_diary.models import SiteDiaryEntry, SiteDiaryLine
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,18 +45,25 @@ class DetailContext:
 
 
 async def load(
-    session: AsyncSession, entry: SiteDiaryEntry, section_context: uuid.UUID | None
+    session: AsyncSession,
+    entry: SiteDiaryEntry,
+    section_context: uuid.UUID | None,
+    lines: Sequence[SiteDiaryLine],
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> DetailContext:
     """`section_context` = önceki/sonraki için bölüm bağlamı (Kural A); `None` = şantiye.
 
     Bölümün şantiyeye aitliğini ÇAĞIRAN doğrular (`service.validate_section`).
+
+    DSC-B1: `lines` = kullanıcıya GÖRÜNEN satırlar; bölüm adları YALNIZ bunlardan çözülür
+    (görünmeyen satırın bölüm adı sızmaz). `scope` komşu (önceki/sonraki) kümesini süzer.
     """
-    sections = {entry.section_id, *(line.section_id for line in entry.lines)} - {None}
+    sections = {entry.section_id, *(line.section_id for line in lines)} - {None}
     firms = {row.subcontractor_id for row in entry.worker_counts} - {None}
     users = {entry.created_by, entry.submitted_by_user_id} - {None}
     locks = await day_hooks.day_locks(session, entry.site_id, [entry.entry_date])
     prev, next_ = await repository.neighbours(
-        session, entry.site_id, entry.entry_date, section_context
+        session, entry.site_id, entry.entry_date, section_context, scope
     )
     return DetailContext(
         section_names=await repository.section_names(session, sections),

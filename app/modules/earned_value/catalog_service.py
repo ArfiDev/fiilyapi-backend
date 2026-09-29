@@ -24,6 +24,7 @@ from decimal import Decimal
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.errors import ConflictError, DuplicateError, NotFoundError, RelatedRecordsExistError
 from app.modules.earned_value import guards
 from app.modules.earned_value.labels import normalize_label
@@ -67,8 +68,17 @@ class CatalogItemRow:
 # ------------------------------------------------------------------ disiplin
 
 
-async def list_disciplines(session: AsyncSession) -> list[EvDiscipline]:
+def _scope_ids(scope: DisciplineScope) -> list[uuid.UUID]:
+    return sorted(scope.discipline_ids or (), key=str)
+
+
+async def list_disciplines(
+    session: AsyncSession, scope: DisciplineScope = UNRESTRICTED
+) -> list[EvDiscipline]:
+    """Disiplinler; kisitlida yalniz KENDI disiplinleri (`IN`; `NOT IN` yok — DSC B1)."""
     stmt = select(EvDiscipline).order_by(EvDiscipline.sort_order, EvDiscipline.code)
+    if scope.is_restricted:
+        stmt = stmt.where(EvDiscipline.id.in_(_scope_ids(scope)))
     return list((await session.execute(stmt)).scalars())
 
 
@@ -284,11 +294,19 @@ async def _rows(
 
 
 async def list_catalog(
-    session: AsyncSession, discipline_id: uuid.UUID | None, q: str | None
+    session: AsyncSession,
+    discipline_id: uuid.UUID | None,
+    q: str | None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> list[CatalogItemRow]:
+    """Katalog; kisitlida yalniz kendi disiplinlerinin kalemleri. Yabanci `discipline_id`
+    sorgu parametresi kapsamla KESISIR → `[]` (olmayan disiplinle ayni). `catalog_actuals`
+    (proje kapsami) bu dilimde DEGISMEZ (K6)."""
     stmt = select(EvCatalogItem, EvDiscipline).join(
         EvDiscipline, EvDiscipline.id == EvCatalogItem.discipline_id
     )
+    if scope.is_restricted:
+        stmt = stmt.where(EvCatalogItem.discipline_id.in_(_scope_ids(scope)))
     if discipline_id is not None:
         stmt = stmt.where(EvCatalogItem.discipline_id == discipline_id)
     if q is not None and q.strip():

@@ -19,6 +19,7 @@ from sqlalchemy import (
     Select,
     and_,
     case,
+    exists,
     func,
     literal,
     or_,
@@ -28,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import Subquery
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, item_fk_conditions
 from app.modules.boq.models import BoqItem
 from app.modules.inventory import balance
 from app.modules.inventory.models import (
@@ -265,9 +267,17 @@ def _entry_filtered(
     warehouse_id: uuid.UUID | None,
     date_from: date | None,
     date_to: date | None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> Select:
-    """Liste ve sayım AYNI süzgeçten geçer (`_item_filtered` gerekçesi)."""
+    """Liste ve sayım AYNI süzgeçten geçer (`_item_filtered` gerekçesi).
+
+    DSC-B1: kısıtlıda "≥1 GÖRÜNÜR satırı olan hareket" (EXISTS); liste ve sayaç bu TEK
+    gövdeyi paylaşır. NULL kalemli satır görünmez (K8 kabul): alım/transfer satırları
+    çoğunlukla `boq_item_id` NULL olduğundan kısıtlı kullanıcı neredeyse boş liste görür."""
     stmt = _entry_scope(stmt, project_ids)
+    gorunur_satir = item_fk_conditions(scope, StockEntryLine.boq_item_id, BoqItem)
+    if gorunur_satir:
+        stmt = stmt.where(exists().where(StockEntryLine.entry_id == StockEntry.id, *gorunur_satir))
     if entry_type is not None:
         stmt = stmt.where(StockEntry.entry_type == entry_type)
     if warehouse_id is not None:
@@ -294,15 +304,22 @@ async def list_entries(
     date_to: date | None,
     limit: int,
     offset: int,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> list[StockEntry]:
     """Satırlar `selectinload` ile TEK ek sorguda gelir — hareket başına sorgu
     (N+1) açılmaz. Sıralama en yeniden eskiye, ikinci ölçüt kimlik: aynı güne
-    düşen iki hareket sayfalar arasında kaybolup tekrarlanmasın."""
+    düşen iki hareket sayfalar arasında kaybolup tekrarlanmasın.
+
+    DSC-B1: kısıtlıda yüklenen satırlar da görünür kalemle sınırlanır
+    (`selectinload(lines.and_(...))`); `populate_existing` aynı oturumda daha önce TAM
+    yüklenmiş bir koleksiyonun süzgeci atlamasını önler."""
     stmt = _entry_filtered(
-        select(StockEntry), project_ids, entry_type, warehouse_id, date_from, date_to
+        select(StockEntry), project_ids, entry_type, warehouse_id, date_from, date_to, scope
     )
+    satir_kosullari = item_fk_conditions(scope, StockEntryLine.boq_item_id, BoqItem)
     stmt = (
-        stmt.options(selectinload(StockEntry.lines))
+        stmt.options(selectinload(StockEntry.lines.and_(*satir_kosullari)))
+        .execution_options(populate_existing=True)
         .order_by(StockEntry.entry_date.desc(), StockEntry.created_at.desc(), StockEntry.id)
         .limit(limit)
         .offset(offset)
@@ -318,6 +335,7 @@ async def count_entries(
     warehouse_id: uuid.UUID | None,
     date_from: date | None,
     date_to: date | None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> int:
     stmt = _entry_filtered(
         select(func.count()).select_from(StockEntry),
@@ -326,6 +344,7 @@ async def count_entries(
         warehouse_id,
         date_from,
         date_to,
+        scope,
     )
     return (await session.execute(stmt)).scalar_one()
 
@@ -608,7 +627,7 @@ async def warehouse_breakdown(
 # --- Bolum malzeme kirilimi (STOK-BOLUM) ---
 
 
-def _section_line_scope(section_id: uuid.UUID) -> Select:
+def _section_line_scope(section_id: uuid.UUID, scope: DisciplineScope = UNRESTRICTED) -> Select:
     """Bir bölüme atfedilmiş satırların ORTAK iskeleti.
 
     🔴 **KAPSAM SÜZGECİ DEPO ÜZERİNDEN KURULMAZ ve buna gerek YOKTUR.** Yazma
@@ -623,11 +642,19 @@ def _section_line_scope(section_id: uuid.UUID) -> Select:
     hareketinde atıf yazılmasını 422 ile reddeder. Bu yüzden ÇİFT BACAK
     sorunu bu türetmede YOKTUR — her satır tek bacaklıdır ve `balance.legs()`
     burada ÇAĞRILMAZ.
+
+    🔴 DSC-B1: satır + sayaç + KPI bu ORTAK iskeletten türer; kısıtlıda görünür-kalem şartı
+    BURADA (`item_fk_conditions`, `StockEntryLine.boq_item_id IN görünür kalemler`) eklenir —
+    KPI sorgusu `BoqItem` FROM'unda taşımadığı için `item_visible_clause` orada korelasyonu
+    düşürürdü (`ItemVisible` derleme hatası verir). NULL kalemli satır görünmez (Ü1).
     """
     return (
         select(StockEntryLine)
         .join(StockEntry, StockEntry.id == StockEntryLine.entry_id)
-        .where(StockEntryLine.section_id == section_id)
+        .where(
+            StockEntryLine.section_id == section_id,
+            *item_fk_conditions(scope, StockEntryLine.boq_item_id, BoqItem),
+        )
     )
 
 
@@ -655,11 +682,11 @@ def _section_aggregates() -> tuple[ColumnElement, ColumnElement, ColumnElement, 
     return artilar, eksiler, net, deger
 
 
-def _section_rows_stmt(section_id: uuid.UUID) -> Select:
+def _section_rows_stmt(section_id: uuid.UUID, scope: DisciplineScope = UNRESTRICTED) -> Select:
     """(malzeme, poz) çifti başına tek satır. Poz NULL olabilir (fail-open)."""
     artilar, eksiler, net, deger = _section_aggregates()
     return (
-        _section_line_scope(section_id)
+        _section_line_scope(section_id, scope)
         .join(StockItem, StockItem.id == StockEntryLine.item_id)
         .outerjoin(BoqItem, BoqItem.id == StockEntryLine.boq_item_id)
         .with_only_columns(
@@ -690,7 +717,12 @@ def _section_rows_stmt(section_id: uuid.UUID) -> Select:
 
 
 async def list_section_stock_rows(
-    session: AsyncSession, section_id: uuid.UUID, *, limit: int, offset: int
+    session: AsyncSession,
+    section_id: uuid.UUID,
+    *,
+    limit: int,
+    offset: int,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> list[Row]:
     """Sıralama DETERMİNİSTİKTİR: kart kodu → poz kodu (NULL'lar SONA) → kimlik.
 
@@ -699,7 +731,7 @@ async def list_section_stock_rows(
     satır motorun keyfine kalırdı.
     """
     stmt = (
-        _section_rows_stmt(section_id)
+        _section_rows_stmt(section_id, scope)
         .order_by(
             StockItem.code,
             BoqItem.code.nulls_last(),
@@ -711,13 +743,17 @@ async def list_section_stock_rows(
     return list((await session.execute(stmt)).all())
 
 
-async def count_section_stock_rows(session: AsyncSession, section_id: uuid.UUID) -> int:
+async def count_section_stock_rows(
+    session: AsyncSession, section_id: uuid.UUID, scope: DisciplineScope = UNRESTRICTED
+) -> int:
     """`total` — sayfa değil KÜMEYİ sayar; liste ile AYNI ifadeden türer."""
-    alt = _section_rows_stmt(section_id).subquery()
+    alt = _section_rows_stmt(section_id, scope).subquery()
     return int(await session.scalar(select(func.count()).select_from(alt)) or 0)
 
 
-async def section_stock_kpis(session: AsyncSession, section_id: uuid.UUID) -> Row:
+async def section_stock_kpis(
+    session: AsyncSession, section_id: uuid.UUID, scope: DisciplineScope = UNRESTRICTED
+) -> Row:
     """Şerit SAYFAYI değil TÜM kümeyi özetler (`summary_kpis` deseni).
 
     `item_count` DISTINCT KART sayısıdır, satır sayısı değil: aynı kart iki
@@ -725,7 +761,7 @@ async def section_stock_kpis(session: AsyncSession, section_id: uuid.UUID) -> Ro
     """
     sifir = literal(Decimal("0"))
     _, eksiler, _, deger = _section_aggregates()
-    stmt = _section_line_scope(section_id).with_only_columns(
+    stmt = _section_line_scope(section_id, scope).with_only_columns(
         func.coalesce(
             func.sum(
                 case(

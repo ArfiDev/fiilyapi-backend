@@ -1,0 +1,283 @@
+{
+  "body": {
+    "boq_synced_at": "<ts>",
+    "disciplines": [
+      {
+        "budget_mhr": "230.0000000",
+        "code": "DUV",
+        "color": "#16a34a",
+        "default_contractor_type": "subcon",
+        "direct_budget_mhr": "230.0000000",
+        "discipline_id": "<DUV>",
+        "distribution": "linear",
+        "groups": [
+          {
+            "budget_mhr": "200.0000000",
+            "code": "1",
+            "direct_budget_mhr": "200.0000000",
+            "discipline_id": "<DUV>",
+            "group_id": "<G1>",
+            "id": "g:<G1>",
+            "items": [
+              {
+                "budget_mhr": "200.0000000",
+                "catalog_item_id": null,
+                "code": "01.001",
+                "contractor_source": "inherited",
+                "contractor_type": "subcon",
+                "description": "Beton",
+                "direct_budget_mhr": "200.0000000",
+                "empty_rate_count": 0,
+                "id": "i:<I1>",
+                "is_direct": true,
+                "item_id": "<I1>",
+                "leaves": [
+                  {
+                    "budget_mhr": "120.0000000",
+                    "contractor_source": "inherited",
+                    "contractor_type": "subcon",
+                    "id": "l:<I1>:<S1>",
+                    "is_direct": true,
+                    "is_direct_source": "inherited",
+                    "item_id": "<I1>",
+                    "outside_section_dates": false,
+                    "planned_qty": "60.000",
+                    "rate_source": "manual",
+                    "section_code": null,
+                    "section_id": "<S1>",
+                    "section_name": "A Blok",
+                    "share": "0.5217391304347826086956521739",
+                    "unit_mhr": "2.0000",
+                    "window_end": "2026-05-15",
+                    "window_source": "section",
+                    "window_start": "2026-05-04"
+                  },
+                  {
+                    "budget_mhr": "60.0000000",
+                    "contractor_source": "inherited",
+                    "contractor_type": "subcon",
+                    "id": "l:<I1>:<S2>",
+                    "is_direct": true,
+                    "is_direct_source": "inherited",
+                    "item_id": "<I1>",
+                    "outside_section_dates": false,
+                    "planned_qty": "30.000",
+                    "rate_source": "manual",
+                    "section_code": null,
+                    "section_id": "<S2>",
+                    "section_name": "B Blok",
+                    "share": "0.2608695652173913043478260870",
+                    "unit_mhr": "2.0000",
+                    "window_end": "2026-05-29",
+                    "window_source": "section",
+                    "window_start": "2026-05-18"
+                  },
+                  {
+                    "budget_mhr": "20.0000000",
+                    "contractor_source": "inherited",
+                    "contractor_type": "subcon",
+                    "id": "l:<I1>:none",
+                    "is_direct": true,
+                    "is_direct_source": "inherited",
+                    "item_id": "<I1>",
+                    "outside_section_dates": false,
+                    "planned_qty": "10.000",
+                    "rate_source": "manual",
+                    "section_code": null,
+                    "section_id": null,
+                    "section_name": null,
+                    "share": "0.08695652173913043478260869565",
+                    "unit_mhr": "2.0000",
+                    "window_end": "2026-05-29",
+                    "window_source": "union",
+                    "window_start": "2026-05-04"
+                  }
+                ],
+                "planned_qty": "100.000",
+                "share": "0.8695652173913043478260869565",
+                "uom": "m3"
+              }
+            ],
+            "name": "Betonarme",
+            "share": "0.8695652173913043478260869565"
+          },
+          {
+            "budget_mhr": "30.0000000",
+            "code": "2",
+            "direct_budget_mhr": "30.0000000",
+            "discipline_id": "<DUV>",
+            "group_id": "<G2>",
+            "id": "g:<G2>",
+            "items": [
+              {
+                "budget_mhr": "30.0000000",
+                "catalog_item_id": null,
+                "code": "02.001",
+                "contractor_source": "inherited",
+                "contractor_type": "subcon",
+                "description": "Tuğla",
+                "direct_budget_mhr": "30.0000000",
+                "empty_rate_count": 0,
+                "id": "i:<I2>",
+                "is_direct": true,
+                "item_id": "<I2>",
+                "leaves": [
+                  {
+                    "budget_mhr": "30.0000000",
+                    "contractor_source": "inherited",
+                    "contractor_type": "subcon",
+                    "id": "l:<I2>:<S1>",
+                    "is_direct": true,
+                    "is_direct_source": "inherited",
+                    "item_id": "<I2>",
+                    "outside_section_dates": false,
+                    "planned_qty": "50.000",
+                    "rate_source": "manual",
+                    "section_code": null,
+                    "section_id": "<S1>",
+                    "section_name": "A Blok",
+                    "share": "0.1304347826086956521739130435",
+                    "unit_mhr": "0.6000",
+                    "window_end": "2026-05-15",
+                    "window_source": "section",
+                    "window_start": "2026-05-04"
+                  }
+                ],
+                "planned_qty": "50.000",
+                "share": "0.1304347826086956521739130435",
+                "uom": "m2"
+              }
+            ],
+            "name": "Duvar",
+            "share": "0.1304347826086956521739130435"
+          }
+        ],
+        "id": "d:<DUV>",
+        "name": "Elektrik",
+        "share": "1"
+      },
+      {
+        "budget_mhr": "0",
+        "code": null,
+        "color": null,
+        "default_contractor_type": "own",
+        "direct_budget_mhr": "0",
+        "discipline_id": null,
+        "distribution": "linear",
+        "groups": [
+          {
+            "budget_mhr": "0",
+            "code": "3",
+            "direct_budget_mhr": "0",
+            "discipline_id": null,
+            "group_id": "<G3>",
+            "id": "g:<G3>",
+            "items": [
+              {
+                "budget_mhr": "0",
+                "catalog_item_id": null,
+                "code": "03.001",
+                "contractor_source": "inherited",
+                "contractor_type": "own",
+                "description": "Boya",
+                "direct_budget_mhr": "0",
+                "empty_rate_count": 2,
+                "id": "i:<I3>",
+                "is_direct": true,
+                "item_id": "<I3>",
+                "leaves": [
+                  {
+                    "budget_mhr": "0",
+                    "contractor_source": "inherited",
+                    "contractor_type": "own",
+                    "id": "l:<I3>:<S2>",
+                    "is_direct": true,
+                    "is_direct_source": "inherited",
+                    "item_id": "<I3>",
+                    "outside_section_dates": false,
+                    "planned_qty": "20.000",
+                    "rate_source": null,
+                    "section_code": null,
+                    "section_id": "<S2>",
+                    "section_name": "B Blok",
+                    "share": "0",
+                    "unit_mhr": null,
+                    "window_end": "2026-05-29",
+                    "window_source": "section",
+                    "window_start": "2026-05-18"
+                  },
+                  {
+                    "budget_mhr": "0",
+                    "contractor_source": "inherited",
+                    "contractor_type": "own",
+                    "id": "l:<I3>:none",
+                    "is_direct": true,
+                    "is_direct_source": "inherited",
+                    "item_id": "<I3>",
+                    "outside_section_dates": false,
+                    "planned_qty": "20.000",
+                    "rate_source": null,
+                    "section_code": null,
+                    "section_id": null,
+                    "section_name": null,
+                    "share": "0",
+                    "unit_mhr": null,
+                    "window_end": "2026-05-29",
+                    "window_source": "union",
+                    "window_start": "2026-05-18"
+                  }
+                ],
+                "planned_qty": "40.000",
+                "share": "0",
+                "uom": "m2"
+              }
+            ],
+            "name": "Boya",
+            "share": "0"
+          }
+        ],
+        "id": "d:none",
+        "name": null,
+        "share": "0"
+      }
+    ],
+    "editable": true,
+    "freeze_blockers": [],
+    "freeze_warnings": [
+      {
+        "code": "empty_rate",
+        "count": 2,
+        "node_ids": [
+          "l:<I3>:<S2>",
+          "l:<I3>:none"
+        ]
+      },
+      {
+        "code": "disciplineless_group_without_budget",
+        "count": 1,
+        "node_ids": [
+          "g:<G3>"
+        ]
+      }
+    ],
+    "revision": {
+      "created_at": "<ts>",
+      "description": null,
+      "frozen_at": null,
+      "frozen_by": null,
+      "id": "<rev:draft>",
+      "last_edited_at": "<ts>",
+      "name": null,
+      "number": 1,
+      "status": "draft"
+    },
+    "totals": {
+      "direct_budget_mhr": "230.0000000",
+      "empty_rate_leaf_count": 2,
+      "indirect_budget_mhr": "0",
+      "item_count": 3,
+      "leaf_count": 6
+    }
+  },
+  "status": 200
+}

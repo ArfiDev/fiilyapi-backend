@@ -1,0 +1,162 @@
+{
+  "body": {
+    "cells": [
+      {
+        "hours": "5.00",
+        "kind": "personnel",
+        "node_id": "l:<I1>:<S1>",
+        "ref_id": "<kisi:1>"
+      },
+      {
+        "hours": "4.00",
+        "kind": "personnel",
+        "node_id": "l:<I2>:<S1>",
+        "ref_id": "<kisi:2>"
+      }
+    ],
+    "codes": [
+      {
+        "label": "A Blok",
+        "level": 4,
+        "node_id": "l:<I1>:<S1>",
+        "rule": "direct"
+      },
+      {
+        "label": "A Blok",
+        "level": 4,
+        "node_id": "l:<I2>:<S1>",
+        "rule": "direct"
+      }
+    ],
+    "day": "2026-05-05",
+    "day_no": 2,
+    "has_baseline": true,
+    "lock": {
+      "approved_at": null,
+      "approved_by": null,
+      "locked": false,
+      "report_date": null,
+      "unlock": null
+    },
+    "progress": {
+      "earned_day": "18.0000",
+      "items": [
+        {
+          "earned_day": "16.0000",
+          "node_id": "i:<I1>",
+          "pf_day": "3.20",
+          "qty_day": "8",
+          "spent_day": "5.00"
+        },
+        {
+          "earned_day": "2.0000",
+          "node_id": "i:<I2>",
+          "pf_day": "0.50",
+          "qty_day": "4",
+          "spent_day": "4.00"
+        },
+        {
+          "earned_day": "0",
+          "node_id": "i:<I3>",
+          "pf_day": null,
+          "qty_day": "2",
+          "spent_day": "0"
+        }
+      ],
+      "leaves": [
+        {
+          "earned_day": "10.0000",
+          "node_id": "l:<I1>:<S1>",
+          "pf_day": "2.00",
+          "qty_day": "5",
+          "spent_day": "5.00"
+        },
+        {
+          "earned_day": "6.0000",
+          "node_id": "l:<I1>:<S2>",
+          "pf_day": null,
+          "qty_day": "3",
+          "spent_day": "0"
+        },
+        {
+          "earned_day": "0",
+          "node_id": "l:<I1>:none",
+          "pf_day": null,
+          "qty_day": "0",
+          "spent_day": "0"
+        },
+        {
+          "earned_day": "2.0000",
+          "node_id": "l:<I2>:<S1>",
+          "pf_day": "0.50",
+          "qty_day": "4",
+          "spent_day": "4.00"
+        },
+        {
+          "earned_day": "0",
+          "node_id": "l:<I3>:<S2>",
+          "pf_day": null,
+          "qty_day": "2",
+          "spent_day": "0"
+        },
+        {
+          "earned_day": "0",
+          "node_id": "l:<I3>:none",
+          "pf_day": null,
+          "qty_day": "0",
+          "spent_day": "0"
+        }
+      ],
+      "pf_day": "2.00",
+      "spent_day": "9.00"
+    },
+    "revision_number": 0,
+    "rows": [
+      {
+        "changed": false,
+        "headcount": null,
+        "hours": "5.0",
+        "kind": "personnel",
+        "label": "Ali Usta",
+        "ref_id": "<kisi:1>",
+        "saved_hours": "5.00",
+        "source": "company",
+        "subcontractor_name": null,
+        "trade": "Kalıpçı"
+      },
+      {
+        "changed": false,
+        "headcount": null,
+        "hours": "4.0",
+        "kind": "personnel",
+        "label": "Veli Usta",
+        "ref_id": "<kisi:2>",
+        "saved_hours": "4.00",
+        "source": "company",
+        "subcontractor_name": null,
+        "trade": "Betoncu"
+      }
+    ],
+    "submit": {
+      "can_submit": false,
+      "reason_items": [
+        {
+          "code": "weather_incomplete",
+          "message": "Hava bilgisi eksik (durum, min/max sıcaklık, rüzgâr)"
+        }
+      ],
+      "reasons": [
+        "Hava bilgisi eksik (durum, min/max sıcaklık, rüzgâr)"
+      ]
+    },
+    "totals": {
+      "allocated_hours": "9.00",
+      "source_hours": "9.0",
+      "unallocated_hours": "0.00"
+    },
+    "unallocated_reason": null,
+    "warnings": [],
+    "week_no": 1
+  },
+  "status": 200
+}

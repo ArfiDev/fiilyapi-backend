@@ -1,0 +1,57 @@
+{
+  "body": {
+    "entry_count": 2,
+    "items": [
+      {
+        "amount": "100.00",
+        "boq_amount": "1000.00",
+        "boq_item_id": "<I1>",
+        "boq_quantity": "100",
+        "code": "01.001",
+        "completion_ratio": "0.1000",
+        "contract_item_id": "<sozlesme_kalemi:1>",
+        "contract_item_quantity": "120.000",
+        "contract_item_unit_price": "11.00",
+        "description": "Beton",
+        "quantity": "10.000",
+        "unit": "m3",
+        "unit_price": "10"
+      },
+      {
+        "amount": "100.00",
+        "boq_amount": "1000.00",
+        "boq_item_id": "<I2>",
+        "boq_quantity": "50",
+        "code": "02.001",
+        "completion_ratio": "0.1000",
+        "contract_item_id": "<sozlesme_kalemi:2>",
+        "contract_item_quantity": "60.000",
+        "contract_item_unit_price": "22.00",
+        "description": "Tuğla",
+        "quantity": "5.000",
+        "unit": "m2",
+        "unit_price": "20"
+      },
+      {
+        "amount": "60.00",
+        "boq_amount": "1200.00",
+        "boq_item_id": "<I3>",
+        "boq_quantity": "40",
+        "code": "03.001",
+        "completion_ratio": "0.0500",
+        "contract_item_id": null,
+        "contract_item_quantity": null,
+        "contract_item_unit_price": null,
+        "description": "Boya",
+        "quantity": "2.000",
+        "unit": "m2",
+        "unit_price": "30"
+      }
+    ],
+    "month": null,
+    "site_id": "<site>",
+    "total_amount": "260.00",
+    "year": null
+  },
+  "status": 200
+}

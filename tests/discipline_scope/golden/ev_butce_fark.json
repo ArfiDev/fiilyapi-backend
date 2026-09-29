@@ -1,0 +1,50 @@
+{
+  "body": {
+    "against": {
+      "created_at": "<ts>",
+      "description": null,
+      "frozen_at": "<ts>",
+      "frozen_by": {
+        "full_name": "Test Kullanıcı",
+        "id": "<user:atamasiz>"
+      },
+      "id": "<rev:active>",
+      "last_edited_at": "<ts>",
+      "name": null,
+      "number": 0,
+      "status": "active"
+    },
+    "direct_after_mhr": "230.0000000",
+    "direct_before_mhr": "225.00000000",
+    "direct_delta_mhr": "5.00000000",
+    "leaves": [
+      {
+        "budget_mhr": "30.0000000",
+        "delta_mhr": "5.00000000",
+        "item_code": "02.001",
+        "item_description": "Tuğla",
+        "leaf_id": "l:<I2>:<S1>",
+        "prev_budget_mhr": "25.00000000",
+        "prev_qty": "50.000",
+        "prev_unit_mhr": "0.5000",
+        "qty": "50.000",
+        "reason": "rate_changed",
+        "section_name": "A Blok",
+        "unit_mhr": "0.6000",
+        "uom": "m2"
+      }
+    ],
+    "revision": {
+      "created_at": "<ts>",
+      "description": null,
+      "frozen_at": null,
+      "frozen_by": null,
+      "id": "<rev:draft>",
+      "last_edited_at": "<ts>",
+      "name": null,
+      "number": 1,
+      "status": "draft"
+    }
+  },
+  "status": 200
+}

@@ -1,0 +1,155 @@
+{
+  "body": [
+    {
+      "code": "KAB",
+      "has_rate": null,
+      "id": "d:<KAB>",
+      "label": "Civil",
+      "level": 1,
+      "parent_id": null,
+      "unit_mhr": null,
+      "uom": null
+    },
+    {
+      "code": null,
+      "has_rate": null,
+      "id": "g:<G1>",
+      "label": "Betonarme",
+      "level": 2,
+      "parent_id": "d:<KAB>",
+      "unit_mhr": null,
+      "uom": null
+    },
+    {
+      "code": "01.001",
+      "has_rate": null,
+      "id": "i:<I1>",
+      "label": "Beton",
+      "level": 3,
+      "parent_id": "g:<G1>",
+      "unit_mhr": null,
+      "uom": "m3"
+    },
+    {
+      "code": null,
+      "has_rate": true,
+      "id": "l:<I1>:<S1>",
+      "label": "A Blok",
+      "level": 4,
+      "parent_id": "i:<I1>",
+      "unit_mhr": "2.0000",
+      "uom": "m3"
+    },
+    {
+      "code": null,
+      "has_rate": true,
+      "id": "l:<I1>:<S2>",
+      "label": "B Blok",
+      "level": 4,
+      "parent_id": "i:<I1>",
+      "unit_mhr": "2.0000",
+      "uom": "m3"
+    },
+    {
+      "code": null,
+      "has_rate": true,
+      "id": "l:<I1>:none",
+      "label": "Bölümsüz",
+      "level": 4,
+      "parent_id": "i:<I1>",
+      "unit_mhr": "2.0000",
+      "uom": "m3"
+    },
+    {
+      "code": "DUV",
+      "has_rate": null,
+      "id": "d:<DUV>",
+      "label": "Elektrik",
+      "level": 1,
+      "parent_id": null,
+      "unit_mhr": null,
+      "uom": null
+    },
+    {
+      "code": null,
+      "has_rate": null,
+      "id": "g:<G2>",
+      "label": "Duvar",
+      "level": 2,
+      "parent_id": "d:<DUV>",
+      "unit_mhr": null,
+      "uom": null
+    },
+    {
+      "code": "02.001",
+      "has_rate": null,
+      "id": "i:<I2>",
+      "label": "Tuğla",
+      "level": 3,
+      "parent_id": "g:<G2>",
+      "unit_mhr": null,
+      "uom": "m2"
+    },
+    {
+      "code": null,
+      "has_rate": true,
+      "id": "l:<I2>:<S1>",
+      "label": "A Blok",
+      "level": 4,
+      "parent_id": "i:<I2>",
+      "unit_mhr": "0.5000",
+      "uom": "m2"
+    },
+    {
+      "code": null,
+      "has_rate": null,
+      "id": "d:none",
+      "label": "Disiplinsiz",
+      "level": 1,
+      "parent_id": null,
+      "unit_mhr": null,
+      "uom": null
+    },
+    {
+      "code": null,
+      "has_rate": null,
+      "id": "g:<G3>",
+      "label": "Boya",
+      "level": 2,
+      "parent_id": "d:none",
+      "unit_mhr": null,
+      "uom": null
+    },
+    {
+      "code": "03.001",
+      "has_rate": null,
+      "id": "i:<I3>",
+      "label": "Boya",
+      "level": 3,
+      "parent_id": "g:<G3>",
+      "unit_mhr": null,
+      "uom": "m2"
+    },
+    {
+      "code": null,
+      "has_rate": false,
+      "id": "l:<I3>:<S2>",
+      "label": "B Blok",
+      "level": 4,
+      "parent_id": "i:<I3>",
+      "unit_mhr": null,
+      "uom": "m2"
+    },
+    {
+      "code": null,
+      "has_rate": false,
+      "id": "l:<I3>:none",
+      "label": "Bölümsüz",
+      "level": 4,
+      "parent_id": "i:<I3>",
+      "unit_mhr": null,
+      "uom": "m2"
+    }
+  ],
+  "status": 200
+}

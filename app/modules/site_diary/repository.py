@@ -15,6 +15,12 @@ from typing import NamedTuple
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import (
+    UNRESTRICTED,
+    DisciplineScope,
+    item_fk_conditions,
+    item_visible_clause,
+)
 from app.modules.boq.models import BoqItem, BoqItemSectionAllocation
 from app.modules.contracts.models import (
     EmployerContractItem,
@@ -243,18 +249,24 @@ def period_conditions(*, year: int | None, month: int | None) -> list:
     return [SiteDiaryEntry.entry_date.between(start, end)]
 
 
-def section_conditions(section_id: uuid.UUID | None) -> list:
+def section_conditions(section_id: uuid.UUID | None, scope: DisciplineScope = UNRESTRICTED) -> list:
     """DET-1.B Kural A'nın TEK kopyası — liste, sayaç ve önceki/sonraki aynı gövdeyi okur.
 
     Bölümün günlüğü = başlığı (`section_id`, bilgi alanı) bu bölüm olan gün ∪ bu bölüme
     MİKTAR SATIRI yazılmış gün (kullanıcı kararı 2026-09-25). Satır kolu `EXISTS`tir, JOIN
     DEĞİL: aynı günün iki satırı bölümde olsa da kayıt BİR kez döner (JOIN çoğaltırdı).
     `None` = süzgeç yok.
+
+    DSC-B1: kısıtlıda satır kolu YALNIZ görünür kalemin satırını sayar (`item_fk_conditions`;
+    NULL satır görünmez). Başlık kolu (`entry.section_id`) ORTAK başlıktır (Ü5) ve kalır.
+    Liste, sayaç ve komşular bu TEK gövdeyi okur → üçü aynı kümede kalır.
     """
     if section_id is None:
         return []
     line_in_section = exists().where(
-        SiteDiaryLine.entry_id == SiteDiaryEntry.id, SiteDiaryLine.section_id == section_id
+        SiteDiaryLine.entry_id == SiteDiaryEntry.id,
+        SiteDiaryLine.section_id == section_id,
+        *item_fk_conditions(scope, SiteDiaryLine.boq_item_id, BoqItem),
     )
     return [or_(SiteDiaryEntry.section_id == section_id, line_in_section)]
 
@@ -265,6 +277,7 @@ def _list_stmt(
     year: int | None,
     month: int | None,
     section_id: uuid.UUID | None = None,
+    scope: DisciplineScope = UNRESTRICTED,
 ):
     """Liste ve sayaç sorgusunun PAYLAŞTIĞI `WHERE` gövdesi.
 
@@ -274,7 +287,7 @@ def _list_stmt(
     return select(SiteDiaryEntry).where(
         SiteDiaryEntry.site_id == site_id,
         *period_conditions(year=year, month=month),
-        *section_conditions(section_id),
+        *section_conditions(section_id, scope),
     )
 
 
@@ -287,11 +300,12 @@ async def list_entries(
     limit: int,
     offset: int,
     section_id: uuid.UUID | None = None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> list[SiteDiaryEntry]:
     """ "Son Kayıtlar": en YENİ gün önce. Eşitlik durumu UQ nedeniyle imkânsızdır
     ama `id` ikincil sıra olarak durur — sayfalamanın deterministik olması için."""
     stmt = (
-        _list_stmt(site_id, year=year, month=month, section_id=section_id)
+        _list_stmt(site_id, year=year, month=month, section_id=section_id, scope=scope)
         .order_by(SiteDiaryEntry.entry_date.desc(), SiteDiaryEntry.id)
         .limit(limit)
         .offset(offset)
@@ -306,10 +320,11 @@ async def count_entries(
     year: int | None,
     month: int | None,
     section_id: uuid.UUID | None = None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> int:
-    inner = _list_stmt(site_id, year=year, month=month, section_id=section_id).with_only_columns(
-        SiteDiaryEntry.id
-    )
+    inner = _list_stmt(
+        site_id, year=year, month=month, section_id=section_id, scope=scope
+    ).with_only_columns(SiteDiaryEntry.id)
     stmt = select(func.count()).select_from(inner.subquery())
     return int((await session.execute(stmt)).scalar_one())
 
@@ -343,7 +358,12 @@ async def count_submitted_entries(
 
 
 async def summary_lines(
-    session: AsyncSession, site_id: uuid.UUID, *, year: int | None, month: int | None
+    session: AsyncSession,
+    site_id: uuid.UUID,
+    *,
+    year: int | None,
+    month: int | None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> list[tuple[SiteDiaryLine, BoqItem, EmployerContractItem | None]]:
     """Hakediş Özeti ekranının HAM satırları: dönemdeki **gönderilmiş** günlerin
     poz satırları + BOQ kalemi + (varsa) köprülendiği işveren sözleşmesi kalemi.
@@ -367,6 +387,7 @@ async def summary_lines(
         .where(
             SiteDiaryEntry.site_id == site_id,
             *submitted_period_conditions(year=year, month=month),
+            item_visible_clause(scope, BoqItem),
         )
         .order_by(BoqItem.code)
     )
@@ -581,6 +602,7 @@ async def neighbours(
     site_id: uuid.UUID,
     entry_date: date,
     section_id: uuid.UUID | None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> tuple[Neighbour | None, Neighbour | None]:
     """(önceki, sonraki) = aynı şantiyede bu günden hemen ÖNCEKİ / SONRAKİ kayıt + TARİHİ.
 
@@ -591,7 +613,7 @@ async def neighbours(
     TAM sıradır; bölüm verilirse Kural A (`section_conditions`) ile süzülür — listeyle
     AYNI küme, istemci listeden türetmek zorunda kalmaz.
     """
-    base = (SiteDiaryEntry.site_id == site_id, *section_conditions(section_id))
+    base = (SiteDiaryEntry.site_id == site_id, *section_conditions(section_id, scope))
     prev_stmt = (
         select(SiteDiaryEntry.id, SiteDiaryEntry.entry_date)
         .where(*base, SiteDiaryEntry.entry_date < entry_date)

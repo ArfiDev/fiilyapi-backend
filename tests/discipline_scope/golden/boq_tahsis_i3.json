@@ -1,0 +1,29 @@
+{
+  "body": {
+    "allocations": [
+      {
+        "quantity": "20.000",
+        "section_id": "<S2>",
+        "section_name": "B Blok"
+      }
+    ],
+    "item": {
+      "allocated_quantity": "20.000",
+      "amount": "1200.00",
+      "code": "03.001",
+      "description": "Boya",
+      "id": "<I3>",
+      "progress_pct": {
+        "available": false,
+        "pending_module": null,
+        "value": null
+      },
+      "quantity": "40",
+      "sort_order": 1,
+      "unallocated_quantity": "20.000",
+      "unit": "m2",
+      "unit_price": "30"
+    }
+  },
+  "status": 200
+}

@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterable, Mapping
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.modules.earned_value.budget_ops import PreviewResult, RevisionDiff
+from app.modules.earned_value.budget_scope import catalog_link_ids, mask_catalog_links
 from app.modules.earned_value.budget_service import BudgetState
 from app.modules.earned_value.budget_tree import (
     BudgetTree,
@@ -20,7 +24,7 @@ from app.modules.earned_value.budget_tree import (
     LeafNode,
 )
 from app.modules.earned_value.engine import SeriesPreview, WeekLoad
-from app.modules.earned_value.models import EvRevision
+from app.modules.earned_value.models import EvCatalogItem, EvRevision
 from app.modules.earned_value.schemas_budget import (
     BarOut,
     BudgetTotals,
@@ -175,7 +179,23 @@ def totals(tree: BudgetTree) -> BudgetTotals:
     )
 
 
-async def budget_view(session: AsyncSession, state: BudgetState) -> BudgetView:
+async def _masked_tree(
+    session: AsyncSession, tree: BudgetTree, scope: DisciplineScope
+) -> BudgetTree:
+    """Kisitlida kapsam disi katalog baglarini gizler (`budget_scope.mask_catalog_links`)."""
+    ids = catalog_link_ids(tree) if scope.is_restricted else set()
+    if not ids:
+        return tree
+    rows = await session.execute(
+        select(EvCatalogItem.id, EvCatalogItem.discipline_id).where(EvCatalogItem.id.in_(ids))
+    )
+    return mask_catalog_links(tree, scope, dict(rows.tuples().all()))
+
+
+async def budget_view(
+    session: AsyncSession, state: BudgetState, scope: DisciplineScope = UNRESTRICTED
+) -> BudgetView:
+    state = replace(state, tree=await _masked_tree(session, state.tree, scope))
     t = totals(state.tree)
     total = t.direct_budget_mhr
     return BudgetView(

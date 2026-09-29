@@ -270,7 +270,7 @@ def build_tree(
     if None in groups_by_disc:
         disc_nodes.append(_discipline_node(None, None, groups_by_disc[None], inputs, sections))
     tree = BudgetTree(tuple(disc_nodes), (), ())
-    blockers, warnings = _findings(tree, is_working_day)
+    blockers, warnings = compute_findings(tree, is_working_day)
     return BudgetTree(tree.disciplines, blockers, warnings)
 
 
@@ -437,7 +437,7 @@ def has_working_day(start: date, end: date, is_working_day: Callable[[date], boo
     return any(is_working_day(start + timedelta(days=k)) for k in range((end - start).days + 1))
 
 
-def _findings(
+def compute_findings(
     tree: BudgetTree, is_working_day: Callable[[date], bool]
 ) -> tuple[tuple[Finding, ...], tuple[Finding, ...]]:
     disciplineless_blocking: list[str] = []
