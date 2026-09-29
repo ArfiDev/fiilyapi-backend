@@ -15,6 +15,7 @@ import uuid
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, visible_item_set
 from app.core.errors import EarnedValueValidationError
 from app.modules.boq.models import BoqItem
 from app.modules.earned_value import defaults, guards
@@ -122,10 +123,27 @@ async def _updated_by(session: AsyncSession, user_id: uuid.UUID | None) -> UserR
     return None if user is None else UserRef(id=user.id, full_name=user.full_name)
 
 
-async def get_settings(session: AsyncSession, site_id: uuid.UUID) -> SettingsRead:
+async def _visible_metrics(
+    session: AsyncSession, metrics: list[CompositeMetricRead], scope: DisciplineScope
+) -> list[CompositeMetricRead]:
+    """DSC-B3 S11/S3: kisitlida kapsam disi (disiplinsiz dahil) kalemli pacal kart DUSER."""
+    # Bilincli fark: kart gizleme `visible_item_set` (R(site)) ile calisir; RAPOR tarafi ise
+    # `hidden_items` (TAM donmus agac) ile. Baseline'da olmayan ama R(site)'ta yabanci olan
+    # kalem icin GET karti gizler, rapor tutar (GET daha katidir). Kart degeri yabanci kalemi
+    # icermez cunku kalem baseline'da yoktur → sizinti yok.
+    ids = [i for m in metrics for i in (*m.numerator_item_ids, m.denominator_item_id)]
+    visible = await visible_item_set(session, scope, ids)
+    if visible is None:
+        return metrics
+    return [m for m in metrics if {*m.numerator_item_ids, m.denominator_item_id} <= visible]
+
+
+async def get_settings(
+    session: AsyncSession, site_id: uuid.UUID, scope: DisciplineScope = UNRESTRICTED
+) -> SettingsRead:
     row = await session.get(EvSiteSettings, site_id, populate_existing=True)
     holidays = await _holidays(session, site_id)
-    metrics = await _composite_metrics(session, site_id)
+    metrics = await _visible_metrics(session, await _composite_metrics(session, site_id), scope)
     if row is None:
         return SettingsRead(
             week_start_dow=defaults.WEEK_START_DOW,

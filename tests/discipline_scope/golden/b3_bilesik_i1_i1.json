@@ -1,0 +1,9 @@
+{
+  "body": {
+    "actual": "0.50",
+    "deviation": "-0.75",
+    "planned": "2.0000",
+    "unit": "m3"
+  },
+  "status": 200
+}

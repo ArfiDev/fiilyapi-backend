@@ -15753,6 +15753,7 @@
             "enum": [
               "new",
               "removed",
+              "moved_out",
               "qty_changed",
               "rate_changed",
               "qty_and_rate_changed"

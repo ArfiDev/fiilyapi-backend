@@ -1,0 +1,68 @@
+{
+  "body": {
+    "composite_metrics": [
+      {
+        "denominator_item_id": "<I1>",
+        "id": "<bilesik:C1>",
+        "measure": "spent",
+        "name": "C1 Beton harcanan",
+        "numerator_item_ids": [
+          "<I1>"
+        ]
+      },
+      {
+        "denominator_item_id": "<I1>",
+        "id": "<bilesik:C2>",
+        "measure": "earned",
+        "name": "C2 Karma kazanilan",
+        "numerator_item_ids": [
+          "<I1>",
+          "<I2>"
+        ]
+      },
+      {
+        "denominator_item_id": "<I2>",
+        "id": "<bilesik:C3>",
+        "measure": "budget",
+        "name": "C3 Tugla butce",
+        "numerator_item_ids": [
+          "<I2>"
+        ]
+      },
+      {
+        "denominator_item_id": "<I3>",
+        "id": "<bilesik:C4>",
+        "measure": "spent",
+        "name": "C4 Boya harcanan",
+        "numerator_item_ids": [
+          "<I3>"
+        ]
+      }
+    ],
+    "holidays": [],
+    "is_default": false,
+    "pf_bands": {
+      "daily": {
+        "green_from": "0.950",
+        "high_above": "1.050",
+        "red_below": "0.950"
+      },
+      "weekly": {
+        "green_from": "1.000",
+        "red_below": "0.950"
+      }
+    },
+    "standard_daily_hours": "9.00",
+    "tolerance_points": "5.00",
+    "updated_at": "<ts>",
+    "updated_by": {
+      "full_name": "Test Kullanıcı",
+      "id": "<user:atamasiz>"
+    },
+    "week_start_dow": 0,
+    "weekly_off_days": [
+      6
+    ]
+  },
+  "status": 200
+}

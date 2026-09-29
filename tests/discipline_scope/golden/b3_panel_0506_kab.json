@@ -1,0 +1,489 @@
+{
+  "body": {
+    "actual_basis": "equivalent",
+    "bars": [
+      {
+        "day": "2026-05-04",
+        "diary_status": "none",
+        "earned_day": "0",
+        "is_holiday": false,
+        "spent_day": "0"
+      },
+      {
+        "day": "2026-05-05",
+        "diary_status": "submitted",
+        "earned_day": "16.0000",
+        "is_holiday": false,
+        "spent_day": "5.00"
+      },
+      {
+        "day": "2026-05-06",
+        "diary_status": "submitted",
+        "earned_day": "4.0000",
+        "is_holiday": false,
+        "spent_day": "0"
+      }
+    ],
+    "calendar_end": "2026-05-29",
+    "calendar_start": "2026-05-04",
+    "contractor_type": null,
+    "day": "2026-05-06",
+    "day_no": 3,
+    "discipline_id": "d:<KAB>",
+    "disciplines": [
+      {
+        "contractor_mix": "own",
+        "id": "d:<KAB>",
+        "name": "Civil"
+      },
+      {
+        "contractor_mix": "subcon",
+        "id": "d:<DUV>",
+        "name": "Elektrik"
+      },
+      {
+        "contractor_mix": "own",
+        "id": "d:none",
+        "name": "Disiplinsiz"
+      }
+    ],
+    "has_baseline": true,
+    "has_field_data": true,
+    "histogram": [
+      {
+        "actual_people": "0.1851851851851851851851851852",
+        "is_future": false,
+        "planned_people": "1.308739648148148148148148148",
+        "week_end": "2026-05-10",
+        "week_no": 1,
+        "week_start": "2026-05-04",
+        "working_days": 6
+      },
+      {
+        "actual_people": null,
+        "is_future": true,
+        "planned_people": "1.106719333333333333333333333",
+        "week_end": "2026-05-17",
+        "week_no": 2,
+        "week_start": "2026-05-11",
+        "working_days": 6
+      },
+      {
+        "actual_people": null,
+        "is_future": true,
+        "planned_people": "0.7026789814814814814814814815",
+        "week_end": "2026-05-24",
+        "week_no": 3,
+        "week_start": "2026-05-18",
+        "working_days": 6
+      }
+    ],
+    "kpi": {
+      "budget_mhr": "200.0000000",
+      "earned_cum": "20.0000",
+      "earned_day": "4.0000",
+      "pf_cum": "4.00",
+      "pf_cum_band": "green",
+      "pf_week": "4.00",
+      "pf_week_band": "green",
+      "planned_pct_cum": "0.176679855",
+      "progress_pct_cum": "0.1",
+      "spent_day": "0",
+      "status": "late",
+      "timesheet_total_day": "9.0",
+      "undistributed_day": "9.0",
+      "variance": "-0.076679855"
+    },
+    "pf_bands": {
+      "cumulative": {
+        "green_from": "1.000",
+        "high_above": null,
+        "red_below": "0.950"
+      },
+      "daily": {
+        "green_from": "0.950",
+        "high_above": "1.050",
+        "red_below": "0.950"
+      }
+    },
+    "pf_trend": [
+      {
+        "day": "2026-05-04",
+        "pf_day": null,
+        "pf_rolling": null
+      },
+      {
+        "day": "2026-05-05",
+        "pf_day": "3.20",
+        "pf_rolling": "3.20"
+      },
+      {
+        "day": "2026-05-06",
+        "pf_day": null,
+        "pf_rolling": "4.00"
+      }
+    ],
+    "range": "4w",
+    "revision": {
+      "frozen_at": "<ts>",
+      "id": "<rev:0>",
+      "name": null,
+      "number": 0
+    },
+    "rows": [
+      {
+        "budget_mhr": "200.0000000",
+        "contractor_mix": null,
+        "contractor_type": null,
+        "earned_cum": "20.0000",
+        "indirect_item_names": [],
+        "name": "Genel",
+        "node_id": "d:<KAB>",
+        "parent_id": null,
+        "pf_cum": "4.00",
+        "pf_cum_band": "green",
+        "pf_week": "4.00",
+        "pf_week_band": "green",
+        "planned_pct_cum": "0.176679855",
+        "progress_pct_cum": "0.1",
+        "scope": "overall",
+        "spent_cum": "5.00",
+        "status": "late",
+        "uom": null,
+        "variance": "-0.076679855"
+      },
+      {
+        "budget_mhr": "200.0000000",
+        "contractor_mix": "own",
+        "contractor_type": null,
+        "earned_cum": "20.0000",
+        "indirect_item_names": [],
+        "name": "Civil",
+        "node_id": "d:<KAB>",
+        "parent_id": null,
+        "pf_cum": "4.00",
+        "pf_cum_band": "green",
+        "pf_week": "4.00",
+        "pf_week_band": "green",
+        "planned_pct_cum": "0.176679855",
+        "progress_pct_cum": "0.1",
+        "scope": "discipline",
+        "spent_cum": "5.00",
+        "status": "late",
+        "uom": null,
+        "variance": "-0.076679855"
+      },
+      {
+        "budget_mhr": "200.0000000",
+        "contractor_mix": null,
+        "contractor_type": "own",
+        "earned_cum": "20.0000",
+        "indirect_item_names": [],
+        "name": "01.001 Beton",
+        "node_id": "i:<I1>",
+        "parent_id": "d:<KAB>",
+        "pf_cum": "4.00",
+        "pf_cum_band": "green",
+        "pf_week": "4.00",
+        "pf_week_band": "green",
+        "planned_pct_cum": "0.176679855",
+        "progress_pct_cum": "0.1",
+        "scope": "item",
+        "spent_cum": "5.00",
+        "status": "late",
+        "uom": "m3",
+        "variance": "-0.076679855"
+      }
+    ],
+    "s_curve": [
+      {
+        "day": "2026-05-04",
+        "is_future": false,
+        "planned_pct_cum": "0.058893285",
+        "progress_pct_cum": "0",
+        "status": "late",
+        "variance": "-0.058893285"
+      },
+      {
+        "day": "2026-05-05",
+        "is_future": false,
+        "planned_pct_cum": "0.11778657",
+        "progress_pct_cum": "0.08",
+        "status": "normal",
+        "variance": "-0.03778657"
+      },
+      {
+        "day": "2026-05-06",
+        "is_future": false,
+        "planned_pct_cum": "0.176679855",
+        "progress_pct_cum": "0.1",
+        "status": "late",
+        "variance": "-0.076679855"
+      },
+      {
+        "day": "2026-05-07",
+        "is_future": true,
+        "planned_pct_cum": "0.23557314",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-08",
+        "is_future": true,
+        "planned_pct_cum": "0.294466425",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-09",
+        "is_future": true,
+        "planned_pct_cum": "0.353359705",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-10",
+        "is_future": true,
+        "planned_pct_cum": "0.353359705",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-11",
+        "is_future": true,
+        "planned_pct_cum": "0.412252985",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-12",
+        "is_future": true,
+        "planned_pct_cum": "0.471146265",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-13",
+        "is_future": true,
+        "planned_pct_cum": "0.530039545",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-14",
+        "is_future": true,
+        "planned_pct_cum": "0.588932825",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-15",
+        "is_future": true,
+        "planned_pct_cum": "0.6478261",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-16",
+        "is_future": true,
+        "planned_pct_cum": "0.652173925",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-17",
+        "is_future": true,
+        "planned_pct_cum": "0.652173925",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-18",
+        "is_future": true,
+        "planned_pct_cum": "0.68379448",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-19",
+        "is_future": true,
+        "planned_pct_cum": "0.715415035",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-20",
+        "is_future": true,
+        "planned_pct_cum": "0.74703559",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-21",
+        "is_future": true,
+        "planned_pct_cum": "0.778656145",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-22",
+        "is_future": true,
+        "planned_pct_cum": "0.8102767",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-23",
+        "is_future": true,
+        "planned_pct_cum": "0.84189725",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-24",
+        "is_future": true,
+        "planned_pct_cum": "0.84189725",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-25",
+        "is_future": true,
+        "planned_pct_cum": "0.8735178",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-26",
+        "is_future": true,
+        "planned_pct_cum": "0.90513835",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-27",
+        "is_future": true,
+        "planned_pct_cum": "0.9367589",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-28",
+        "is_future": true,
+        "planned_pct_cum": "0.96837945",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      },
+      {
+        "day": "2026-05-29",
+        "is_future": true,
+        "planned_pct_cum": "1",
+        "progress_pct_cum": null,
+        "status": null,
+        "variance": null
+      }
+    ],
+    "standard_daily_hours": "9.00",
+    "tolerance_points": "5.00",
+    "warnings": [
+      {
+        "code": "pf_out_of_band",
+        "item_name": null,
+        "message": "02.001 Tuğla: PF bant dışı",
+        "planned_qty": null,
+        "qty_cum": null,
+        "section_name": null,
+        "target": "node",
+        "target_id": "i:<I2>",
+        "uom": null,
+        "value": "0.625"
+      },
+      {
+        "code": "undistributed_hours",
+        "item_name": null,
+        "message": "06.05.2026: 9.0 a-s dağıtılmamış",
+        "planned_qty": null,
+        "qty_cum": null,
+        "section_name": null,
+        "target": "day",
+        "target_id": "2026-05-06",
+        "uom": null,
+        "value": "9.0"
+      },
+      {
+        "code": "missing_diary",
+        "item_name": null,
+        "message": "04.05.2026 günlüğü yok",
+        "planned_qty": null,
+        "qty_cum": null,
+        "section_name": null,
+        "target": "day",
+        "target_id": "2026-05-04",
+        "uom": null,
+        "value": null
+      },
+      {
+        "code": "unrated_entry",
+        "item_name": "03.001 Boya",
+        "message": "03.001 · B Blok: oransız yaprağa miktar",
+        "planned_qty": null,
+        "qty_cum": null,
+        "section_name": "B Blok",
+        "target": "leaf",
+        "target_id": "l:<I3>:<S2>",
+        "uom": "m2",
+        "value": "2"
+      },
+      {
+        "code": "empty_rate",
+        "item_name": "03.001 Boya",
+        "message": "03.001 · B Blok: birim oranı boş — bütçe ve kazanılmış hesaplanamıyor",
+        "planned_qty": null,
+        "qty_cum": null,
+        "section_name": "B Blok",
+        "target": "leaf",
+        "target_id": "l:<I3>:<S2>",
+        "uom": "m2",
+        "value": null
+      },
+      {
+        "code": "empty_rate",
+        "item_name": "03.001 Boya",
+        "message": "03.001 · Bölümsüz: birim oranı boş — bütçe ve kazanılmış hesaplanamıyor",
+        "planned_qty": null,
+        "qty_cum": null,
+        "section_name": null,
+        "target": "leaf",
+        "target_id": "l:<I3>:none",
+        "uom": "m2",
+        "value": null
+      }
+    ],
+    "week_end": "2026-05-10",
+    "week_no": 1,
+    "week_start": "2026-05-04"
+  },
+  "status": 200
+}

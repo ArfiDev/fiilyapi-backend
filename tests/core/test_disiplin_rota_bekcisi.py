@@ -107,7 +107,8 @@ def _dilim(aile: str, yontem: str, yol: str) -> str | None:
             return "DSC-B5"
         return "DSC-B4" if yol in STOK_AGREGA_YOLLARI else "DSC-B1"
     if aile == "ev" and _EV_AYAR_YOLU.search(yol):
-        return None
+        # DSC-B3 (S11/Ü6): GET pacal kartları kapsama göre gizler; PUT yapılandırmadır → 403.
+        return "DSC-B3"
     if aile == "ev" and not yazma and yol.endswith("/budget/revisions"):
         # DSC-B1 (CEO 2026-09-29): revizyon LİSTESİ (numara/durum/dondurma zamanı) disiplin ya
         # da kalem verisi taşımaz → duyarlı DEĞİL.
@@ -192,6 +193,7 @@ U6_ROTALARI: frozenset[Rota] = frozenset(
         ("PUT", "/sites/{site_id}/earned-value/budget/windows"),
         ("POST", "/sites/{site_id}/earned-value/days/{day}/unlock"),
         ("POST", "/sites/{site_id}/earned-value/reports/daily/{day}/approve"),
+        ("PUT", "/sites/{site_id}/earned-value/settings"),
     }
 )
 
@@ -216,13 +218,6 @@ IZIN_LISTESI: dict[Rota, str] = {
     ("GET", "/sites/{site_id}/stock"): "DSC-B4",
     ("GET", "/stock/summary"): "DSC-B4",
     ("GET", "/subcontractor-contracts/{contract_id}/progress-payments/diary-suggestion"): "DSC-B5",
-    ("POST", "/sites/{site_id}/earned-value/budget/preview"): "DSC-B3",
-    ("GET", "/sites/{site_id}/earned-value/panel"): "DSC-B3",
-    ("GET", "/sites/{site_id}/earned-value/reports/daily"): "DSC-B3",
-    ("GET", "/sites/{site_id}/earned-value/reports/weekly"): "DSC-B3",
-    ("GET", "/sites/{site_id}/earned-value/reports/weekly.xlsx"): "DSC-B3",
-    ("GET", "/sites/{site_id}/earned-value/settings/preview"): "DSC-B3",
-    ("GET", "/sites/{site_id}/earned-value/settings/preview/composite"): "DSC-B3",
     ("GET", "/progress-payments"): "DSC-B5",
     ("DELETE", "/progress-payments/{payment_id}"): "DSC-B5",
     ("GET", "/progress-payments/{payment_id}"): "DSC-B5",

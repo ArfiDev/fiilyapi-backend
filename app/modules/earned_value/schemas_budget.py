@@ -362,7 +362,9 @@ class LeafDiffOut(BaseModel):
     prev_budget_mhr: EvDecimal
     budget_mhr: EvDecimal
     delta_mhr: EvDecimal
-    reason: Literal["new", "removed", "qty_changed", "rate_changed", "qty_and_rate_changed"]
+    reason: Literal[
+        "new", "removed", "moved_out", "qty_changed", "rate_changed", "qty_and_rate_changed"
+    ]
 
 
 class RevisionDiffOut(BaseModel):

@@ -1,0 +1,660 @@
+{
+  "body": {
+    "disciplines": [
+      {
+        "code": "KAB",
+        "color": "#2563eb",
+        "discipline_id": "<KAB>",
+        "discipline_node_id": "d:<KAB>",
+        "distribution": "linear",
+        "name": "Civil",
+        "series": {
+          "budget_mhr": "200.00000000",
+          "days": [
+            {
+              "cumulative_mhr": "11.77865700",
+              "day": "2026-05-04",
+              "mhr": "11.77865700",
+              "planned_pct_cum": "0.058893285"
+            },
+            {
+              "cumulative_mhr": "23.55731400",
+              "day": "2026-05-05",
+              "mhr": "11.77865700",
+              "planned_pct_cum": "0.11778657"
+            },
+            {
+              "cumulative_mhr": "35.33597100",
+              "day": "2026-05-06",
+              "mhr": "11.77865700",
+              "planned_pct_cum": "0.176679855"
+            },
+            {
+              "cumulative_mhr": "47.11462800",
+              "day": "2026-05-07",
+              "mhr": "11.77865700",
+              "planned_pct_cum": "0.23557314"
+            },
+            {
+              "cumulative_mhr": "58.89328500",
+              "day": "2026-05-08",
+              "mhr": "11.77865700",
+              "planned_pct_cum": "0.294466425"
+            },
+            {
+              "cumulative_mhr": "70.67194100",
+              "day": "2026-05-09",
+              "mhr": "11.77865600",
+              "planned_pct_cum": "0.353359705"
+            },
+            {
+              "cumulative_mhr": "70.67194100",
+              "day": "2026-05-10",
+              "mhr": "0",
+              "planned_pct_cum": "0.353359705"
+            },
+            {
+              "cumulative_mhr": "82.45059700",
+              "day": "2026-05-11",
+              "mhr": "11.77865600",
+              "planned_pct_cum": "0.412252985"
+            },
+            {
+              "cumulative_mhr": "94.22925300",
+              "day": "2026-05-12",
+              "mhr": "11.77865600",
+              "planned_pct_cum": "0.471146265"
+            },
+            {
+              "cumulative_mhr": "106.00790900",
+              "day": "2026-05-13",
+              "mhr": "11.77865600",
+              "planned_pct_cum": "0.530039545"
+            },
+            {
+              "cumulative_mhr": "117.78656500",
+              "day": "2026-05-14",
+              "mhr": "11.77865600",
+              "planned_pct_cum": "0.588932825"
+            },
+            {
+              "cumulative_mhr": "129.56522000",
+              "day": "2026-05-15",
+              "mhr": "11.77865500",
+              "planned_pct_cum": "0.6478261"
+            },
+            {
+              "cumulative_mhr": "130.43478500",
+              "day": "2026-05-16",
+              "mhr": "0.86956500",
+              "planned_pct_cum": "0.652173925"
+            },
+            {
+              "cumulative_mhr": "130.43478500",
+              "day": "2026-05-17",
+              "mhr": "0",
+              "planned_pct_cum": "0.652173925"
+            },
+            {
+              "cumulative_mhr": "136.75889600",
+              "day": "2026-05-18",
+              "mhr": "6.32411100",
+              "planned_pct_cum": "0.68379448"
+            },
+            {
+              "cumulative_mhr": "143.08300700",
+              "day": "2026-05-19",
+              "mhr": "6.32411100",
+              "planned_pct_cum": "0.715415035"
+            },
+            {
+              "cumulative_mhr": "149.40711800",
+              "day": "2026-05-20",
+              "mhr": "6.32411100",
+              "planned_pct_cum": "0.74703559"
+            },
+            {
+              "cumulative_mhr": "155.73122900",
+              "day": "2026-05-21",
+              "mhr": "6.32411100",
+              "planned_pct_cum": "0.778656145"
+            },
+            {
+              "cumulative_mhr": "162.05534000",
+              "day": "2026-05-22",
+              "mhr": "6.32411100",
+              "planned_pct_cum": "0.8102767"
+            },
+            {
+              "cumulative_mhr": "168.37945000",
+              "day": "2026-05-23",
+              "mhr": "6.32411000",
+              "planned_pct_cum": "0.84189725"
+            },
+            {
+              "cumulative_mhr": "168.37945000",
+              "day": "2026-05-24",
+              "mhr": "0",
+              "planned_pct_cum": "0.84189725"
+            },
+            {
+              "cumulative_mhr": "174.70356000",
+              "day": "2026-05-25",
+              "mhr": "6.32411000",
+              "planned_pct_cum": "0.8735178"
+            },
+            {
+              "cumulative_mhr": "181.02767000",
+              "day": "2026-05-26",
+              "mhr": "6.32411000",
+              "planned_pct_cum": "0.90513835"
+            },
+            {
+              "cumulative_mhr": "187.35178000",
+              "day": "2026-05-27",
+              "mhr": "6.32411000",
+              "planned_pct_cum": "0.9367589"
+            },
+            {
+              "cumulative_mhr": "193.67589000",
+              "day": "2026-05-28",
+              "mhr": "6.32411000",
+              "planned_pct_cum": "0.96837945"
+            },
+            {
+              "cumulative_mhr": "200.00000000",
+              "day": "2026-05-29",
+              "mhr": "6.32411000",
+              "planned_pct_cum": "1"
+            }
+          ],
+          "end": "2026-05-29",
+          "peak_week": {
+            "mhr": "70.67194100",
+            "planned_people": null,
+            "required_people": "1.308739648148148148148148148",
+            "week_end": "2026-05-10",
+            "week_no": 1,
+            "week_start": "2026-05-04",
+            "working_days": 6
+          },
+          "start": "2026-05-04",
+          "weeks": [
+            {
+              "mhr": "70.67194100",
+              "planned_people": null,
+              "required_people": "1.308739648148148148148148148",
+              "week_end": "2026-05-10",
+              "week_no": 1,
+              "week_start": "2026-05-04",
+              "working_days": 6
+            },
+            {
+              "mhr": "59.76284400",
+              "planned_people": null,
+              "required_people": "1.106719333333333333333333333",
+              "week_end": "2026-05-17",
+              "week_no": 2,
+              "week_start": "2026-05-11",
+              "working_days": 6
+            },
+            {
+              "mhr": "37.94466500",
+              "planned_people": null,
+              "required_people": "0.7026789814814814814814814815",
+              "week_end": "2026-05-24",
+              "week_no": 3,
+              "week_start": "2026-05-18",
+              "working_days": 6
+            },
+            {
+              "mhr": "31.62055000",
+              "planned_people": null,
+              "required_people": "0.7026788888888888888888888889",
+              "week_end": "2026-05-29",
+              "week_no": 4,
+              "week_start": "2026-05-25",
+              "working_days": 5
+            }
+          ]
+        },
+        "share": "0.8888888888888888888888888889"
+      },
+      {
+        "code": "DUV",
+        "color": "#16a34a",
+        "discipline_id": "<DUV>",
+        "discipline_node_id": "d:<DUV>",
+        "distribution": "linear",
+        "name": "Elektrik",
+        "series": {
+          "budget_mhr": "25.00000000",
+          "days": [
+            {
+              "cumulative_mhr": "2.27272800",
+              "day": "2026-05-04",
+              "mhr": "2.27272800",
+              "planned_pct_cum": "0.09090912"
+            },
+            {
+              "cumulative_mhr": "4.54545600",
+              "day": "2026-05-05",
+              "mhr": "2.27272800",
+              "planned_pct_cum": "0.18181824"
+            },
+            {
+              "cumulative_mhr": "6.81818400",
+              "day": "2026-05-06",
+              "mhr": "2.27272800",
+              "planned_pct_cum": "0.27272736"
+            },
+            {
+              "cumulative_mhr": "9.09091100",
+              "day": "2026-05-07",
+              "mhr": "2.27272700",
+              "planned_pct_cum": "0.36363644"
+            },
+            {
+              "cumulative_mhr": "11.36363800",
+              "day": "2026-05-08",
+              "mhr": "2.27272700",
+              "planned_pct_cum": "0.45454552"
+            },
+            {
+              "cumulative_mhr": "13.63636500",
+              "day": "2026-05-09",
+              "mhr": "2.27272700",
+              "planned_pct_cum": "0.5454546"
+            },
+            {
+              "cumulative_mhr": "13.63636500",
+              "day": "2026-05-10",
+              "mhr": "0",
+              "planned_pct_cum": "0.5454546"
+            },
+            {
+              "cumulative_mhr": "15.90909200",
+              "day": "2026-05-11",
+              "mhr": "2.27272700",
+              "planned_pct_cum": "0.63636368"
+            },
+            {
+              "cumulative_mhr": "18.18181900",
+              "day": "2026-05-12",
+              "mhr": "2.27272700",
+              "planned_pct_cum": "0.72727276"
+            },
+            {
+              "cumulative_mhr": "20.45454600",
+              "day": "2026-05-13",
+              "mhr": "2.27272700",
+              "planned_pct_cum": "0.81818184"
+            },
+            {
+              "cumulative_mhr": "22.72727300",
+              "day": "2026-05-14",
+              "mhr": "2.27272700",
+              "planned_pct_cum": "0.90909092"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-15",
+              "mhr": "2.27272700",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-16",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-17",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-18",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-19",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-20",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-21",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-22",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-23",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-24",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-25",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-26",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-27",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-28",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            },
+            {
+              "cumulative_mhr": "25.00000000",
+              "day": "2026-05-29",
+              "mhr": "0",
+              "planned_pct_cum": "1"
+            }
+          ],
+          "end": "2026-05-15",
+          "peak_week": {
+            "mhr": "13.63636500",
+            "planned_people": null,
+            "required_people": "0.2525252777777777777777777778",
+            "week_end": "2026-05-10",
+            "week_no": 1,
+            "week_start": "2026-05-04",
+            "working_days": 6
+          },
+          "start": "2026-05-04",
+          "weeks": [
+            {
+              "mhr": "13.63636500",
+              "planned_people": null,
+              "required_people": "0.2525252777777777777777777778",
+              "week_end": "2026-05-10",
+              "week_no": 1,
+              "week_start": "2026-05-04",
+              "working_days": 6
+            },
+            {
+              "mhr": "11.36363500",
+              "planned_people": null,
+              "required_people": "0.2104376851851851851851851852",
+              "week_end": "2026-05-17",
+              "week_no": 2,
+              "week_start": "2026-05-11",
+              "working_days": 6
+            },
+            {
+              "mhr": "0",
+              "planned_people": null,
+              "required_people": "0",
+              "week_end": "2026-05-24",
+              "week_no": 3,
+              "week_start": "2026-05-18",
+              "working_days": 6
+            },
+            {
+              "mhr": "0",
+              "planned_people": null,
+              "required_people": "0",
+              "week_end": "2026-05-29",
+              "week_no": 4,
+              "week_start": "2026-05-25",
+              "working_days": 5
+            }
+          ]
+        },
+        "share": "0.1111111111111111111111111111"
+      }
+    ],
+    "end": "2026-05-29",
+    "indirect_budget_mhr": "0",
+    "standard_daily_hours": "9.00",
+    "start": "2026-05-04",
+    "total": {
+      "budget_mhr": "225.00000000",
+      "days": [
+        {
+          "cumulative_mhr": "14.05138500",
+          "day": "2026-05-04",
+          "mhr": "14.05138500",
+          "planned_pct_cum": "0.0624506"
+        },
+        {
+          "cumulative_mhr": "28.10277000",
+          "day": "2026-05-05",
+          "mhr": "14.05138500",
+          "planned_pct_cum": "0.1249012"
+        },
+        {
+          "cumulative_mhr": "42.15415500",
+          "day": "2026-05-06",
+          "mhr": "14.05138500",
+          "planned_pct_cum": "0.1873518"
+        },
+        {
+          "cumulative_mhr": "56.20553900",
+          "day": "2026-05-07",
+          "mhr": "14.05138400",
+          "planned_pct_cum": "0.2498023955555555555555555556"
+        },
+        {
+          "cumulative_mhr": "70.25692300",
+          "day": "2026-05-08",
+          "mhr": "14.05138400",
+          "planned_pct_cum": "0.3122529911111111111111111111"
+        },
+        {
+          "cumulative_mhr": "84.30830600",
+          "day": "2026-05-09",
+          "mhr": "14.05138300",
+          "planned_pct_cum": "0.3747035822222222222222222222"
+        },
+        {
+          "cumulative_mhr": "84.30830600",
+          "day": "2026-05-10",
+          "mhr": "0",
+          "planned_pct_cum": "0.3747035822222222222222222222"
+        },
+        {
+          "cumulative_mhr": "98.35968900",
+          "day": "2026-05-11",
+          "mhr": "14.05138300",
+          "planned_pct_cum": "0.4371541733333333333333333333"
+        },
+        {
+          "cumulative_mhr": "112.41107200",
+          "day": "2026-05-12",
+          "mhr": "14.05138300",
+          "planned_pct_cum": "0.4996047644444444444444444444"
+        },
+        {
+          "cumulative_mhr": "126.46245500",
+          "day": "2026-05-13",
+          "mhr": "14.05138300",
+          "planned_pct_cum": "0.5620553555555555555555555556"
+        },
+        {
+          "cumulative_mhr": "140.51383800",
+          "day": "2026-05-14",
+          "mhr": "14.05138300",
+          "planned_pct_cum": "0.6245059466666666666666666667"
+        },
+        {
+          "cumulative_mhr": "154.56522000",
+          "day": "2026-05-15",
+          "mhr": "14.05138200",
+          "planned_pct_cum": "0.6869565333333333333333333333"
+        },
+        {
+          "cumulative_mhr": "155.43478500",
+          "day": "2026-05-16",
+          "mhr": "0.86956500",
+          "planned_pct_cum": "0.6908212666666666666666666667"
+        },
+        {
+          "cumulative_mhr": "155.43478500",
+          "day": "2026-05-17",
+          "mhr": "0",
+          "planned_pct_cum": "0.6908212666666666666666666667"
+        },
+        {
+          "cumulative_mhr": "161.75889600",
+          "day": "2026-05-18",
+          "mhr": "6.32411100",
+          "planned_pct_cum": "0.7189284266666666666666666667"
+        },
+        {
+          "cumulative_mhr": "168.08300700",
+          "day": "2026-05-19",
+          "mhr": "6.32411100",
+          "planned_pct_cum": "0.7470355866666666666666666667"
+        },
+        {
+          "cumulative_mhr": "174.40711800",
+          "day": "2026-05-20",
+          "mhr": "6.32411100",
+          "planned_pct_cum": "0.7751427466666666666666666667"
+        },
+        {
+          "cumulative_mhr": "180.73122900",
+          "day": "2026-05-21",
+          "mhr": "6.32411100",
+          "planned_pct_cum": "0.8032499066666666666666666667"
+        },
+        {
+          "cumulative_mhr": "187.05534000",
+          "day": "2026-05-22",
+          "mhr": "6.32411100",
+          "planned_pct_cum": "0.8313570666666666666666666667"
+        },
+        {
+          "cumulative_mhr": "193.37945000",
+          "day": "2026-05-23",
+          "mhr": "6.32411000",
+          "planned_pct_cum": "0.8594642222222222222222222222"
+        },
+        {
+          "cumulative_mhr": "193.37945000",
+          "day": "2026-05-24",
+          "mhr": "0",
+          "planned_pct_cum": "0.8594642222222222222222222222"
+        },
+        {
+          "cumulative_mhr": "199.70356000",
+          "day": "2026-05-25",
+          "mhr": "6.32411000",
+          "planned_pct_cum": "0.8875713777777777777777777778"
+        },
+        {
+          "cumulative_mhr": "206.02767000",
+          "day": "2026-05-26",
+          "mhr": "6.32411000",
+          "planned_pct_cum": "0.9156785333333333333333333333"
+        },
+        {
+          "cumulative_mhr": "212.35178000",
+          "day": "2026-05-27",
+          "mhr": "6.32411000",
+          "planned_pct_cum": "0.9437856888888888888888888889"
+        },
+        {
+          "cumulative_mhr": "218.67589000",
+          "day": "2026-05-28",
+          "mhr": "6.32411000",
+          "planned_pct_cum": "0.9718928444444444444444444444"
+        },
+        {
+          "cumulative_mhr": "225.00000000",
+          "day": "2026-05-29",
+          "mhr": "6.32411000",
+          "planned_pct_cum": "1"
+        }
+      ],
+      "end": "2026-05-29",
+      "peak_week": {
+        "mhr": "84.30830600",
+        "planned_people": 12,
+        "required_people": "1.561264925925925925925925926",
+        "week_end": "2026-05-10",
+        "week_no": 1,
+        "week_start": "2026-05-04",
+        "working_days": 6
+      },
+      "start": "2026-05-04",
+      "weeks": [
+        {
+          "mhr": "84.30830600",
+          "planned_people": 12,
+          "required_people": "1.561264925925925925925925926",
+          "week_end": "2026-05-10",
+          "week_no": 1,
+          "week_start": "2026-05-04",
+          "working_days": 6
+        },
+        {
+          "mhr": "71.12647900",
+          "planned_people": 12,
+          "required_people": "1.317157018518518518518518519",
+          "week_end": "2026-05-17",
+          "week_no": 2,
+          "week_start": "2026-05-11",
+          "working_days": 6
+        },
+        {
+          "mhr": "37.94466500",
+          "planned_people": 8,
+          "required_people": "0.7026789814814814814814814815",
+          "week_end": "2026-05-24",
+          "week_no": 3,
+          "week_start": "2026-05-18",
+          "working_days": 6
+        },
+        {
+          "mhr": "31.62055000",
+          "planned_people": 8,
+          "required_people": "0.7026788888888888888888888889",
+          "week_end": "2026-05-29",
+          "week_no": 4,
+          "week_start": "2026-05-25",
+          "working_days": 5
+        }
+      ]
+    },
+    "unspreadable": []
+  },
+  "status": 200
+}

@@ -23,6 +23,7 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.errors import NotFoundError
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import report_warnings as rw
@@ -395,7 +396,7 @@ def _warnings(site: SiteInput, report: EngineReport, day: date, footer) -> list:
     )
 
 
-def _empty(q: PanelQuery, site: SiteInput | None) -> PanelReport:
+def _empty(q: PanelQuery, site: SiteInput | None, restricted: bool = False) -> PanelReport:
     return PanelReport(
         day=q.day,
         range=q.range,
@@ -414,7 +415,7 @@ def _empty(q: PanelQuery, site: SiteInput | None) -> PanelReport:
         bars=[],
         pf_trend=[],
         histogram=[],
-        actual_basis="equivalent" if q.discipline_id else "headcount",
+        actual_basis="equivalent" if q.discipline_id or restricted else "headcount",
         standard_daily_hours=None,
         rows=[],
         warnings=[],
@@ -427,10 +428,17 @@ def _has_field_data(site: SiteInput, day: date) -> bool:
     )
 
 
-async def build_panel(session: AsyncSession, site_id: uuid.UUID, q: PanelQuery) -> PanelReport:
-    site = await build_site_input(session, site_id, q.day)
+async def build_panel(
+    session: AsyncSession,
+    site_id: uuid.UUID,
+    q: PanelQuery,
+    visibility: DisciplineScope = UNRESTRICTED,
+) -> PanelReport:
+    # DSC-B3: kisitlida budanmis orman (coklu kok kendiliginden); yabanci `discipline_id`
+    # budanmis agacta yok → bugunku 404 (Ü7). Puantaj kaynagi site duzeyi kalir (Ü3).
+    site = await build_site_input(session, site_id, q.day, visibility)
     if site is None:
-        return _empty(q, None)
+        return _empty(q, None, visibility.is_restricted)
     if q.discipline_id is not None and q.discipline_id not in {d.id for d in site.tree.disciplines}:
         raise NotFoundError(NO_DISCIPLINE)
     cal = ProjectCalendar(site.inp.calendar)
@@ -443,9 +451,10 @@ async def build_panel(session: AsyncSession, site_id: uuid.UUID, q: PanelQuery) 
     pos = report.position
     footer = await day_footer(session, site_id, q.day, report)
     hours = (await repo.load_calendar(session, site_id)).standard_daily_hours
+    # S2: kisitlida kisi SAYIMI site geneli olurdu → esdeger kisi (disiplin filtresi emsali)
     heads = (
         None
-        if q.discipline_id
+        if q.discipline_id or visibility.is_restricted
         else await daily_headcount(session, site_id, *win.span, q.contractor)
     )
     rows = [_series_row(site, main, q.day, pos.week_start, "overall", "Genel")]

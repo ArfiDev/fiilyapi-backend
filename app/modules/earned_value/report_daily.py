@@ -16,6 +16,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.errors import ConflictError, EarnedValueValidationError
 from app.modules.earned_value import diary_adapter as adp
 from app.modules.earned_value import report_warnings as rw
@@ -33,6 +34,7 @@ from app.modules.earned_value.ev_input import SiteInput, build_site_input
 from app.modules.earned_value.guards import SITE_COMPLETED_BUDGET_READ_ONLY
 from app.modules.earned_value.models import EvReportApproval, EvReportSnapshot
 from app.modules.earned_value.report_qurr import pf_bands_out, revision_ref
+from app.modules.earned_value.report_snapshot_scope import restrict_snapshot
 from app.modules.earned_value.schemas_reports import (
     ApprovalResult,
     DailyFooter,
@@ -238,8 +240,14 @@ async def latest_snapshot(
     ).scalar_one_or_none()
 
 
-async def build_live(session: AsyncSession, site_id: uuid.UUID, day: date) -> DailyReport:
-    site = await build_site_input(session, site_id, day)
+async def build_live(
+    session: AsyncSession,
+    site_id: uuid.UUID,
+    day: date,
+    scope: DisciplineScope = UNRESTRICTED,
+) -> DailyReport:
+    # DSC-B3: canli yol kapsama gore budanmis girdiyle; ONAY (`approve`) kisitsiz cagirir (Ç5).
+    site = await build_site_input(session, site_id, day, scope)
     if site is None or day not in site.diary_status:
         return _empty(day, site)
     cal = ProjectCalendar(site.inp.calendar)
@@ -284,13 +292,20 @@ async def build_live(session: AsyncSession, site_id: uuid.UUID, day: date) -> Da
     )
 
 
-async def build_daily(session: AsyncSession, site_id: uuid.UUID, day: date) -> DailyReport:
+async def build_daily(
+    session: AsyncSession, site_id: uuid.UUID, day: date, scope: DisciplineScope = UNRESTRICTED
+) -> DailyReport:
     state = await adp.lock_state(session, site_id, day)
     if state.locked:
         snap = await latest_snapshot(session, site_id, day)
         if snap is not None:
-            return DailyReport.model_validate(snap.payload)
-    return await build_live(session, site_id, day)
+            report = DailyReport.model_validate(snap.payload)
+            if not scope.is_restricted:
+                return report  # kisitsiz: payload AYNEN
+            # DSC-B3 Ü4: yeniden hesap YOK; onay anindaki satirlardan izinli `d:` bloklari kalir.
+            allowed = {f"d:{i}" for i in scope.discipline_ids or ()}
+            return restrict_snapshot(report, allowed)
+    return await build_live(session, site_id, day, scope)
 
 
 async def approve(

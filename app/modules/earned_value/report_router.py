@@ -20,7 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import RequireUnrestricted
+from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
+from app.core.discipline_scope import DisciplineScope
 from app.core.errors import ConflictError, NotFoundError
 from app.core.http import content_disposition
 from app.core.openapi import COMMON_ERROR_RESPONSES
@@ -79,20 +80,26 @@ async def get_panel(
     range_: Annotated[report_panel.Range, Query(alias="range")] = "4w",
     discipline_id: Annotated[str | None, Query(max_length=80)] = None,
     contractor_type: ContractorType | None = None,
+    *,
+    scope: DisciplineScoped,
 ) -> PanelReport:
     """Planlama paneli — filtre (disiplin kokü `d:…`, kendi/taseron) BUTUN panele uygulanir."""
     await visible_site(session, user, site_id)
     query = report_panel.PanelQuery(day, range_, discipline_id, contractor_type)
-    return await report_panel.build_panel(session, site_id, query)
+    return await report_panel.build_panel(session, site_id, query, scope)
 
 
 @router.get(f"{_BASE}/daily", response_model=DailyReport, dependencies=[VIEW])
 async def get_daily_report(
-    site_id: uuid.UUID, user: _User, session: _Db, day: Annotated[date, Query(alias="date")]
+    site_id: uuid.UUID,
+    user: _User,
+    session: _Db,
+    day: Annotated[date, Query(alias="date")],
+    scope: DisciplineScoped,
 ) -> DailyReport:
     """Gunluk ilerleme raporu (GIR). Onayli + kilitli gun → donmus snapshot (B3-5)."""
     await visible_site(session, user, site_id)
-    return await report_daily.build_daily(session, site_id, day)
+    return await report_daily.build_daily(session, site_id, day, scope)
 
 
 @router.post(
@@ -119,10 +126,12 @@ async def approve_daily_report(
     return result
 
 
-async def _qurr(session: AsyncSession, site_id: uuid.UUID, week: int | None) -> QurrReport:
+async def _qurr(
+    session: AsyncSession, site_id: uuid.UUID, week: int | None, scope: DisciplineScope
+) -> QurrReport:
     from app.core.timezone import today
 
-    site = await build_site_input(session, site_id, today())
+    site = await build_site_input(session, site_id, today(), scope)
     if site is None:
         raise ConflictError(NO_BASELINE)
     report = await report_qurr.build_qurr(session, site_id, site, week)
@@ -136,12 +145,13 @@ async def get_weekly_report(
     site_id: uuid.UUID,
     user: _User,
     session: _Db,
+    scope: DisciplineScoped,
     week: Annotated[int | None, Query(ge=1, le=600)] = None,
 ) -> QurrReport:
     """Haftalik QURR (B3-2: onaylanmaz, canli). `week` yoksa bugunun haftasi (takvime
     kirpilir, §3.15 S6). Baseline yok → 409 NO_BASELINE · hafta takvimde yok → 404 NO_WEEK."""
     await visible_site(session, user, site_id)
-    return await _qurr(session, site_id, week)
+    return await _qurr(session, site_id, week, scope)
 
 
 #: Hucre bicimleri (§3.15: hucreler SAYI — Excel'de toplanabilir; gorunum bicimle).
@@ -227,11 +237,12 @@ async def export_weekly_report(
     site_id: uuid.UUID,
     user: _User,
     session: _Db,
+    scope: DisciplineScoped,
     week: Annotated[int | None, Query(ge=1, le=600)] = None,
 ) -> Response:
     """QURR Excel — okuma ucuyla AYNI hesap (`_qurr`); export saf sunumdur."""
     ctx = await visible_site(session, user, site_id)
-    report = await _qurr(session, site_id, week)
+    report = await _qurr(session, site_id, week, scope)
     return Response(
         content=qurr_workbook(report),
         media_type=XLSX,

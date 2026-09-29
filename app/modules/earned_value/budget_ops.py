@@ -14,12 +14,13 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, visible_item_set
 from app.core.errors import ConflictError, EarnedValueValidationError
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import budget_service as svc
 from app.modules.earned_value import guards
 from app.modules.earned_value.access import SiteContext
+from app.modules.earned_value.budget_scope import item_ids, prune_tree
 from app.modules.earned_value.budget_snapshot import load_curves, load_leaves, snapshot_rows
 from app.modules.earned_value.budget_tree import (
     BudgetTree,
@@ -222,6 +223,7 @@ async def preview(
     revision_id: uuid.UUID | None,
     distributions: Mapping[uuid.UUID, str] | None,
     windows: Mapping[tuple[uuid.UUID, uuid.UUID | None], tuple[date, date]] | None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> PreviewResult:
     """KALICI OLMAYAN onizleme (frontend istegi 2). Govde ezmeleri yalniz taslakta anlamlidir."""
     calendar = await repo.load_calendar(session, ctx.site.id)
@@ -238,9 +240,14 @@ async def preview(
     )
     boq = await repo.load_boq(session, ctx.site.id)
     if rev is not None and rev.status is not RevisionStatus.DRAFT:
-        state = await svc.load_state(session, ctx, rev.id)
+        state = await svc.load_state(session, ctx, rev.id, scope)
         leaves = await load_leaves(session, rev.id)
         curves = await load_curves(session, leaves)
+        if scope.is_restricted:
+            # DSC-B3 Ç2: egriler de budanmis yapraklara suzulur; yoksa `preview_from_curves`
+            # esleme olmayan (yabanci) yaprakta ValueError → 500.
+            kept = {lf.id for *_, lf in state.tree.leaves()}
+            curves = {k: v for k, v in curves.items() if k in kept}
         disc_of = {lf.id: d.id for d, _, _, lf in state.tree.leaves() if lf.id in curves}
         indirect = sum((lf.budget_mhr for *_, lf in state.tree.leaves() if not lf.is_direct), ZERO)
         # Aralik = egriye giren yapraklarin PENCERE birlesimi (taslak onizlemeyle ayni kural;
@@ -267,6 +274,10 @@ async def preview(
         windows={**inputs.windows, **(windows or {})},
     )
     tree = build_tree(boq, disciplines, inputs, calendar.is_working_day)
+    # DSC-B3: taslak dal budama (budget_service.load_state emsali); yabanci disiplin ezmeleri
+    # budanan agacta etkisizdir (Ü7). Kisitsizda agac degismez.
+    visible = await visible_item_set(session, scope, item_ids(tree))
+    tree = prune_tree(tree, scope, visible, False, calendar.is_working_day)
     result = compute_spread_preview(spread_leaves(tree), **kwargs)
     return PreviewResult(tree, result, _planned_people(result, boq.sections))
 
@@ -339,7 +350,7 @@ class LeafDiff:
     prev_qty: Decimal | None
     prev_rate: Decimal | None
     prev_budget: Decimal
-    reason: str  # new | removed | qty_changed | rate_changed | qty_and_rate_changed
+    reason: str  # new | removed | moved_out | qty_changed | rate_changed | qty_and_rate_changed
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,11 +379,19 @@ async def diff(
     after = await svc.load_state(session, ctx, rev.id, scope)
     before = await svc.load_state(session, ctx, prev.id, scope) if prev else None
     now = {lf.id: (i, lf) for *_, i, lf in after.tree.leaves()}
+    # S8 (DSC-B3): kisitlida "removed" iki anlama gelir; yaprak KISITSIZ sonraki agacta HALA
+    # VARSA baska disipline tasinmistir (`moved_out`, hedef verilmez). Atamasizda olusamaz.
+    full_now: set[str] = set()
+    if scope.is_restricted:
+        full = await svc.load_state(session, ctx, rev.id)
+        full_now = {lf.id for *_, lf in full.tree.leaves()}
     old = {lf.id: (i, lf) for *_, i, lf in before.tree.leaves()} if before else {}
     out: list[LeafDiff] = []
     for key in sorted(set(now) | set(old)):
         n, o = now.get(key), old.get(key)
         reason = _reason(n[1] if n else None, o[1] if o else None)
+        if reason == "removed" and key in full_now:
+            reason = "moved_out"
         if reason is None:
             continue
         item, leaf = n if n else o  # type: ignore[misc]

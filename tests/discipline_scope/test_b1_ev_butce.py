@@ -198,7 +198,9 @@ async def test_diff_iki_agac_da_budanir_ve_direkt_toplamlar_budanmis_agactan(
     # civil: once (donmus, d:KAB) I1 = 200 · sonra (taslakta hicbir sey gorunmez) = 0
     assert (D(c["direct_before_mhr"]), D(c["direct_after_mhr"])) == (D(200), D(0))
     assert {x["item_code"] for x in c["leaves"]} == {"01.001"}
-    assert {x["reason"] for x in c["leaves"]} == {"removed"}
+    # DSC-B3 S8 (bilinçli değişiklik): I1 taslakta silinmedi, G1→DUV'a TAŞINDI; kısıtlı civil için
+    # ağaçta yok ama kısıtsız taslakta var → "removed" değil "moved_out" (hedef disiplin verilmez).
+    assert {x["reason"] for x in c["leaves"]} == {"moved_out"}
     assert "02.001" not in json.dumps(c) and "01.001" not in json.dumps(e)
 
 
