@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Request
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import DisciplineScoped
+from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -90,8 +90,11 @@ async def put_day_allocation(
     body: AllocationSave,
     user: _User,
     session: _Db,
+    scope: DisciplineScoped,
 ) -> DayView:
     """Gunun saat dagitimi — TAM DEGISTIRME. Kilitli gun 409 · baseline yok 409."""
+    # Kisitlida (DSC-B2) `save_allocation` BIRLESTIRIR (baska disiplinin kod/hucresine dokunmaz);
+    # `unallocated_reason` govdede yoksa (model_fields_set) ortak not'a dokunulmaz (S4).
     await adp.save_allocation(
         session,
         site_id,
@@ -100,6 +103,8 @@ async def put_day_allocation(
         [(c.node_id, c.rule) for c in body.codes],
         [adp.CellIn(c.row.kind, c.row.ref_id, c.node_id, c.hours) for c in body.cells],
         body.unallocated_reason,
+        scope=scope,
+        reason_provided="unallocated_reason" in body.model_fields_set,
     )
     await record_audit(
         session,
@@ -108,7 +113,7 @@ async def put_day_allocation(
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )
-    return await day_view.build_view(session, site_id, day, user)
+    return await day_view.build_view(session, site_id, day, user, scope)
 
 
 @router.get(
@@ -159,7 +164,7 @@ async def get_previous_allocation(
     )
 
 
-@router.post(f"{_DAY}/unlock", response_model=LockOut, dependencies=[APPROVE])
+@router.post(f"{_DAY}/unlock", response_model=LockOut, dependencies=[APPROVE, RequireUnrestricted])
 async def unlock_day(
     request: Request,
     site_id: uuid.UUID,

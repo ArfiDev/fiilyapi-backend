@@ -7,7 +7,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import DisciplineScoped
+from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
 from app.core.ratelimit import client_ip
@@ -141,7 +141,7 @@ async def export_boq_endpoint(
     "/sites/{site_id}/boq/groups",
     response_model=BoqGroupResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_FULL, RequireUnrestricted],
 )
 async def create_boq_group_endpoint(
     request: Request,
@@ -150,6 +150,7 @@ async def create_boq_group_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> BoqGroupResponse:
+    # DSC-B2 (Ü6): yeni grup acmak yapisal islemdir → kisitliya 403 (`RequireUnrestricted`).
     group = await service.create_group(session, user, site_id, data)
     await record_audit(
         session,
@@ -173,8 +174,11 @@ async def create_boq_item_endpoint(
     data: BoqItemCreate,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> BoqItemResponse:
-    item = await service.create_item(session, user, site_id, data)
+    # DSC-B2: kisitli kullanici yalniz KENDI disiplinindeki gruba kalem ekler; gorunmeyen
+    # grup olmayanla AYNI 422'yi alir (Ü7).
+    item = await service.create_item(session, user, site_id, data, scope)
     await record_audit(
         session,
         action=AuditAction.create,
@@ -192,8 +196,10 @@ async def update_boq_group_endpoint(
     data: BoqGroupUpdate,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> BoqGroupResponse:
-    group = await service.update_group(session, user, group_id, data)
+    # DSC-B2 (S6): kisitli kendi grubunu gunceller; gorunmeyen grup 404.
+    group = await service.update_group(session, user, group_id, data, scope)
     await record_audit(
         session,
         action=AuditAction.update,
@@ -211,8 +217,10 @@ async def update_boq_item_endpoint(
     data: BoqItemUpdate,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> BoqItemResponse:
-    item = await service.update_item(session, user, item_id, data)
+    # DSC-B2: gorunmeyen kalem 404; tasinacak grup gorunur degilse 422.
+    item = await service.update_item(session, user, item_id, data, scope)
     await record_audit(
         session,
         action=AuditAction.update,
@@ -258,6 +266,7 @@ async def replace_boq_item_allocations_endpoint(
     data: BoqItemAllocationsReplace,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> BoqItemAllocationsResponse:
     """BOQ-SEC K4 — pozun bolum tahsislerini TAM KUME olarak degistirir.
 
@@ -267,7 +276,7 @@ async def replace_boq_item_allocations_endpoint(
     Govdedeki `allocations` alani ZORUNLUDUR: gonderilmezse 422. Bos dizi `[]`
     tum tahsisleri kaldirir — "dokunma" anlami YOKTUR (K4).
     """
-    result = await service.replace_allocations(session, user, item_id, data)
+    result = await service.replace_allocations(session, user, item_id, data, scope)
     await record_audit(
         session,
         action=AuditAction.update,
@@ -281,7 +290,7 @@ async def replace_boq_item_allocations_endpoint(
 @router.delete(
     "/boq/groups/{group_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_ADMIN],
+    dependencies=[_ADMIN, RequireUnrestricted],
 )
 async def delete_boq_group_endpoint(
     request: Request,
@@ -295,6 +304,7 @@ async def delete_boq_group_endpoint(
     (`full` silmeyi KAPSAMAZ). F-SD smoke'unda canlida bos test grubu 405
     aldigi icin acildi.
     """
+    # DSC-B2 (Ü6): grup silme yapisal islemdir → kisitliya 403 (`RequireUnrestricted`).
     name = await service.delete_group(session, user, group_id)
     await record_audit(
         session,
@@ -315,6 +325,7 @@ async def delete_boq_item_endpoint(
     item_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> None:
     """Frontend F13 (kalem silme) bu uca baglidir.
 
@@ -327,7 +338,7 @@ async def delete_boq_item_endpoint(
     `system_admin`'dedir; proje muduru dahil kimse kalem SILEMEZ, silme talebi
     sistem yoneticisine gider. Bu BEKLENEN davranistir, hata degil.
     """
-    code, description = await service.delete_item(session, user, item_id)
+    code, description = await service.delete_item(session, user, item_id, scope)
     await record_audit(
         session,
         action=AuditAction.delete,

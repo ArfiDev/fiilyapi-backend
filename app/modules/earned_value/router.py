@@ -18,7 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import DisciplineScoped
+from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -79,8 +80,12 @@ async def _audit(session: AsyncSession, request: Request, user: User, detail: st
     )
 
 
-async def _view(session: AsyncSession, ctx: SiteContext) -> BudgetView:
-    return await present.budget_view(session, await svc.load_state(session, ctx))
+async def _view(
+    session: AsyncSession, ctx: SiteContext, scope: DisciplineScope = UNRESTRICTED
+) -> BudgetView:
+    return await present.budget_view(
+        session, await svc.load_state(session, ctx, scope=scope), scope
+    )
 
 
 def _candidate(c: ops.Candidate) -> CandidateOut:
@@ -126,7 +131,7 @@ async def list_budget_revisions(site_id: uuid.UUID, user: _User, session: _Db) -
     f"{_BASE}/revisions",
     response_model=RevisionOut,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[WRITE],
+    dependencies=[WRITE, RequireUnrestricted],
 )
 async def open_budget_draft(
     request: Request, site_id: uuid.UUID, ctx: _Writable, user: _User, session: _Db
@@ -142,7 +147,7 @@ async def open_budget_draft(
 @router.delete(
     f"{_BASE}/revisions/{{revision_id}}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[APPROVE],
+    dependencies=[APPROVE, RequireUnrestricted],
 )
 async def delete_budget_draft(
     request: Request,
@@ -171,7 +176,11 @@ async def get_budget_revision_diff(
     return await present.diff_out(session, await ops.diff(session, ctx, revision_id, scope))
 
 
-@router.put(f"{_BASE}/group-disciplines", response_model=BudgetView, dependencies=[WRITE])
+@router.put(
+    f"{_BASE}/group-disciplines",
+    response_model=BudgetView,
+    dependencies=[WRITE, RequireUnrestricted],
+)
 async def put_group_disciplines(
     request: Request,
     site_id: uuid.UUID,
@@ -198,14 +207,15 @@ async def patch_budget_item(
     body: ItemPatch,
     user: _User,
     session: _Db,
+    scope: DisciplineScoped,
 ) -> BudgetView:
     """Is tipi (L3) kendi/taseron + dogrudan/dolayli + katalog bagi (K3)."""
     changes = body.model_dump(include=body.model_fields_set)
-    item = await svc.patch_item(session, ctx, user, boq_item_id, changes)
+    item = await svc.patch_item(session, ctx, user, boq_item_id, changes, scope)
     await _audit(
         session, request, user, msg.item_settings_saved(ctx.project.name, ctx.site.name, item.code)
     )
-    return await _view(session, ctx)
+    return await _view(session, ctx, scope)
 
 
 @router.patch(f"{_BASE}/leaves", response_model=BudgetView, dependencies=[WRITE])
@@ -216,6 +226,7 @@ async def patch_budget_leaves(
     body: LeavesPatch,
     user: _User,
     session: _Db,
+    scope: DisciplineScoped,
 ) -> BudgetView:
     """Yaprak orani (+kaynak) ve ezmeleri — tekil ya da TOPLU ("secili satirlara toplu oran")."""
     changes = [
@@ -226,9 +237,9 @@ async def patch_budget_leaves(
         )
         for lf in body.leaves
     ]
-    count = await svc.patch_leaves(session, ctx, user, changes)
+    count = await svc.patch_leaves(session, ctx, user, changes, scope)
     await _audit(session, request, user, msg.leaves_saved(ctx.project.name, ctx.site.name, count))
-    return await _view(session, ctx)
+    return await _view(session, ctx, scope)
 
 
 @router.get(
@@ -275,7 +286,9 @@ def _recent(c: ops.Candidate, sites: list[SiteItemActual]) -> RecentActualOut:
     )
 
 
-@router.post(f"{_BASE}/fill-from-catalog", response_model=FillOut, dependencies=[WRITE])
+@router.post(
+    f"{_BASE}/fill-from-catalog", response_model=FillOut, dependencies=[WRITE, RequireUnrestricted]
+)
 async def fill_budget_from_catalog(
     request: Request, site_id: uuid.UUID, ctx: _Writable, user: _User, session: _Db
 ) -> FillOut:
@@ -305,7 +318,9 @@ async def fill_budget_from_catalog(
     )
 
 
-@router.put(f"{_BASE}/distributions", response_model=BudgetView, dependencies=[WRITE])
+@router.put(
+    f"{_BASE}/distributions", response_model=BudgetView, dependencies=[WRITE, RequireUnrestricted]
+)
 async def put_budget_distributions(
     request: Request,
     site_id: uuid.UUID,
@@ -323,7 +338,9 @@ async def put_budget_distributions(
     return await _view(session, ctx)
 
 
-@router.put(f"{_BASE}/windows", response_model=BudgetView, dependencies=[WRITE])
+@router.put(
+    f"{_BASE}/windows", response_model=BudgetView, dependencies=[WRITE, RequireUnrestricted]
+)
 async def put_budget_windows(
     request: Request,
     site_id: uuid.UUID,
@@ -373,7 +390,9 @@ async def preview_budget(
     return present.preview_out(result).model_copy(update={"standard_daily_hours": hours})
 
 
-@router.post(f"{_BASE}/freeze", response_model=RevisionOut, dependencies=[APPROVE])
+@router.post(
+    f"{_BASE}/freeze", response_model=RevisionOut, dependencies=[APPROVE, RequireUnrestricted]
+)
 async def freeze_budget(
     request: Request,
     site_id: uuid.UUID,

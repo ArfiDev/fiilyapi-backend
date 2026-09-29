@@ -1,0 +1,999 @@
+{
+  "audit": [],
+  "db": {
+    "boq_groups": [
+      {
+        "created_at": "<ts>",
+        "id": "<G1>",
+        "name": "Betonarme",
+        "site_id": "<site>",
+        "sort_order": 1,
+        "updated_at": "<ts>"
+      },
+      {
+        "created_at": "<ts>",
+        "id": "<G2>",
+        "name": "Duvar",
+        "site_id": "<site>",
+        "sort_order": 2,
+        "updated_at": "<ts>"
+      },
+      {
+        "created_at": "<ts>",
+        "id": "<G3>",
+        "name": "Boya",
+        "site_id": "<site>",
+        "sort_order": 3,
+        "updated_at": "<ts>"
+      }
+    ],
+    "boq_item_section_allocations": [
+      {
+        "boq_item_id": "<I1>",
+        "created_at": "<ts>",
+        "id": "<tahsis:1>",
+        "quantity": "60.000",
+        "section_id": "<S1>",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": "<I1>",
+        "created_at": "<ts>",
+        "id": "<tahsis:2>",
+        "quantity": "30.000",
+        "section_id": "<S2>",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": "<I2>",
+        "created_at": "<ts>",
+        "id": "<tahsis:3>",
+        "quantity": "50.000",
+        "section_id": "<S1>",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": "<I3>",
+        "created_at": "<ts>",
+        "id": "<tahsis:4>",
+        "quantity": "20.000",
+        "section_id": "<S2>",
+        "updated_at": "<ts>"
+      }
+    ],
+    "boq_items": [
+      {
+        "code": "01.001",
+        "contract_item_id": "<sozlesme_kalemi:1>",
+        "created_at": "<ts>",
+        "description": "Beton",
+        "group_id": "<G1>",
+        "id": "<I1>",
+        "quantity": "100.000",
+        "site_id": "<site>",
+        "sort_order": 1,
+        "unit": "m3",
+        "unit_price": "10.00",
+        "updated_at": "<ts>"
+      },
+      {
+        "code": "02.001",
+        "contract_item_id": "<sozlesme_kalemi:2>",
+        "created_at": "<ts>",
+        "description": "Tuğla",
+        "group_id": "<G2>",
+        "id": "<I2>",
+        "quantity": "50.000",
+        "site_id": "<site>",
+        "sort_order": 1,
+        "unit": "m2",
+        "unit_price": "20.00",
+        "updated_at": "<ts>"
+      },
+      {
+        "code": "03.001",
+        "contract_item_id": null,
+        "created_at": "<ts>",
+        "description": "Boya",
+        "group_id": "<G3>",
+        "id": "<I3>",
+        "quantity": "40.000",
+        "site_id": "<site>",
+        "sort_order": 1,
+        "unit": "m2",
+        "unit_price": "30.00",
+        "updated_at": "<ts>"
+      }
+    ],
+    "ev_baseline_curve": [
+      {
+        "day": "2026-05-04",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909100"
+      },
+      {
+        "day": "2026-05-04",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956600"
+      },
+      {
+        "day": "2026-05-04",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272800"
+      },
+      {
+        "day": "2026-05-05",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909100"
+      },
+      {
+        "day": "2026-05-05",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956600"
+      },
+      {
+        "day": "2026-05-05",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272800"
+      },
+      {
+        "day": "2026-05-06",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909100"
+      },
+      {
+        "day": "2026-05-06",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956600"
+      },
+      {
+        "day": "2026-05-06",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272800"
+      },
+      {
+        "day": "2026-05-07",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909100"
+      },
+      {
+        "day": "2026-05-07",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956600"
+      },
+      {
+        "day": "2026-05-07",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272700"
+      },
+      {
+        "day": "2026-05-08",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909100"
+      },
+      {
+        "day": "2026-05-08",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956600"
+      },
+      {
+        "day": "2026-05-08",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272700"
+      },
+      {
+        "day": "2026-05-09",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909100"
+      },
+      {
+        "day": "2026-05-09",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-09",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272700"
+      },
+      {
+        "day": "2026-05-11",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909100"
+      },
+      {
+        "day": "2026-05-11",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-11",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272700"
+      },
+      {
+        "day": "2026-05-12",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909100"
+      },
+      {
+        "day": "2026-05-12",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-12",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272700"
+      },
+      {
+        "day": "2026-05-13",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909100"
+      },
+      {
+        "day": "2026-05-13",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-13",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272700"
+      },
+      {
+        "day": "2026-05-14",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909100"
+      },
+      {
+        "day": "2026-05-14",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-14",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272700"
+      },
+      {
+        "day": "2026-05-15",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "mhr": "10.90909000"
+      },
+      {
+        "day": "2026-05-15",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-15",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "mhr": "2.27272700"
+      },
+      {
+        "day": "2026-05-16",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-18",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454600"
+      },
+      {
+        "day": "2026-05-18",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-19",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454600"
+      },
+      {
+        "day": "2026-05-19",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-20",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454600"
+      },
+      {
+        "day": "2026-05-20",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-21",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454600"
+      },
+      {
+        "day": "2026-05-21",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-22",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454600"
+      },
+      {
+        "day": "2026-05-22",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-23",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454500"
+      },
+      {
+        "day": "2026-05-23",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-25",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454500"
+      },
+      {
+        "day": "2026-05-25",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-26",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454500"
+      },
+      {
+        "day": "2026-05-26",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-27",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454500"
+      },
+      {
+        "day": "2026-05-27",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-28",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454500"
+      },
+      {
+        "day": "2026-05-28",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      },
+      {
+        "day": "2026-05-29",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "mhr": "5.45454500"
+      },
+      {
+        "day": "2026-05-29",
+        "leaf_id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "mhr": "0.86956500"
+      }
+    ],
+    "ev_baseline_leaves": [
+      {
+        "boq_group_id": "<G1>",
+        "boq_item_id": "<I1>",
+        "budget_mhr": "120.00000000",
+        "contractor_type": "own",
+        "discipline_id": "<KAB>",
+        "distribution": "linear",
+        "id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000001>",
+        "is_direct": true,
+        "item_code": "01.001",
+        "item_description": "Beton",
+        "planned_qty": "60.000",
+        "rate_source": "manual",
+        "revision_id": "<rev:0>",
+        "section_id": "<S1>",
+        "section_name": "A Blok",
+        "unit_mhr": "2.0000",
+        "uom": "m3",
+        "window_end": "2026-05-15",
+        "window_start": "2026-05-04"
+      },
+      {
+        "boq_group_id": "<G1>",
+        "boq_item_id": "<I1>",
+        "budget_mhr": "20.00000000",
+        "contractor_type": "own",
+        "discipline_id": "<KAB>",
+        "distribution": "linear",
+        "id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:none>",
+        "is_direct": true,
+        "item_code": "01.001",
+        "item_description": "Beton",
+        "planned_qty": "10.000",
+        "rate_source": "manual",
+        "revision_id": "<rev:0>",
+        "section_id": null,
+        "section_name": null,
+        "unit_mhr": "2.0000",
+        "uom": "m3",
+        "window_end": "2026-05-29",
+        "window_start": "2026-05-04"
+      },
+      {
+        "boq_group_id": "<G1>",
+        "boq_item_id": "<I1>",
+        "budget_mhr": "60.00000000",
+        "contractor_type": "own",
+        "discipline_id": "<KAB>",
+        "distribution": "linear",
+        "id": "<bleaf:r0:0000000b-0000-4000-8000-000000000001:00000002-0000-4000-8000-000000000002>",
+        "is_direct": true,
+        "item_code": "01.001",
+        "item_description": "Beton",
+        "planned_qty": "30.000",
+        "rate_source": "manual",
+        "revision_id": "<rev:0>",
+        "section_id": "<S2>",
+        "section_name": "B Blok",
+        "unit_mhr": "2.0000",
+        "uom": "m3",
+        "window_end": "2026-05-29",
+        "window_start": "2026-05-18"
+      },
+      {
+        "boq_group_id": "<G2>",
+        "boq_item_id": "<I2>",
+        "budget_mhr": "25.00000000",
+        "contractor_type": "subcon",
+        "discipline_id": "<DUV>",
+        "distribution": "linear",
+        "id": "<bleaf:r0:0000000b-0000-4000-8000-000000000002:00000002-0000-4000-8000-000000000001>",
+        "is_direct": true,
+        "item_code": "02.001",
+        "item_description": "Tuğla",
+        "planned_qty": "50.000",
+        "rate_source": "manual",
+        "revision_id": "<rev:0>",
+        "section_id": "<S1>",
+        "section_name": "A Blok",
+        "unit_mhr": "0.5000",
+        "uom": "m2",
+        "window_end": "2026-05-15",
+        "window_start": "2026-05-04"
+      },
+      {
+        "boq_group_id": "<G3>",
+        "boq_item_id": "<I3>",
+        "budget_mhr": "0E-8",
+        "contractor_type": "own",
+        "discipline_id": null,
+        "distribution": "linear",
+        "id": "<bleaf:r0:0000000b-0000-4000-8000-000000000003:00000002-0000-4000-8000-000000000002>",
+        "is_direct": true,
+        "item_code": "03.001",
+        "item_description": "Boya",
+        "planned_qty": "20.000",
+        "rate_source": null,
+        "revision_id": "<rev:0>",
+        "section_id": "<S2>",
+        "section_name": "B Blok",
+        "unit_mhr": null,
+        "uom": "m2",
+        "window_end": "2026-05-29",
+        "window_start": "2026-05-18"
+      },
+      {
+        "boq_group_id": "<G3>",
+        "boq_item_id": "<I3>",
+        "budget_mhr": "0E-8",
+        "contractor_type": "own",
+        "discipline_id": null,
+        "distribution": "linear",
+        "id": "<bleaf:r0:0000000b-0000-4000-8000-000000000003:none>",
+        "is_direct": true,
+        "item_code": "03.001",
+        "item_description": "Boya",
+        "planned_qty": "20.000",
+        "rate_source": null,
+        "revision_id": "<rev:0>",
+        "section_id": null,
+        "section_name": null,
+        "unit_mhr": null,
+        "uom": "m2",
+        "window_end": "2026-05-29",
+        "window_start": "2026-05-18"
+      }
+    ],
+    "ev_catalog_items": [
+      {
+        "created_at": "<ts>",
+        "default_contractor_type": "own",
+        "description": null,
+        "discipline_id": "<KAB>",
+        "id": "<katalog:1>",
+        "name": "Beton",
+        "name_key": "beton",
+        "standard_unit_mhr": "1.8000",
+        "standard_updated_at": "<ts>",
+        "uom": "m³",
+        "uom_key": "m3",
+        "updated_at": "<ts>"
+      },
+      {
+        "created_at": "<ts>",
+        "default_contractor_type": "subcon",
+        "description": null,
+        "discipline_id": "<DUV>",
+        "id": "<katalog:2>",
+        "name": "Tuğla",
+        "name_key": "tuğla",
+        "standard_unit_mhr": "0.5500",
+        "standard_updated_at": "<ts>",
+        "uom": "m2",
+        "uom_key": "m2",
+        "updated_at": "<ts>"
+      }
+    ],
+    "ev_day_cells": [
+      {
+        "hours": "4.00",
+        "node_id": "l:<I2>:<S1>",
+        "row_id": "<gunsatiri:2026-05-05:00000028-0000-4000-8000-000000000002>"
+      },
+      {
+        "hours": "5.00",
+        "node_id": "l:<I1>:<S1>",
+        "row_id": "<gunsatiri:2026-05-05:00000028-0000-4000-8000-000000000001>"
+      }
+    ],
+    "ev_day_codes": [
+      {
+        "day": "2026-05-05",
+        "node_id": "l:<I1>:<S1>",
+        "rule": "direct",
+        "site_id": "<site>",
+        "sort_order": 0
+      },
+      {
+        "day": "2026-05-05",
+        "node_id": "l:<I2>:<S1>",
+        "rule": "direct",
+        "site_id": "<site>",
+        "sort_order": 1
+      }
+    ],
+    "ev_day_notes": [
+      {
+        "day": "2026-05-05",
+        "site_id": "<site>",
+        "unallocated_reason": null,
+        "updated_at": "<ts>",
+        "updated_by_user_id": "<user:atamasiz>"
+      }
+    ],
+    "ev_day_rows": [
+      {
+        "day": "2026-05-05",
+        "id": "<gunsatiri:2026-05-05:00000028-0000-4000-8000-000000000001>",
+        "kind": "personnel",
+        "personnel_id": "<kisi:1>",
+        "site_id": "<site>",
+        "source_hours": "5.00",
+        "subcontractor_id": null
+      },
+      {
+        "day": "2026-05-05",
+        "id": "<gunsatiri:2026-05-05:00000028-0000-4000-8000-000000000002>",
+        "kind": "personnel",
+        "personnel_id": "<kisi:2>",
+        "site_id": "<site>",
+        "source_hours": "4.00",
+        "subcontractor_id": null
+      }
+    ],
+    "ev_disciplines": [
+      {
+        "code": "DUV",
+        "color": "#16a34a",
+        "created_at": "<ts>",
+        "default_contractor_type": "subcon",
+        "id": "<DUV>",
+        "name": "Elektrik",
+        "sort_order": 2,
+        "updated_at": "<ts>"
+      },
+      {
+        "code": "KAB",
+        "color": "#2563eb",
+        "created_at": "<ts>",
+        "default_contractor_type": "own",
+        "id": "<KAB>",
+        "name": "Civil",
+        "sort_order": 1,
+        "updated_at": "<ts>"
+      }
+    ],
+    "ev_group_disciplines": [
+      {
+        "boq_group_id": "<G1>",
+        "discipline_id": "<DUV>",
+        "revision_id": "<rev:1>"
+      },
+      {
+        "boq_group_id": "<G1>",
+        "discipline_id": "<KAB>",
+        "revision_id": "<rev:0>"
+      },
+      {
+        "boq_group_id": "<G2>",
+        "discipline_id": "<DUV>",
+        "revision_id": "<rev:0>"
+      },
+      {
+        "boq_group_id": "<G2>",
+        "discipline_id": "<DUV>",
+        "revision_id": "<rev:1>"
+      }
+    ],
+    "ev_leaf_settings": [
+      {
+        "boq_item_id": "<I1>",
+        "contractor_type": null,
+        "id": "<uuid:1>",
+        "is_direct": null,
+        "rate_source": "manual",
+        "revision_id": "<rev:0>",
+        "section_id": "<S1>",
+        "unit_mhr": "2.0000"
+      },
+      {
+        "boq_item_id": "<I1>",
+        "contractor_type": null,
+        "id": "<uuid:2>",
+        "is_direct": null,
+        "rate_source": "manual",
+        "revision_id": "<rev:0>",
+        "section_id": "<S2>",
+        "unit_mhr": "2.0000"
+      },
+      {
+        "boq_item_id": "<I1>",
+        "contractor_type": null,
+        "id": "<uuid:3>",
+        "is_direct": null,
+        "rate_source": "manual",
+        "revision_id": "<rev:0>",
+        "section_id": null,
+        "unit_mhr": "2.0000"
+      },
+      {
+        "boq_item_id": "<I1>",
+        "contractor_type": null,
+        "id": "<uuid:4>",
+        "is_direct": null,
+        "rate_source": "manual",
+        "revision_id": "<rev:1>",
+        "section_id": "<S1>",
+        "unit_mhr": "2.0000"
+      },
+      {
+        "boq_item_id": "<I1>",
+        "contractor_type": null,
+        "id": "<uuid:5>",
+        "is_direct": null,
+        "rate_source": "manual",
+        "revision_id": "<rev:1>",
+        "section_id": "<S2>",
+        "unit_mhr": "2.0000"
+      },
+      {
+        "boq_item_id": "<I1>",
+        "contractor_type": null,
+        "id": "<uuid:6>",
+        "is_direct": null,
+        "rate_source": "manual",
+        "revision_id": "<rev:1>",
+        "section_id": null,
+        "unit_mhr": "2.0000"
+      },
+      {
+        "boq_item_id": "<I2>",
+        "contractor_type": null,
+        "id": "<uuid:7>",
+        "is_direct": null,
+        "rate_source": "manual",
+        "revision_id": "<rev:0>",
+        "section_id": "<S1>",
+        "unit_mhr": "0.5000"
+      },
+      {
+        "boq_item_id": "<I2>",
+        "contractor_type": null,
+        "id": "<uuid:8>",
+        "is_direct": null,
+        "rate_source": "manual",
+        "revision_id": "<rev:1>",
+        "section_id": "<S1>",
+        "unit_mhr": "0.6000"
+      }
+    ],
+    "ev_revisions": [
+      {
+        "created_at": "<ts>",
+        "created_by_user_id": "<user:atamasiz>",
+        "description": null,
+        "frozen_at": "<ts>",
+        "frozen_by_user_id": "<user:atamasiz>",
+        "id": "<rev:0>",
+        "name": null,
+        "number": 0,
+        "site_id": "<site>",
+        "status": "active",
+        "updated_at": "<ts>"
+      },
+      {
+        "created_at": "<ts>",
+        "created_by_user_id": "<user:atamasiz>",
+        "description": null,
+        "frozen_at": null,
+        "frozen_by_user_id": null,
+        "id": "<rev:1>",
+        "name": null,
+        "number": 1,
+        "site_id": "<site>",
+        "status": "draft",
+        "updated_at": "<ts>"
+      }
+    ],
+    "site_diary_entries": [
+      {
+        "chief_note": null,
+        "created_at": "<ts>",
+        "created_by": "<user:atamasiz>",
+        "entry_date": "2026-05-05",
+        "has_incident": false,
+        "id": "<entry:e1>",
+        "incident_note": null,
+        "ppe_checked": false,
+        "project_id": "<proje>",
+        "safety_meeting_held": false,
+        "section_id": "<S1>",
+        "site_id": "<site>",
+        "status": "submitted",
+        "submitted_at": "<ts>",
+        "submitted_by_user_id": "<user:atamasiz>",
+        "temp_max_c": null,
+        "temp_min_c": null,
+        "updated_at": "<ts>",
+        "weather": null,
+        "wind_ms": null,
+        "work_done": "Gün 1 işleri"
+      },
+      {
+        "chief_note": null,
+        "created_at": "<ts>",
+        "created_by": "<user:atamasiz>",
+        "entry_date": "2026-05-06",
+        "has_incident": false,
+        "id": "<entry:e2>",
+        "incident_note": null,
+        "ppe_checked": false,
+        "project_id": "<proje>",
+        "safety_meeting_held": false,
+        "section_id": "<S2>",
+        "site_id": "<site>",
+        "status": "submitted",
+        "submitted_at": "<ts>",
+        "submitted_by_user_id": "<user:atamasiz>",
+        "temp_max_c": null,
+        "temp_min_c": null,
+        "updated_at": "<ts>",
+        "weather": null,
+        "wind_ms": null,
+        "work_done": "Gün 2 işleri"
+      },
+      {
+        "chief_note": null,
+        "created_at": "<ts>",
+        "created_by": "<user:atamasiz>",
+        "entry_date": "2026-05-07",
+        "has_incident": false,
+        "id": "<entry:e3>",
+        "incident_note": null,
+        "ppe_checked": false,
+        "project_id": "<proje>",
+        "safety_meeting_held": false,
+        "section_id": null,
+        "site_id": "<site>",
+        "status": "draft",
+        "submitted_at": null,
+        "submitted_by_user_id": null,
+        "temp_max_c": null,
+        "temp_min_c": null,
+        "updated_at": "<ts>",
+        "weather": null,
+        "wind_ms": null,
+        "work_done": "Gün 3 işleri"
+      }
+    ],
+    "site_diary_lines": [
+      {
+        "boq_item_id": "<I1>",
+        "code": "01.001",
+        "created_at": "<ts>",
+        "description": "Beton",
+        "entry_id": "<entry:e1>",
+        "id": "<line:e1_i1_s1>",
+        "overrun_reason": null,
+        "quantity": "5.000",
+        "section_id": "<S1>",
+        "unit": "m3",
+        "unit_price": "10.00",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": "<I1>",
+        "code": "01.001",
+        "created_at": "<ts>",
+        "description": "Beton",
+        "entry_id": "<entry:e1>",
+        "id": "<line:e1_i1_s2>",
+        "overrun_reason": null,
+        "quantity": "3.000",
+        "section_id": "<S2>",
+        "unit": "m3",
+        "unit_price": "10.00",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": "<I1>",
+        "code": "01.001",
+        "created_at": "<ts>",
+        "description": "Beton",
+        "entry_id": "<entry:e2>",
+        "id": "<line:e2_i1_yok>",
+        "overrun_reason": null,
+        "quantity": "2.000",
+        "section_id": null,
+        "unit": "m3",
+        "unit_price": "10.00",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": "<I2>",
+        "code": "02.001",
+        "created_at": "<ts>",
+        "description": "Tuğla",
+        "entry_id": "<entry:e1>",
+        "id": "<line:e1_i2_s1>",
+        "overrun_reason": null,
+        "quantity": "4.000",
+        "section_id": "<S1>",
+        "unit": "m2",
+        "unit_price": "20.00",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": "<I2>",
+        "code": "02.001",
+        "created_at": "<ts>",
+        "description": "Tuğla",
+        "entry_id": "<entry:e2>",
+        "id": "<line:e2_i2_s1>",
+        "overrun_reason": null,
+        "quantity": "1.000",
+        "section_id": "<S1>",
+        "unit": "m2",
+        "unit_price": "20.00",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": "<I2>",
+        "code": "02.001",
+        "created_at": "<ts>",
+        "description": "Tuğla",
+        "entry_id": "<entry:e3>",
+        "id": "<line:e3_i2_s1>",
+        "overrun_reason": null,
+        "quantity": "6.000",
+        "section_id": "<S1>",
+        "unit": "m2",
+        "unit_price": "20.00",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": "<I3>",
+        "code": "03.001",
+        "created_at": "<ts>",
+        "description": "Boya",
+        "entry_id": "<entry:e1>",
+        "id": "<line:e1_i3_s2>",
+        "overrun_reason": null,
+        "quantity": "2.000",
+        "section_id": "<S2>",
+        "unit": "m2",
+        "unit_price": "30.00",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": "<I3>",
+        "code": "03.001",
+        "created_at": "<ts>",
+        "description": "Boya",
+        "entry_id": "<entry:e3>",
+        "id": "<line:e3_i3_yok>",
+        "overrun_reason": null,
+        "quantity": "1.000",
+        "section_id": null,
+        "unit": "m2",
+        "unit_price": "30.00",
+        "updated_at": "<ts>"
+      },
+      {
+        "boq_item_id": null,
+        "code": "00.000",
+        "created_at": "<ts>",
+        "description": "Bağı kopmuş satır",
+        "entry_id": "<entry:e1>",
+        "id": "<line:e1_null_s1>",
+        "overrun_reason": null,
+        "quantity": "1.000",
+        "section_id": "<S1>",
+        "unit": "m2",
+        "unit_price": "5.00",
+        "updated_at": "<ts>"
+      }
+    ],
+    "site_diary_worker_counts": [
+      {
+        "count": 2,
+        "created_at": "<ts>",
+        "entry_id": "<entry:e2>",
+        "hours": null,
+        "id": "<isci_sayisi:2>",
+        "source": "company",
+        "subcontractor_id": null,
+        "trade": "Betoncu",
+        "updated_at": "<ts>"
+      },
+      {
+        "count": 4,
+        "created_at": "<ts>",
+        "entry_id": "<entry:e1>",
+        "hours": null,
+        "id": "<isci_sayisi:1>",
+        "source": "company",
+        "subcontractor_id": null,
+        "trade": "Kalıpçı",
+        "updated_at": "<ts>"
+      }
+    ]
+  },
+  "yanit": {
+    "body": {
+      "detail": "Hava bilgisi eksik (durum, min/max sıcaklık, rüzgâr)",
+      "reason_items": [
+        {
+          "code": "weather_incomplete",
+          "message": "Hava bilgisi eksik (durum, min/max sıcaklık, rüzgâr)"
+        }
+      ],
+      "reasons": [
+        "Hava bilgisi eksik (durum, min/max sıcaklık, rüzgâr)"
+      ]
+    },
+    "content_type": "application/json",
+    "status": 422
+  }
+}

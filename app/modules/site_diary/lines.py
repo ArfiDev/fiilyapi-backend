@@ -39,11 +39,13 @@ patlayan istek birincisini session'a eklemiş OLMAMALIDIR (kısmi yazma yok).
 """
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import DisciplineScope, visible_item_set
 from app.core.errors import ConflictError, DuplicateError, SiteValidationError
 from app.modules.boq.models import BoqItem
 from app.modules.site_diary import guards, repository
@@ -174,8 +176,16 @@ def assert_current_line_client(entry: SiteDiaryEntry, inputs: list[SiteDiaryLine
     "hepsini temizle"si de bostur) → eski imza SAYILMAZ. Kayitta bolumlu satir yoksa
     eski imza da gecer (bugunku canli akis bozulmaz).
     """
+    _assert_current_line_client(entry.lines, inputs)
+
+
+def _assert_current_line_client(
+    lines: Sequence[SiteDiaryLine], inputs: list[SiteDiaryLineInput]
+) -> None:
+    """`assert_current_line_client`in gerisi: HANGI satir kumesine bakacagi cagirandadir
+    (kisitlida YALNIZ gorunur satirlar — gizli satirlar 409 ile baska disiplini sizdirirdi)."""
     legacy = bool(inputs) and all("section_id" not in i.model_fields_set for i in inputs)
-    if legacy and any(line.section_id is not None for line in entry.lines):
+    if legacy and any(line.section_id is not None for line in lines):
         raise ConflictError(guards.STALE_CLIENT)
 
 
@@ -227,6 +237,58 @@ async def apply_lines(
     entry.lines = new_lines
     await session.flush()
     return dropped_orphan_count
+
+
+def _assert_body_visible(inputs: list[SiteDiaryLineInput], gorunur: set[uuid.UUID]) -> None:
+    """Gövdedeki her kalem kapsamda görünür olmalı; yoksa OLMAYANLA AYNI 422 (Ü7)."""
+    if any(line_input.boq_item_id not in gorunur for line_input in inputs):
+        raise SiteValidationError(guards.LINE_ITEM_MISMATCH)
+
+
+async def apply_lines_scoped(
+    session: AsyncSession,
+    entry: SiteDiaryEntry,
+    inputs: list[SiteDiaryLineInput],
+    scope: DisciplineScope,
+) -> int:
+    """KISITLI kullanıcının satır kaydı: gövde yalnız GÖRÜNÜR satırları DEĞİŞTİRİR, gizli
+    satırlar (başka disiplin + `boq_item_id IS NULL`) AYNI NESNELER olarak korunur.
+
+    Sıra: görünürlük (gövdede görünmeyen/yabancı kalem → 422 `LINE_ITEM_MISMATCH`, olmayanla
+    aynı) → `assert_current_line_client` YALNIZ görünür satırlarla → doğrulama → tek yazma.
+    Gizli satırlara DOKUNULMAZ (id, created_at, updated_at, kolonlar aynı kalır: nesne
+    yeniden oluşturulmaz). Bağı kopmuş satır kısıtlıya görünmez ve KORUNUR → düşen sayısı
+    HER ZAMAN 0'dır. Kısıtsız yol `apply_lines`tir, buradan geçmez.
+    """
+    gorunur = await visible_item_set(
+        session,
+        scope,
+        [
+            *(line.boq_item_id for line in entry.lines if line.boq_item_id is not None),
+            *(line_input.boq_item_id for line_input in inputs),
+        ],
+    )
+    gorunur = gorunur or set()
+    _assert_body_visible(inputs, gorunur)
+    gizli = [line for line in entry.lines if line.boq_item_id not in gorunur]
+    acik = [line for line in entry.lines if line.boq_item_id in gorunur]
+    _assert_current_line_client(acik, inputs)
+    existing = {key: line for line in acik if (key := line_key(line)) is not None}
+    resolved = await _resolve(session, entry, inputs, set(existing))
+
+    # --- Buradan itibaren yazma; dogrulama YOK (yukaridaki sira kisiti). ---
+    new_lines: list[SiteDiaryLine] = []
+    for plan in resolved:
+        line = existing.get(plan.key)
+        if line is None:
+            line = _new_line(plan)
+        else:
+            line.quantity = plan.quantity
+            line.overrun_reason = plan.overrun_reason
+        new_lines.append(line)
+    entry.lines = [*gizli, *new_lines]
+    await session.flush()
+    return 0
 
 
 #: İşçi satırının kimliği: (firma satırı mı, firma | meslek, kaynak). Etiket ilk

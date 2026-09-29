@@ -38,12 +38,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import day_hooks
 from app.core.access import AccessLevel, satisfies
 from app.core.day_hooks import SubmitContext, SubmitReason
-from app.core.discipline_scope import DisciplineScope
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, user_scope
 from app.core.errors import ConflictError, EarnedValueValidationError
 from app.modules.contracts.models import Subcontractor
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import guards
 from app.modules.earned_value.access import PERMISSION_MODULE, assert_site_writable
+from app.modules.earned_value.budget_scope import node_ids, prune_tree
 from app.modules.earned_value.budget_snapshot import frozen_tree
 from app.modules.earned_value.budget_tree import (
     BudgetTree,
@@ -60,6 +61,7 @@ from app.modules.earned_value.models import (
     EvDayNote,
     EvDayRow,
     EvDayUnlock,
+    EvGroupDiscipline,
     EvReportApproval,
     EvRevision,
     RevisionStatus,
@@ -179,20 +181,31 @@ async def visible_node_ids(
     session: AsyncSession, site_id: uuid.UUID, scope: DisciplineScope
 ) -> frozenset[str]:
     """Kisitli kapsamda AKTIF baseline'in gorunur dugum kimlikleri (`d:`/`g:`/`i:`/`l:`),
-    agaci KURMADAN tek sorguyla donmus yaprak fotografindan (`active_tree` + `budget_scope.
-    prune_tree(frozen)` ile ayni kume: d: koku = fotograftaki disiplin; d:none hep disarida)."""
+    agaci KURMADAN tek sorguyla — `active_tree` + `budget_scope.prune_tree(frozen)` ile AYNI
+    kume, AYNI kuraldan: d: koku CANLI `ev_group_disciplines` (revizyonun kendi esleme girdisi)
+    uzerinden grubun disiplinidir (`build_tree` ile ayni kaynak); fotograftaki
+    `EvBaselineLeaf.discipline_id` KULLANILMAZ (dondurma sonrasi silinen grubun esleme satiri
+    da gider → yapraklari d:none olur, budanir). Eslemesiz/tanimsiz → hicbir kapsamda degil
+    (fail-closed)."""
     stmt = (
         select(
-            EvBaselineLeaf.discipline_id,
+            EvGroupDiscipline.discipline_id,
             EvBaselineLeaf.boq_group_id,
             EvBaselineLeaf.boq_item_id,
             EvBaselineLeaf.section_id,
         )
         .join(EvRevision, EvRevision.id == EvBaselineLeaf.revision_id)
+        .join(
+            EvGroupDiscipline,
+            and_(
+                EvGroupDiscipline.revision_id == EvBaselineLeaf.revision_id,
+                EvGroupDiscipline.boq_group_id == EvBaselineLeaf.boq_group_id,
+            ),
+        )
         .where(
             EvRevision.site_id == site_id,
             EvRevision.status == RevisionStatus.ACTIVE,
-            EvBaselineLeaf.discipline_id.in_(sorted(scope.discipline_ids or (), key=str)),
+            EvGroupDiscipline.discipline_id.in_(sorted(scope.discipline_ids or (), key=str)),
         )
     )
     out: set[str] = set()
@@ -375,17 +388,36 @@ async def save_allocation(
     codes: list[tuple[str, str]],
     cells: list[CellIn],
     unallocated_reason: str | None,
+    scope: DisciplineScope = UNRESTRICTED,
+    reason_provided: bool = True,
 ) -> None:
-    """Gunun dagitimi — TAM DEGISTIRME (kodlar + hucreler + gerekce)."""
+    """Gunun dagitimi. KISITSIZ: TAM DEGISTIRME (kodlar + hucreler + gerekce) — bugunku yol.
+
+    KISITLI (DSC-B2): BIRLESTIRME — yalniz kendi gorunur dugumlerine yazar, baska
+    disiplinin kod/hucrelerine DOKUNMAZ (ayrintisi `_merge_scoped`). Gorunur kume kilit
+    ALINDIKTAN SONRA (sites FOR UPDATE, `_assert_writable`) okunur → gunun ilk kaydinda iki
+    disiplin es zamanli yazsa da paylasilan satir tek kalir, kayip yazma olmaz.
+
+    S7: kisitli + kisitsiz eszamanli yazma "son yazan kazanir" (kisitsiz TAM degistirir).
+    S3: kisitli kayit da paylasilan satirin `source_hours`ini CANLI degere yeniler (bugun her
+    kayit yeniliyor; baska disiplinin gorunmeyen hucreleri eski saate gore girilmis olabilir —
+    "puantaj degisti" uyarisinin kaybi yeni bir sinif DEGIL).
+    S4: ortak `unallocated_reason` kisitlida govdede YOKSA (`reason_provided=False`) dokunulmaz;
+    kisitsizda bugunku "yoksa temizle".
+    """
     await _assert_writable(session, site_id, day)
     tree = await active_tree(session, site_id)
     if tree is None:
         raise ConflictError(NO_BASELINE)
     index = _node_index(tree)
+    visible: frozenset[str] | None = None
+    if scope.is_restricted:
+        visible = node_ids(prune_tree(tree, scope, None, True))
     for node_id, rule in codes:
         if rule not in ALLOCATION_RULE_VALUES:
             raise EarnedValueValidationError(f"Geçersiz dağıtım kuralı: {rule}")
-        if node_id not in index:
+        # Ü7: kapsam disi kod, olmayanla AYNI 422 (kimlik sizmaz).
+        if node_id not in index or (visible is not None and node_id not in visible):
             raise EarnedValueValidationError(UNKNOWN_CODE.format(node=node_id))
         if index[node_id] is False:
             raise EarnedValueValidationError(UNRATED_CODE.format(node=node_id))
@@ -396,6 +428,20 @@ async def save_allocation(
             raise EarnedValueValidationError(UNKNOWN_ROW)
         if c.node_id not in code_ids:
             raise EarnedValueValidationError(CELL_CODE_MISSING.format(node=c.node_id))
+    if visible is not None:
+        await _merge_scoped(
+            session,
+            site_id,
+            day,
+            actor,
+            codes,
+            cells,
+            unallocated_reason,
+            reason_provided,
+            visible,
+            live,
+        )
+        return
     await session.execute(
         delete(EvDayCode).where(EvDayCode.site_id == site_id, EvDayCode.day == day)
     )
@@ -406,25 +452,11 @@ async def save_allocation(
     )
     row_ids: dict[tuple[str, uuid.UUID], uuid.UUID] = {}
     for key, src in live.items():
-        row = EvDayRow(
-            id=uuid.uuid4(),
-            site_id=site_id,
-            day=day,
-            kind=src.kind,
-            personnel_id=src.ref_id if src.kind == "personnel" else None,
-            subcontractor_id=src.ref_id if src.kind == "subcontractor" else None,
-            source_hours=src.hours,
-        )
+        row = _new_row(site_id, day, src)
         session.add(row)
         row_ids[key] = row.id
     await session.flush()
-    merged: dict[tuple[uuid.UUID, str], Decimal] = {}
-    for c in cells:
-        key = (row_ids[(c.kind, c.ref_id)], c.node_id)
-        merged[key] = merged.get(key, ZERO) + c.hours
-    session.add_all(
-        EvDayCell(row_id=r, node_id=n, hours=h) for (r, n), h in merged.items() if h > 0
-    )
+    session.add_all(_cell_rows(cells, row_ids, None))
     note = await session.get(EvDayNote, (site_id, day))
     reason = (unallocated_reason or "").strip() or None
     if note is None:
@@ -437,6 +469,120 @@ async def save_allocation(
         note.unallocated_reason = reason
         note.updated_by_user_id = actor.id
     await session.flush()
+
+
+def _new_row(site_id: uuid.UUID, day: date, src: SourceRow) -> EvDayRow:
+    return EvDayRow(
+        id=uuid.uuid4(),
+        site_id=site_id,
+        day=day,
+        kind=src.kind,
+        personnel_id=src.ref_id if src.kind == "personnel" else None,
+        subcontractor_id=src.ref_id if src.kind == "subcontractor" else None,
+        source_hours=src.hours,
+    )
+
+
+def _cell_rows(
+    cells: list[CellIn],
+    row_ids: dict[tuple[str, uuid.UUID], uuid.UUID],
+    only_nodes: frozenset[str] | None,
+) -> list[EvDayCell]:
+    """Ayni (satir, kod) hucreleri toplanir; saat 0 olan yazilmaz."""
+    merged: dict[tuple[uuid.UUID, str], Decimal] = {}
+    for c in cells:
+        if only_nodes is not None and c.node_id not in only_nodes:
+            continue
+        key = (row_ids[(c.kind, c.ref_id)], c.node_id)
+        merged[key] = merged.get(key, ZERO) + c.hours
+    return [EvDayCell(row_id=r, node_id=n, hours=h) for (r, n), h in merged.items() if h > 0]
+
+
+async def _merge_scoped(
+    session: AsyncSession,
+    site_id: uuid.UUID,
+    day: date,
+    actor: User,
+    codes: list[tuple[str, str]],
+    cells: list[CellIn],
+    unallocated_reason: str | None,
+    reason_provided: bool,
+    visible: frozenset[str],
+    live: dict[tuple[str, uuid.UUID], SourceRow],
+) -> None:
+    """Kisitli BIRLESTIRME (kilit ALINMIS; kayitli durum kilit SONRASI okunur).
+
+    * KODLAR: gorunur kumede olup govdede olmayan silinir, govdedekiler upsert; gizli kodlar
+      dokunulmaz.
+    * SATIRLAR (kisi basina paylasilan): canli kaynakta olanin id'si KORUNUR, source_hours
+      canliya cekilir (S3); canlida olmayan satir yalniz GIZLI hucresi yoksa silinir.
+    * HUCRELER: yalniz gorunur dugumlerdekiler silinip govdeden eklenir; gizliler dokunulmaz.
+    * NOT (S4): govdede yoksa dokunulmaz.
+    """
+    saved = await load_saved(session, site_id, day)
+    by_code = {c.node_id: c for c in saved.codes}
+    body_ids = {n for n, _ in codes}
+    stale = [n for n in by_code if n in visible and n not in body_ids]
+    if stale:
+        await session.execute(
+            delete(EvDayCode).where(
+                EvDayCode.site_id == site_id, EvDayCode.day == day, EvDayCode.node_id.in_(stale)
+            )
+        )
+    # Bilinen sonuc: kisitli kodlarin sort_order'i 0..n-1 — gizli kodlarla AYNI deger paylasabilir;
+    # kisitsiz gorunumde esitlik node_id ile kirilir (`load_saved` ORDER BY sort_order, node_id).
+    for k, (n, r) in enumerate(codes):
+        existing = by_code.get(n)
+        if existing is None:
+            session.add(EvDayCode(site_id=site_id, day=day, node_id=n, rule=r, sort_order=k))
+        else:
+            existing.rule = r
+            existing.sort_order = k
+    hidden_rows = {c.row_id for c in saved.cells if c.node_id not in visible}
+    row_ids: dict[tuple[str, uuid.UUID], uuid.UUID] = {}
+    for row in saved.rows:
+        key = (row.kind, row.personnel_id or row.subcontractor_id)
+        src = live.get(key)  # type: ignore[arg-type]
+        if src is not None:
+            row.source_hours = src.hours
+            row_ids[key] = row.id  # type: ignore[assignment]
+        elif row.id not in hidden_rows:
+            await session.execute(delete(EvDayRow).where(EvDayRow.id == row.id))
+    for key, src in live.items():
+        if key not in row_ids:
+            row = _new_row(site_id, day, src)
+            session.add(row)
+            row_ids[key] = row.id
+    await session.flush()
+    # Gorunur hucre silmesi TUM kayitli satirlarda (canlidan dusmus satir dahil): kisitlinin
+    # kendi eski hucresi canlida olmayan satirda yetim kalmasin; gizli hucreler dokunulmaz.
+    all_row_ids = {r.id for r in saved.rows}
+    if all_row_ids:
+        await session.execute(
+            delete(EvDayCell).where(
+                EvDayCell.row_id.in_(all_row_ids), EvDayCell.node_id.in_(sorted(visible))
+            )
+        )
+    session.add_all(_cell_rows(cells, row_ids, visible))
+    if reason_provided:
+        await _set_note(session, site_id, day, actor, unallocated_reason)
+    await session.flush()
+
+
+async def _set_note(
+    session: AsyncSession, site_id: uuid.UUID, day: date, actor: User, value: str | None
+) -> None:
+    note = await session.get(EvDayNote, (site_id, day))
+    reason = (value or "").strip() or None
+    if note is None:
+        session.add(
+            EvDayNote(
+                site_id=site_id, day=day, unallocated_reason=reason, updated_by_user_id=actor.id
+            )
+        )
+    else:
+        note.unallocated_reason = reason
+        note.updated_by_user_id = actor.id
 
 
 async def previous_submitted_day(
@@ -463,19 +609,27 @@ async def previous_submitted_day(
 # ------------------------------------------------------------------ Gonder on-kosulu
 
 
-async def _has_line_overrun_without_reason(
-    session: AsyncSession, site_id: uuid.UUID, entry: SiteDiaryEntry, tree: BudgetTree
-) -> bool:
+async def _overrun_leaf_keys(
+    session: AsyncSession,
+    site_id: uuid.UUID,
+    entry: SiteDiaryEntry,
+    tree: BudgetTree,
+    *,
+    first_only: bool,
+) -> list[tuple[uuid.UUID, uuid.UUID | None]]:
+    """Gerekcesiz planli-miktar asimi olan gunluk satirlarinin (kalem, bolum) anahtarlari
+    (satir basina bir). `first_only` → ilkinde durur (kisitsiz yolun bugunku erken cikisi)."""
     planned = {(lf.item_id, lf.section_id): lf.planned_qty for *_, lf in tree.leaves()}
     section_col = getattr(SiteDiaryLine, "section_id", None)
     reason_col = getattr(SiteDiaryLine, "overrun_reason", None)
     if section_col is None or reason_col is None:
-        return False
+        return []
     lines = (
         (await session.execute(select(SiteDiaryLine).where(SiteDiaryLine.entry_id == entry.id)))
         .scalars()
         .all()
     )
+    out: list[tuple[uuid.UUID, uuid.UUID | None]] = []
     for line in lines:
         key = (line.boq_item_id, line.section_id)
         if line.boq_item_id is None or key not in planned or (line.overrun_reason or "").strip():
@@ -494,8 +648,16 @@ async def _has_line_overrun_without_reason(
             )
         )
         if Decimal(previous) + line.quantity > planned[key]:
-            return True
-    return False
+            out.append(key)
+            if first_only:
+                break
+    return out
+
+
+async def _has_line_overrun_without_reason(
+    session: AsyncSession, site_id: uuid.UUID, entry: SiteDiaryEntry, tree: BudgetTree
+) -> bool:
+    return bool(await _overrun_leaf_keys(session, site_id, entry, tree, first_only=True))
 
 
 def _weather_complete(entry: SiteDiaryEntry) -> bool:
@@ -509,6 +671,30 @@ SUBMIT_WEATHER = "weather_incomplete"
 SUBMIT_NO_QUANTITY = "no_quantity"
 SUBMIT_OVERRUN = "overrun_without_reason"
 SUBMIT_UNDISTRIBUTED = "undistributed_hours"
+OVERRUN_MESSAGE = "Planlı miktarı aşan satır gerekçesiz"
+OVERRUN_OTHER_MESSAGE = "Başka disiplinde {count} satır planlı miktarı aşıyor (gerekçesiz)"
+
+
+async def _overrun_reasons(
+    session: AsyncSession, ctx: SubmitContext, entry: SiteDiaryEntry, tree: BudgetTree
+) -> list[SubmitReason]:
+    """Asim engeli. KISITSIZ: bugunku bool yolu (tek madde). KISITLI (Ü5/S8): kendi satirinda
+    asim varsa mevcut metin; ARDINDAN gorunmeyen (baska disiplin/eslemesiz) gerekceli olmayan
+    asim varsa AYNI kod + OPAK madde (kalem adi/kodu YOK, yalniz satir sayisi). Sira: once kendi."""
+    scope = await user_scope(session, ctx.actor_id)
+    if not scope.is_restricted:
+        if await _has_line_overrun_without_reason(session, ctx.site_id, entry, tree):
+            return [SubmitReason(SUBMIT_OVERRUN, OVERRUN_MESSAGE)]
+        return []
+    visible = node_ids(prune_tree(tree, scope, None, True))
+    keys = await _overrun_leaf_keys(session, ctx.site_id, entry, tree, first_only=False)
+    hidden = [k for k in keys if leaf_node_id(*k) not in visible]
+    out: list[SubmitReason] = []
+    if len(hidden) < len(keys):
+        out.append(SubmitReason(SUBMIT_OVERRUN, OVERRUN_MESSAGE))
+    if hidden:
+        out.append(SubmitReason(SUBMIT_OVERRUN, OVERRUN_OTHER_MESSAGE.format(count=len(hidden))))
+    return out
 
 
 async def submit_blockers(session: AsyncSession, ctx: SubmitContext) -> list[SubmitReason]:
@@ -538,8 +724,8 @@ async def submit_blockers(session: AsyncSession, ctx: SubmitContext) -> list[Sub
     )
     if not line_count:
         reasons.append(SubmitReason(SUBMIT_NO_QUANTITY, "Miktar girilmedi"))
-    elif await _has_line_overrun_without_reason(session, ctx.site_id, entry, tree):
-        reasons.append(SubmitReason(SUBMIT_OVERRUN, "Planlı miktarı aşan satır gerekçesiz"))
+    else:
+        reasons.extend(await _overrun_reasons(session, ctx, entry, tree))
     source = sum((r.hours for r in await source_rows(session, ctx.site_id, ctx.entry_date)), ZERO)
     saved = await load_saved(session, ctx.site_id, ctx.entry_date)
     unallocated = source - allocated_hours(saved)

@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import DisciplineScoped
+from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -88,7 +88,7 @@ async def list_disciplines_endpoint(
     "/earned-value/disciplines",
     response_model=DisciplineRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[CATALOG],
+    dependencies=[CATALOG, RequireUnrestricted],
 )
 async def create_discipline_endpoint(
     request: Request, data: DisciplineCreate, user: _User, session: _Session
@@ -103,7 +103,7 @@ async def create_discipline_endpoint(
 @router.patch(
     "/earned-value/disciplines/{discipline_id}",
     response_model=DisciplineRead,
-    dependencies=[CATALOG],
+    dependencies=[CATALOG, RequireUnrestricted],
 )
 async def update_discipline_endpoint(
     request: Request,
@@ -124,7 +124,7 @@ async def update_discipline_endpoint(
     "/earned-value/disciplines/{discipline_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
-    dependencies=[ADMIN],
+    dependencies=[ADMIN, RequireUnrestricted],
 )
 async def delete_discipline_endpoint(
     request: Request, discipline_id: uuid.UUID, user: _User, session: _Session
@@ -160,7 +160,7 @@ async def list_catalog_endpoint(
     "/earned-value/catalog",
     response_model=CatalogItemRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[CATALOG],
+    dependencies=[CATALOG, RequireUnrestricted],
 )
 async def create_catalog_item_endpoint(
     request: Request, data: CatalogItemCreate, user: _User, session: _Session
@@ -174,7 +174,9 @@ async def create_catalog_item_endpoint(
 
 
 @router.patch(
-    "/earned-value/catalog/{item_id}", response_model=CatalogItemRead, dependencies=[CATALOG]
+    "/earned-value/catalog/{item_id}",
+    response_model=CatalogItemRead,
+    dependencies=[CATALOG, RequireUnrestricted],
 )
 async def update_catalog_item_endpoint(
     request: Request,
@@ -193,7 +195,7 @@ async def update_catalog_item_endpoint(
 @router.post(
     "/earned-value/catalog/{item_id}/adopt-actual",
     response_model=CatalogItemRead,
-    dependencies=[CATALOG],
+    dependencies=[CATALOG, RequireUnrestricted],
 )
 async def adopt_actual_endpoint(
     request: Request, item_id: uuid.UUID, user: _User, session: _Session

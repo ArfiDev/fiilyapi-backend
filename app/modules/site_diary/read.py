@@ -60,6 +60,17 @@ def gorunur_satirlar(entry: SiteDiaryEntry, visible: set[uuid.UUID] | None) -> l
     return [line for line in entry.lines if line.boq_item_id in visible]
 
 
+async def visible_line_count(
+    session: AsyncSession, entry: SiteDiaryEntry, scope: DisciplineScope
+) -> int:
+    """Kullanıcıya GÖRÜNEN satır sayısı (yazma uçlarının audit metni kapsamın kendi sayısını
+    yazar; kısıtsızda ek sorgu YOK)."""
+    gorunur = await visible_item_set(
+        session, scope, [ln.boq_item_id for ln in entry.lines if ln.boq_item_id]
+    )
+    return len(gorunur_satirlar(entry, gorunur))
+
+
 def lines_total(lines: Sequence[SiteDiaryLine]) -> Decimal:
     """Satır ₺ toplamı — TÜREV (kolon yok). Toplama SATIR BAZINDA yuvarlanmış
     değerler girer: ekranda gösterilen satırların toplamı ile alttaki toplam
@@ -216,7 +227,8 @@ async def build_detail(
 
     DSC-B1 `scope`: kısıtlıda satırlar GÖRÜNÜR kalemle süzülür (NULL görünmez); `lines_total`,
     `_leaf_context`, bölüm adları ve önceki/sonraki bu süzülmüş kümeden türer. Başlık ve
-    `worker_counts` ortaktır (Ü5/Ü3). Yazma uçları `scope` vermez (B2'ye kadar kısıtsız).
+    `worker_counts` ortaktır (Ü5/Ü3). Yazma uçları da (B2) `scope` verir: yanıt okumayla
+    AYNI süzülmüş görünümdür.
     """
     entry = context.entry
     gorunur = gorunur_satirlar(

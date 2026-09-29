@@ -21,6 +21,11 @@ Stok    alım (I1 · I2 · NULL) · transfer (NULL) · sarf/düzeltme (I1·S1 ·
 EV      05.05 dağılımı: Ali → l:I1:S1 5 sa (KAB) · Veli → l:I2:S1 4 sa (DUV)
 Aktörler atamasiz (system_admin) · civil / elek (project_manager, aynı proje erişimi,
         UserDiscipline sırasıyla KAB / DUV)
+B2 YAZAN aktörler (F1: PM'in günlük yetkisi `view` → yazma testi 403'ü İZİN kapısından alır,
+        disiplin kapısı MASKELENİR; bu yüzden yazabilen roller):
+        civil_yazar / elek_yazar (patron `_F`, KAB / DUV) · yazar_atamasiz (patron, ATAMASIZ eş:
+        pozitif kontrol) · admin_kisitli (system_admin, KAB; boq DELETE / reopen gibi admin
+        kapılı uçlar için; atamasız eşi `atamasiz`)
 ```
 """
 
@@ -121,6 +126,32 @@ async def _kullanicilar(
     await session.flush()
     baslik = {ad: await _giris(client, f"{ad}@dsc-b1.co") for ad in kullanici}
     return kullanici, baslik
+
+
+#: F1: (ad, rol, disiplin kodu | None). Sıra SABİT, mevcut aktörlerden SONRA eklenir.
+YAZAN_AKTORLER = (
+    ("civil_yazar", "patron", "KAB"),
+    ("elek_yazar", "patron", "DUV"),
+    ("yazar_atamasiz", "patron", None),
+    ("admin_kisitli", "system_admin", "KAB"),
+)
+
+
+async def _yazan_aktorler(
+    session: AsyncSession, client: AsyncClient, user_factory, proje: Project, kab, duv
+) -> tuple[dict[str, User], dict[str, dict[str, str]]]:
+    """Yazabilen kısıtlı aktörler + aynı roldeki atamasız eş (F1). Atamalar burada yapılır."""
+    disiplin = {"KAB": kab, "DUV": duv}
+    kullanici: dict[str, User] = {}
+    for ad, rol, kod in YAZAN_AKTORLER:
+        user = await user_factory(email=f"{ad}@dsc-b2.co", password=SIFRE, role_key=rol)
+        if rol != "system_admin":
+            session.add(UserProjectAccess(user_id=user.id, project_id=proje.id, all_projects=False))
+        if kod is not None:
+            session.add(UserDiscipline(user_id=user.id, discipline_id=disiplin[kod].id))
+        kullanici[ad] = user
+    await session.flush()
+    return kullanici, {ad: await _giris(client, f"{ad}@dsc-b2.co") for ad in kullanici}
 
 
 async def _boq(session: AsyncSession, santiye: Site, s1: Section, s2: Section):
@@ -535,9 +566,17 @@ def _etiketle(d: Dunya) -> None:
     e[d.yabanci_kalem_kimligi] = "<yok>"
 
 
-async def kur(session: AsyncSession, client: AsyncClient, user_factory, project_factory) -> Dunya:
+async def kur(
+    session: AsyncSession,
+    client: AsyncClient,
+    user_factory,
+    project_factory,
+    *,
+    yazanlar: bool = False,
+) -> Dunya:
     """Dünyayı kurar; `UserDiscipline` atamaları EN SONDA (baseline kurulumu atamasız
-    yönetici ile yapılır)."""
+    yönetici ile yapılır). `yazanlar=True` (B2 modülleri) F1 yazan aktörlerini de ekler; varsayılan
+    KAPALI: `ev_disiplinler.user_count` B1 golden'ında sabittir, ek atama onu değiştirirdi."""
     proje = await project_factory(code="DSC-P01", name="Disiplin Projesi")
     santiye = Site(id=_kimlik(1, 1), project_id=proje.id, code="DSC-A", name="A-Blok Şantiyesi")
     session.add(santiye)
@@ -577,6 +616,10 @@ async def kur(session: AsyncSession, client: AsyncClient, user_factory, project_
         ]
     )
     await session.flush()
+    if yazanlar:
+        yazan, yazan_baslik = await _yazan_aktorler(session, client, user_factory, proje, kab, duv)
+        kullanici = {**kullanici, **yazan}
+        baslik = {**baslik, **yazan_baslik}
     dunya = Dunya(
         proje=proje,
         santiye=santiye,
