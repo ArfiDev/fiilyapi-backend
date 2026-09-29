@@ -36,6 +36,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import DisciplineScope, item_visible_clause
 from app.modules.boq.models import BoqItem, BoqItemSectionAllocation
 from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine
 from app.modules.sites.models import Site
@@ -151,16 +152,30 @@ async def _weighted_for_scope(
     return Decimal(pay), Decimal(payda)
 
 
-def _site_taban(site_id: uuid.UUID) -> Select[tuple[uuid.UUID, Decimal, Decimal]]:
-    """PAYDA = SANTIYE BOQ'u: pozun KENDI `quantity`si (santiye kotasi)."""
+def _kapsam_maddeleri(scope: DisciplineScope | None) -> list[ColumnElement[bool]]:
+    """DSC-B1: `scope` VERILMISSE (BOQ ekrani) tabana gorunur-kalem maddesi eklenir. `None`
+    (kartlar, projeler — B4'e kadar) → madde YOK, SQL bugunku gibi kalir. `BoqItem` bu
+    tabanlarin FROM'unda oldugu icin `item_visible_clause` korelasyonu meşrudur."""
+    return [] if scope is None else [item_visible_clause(scope, BoqItem)]
+
+
+def _site_taban(
+    site_id: uuid.UUID, scope: DisciplineScope | None = None
+) -> Select[tuple[uuid.UUID, Decimal, Decimal]]:
+    """PAYDA = SANTIYE BOQ'u: pozun KENDI `quantity`si (santiye kotasi).
+
+    `scope` (DSC-B1): PAY ve PAYDA ayni gorunur kalem kumesinden hesaplanir — B4'un
+    kartlara baglayacagi parametre budur."""
     return select(
         BoqItem.id.label("boq_item_id"),
         BoqItem.quantity.label("taban"),
         BoqItem.unit_price.label("unit_price"),
-    ).where(BoqItem.site_id == site_id)
+    ).where(BoqItem.site_id == site_id, *_kapsam_maddeleri(scope))
 
 
-def _section_taban(section_id: uuid.UUID) -> Select[tuple[uuid.UUID, Decimal, Decimal]]:
+def _section_taban(
+    section_id: uuid.UUID, scope: DisciplineScope | None = None
+) -> Select[tuple[uuid.UUID, Decimal, Decimal]]:
     """PAYDA = BOLUM TAHSISI (`BoqItemSectionAllocation`), pozun kotasi DEGIL.
 
     🔴 Gerekce: bolumun is evreni o boluma TAHSIS EDILEN miktardir. Pozun
@@ -174,7 +189,7 @@ def _section_taban(section_id: uuid.UUID) -> Select[tuple[uuid.UUID, Decimal, De
             BoqItem.unit_price.label("unit_price"),
         )
         .join(BoqItem, BoqItem.id == BoqItemSectionAllocation.boq_item_id)
-        .where(BoqItemSectionAllocation.section_id == section_id)
+        .where(BoqItemSectionAllocation.section_id == section_id, *_kapsam_maddeleri(scope))
     )
 
 
@@ -196,14 +211,18 @@ def _project_taban(project_id: uuid.UUID) -> Select[tuple[uuid.UUID, Decimal, De
 # --------------------------------------------------------------------------- #
 
 
-async def physical_for_site(session: AsyncSession, site_id: uuid.UUID) -> Decimal | None:
-    pay, payda = await _weighted_for_scope(session, _site_taban(site_id))
+async def physical_for_site(
+    session: AsyncSession, site_id: uuid.UUID, scope: DisciplineScope | None = None
+) -> Decimal | None:
+    pay, payda = await _weighted_for_scope(session, _site_taban(site_id, scope))
     return weighted_pct(pay, payda)
 
 
-async def physical_for_section(session: AsyncSession, section_id: uuid.UUID) -> Decimal | None:
+async def physical_for_section(
+    session: AsyncSession, section_id: uuid.UUID, scope: DisciplineScope | None = None
+) -> Decimal | None:
     pay, payda = await _weighted_for_scope(
-        session, _section_taban(section_id), section_id=section_id
+        session, _section_taban(section_id, scope), section_id=section_id
     )
     return weighted_pct(pay, payda)
 

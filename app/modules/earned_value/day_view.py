@@ -8,6 +8,7 @@ K13) → miktar; hucreler → saat (kodun kuraliyla).
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
@@ -15,9 +16,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.day_hooks import SubmitContext
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import diary_adapter as adp
 from app.modules.earned_value.budget_engine import calendar_bounds, to_engine_nodes
+from app.modules.earned_value.budget_scope import node_ids, prune_tree
 from app.modules.earned_value.budget_tree import BudgetTree, leaf_node_id
 from app.modules.earned_value.engine import (
     AllocationRule,
@@ -222,17 +225,45 @@ async def _day_numbers(
     return cal.day_no(day), cal.week_no(day)
 
 
-async def build_view(session: AsyncSession, site_id: uuid.UUID, day: date, actor: User) -> DayView:
-    tree = await adp.active_tree(session, site_id)
+def scoped_saved(saved: adp.SavedDay, visible: frozenset[str]) -> adp.SavedDay:
+    """Kayitli kodlar/hucreler yalniz GORUNUR dugumler icin (satirlar/not ayni kalir)."""
+    return replace(
+        saved,
+        codes=[c for c in saved.codes if c.node_id in visible],
+        cells=[c for c in saved.cells if c.node_id in visible],
+    )
+
+
+async def build_view(
+    session: AsyncSession,
+    site_id: uuid.UUID,
+    day: date,
+    actor: User,
+    scope: DisciplineScope = UNRESTRICTED,
+) -> DayView:
+    """Gunun gorunumu. Kisitli kapsamda (DSC-B1, K4/K5): aktif (DONMUS) agac `d:` kokunden
+    budanir; kodlar/hucreler/ilerleme budanmis agactan; `totals` (kaynak/dagitilan/dagitilmamis
+    KAYNAK SAATI) SUZULMEZ — baska disiplin payi ORTUK kalir (K4)."""
+    full_tree = await adp.active_tree(session, site_id)
+    tree = prune_tree(full_tree, scope, None, True) if full_tree else None
     rev = await adp.active_revision(session, site_id)
     live = await adp.source_rows(session, site_id, day)
-    saved = await adp.load_saved(session, site_id, day)
+    full_saved = await adp.load_saved(session, site_id, day)
+    saved = (
+        scoped_saved(full_saved, node_ids(tree) if tree else frozenset())
+        if scope.is_restricted
+        else full_saved
+    )
     saved_rows = {(r.kind, r.personnel_id or r.subcontractor_id): r for r in saved.rows}
     by_row_id = {r.id: (r.kind, r.personnel_id or r.subcontractor_id) for r in saved.rows}
     labels = {n.id: n for n in code_nodes(tree)} if tree else {}
+    # 🔴 Uyari TAM etiket kumesiyle hesaplanir: budanmis kumeyle hesaplansaydi gorunmeyen bir
+    # kod "baseline'da yok: i:<uuid>" diye SIZARDI. Kisitlida "tam kumede de olmayan" (asili)
+    # kodlar da gosterilmez — kimin oldugu ayirt edilemez (fail-closed).
+    all_labels = {n.id for n in code_nodes(full_tree)} if full_tree else set()
     entry = await adp.diary_entry(session, site_id, day)
     source = sum((r.hours for r in live), ZERO)
-    allocated = adp.allocated_hours(saved)
+    allocated = adp.allocated_hours(full_saved)
     rows = []
     for r in live:
         snap = saved_rows.get((r.kind, r.ref_id))
@@ -253,10 +284,12 @@ async def build_view(session: AsyncSession, site_id: uuid.UUID, day: date, actor
     warnings = adp.duplicate_firm_warnings(live)
     warnings += [
         f"İş kodu aktif baseline'da yok: {c.node_id}"
-        for c in saved.codes
-        if c.node_id not in labels
+        for c in (saved.codes if not scope.is_restricted else [])
+        if c.node_id not in all_labels
     ]
-    day_no, week_no = await _day_numbers(session, site_id, tree, day) if tree else (None, None)
+    day_no, week_no = (
+        await _day_numbers(session, site_id, full_tree, day) if full_tree else (None, None)
+    )
     submit = None
     if entry is not None:
         reasons = await adp.submit_blockers(
@@ -271,7 +304,7 @@ async def build_view(session: AsyncSession, site_id: uuid.UUID, day: date, actor
         day=day,
         day_no=day_no,
         week_no=week_no,
-        has_baseline=tree is not None,
+        has_baseline=full_tree is not None,
         revision_number=rev.number if rev else None,
         lock=await lock_out(session, site_id, day),
         rows=rows,

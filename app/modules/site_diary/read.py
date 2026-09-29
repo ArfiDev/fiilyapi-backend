@@ -9,11 +9,13 @@ buradan hiçbir şey İMPORT ETMEZ — döngüsel import doğmaz.
 """
 
 import uuid
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import NamedTuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, visible_item_set
 from app.modules.progress_payments.calculations import quantize2
 from app.modules.site_diary import detail_context, repository
 from app.modules.site_diary.detail_context import DetailContext
@@ -49,19 +51,29 @@ def line_amount(line: SiteDiaryLine) -> Decimal:
     return quantize2(line.unit_price * line.quantity)
 
 
-def lines_total(entry: SiteDiaryEntry) -> Decimal:
+def gorunur_satirlar(entry: SiteDiaryEntry, visible: set[uuid.UUID] | None) -> list[SiteDiaryLine]:
+    """DSC-B1: kayıt satırlarından kullanıcıya GÖRÜNENLER. `visible=None` → kısıtsız (hepsi,
+    NULL kalemli satır dahil); küme verilmişse yalnız görünür kalemin satırı (NULL görünmez,
+    Ü1). Başlık ORTAKTIR (Ü5); `worker_counts` (Ü3, kaynak saati) BURADAN geçmez."""
+    if visible is None:
+        return list(entry.lines)
+    return [line for line in entry.lines if line.boq_item_id in visible]
+
+
+def lines_total(lines: Sequence[SiteDiaryLine]) -> Decimal:
     """Satır ₺ toplamı — TÜREV (kolon yok). Toplama SATIR BAZINDA yuvarlanmış
     değerler girer: ekranda gösterilen satırların toplamı ile alttaki toplam
-    tutmak zorundadır."""
-    return sum((line_amount(line) for line in entry.lines), _ZERO_MONEY)
+    tutmak zorundadır. DSC-B1: girdi GÖRÜNEN satırlardır (kayıt değil) — toplam ile
+    liste aynı kümeden türer."""
+    return sum((line_amount(line) for line in lines), _ZERO_MONEY)
 
 
-def section_line_count(entry: SiteDiaryEntry, section_id: uuid.UUID | None) -> int | None:
+def section_line_count(lines: Sequence[SiteDiaryLine], section_id: uuid.UUID | None) -> int | None:
     """DET-1.B ek (#129): bölüm bağlamında o bölüme düşen MİKTAR satırı sayısı; bağlam yoksa
     `None`. `lines` sayfa başına toplu yüklüdür (`selectin`) — ek sorgu YOK."""
     if section_id is None:
         return None
-    return sum(1 for line in entry.lines if line.section_id == section_id)
+    return sum(1 for line in lines if line.section_id == section_id)
 
 
 def worker_total(entry: SiteDiaryEntry) -> int:
@@ -98,10 +110,12 @@ class _LeafContext(NamedTuple):
     item_quantities: dict[uuid.UUID, Decimal]
 
 
-async def _leaf_context(session: AsyncSession, entry: SiteDiaryEntry) -> _LeafContext:
+async def _leaf_context(
+    session: AsyncSession, entry: SiteDiaryEntry, lines: Sequence[SiteDiaryLine]
+) -> _LeafContext:
     """Üç toplu sorgu (yaprak ön-toplamı · tahsisler · kalem miktarları); satırsız
     ya da yalnız bağı kopmuş satırlı kayıtta HİÇ sorgu açılmaz (N+1 yok)."""
-    item_ids = {line.boq_item_id for line in entry.lines if line.boq_item_id is not None}
+    item_ids = {line.boq_item_id for line in lines if line.boq_item_id is not None}
     if not item_ids:
         return _LeafContext(prior={}, allocations={}, item_quantities={})
     prior = await repository.leaf_cumulative_before(
@@ -171,16 +185,20 @@ def _line_read(
     )
 
 
-def _own_item_totals(entry: SiteDiaryEntry) -> dict[uuid.UUID, Decimal]:
+def _own_item_totals(lines: Sequence[SiteDiaryLine]) -> dict[uuid.UUID, Decimal]:
     totals: dict[uuid.UUID, Decimal] = {}
-    for line in entry.lines:
+    for line in lines:
         if line.boq_item_id is not None:
             totals[line.boq_item_id] = totals.get(line.boq_item_id, _ZERO_QUANTITY) + line.quantity
     return totals
 
 
 async def build_detail(
-    session: AsyncSession, context: EntryContext, *, section_context: uuid.UUID | None = None
+    session: AsyncSession,
+    context: EntryContext,
+    *,
+    section_context: uuid.UUID | None = None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> SiteDiaryEntryDetail:
     """GÖRÜNÜRLÜK KONTROLÜ YAPMAZ — çağıranın kapsam kararını çoktan vermiş
     olması ŞARTTIR. `POST`/`PATCH`/`PUT …/lines` uçları bu yüzden `get_detail`
@@ -195,12 +213,22 @@ async def build_detail(
     DET-1.B: adlar · gün kilidi · önceki/sonraki `detail_context`ten (kayıt başına sabit
     sorgu). `section_context` yalnız önceki/sonraki bağlamıdır; yazma uçları vermez
     (şantiye bağlamı).
+
+    DSC-B1 `scope`: kısıtlıda satırlar GÖRÜNÜR kalemle süzülür (NULL görünmez); `lines_total`,
+    `_leaf_context`, bölüm adları ve önceki/sonraki bu süzülmüş kümeden türer. Başlık ve
+    `worker_counts` ortaktır (Ü5/Ü3). Yazma uçları `scope` vermez (B2'ye kadar kısıtsız).
     """
     entry = context.entry
+    gorunur = gorunur_satirlar(
+        entry,
+        await visible_item_set(
+            session, scope, [ln.boq_item_id for ln in entry.lines if ln.boq_item_id]
+        ),
+    )
     prior = await repository.cumulative_quantities_before(session, entry.site_id, entry.entry_date)
-    own = _own_item_totals(entry)
-    leaf = await _leaf_context(session, entry)
-    extras = await detail_context.load(session, entry, section_context)
+    own = _own_item_totals(gorunur)
+    leaf = await _leaf_context(session, entry, gorunur)
+    extras = await detail_context.load(session, entry, section_context, gorunur, scope)
     return SiteDiaryEntryDetail(
         id=entry.id,
         site_id=entry.site_id,
@@ -234,7 +262,7 @@ async def build_detail(
         prev_entry_date=extras.prev.entry_date if extras.prev else None,
         next_id=extras.next.id if extras.next else None,
         next_entry_date=extras.next.entry_date if extras.next else None,
-        lines=[_line_read(line, prior, own, leaf, extras) for line in entry.lines],
+        lines=[_line_read(line, prior, own, leaf, extras) for line in gorunur],
         worker_counts=[
             SiteDiaryWorkerCountRead(
                 id=row.id,
@@ -247,7 +275,7 @@ async def build_detail(
             )
             for row in entry.worker_counts
         ],
-        lines_total=lines_total(entry),
+        lines_total=lines_total(gorunur),
         worker_total=worker_total(entry),
         own_crew_from_timesheet=await own_crew_from_timesheet(session, entry),
     )
@@ -283,11 +311,13 @@ async def get_detail(
     entry_id: uuid.UUID,
     *,
     section_id: uuid.UUID | None = None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> SiteDiaryEntryDetail:
-    """Kapsam (404) → bölüm bağlamı şantiyeye ait mi (422) → detay."""
+    """Kapsam (404) → bölüm bağlamı şantiyeye ait mi (422) → detay. Başlık ortaktır (Ü5):
+    başka disiplinin satırlarından oluşan gün bile 404 DEĞİL, satırsız başlıktır."""
     context = await visible_entry(session, actor, entry_id)
     await validate_section(session, section_id, context.site)
-    return await build_detail(session, context, section_context=section_id)
+    return await build_detail(session, context, section_context=section_id, scope=scope)
 
 
 async def list_entries(
@@ -300,6 +330,7 @@ async def list_entries(
     limit: int,
     offset: int,
     section_id: uuid.UUID | None = None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> SiteDiaryEntryListResponse:
     """Kapsam kararı ŞANTİYE üzerinden verilir (`visible_site`): görünmeyen
     şantiyenin listesi boş liste DEĞİL 404'tür — boş liste, "şantiye var ama
@@ -307,15 +338,32 @@ async def list_entries(
 
     Satır/işçi toplamları `lazy="selectin"` sayesinde ek sorgu ÜRETMEZ: iki
     ilişki de sayfa başına TEK ek sorguda toplu yüklenir (N+1 yok).
+
+    DSC-B1 `scope`: kayıt başı `lines_total`/`section_line_count` görünür satırlardan; liste,
+    sayaç ve komşu AYNI `section_conditions` gövdesini okur. `total` = kayıt sayısıdır
+    (ortak başlık, Ü5) — satır toplamı değil, kısıtlıda da değişmez.
     """
     site, _ = await visible_site(session, actor, site_id)
     await validate_section(session, section_id, site)
     entries = await repository.list_entries(
-        session, site.id, year=year, month=month, limit=limit, offset=offset, section_id=section_id
+        session,
+        site.id,
+        year=year,
+        month=month,
+        limit=limit,
+        offset=offset,
+        section_id=section_id,
+        scope=scope,
     )
     total = await repository.count_entries(
-        session, site.id, year=year, month=month, section_id=section_id
+        session, site.id, year=year, month=month, section_id=section_id, scope=scope
     )
+    gorunur_kalemler = await visible_item_set(
+        session,
+        scope,
+        [ln.boq_item_id for entry in entries for ln in entry.lines if ln.boq_item_id],
+    )
+    satirlar = {entry.id: gorunur_satirlar(entry, gorunur_kalemler) for entry in entries}
     # DET-1.B ek (#129): başlık bölümü adları sayfa başına TEK `IN (…)` sorgusu.
     names = await repository.section_names(
         session, {entry.section_id for entry in entries} - {None}
@@ -329,12 +377,12 @@ async def list_entries(
                 entry_date=entry.entry_date,
                 section_id=entry.section_id,
                 section_name=names.get(entry.section_id) if entry.section_id else None,
-                section_line_count=section_line_count(entry, section_id),
+                section_line_count=section_line_count(satirlar[entry.id], section_id),
                 weather=entry.weather,
                 has_incident=entry.has_incident,
                 status=entry.status,
                 worker_total=worker_total(entry),
-                lines_total=lines_total(entry),
+                lines_total=lines_total(satirlar[entry.id]),
                 created_by=entry.created_by,
                 created_at=entry.created_at,
             )

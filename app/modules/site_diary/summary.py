@@ -30,6 +30,7 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.modules.boq.models import BoqItem
 from app.modules.contracts.models import EmployerContractItem
 from app.modules.progress_payments.calculations import quantize2
@@ -92,15 +93,21 @@ async def get_summary(
     *,
     year: int | None,
     month: int | None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> SiteDiarySummary:
     """Kapsam kararı ŞANTİYE üzerinden verilir (`visible_site`, T2 liste ucuyla
     aynı kapı): görünmeyen şantiyenin özeti boş özet DEĞİL 404'tür.
 
     Sorgu sayısı SABİTTİR (kapsam + satır sorgusu + gün sayacı); poz ya da gün
     başına sorgu KOŞULMAZ.
+
+    DSC-B1 `scope`: satırlar `BoqItem` JOIN'inde görünür kalemle süzülür (`item_visible_clause`
+    meşru: `BoqItem` FROM'da); `total_amount` süzülmüş kalemlerden, `contract_item_*` alanları
+    kalemle BİRLİKTE gelir/gitir. `entry_count` ORTAK başlıktır (Ü5): dönemdeki gönderilmiş
+    gün sayısı, kısıtlıda da değişmez.
     """
     site, _ = await visible_site(session, actor, site_id)
-    rows = await repository.summary_lines(session, site.id, year=year, month=month)
+    rows = await repository.summary_lines(session, site.id, year=year, month=month, scope=scope)
     entry_count = await repository.count_submitted_entries(session, site.id, year=year, month=month)
 
     buckets: dict[uuid.UUID, _Bucket] = {}

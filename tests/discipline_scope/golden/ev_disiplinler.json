@@ -1,0 +1,27 @@
+{
+  "body": [
+    {
+      "code": "KAB",
+      "color": "#2563eb",
+      "default_contractor_type": "own",
+      "id": "<KAB>",
+      "name": "Civil",
+      "sort_order": 1,
+      "used_by_item_count": 1,
+      "used_by_site_count": 1,
+      "user_count": 1
+    },
+    {
+      "code": "DUV",
+      "color": "#16a34a",
+      "default_contractor_type": "subcon",
+      "id": "<DUV>",
+      "name": "Elektrik",
+      "sort_order": 2,
+      "used_by_item_count": 1,
+      "used_by_site_count": 1,
+      "user_count": 1
+    }
+  ],
+  "status": 200
+}

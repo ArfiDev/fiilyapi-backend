@@ -1,0 +1,58 @@
+{
+  "body": {
+    "items": [
+      {
+        "created_at": "<ts>",
+        "created_by": "<user:atamasiz>",
+        "entry_date": "2026-05-07",
+        "has_incident": false,
+        "id": "<entry:e3>",
+        "lines_total": "150.00",
+        "project_id": "<proje>",
+        "section_id": null,
+        "section_line_count": null,
+        "section_name": null,
+        "site_id": "<site>",
+        "status": "draft",
+        "weather": null,
+        "worker_total": 0
+      },
+      {
+        "created_at": "<ts>",
+        "created_by": "<user:atamasiz>",
+        "entry_date": "2026-05-06",
+        "has_incident": false,
+        "id": "<entry:e2>",
+        "lines_total": "40.00",
+        "project_id": "<proje>",
+        "section_id": "<S2>",
+        "section_line_count": null,
+        "section_name": "B Blok",
+        "site_id": "<site>",
+        "status": "submitted",
+        "weather": null,
+        "worker_total": 2
+      },
+      {
+        "created_at": "<ts>",
+        "created_by": "<user:atamasiz>",
+        "entry_date": "2026-05-05",
+        "has_incident": false,
+        "id": "<entry:e1>",
+        "lines_total": "225.00",
+        "project_id": "<proje>",
+        "section_id": "<S1>",
+        "section_line_count": null,
+        "section_name": "A Blok",
+        "site_id": "<site>",
+        "status": "submitted",
+        "weather": null,
+        "worker_total": 4
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "total": 3
+  },
+  "status": 200
+}

@@ -7,6 +7,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
 from app.core.ratelimit import client_ip
@@ -73,6 +74,7 @@ async def get_boq_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
     section_id: _SECTION_FILTER = None,
 ) -> BoqListResponse:
     """`section_id` YOKSA davranis birebir eskisidir (BOQ-SEC K5).
@@ -80,7 +82,7 @@ async def get_boq_endpoint(
     Baska santiyenin bolum kimligi BOS LISTE degil **404** alir
     (`service.visible_section_in_site` gerekcesi).
     """
-    return await service.get_boq_for_site(session, user, site_id, section_id)
+    return await service.get_boq_for_site(session, user, site_id, section_id, scope)
 
 
 @router.get(
@@ -93,6 +95,7 @@ async def export_boq_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
     section_id: _SECTION_FILTER = None,
 ) -> Response:
     """Spec §5.3: BOQ'yu xlsx olarak indirir. Okuma ucudur — `record_audit`
@@ -124,7 +127,7 @@ async def export_boq_endpoint(
     yazip sonra hucre silmek iki ayri gizleme kuralı uretir ve zamanla ayrisirdi.
     Bekcisi `tests/core/test_kapsam_kacak_uclar.py`.
     """
-    site, boq = await service.get_boq_export_for_site(session, user, site_id, section_id)
+    site, boq = await service.get_boq_export_for_site(session, user, site_id, section_id, scope)
     buffer = build_boq_workbook(kapsamla_maskele(boq, "boq"))
     filename = f"is-kalemleri-{site.code}.xlsx"
     return Response(
@@ -229,6 +232,7 @@ async def get_boq_item_allocations_endpoint(
     item_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> BoqItemAllocationsResponse:
     """BOQ-ALLOC — pozun bolum tahsislerinin TAMAMI, TEK cagrida.
 
@@ -240,7 +244,7 @@ async def get_boq_item_allocations_endpoint(
     DEGISMEZ. `record_audit` CAGIRILMAZ (K3, T7 kurali — `export_boq_endpoint`
     emsali). Gorunmeyen kalem **404** alir, 403 degil (K2).
     """
-    return await service.get_allocations(session, user, item_id)
+    return await service.get_allocations(session, user, item_id, scope)
 
 
 @router.put(

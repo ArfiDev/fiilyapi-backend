@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -98,6 +99,7 @@ async def get_budget(
     site_id: uuid.UUID,
     user: _User,
     session: _Db,
+    scope: DisciplineScoped,
     revision_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> BudgetView:
     """Butce agaci (L1 disiplin · L2 BOQ grubu · L3 is tipi · L4 kalem × bolum) + ozet.
@@ -107,7 +109,8 @@ async def get_budget(
     Dondurma engelleri/uyarilari yalniz duzenlenebilir gorunumde doner (frontend istegi 1).
     """
     ctx = await visible_site(session, user, site_id)
-    return await present.budget_view(session, await svc.load_state(session, ctx, revision_id))
+    state = await svc.load_state(session, ctx, revision_id, scope)
+    return await present.budget_view(session, state, scope)
 
 
 @router.get(f"{_BASE}/revisions", response_model=list[RevisionOut], dependencies=[VIEW])
@@ -161,11 +164,11 @@ async def delete_budget_draft(
     f"{_BASE}/revisions/{{revision_id}}/diff", response_model=RevisionDiffOut, dependencies=[VIEW]
 )
 async def get_budget_revision_diff(
-    site_id: uuid.UUID, revision_id: uuid.UUID, user: _User, session: _Db
+    site_id: uuid.UUID, revision_id: uuid.UUID, user: _User, session: _Db, scope: DisciplineScoped
 ) -> RevisionDiffOut:
     """Onceki DONMUS revizyona gore yaprak farki (yeni / cikan / miktar / oran)."""
     ctx = await visible_site(session, user, site_id)
-    return await present.diff_out(session, await ops.diff(session, ctx, revision_id))
+    return await present.diff_out(session, await ops.diff(session, ctx, revision_id, scope))
 
 
 @router.put(f"{_BASE}/group-disciplines", response_model=BudgetView, dependencies=[WRITE])
@@ -232,12 +235,16 @@ async def patch_budget_leaves(
     f"{_BASE}/items/{{boq_item_id}}/suggestions", response_model=SuggestionsOut, dependencies=[VIEW]
 )
 async def get_budget_item_suggestions(
-    site_id: uuid.UUID, boq_item_id: uuid.UUID, user: _User, session: _Db
+    site_id: uuid.UUID,
+    boq_item_id: uuid.UUID,
+    user: _User,
+    session: _Db,
+    scope: DisciplineScoped,
 ) -> SuggestionsOut:
     """Oran onerisi popover'i: katalog adaylari (bagli · tam · kismi) + her aday icin
     "son 3 santiye gerceklesen" (K4: yalniz TAMAMLANMIS santiye, miktar agirlikli)."""
     ctx = await visible_site(session, user, site_id)
-    cands = await ops.suggestions(session, ctx, boq_item_id)
+    cands = await ops.suggestions(session, ctx, boq_item_id, scope)
     recent = await recent_site_actuals(session, [c.item.id for c in cands])
     return SuggestionsOut(
         catalog=[_candidate(c) for c in cands],
@@ -337,11 +344,12 @@ async def get_budget_schedule(
     site_id: uuid.UUID,
     user: _User,
     session: _Db,
+    scope: DisciplineScoped,
     revision_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> ScheduleOut:
     """Adim 2 Gantt: bolumler, disiplin × bolum cubuklari, tatiller."""
     ctx = await visible_site(session, user, site_id)
-    state = await svc.load_state(session, ctx, revision_id)
+    state = await svc.load_state(session, ctx, revision_id, scope)
     boq = await repo.load_boq(session, ctx.site.id)
     cal = await repo.load_calendar(session, ctx.site.id)
     return present.schedule_out(state.tree, boq.sections, cal.weekly_off_days, cal.holidays)

@@ -23,6 +23,12 @@ tanımları.
 (b) `GET /dashboard/summary` (`dashboard/risks.py:141-143`) → DSC-B4: stok riskleri
     `/stock/summary` ile aynı kaynak; Ü3 kendi disiplini üzerinden yeniden hesap.
 
+## DSC-B1 yeniden etiketleri (CEO 2026-09-29) — gerekçeler `_dilim`in yorumlarında
+* iki `diary-suggestion` ucu → DSC-B5 (hakediş sınıfı, 403) · `/stock/summary` +
+  `/sites/{site_id}/stock` → DSC-B4 (çekirdek agrega) · `GET …/budget/revisions` sınıflandırıcıdan
+  ÇIKTI (disiplin verisi yok) · `POST …/budget/preview` → DSC-B3 (VIEW kapılı okuma).
+* `test_izin_listesi_etiketi_duyarli_rota_hedef_dilimine_esittir`: etiket ↔ hedef dilim eşitliği.
+
 ⚠️ `iter_route_contexts` + EFEKTİF bağlam (`ctx.dependant`): FastAPI 0.141 `include_router`ı
 `_IncludedRouter` tutar, `app.routes` düz dolaşımı alt yönlendirici rotalarını GÖRMEZ
 (`test_getdb_kapsam_bekcisi.py`). "Sıfır rota tarandı" ve "her aile ≥1 rota" kontrolleri
@@ -31,7 +37,11 @@ sessiz-boş taramayı (sınıflandırıcı bozulması) KIRMIZI yapar.
 
 from __future__ import annotations
 
+import ast
+import inspect
 import re
+import textwrap
+import typing
 
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute, iter_route_contexts
@@ -56,6 +66,8 @@ KAPSAM_DISI_EV_MODULLERI = ("app.modules.earned_value.user_discipline_router",)
 STOK_SATIR_YOLLARI = frozenset(
     {"/stock/entries", "/stock/summary", "/sites/{site_id}/stock", "/sections/{section_id}/stock"}
 )
+#: Stok AGREGA uçları (kart/özet toplamları): satır uçlarından (B1) ayrı, B4 çekirdek agregatı.
+STOK_AGREGA_YOLLARI = frozenset({"/stock/summary", "/sites/{site_id}/stock"})
 _EV_B3_YOLU = re.compile(r"/earned-value/(panel|reports/|settings/preview)")
 _EV_AYAR_YOLU = re.compile(r"/earned-value/settings$")
 #: Modül kökü sınıflandırıcısının DIŞINDA kalan duyarlı rotalar: (yöntem, yol) -> (dilim,
@@ -91,9 +103,22 @@ def _dilim(aile: str, yontem: str, yol: str) -> str | None:
     if aile == "stok":
         if yol not in STOK_SATIR_YOLLARI:
             return None
-        return "DSC-B5" if yazma else "DSC-B1"
+        if yazma:
+            return "DSC-B5"
+        return "DSC-B4" if yol in STOK_AGREGA_YOLLARI else "DSC-B1"
     if aile == "ev" and _EV_AYAR_YOLU.search(yol):
         return None
+    if aile == "ev" and not yazma and yol.endswith("/budget/revisions"):
+        # DSC-B1 (CEO 2026-09-29): revizyon LİSTESİ (numara/durum/dondurma zamanı) disiplin ya
+        # da kalem verisi taşımaz → duyarlı DEĞİL.
+        return None
+    if aile == "ev" and yazma and yol.endswith("/budget/preview"):
+        # POST …/budget/preview VIEW kapılı bir OKUMADIR (eğri hesabı, yazmaz): disiplin bazında
+        # eğri ürettiği için hedef B3 (EV agregatları); "yazma → B2" kuralının istisnası.
+        return "DSC-B3"
+    if aile == "gunluk" and not yazma and yol.endswith("/diary-suggestion"):
+        # günlükten hakediş önerisi: hakediş (Ü2) ile aynı sınıf → kısıtlıya 403 (B5).
+        return "DSC-B5"
     if aile == "ev" and not yazma and _EV_B3_YOLU.search(yol):
         return "DSC-B3"
     return "DSC-B2" if yazma else "DSC-B1"
@@ -149,28 +174,10 @@ IZIN_LISTESI: dict[Rota, str] = {
     ("GET", "/projects/{project_id}/contract/distribution"): "DSC-B5",
     ("PUT", "/projects/{project_id}/contract/distribution"): "DSC-B5",
     ("GET", "/dashboard/summary"): "DSC-B4",
-    ("GET", "/boq/items/{item_id}/allocations"): "DSC-B1",
-    ("GET", "/diary/{entry_id}"): "DSC-B1",
-    ("GET", "/earned-value/catalog"): "DSC-B1",
-    ("GET", "/earned-value/disciplines"): "DSC-B1",
-    ("GET", "/projects/{project_id}/progress-payments/diary-suggestion"): "DSC-B1",
-    ("GET", "/sections/{section_id}/stock"): "DSC-B1",
-    ("GET", "/sites/{site_id}/boq"): "DSC-B1",
-    ("GET", "/sites/{site_id}/boq/export"): "DSC-B1",
-    ("GET", "/sites/{site_id}/diary"): "DSC-B1",
-    ("GET", "/sites/{site_id}/diary/summary"): "DSC-B1",
-    ("GET", "/sites/{site_id}/earned-value/budget"): "DSC-B1",
-    ("GET", "/sites/{site_id}/earned-value/budget/items/{boq_item_id}/suggestions"): "DSC-B1",
-    ("GET", "/sites/{site_id}/earned-value/budget/revisions"): "DSC-B1",
-    ("GET", "/sites/{site_id}/earned-value/budget/revisions/{revision_id}/diff"): "DSC-B1",
-    ("GET", "/sites/{site_id}/earned-value/budget/schedule"): "DSC-B1",
-    ("GET", "/sites/{site_id}/earned-value/code-tree"): "DSC-B1",
-    ("GET", "/sites/{site_id}/earned-value/days/{day}"): "DSC-B1",
-    ("GET", "/sites/{site_id}/earned-value/days/{day}/previous-allocation"): "DSC-B1",
-    ("GET", "/sites/{site_id}/stock"): "DSC-B1",
-    ("GET", "/stock/entries"): "DSC-B1",
-    ("GET", "/stock/summary"): "DSC-B1",
-    ("GET", "/subcontractor-contracts/{contract_id}/progress-payments/diary-suggestion"): "DSC-B1",
+    ("GET", "/projects/{project_id}/progress-payments/diary-suggestion"): "DSC-B5",
+    ("GET", "/sites/{site_id}/stock"): "DSC-B4",
+    ("GET", "/stock/summary"): "DSC-B4",
+    ("GET", "/subcontractor-contracts/{contract_id}/progress-payments/diary-suggestion"): "DSC-B5",
     ("DELETE", "/boq/groups/{group_id}"): "DSC-B2",
     ("PATCH", "/boq/groups/{group_id}"): "DSC-B2",
     ("DELETE", "/boq/items/{item_id}"): "DSC-B2",
@@ -196,7 +203,7 @@ IZIN_LISTESI: dict[Rota, str] = {
     ("PUT", "/sites/{site_id}/earned-value/budget/group-disciplines"): "DSC-B2",
     ("PATCH", "/sites/{site_id}/earned-value/budget/items/{boq_item_id}"): "DSC-B2",
     ("PATCH", "/sites/{site_id}/earned-value/budget/leaves"): "DSC-B2",
-    ("POST", "/sites/{site_id}/earned-value/budget/preview"): "DSC-B2",
+    ("POST", "/sites/{site_id}/earned-value/budget/preview"): "DSC-B3",
     ("POST", "/sites/{site_id}/earned-value/budget/revisions"): "DSC-B2",
     ("DELETE", "/sites/{site_id}/earned-value/budget/revisions/{revision_id}"): "DSC-B2",
     ("PUT", "/sites/{site_id}/earned-value/budget/windows"): "DSC-B2",
@@ -295,3 +302,60 @@ def test_izin_listesi_tam_olarak_duyarli_eksi_isaretli_kumedir() -> None:
     liste boş kalır."""
     duyarli, _ = duyarli_rotalar()
     assert set(IZIN_LISTESI) == set(duyarli) - isaretli_rotalar()
+
+
+def test_izin_listesi_etiketi_duyarli_rota_hedef_dilimine_esittir() -> None:
+    """KALICI DEĞİŞMEZ (DSC-B1): izin listesindeki her etiket sınıflandırıcının hedef dilimine
+    EŞİT — etiket eskirse (rota başka dilime taşındı) liste sessizce yalan söylemez."""
+    duyarli, _ = duyarli_rotalar()
+    farkli = {
+        r: (IZIN_LISTESI[r], duyarli[r]) for r in IZIN_LISTESI if IZIN_LISTESI[r] != duyarli[r]
+    }
+    assert not farkli, f"izin listesi etiketi != sınıflandırıcı hedefi: {farkli}"
+
+
+def _isaretli_parametreler(fonksiyon) -> list[str]:  # noqa: ANN001
+    """İmzada `DisciplineScoped` (Depends(resolve_discipline_scope)) taşıyan parametre adları."""
+    ipuclari = typing.get_type_hints(fonksiyon, include_extras=True)
+    adlar = []
+    for ad, ipucu in ipuclari.items():
+        meta = getattr(ipucu, "__metadata__", ())
+        if any(getattr(m, "dependency", None) is resolve_discipline_scope for m in meta):
+            adlar.append(ad)
+    return adlar
+
+
+def _govdede_yuklenen_adlar(fonksiyon) -> set[str]:  # noqa: ANN001
+    kaynak = textwrap.dedent(inspect.getsource(inspect.unwrap(fonksiyon)))
+    govde = ast.parse(kaynak).body[0]
+    assert isinstance(govde, ast.FunctionDef | ast.AsyncFunctionDef)
+    return {
+        d.id
+        for ust in govde.body
+        for d in ast.walk(ust)
+        if isinstance(d, ast.Name) and isinstance(d.ctx, ast.Load)
+    }
+
+
+def test_isaretli_her_rota_kapsam_parametresini_govdede_kullanir() -> None:
+    """🔴 "İşaretli ama süzmeyen" rota: `scope: DisciplineScoped` imzada durup gövdede HİÇ
+    kullanılmazsa rota bekçiyi geçer ama süzmez (sahte-yeşil). Parametre adı gövdede en az bir
+    kez `ast.Name` (Load) olarak geçmeli. Sıfır işaretli rota = bozuk tarama → kırmızı."""
+    taranan = 0
+    ihlal: list[str] = []
+    for ctx in iter_route_contexts(app.routes):
+        rota = ctx.original_route
+        if not isinstance(rota, APIRoute):
+            continue
+        adlar = _isaretli_parametreler(rota.endpoint)
+        if not adlar:
+            continue
+        taranan += 1
+        kullanilan = _govdede_yuklenen_adlar(rota.endpoint)
+        ihlal += [
+            f"{rota.endpoint.__module__}.{rota.endpoint.__name__}:{a}"
+            for a in adlar
+            if a not in kullanilan
+        ]
+    assert taranan > 0, "işaretli rota bulunamadı — tarama bozuk"
+    assert not ihlal, f"DisciplineScoped parametresi gövdede KULLANILMIYOR: {ihlal}"

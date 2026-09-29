@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Request
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -31,6 +32,7 @@ from app.modules.earned_value.access import (
     completed_site_guard,
     visible_site,
 )
+from app.modules.earned_value.budget_scope import prune_tree
 from app.modules.earned_value.guards import SITE_COMPLETED_DAY_READ_ONLY
 from app.modules.earned_value.schemas_day import (
     AllocationSave,
@@ -59,18 +61,24 @@ _DAY = "/sites/{site_id}/earned-value/days/{day}"
 @router.get(
     "/sites/{site_id}/earned-value/code-tree", response_model=list[CodeNodeOut], dependencies=[VIEW]
 )
-async def get_code_tree(site_id: uuid.UUID, user: _User, session: _Db) -> list[CodeNodeOut]:
+async def get_code_tree(
+    site_id: uuid.UUID, user: _User, session: _Db, scope: DisciplineScoped
+) -> list[CodeNodeOut]:
     """ "+ Is kodu ekle" secicisi: AKTIF baseline agaci (oransiz yaprak `has_rate=false`)."""
+    # Kisitlida donmus agac `d:` kokunden budanir (`adp.active_tree` yazma yollarini besledigi
+    # icin DEGISMEZ; budama burada, cagri yerinde).
     await visible_site(session, user, site_id)
     tree = await adp.active_tree(session, site_id)
-    return day_view.code_nodes(tree) if tree else []
+    return day_view.code_nodes(prune_tree(tree, scope, None, True)) if tree else []
 
 
 @router.get(_DAY, response_model=DayView, dependencies=[VIEW])
-async def get_day(site_id: uuid.UUID, day: date, user: _User, session: _Db) -> DayView:
+async def get_day(
+    site_id: uuid.UUID, day: date, user: _User, session: _Db, scope: DisciplineScoped
+) -> DayView:
     """Gunun dagitim baglami + kilit + ilerleme onizlemesi + Gonder kontrolu (§4.2)."""
     await visible_site(session, user, site_id)
-    return await day_view.build_view(session, site_id, day, user)
+    return await day_view.build_view(session, site_id, day, user, scope)
 
 
 @router.put(f"{_DAY}/allocation", response_model=DayView, dependencies=[WRITE])
@@ -107,14 +115,20 @@ async def put_day_allocation(
     f"{_DAY}/previous-allocation", response_model=PreviousAllocationOut, dependencies=[VIEW]
 )
 async def get_previous_allocation(
-    site_id: uuid.UUID, day: date, user: _User, session: _Db
+    site_id: uuid.UUID, day: date, user: _User, session: _Db, scope: DisciplineScoped
 ) -> PreviousAllocationOut:
     """B2-7 "Dunku dagilimi kopyala": son GONDERILMIS gunun deseni (satir basina pay)."""
+    # Kisitlida (K4): kodlar/hucreler yalniz GORUNUR dugumler icin; `share` paydasi TAM satir
+    # toplamidir (yeniden normallestirme YOK → baska disiplin payi ortuk kalir, gorunur paylar
+    # toplami < 1 olabilir); gorunur hucresi olmayan satir duser.
     await visible_site(session, user, site_id)
     prev = await adp.previous_submitted_day(session, site_id, day)
     if prev is None:
         return PreviousAllocationOut(day=None, codes=[], rows=[])
     saved = await adp.load_saved(session, site_id, prev)
+    visible: frozenset[str] | None = None
+    if scope.is_restricted:
+        visible = await adp.visible_node_ids(session, site_id, scope)
     by_row: dict[uuid.UUID, list] = {}
     for cell in saved.cells:
         by_row.setdefault(cell.row_id, []).append(cell)
@@ -124,16 +138,23 @@ async def get_previous_allocation(
         total = sum((c.hours for c in cells), Decimal(0))
         if total == 0:
             continue
+        shown = [c for c in cells if visible is None or c.node_id in visible]
+        if not shown:
+            continue
         rows.append(
             RowPatternOut(
                 kind=r.kind,  # type: ignore[arg-type]
                 ref_id=r.personnel_id or r.subcontractor_id,  # type: ignore[arg-type]
-                shares=[ShareOut(node_id=c.node_id, share=c.hours / total) for c in cells],
+                shares=[ShareOut(node_id=c.node_id, share=c.hours / total) for c in shown],
             )
         )
     return PreviousAllocationOut(
         day=prev,
-        codes=[CodeIn(node_id=c.node_id, rule=c.rule) for c in saved.codes],  # type: ignore[arg-type]
+        codes=[
+            CodeIn(node_id=c.node_id, rule=c.rule)  # type: ignore[arg-type]
+            for c in saved.codes
+            if visible is None or c.node_id in visible
+        ],
         rows=rows,
     )
 

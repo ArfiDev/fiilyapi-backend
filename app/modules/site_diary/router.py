@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import DisciplineScoped
 from app.core.errors import SiteValidationError
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -62,6 +63,7 @@ async def list_site_diary_entries_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
     year: Annotated[int | None, Query(ge=guards.MIN_YEAR, le=guards.MAX_YEAR)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -89,6 +91,7 @@ async def list_site_diary_entries_endpoint(
         limit=limit,
         offset=offset,
         section_id=section_id,
+        scope=scope,
     )
 
 
@@ -101,6 +104,7 @@ async def get_site_diary_summary_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
     year: Annotated[int | None, Query(ge=guards.MIN_YEAR, le=guards.MAX_YEAR)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
 ) -> SiteDiarySummary:
@@ -112,7 +116,7 @@ async def get_site_diary_summary_endpoint(
     """
     if month is not None and year is None:
         raise SiteValidationError(guards.YEAR_REQUIRED_FOR_MONTH)
-    return await summary.get_summary(session, user, site_id, year=year, month=month)
+    return await summary.get_summary(session, user, site_id, year=year, month=month, scope=scope)
 
 
 @router.get("/diary/{entry_id}", response_model=SiteDiaryEntryDetail, dependencies=[_VIEW])
@@ -120,11 +124,12 @@ async def get_site_diary_entry_endpoint(
     entry_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
     section_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> SiteDiaryEntryDetail:
     """DET-1.B `section_id`: `prev_id`/`next_id` bu bölümün Kural A kümesinde; verilmezse
     şantiye bağlamında. Başka şantiyenin / olmayan bölüm 422."""
-    return await read.get_detail(session, user, entry_id, section_id=section_id)
+    return await read.get_detail(session, user, entry_id, section_id=section_id, scope=scope)
 
 
 @router.post(

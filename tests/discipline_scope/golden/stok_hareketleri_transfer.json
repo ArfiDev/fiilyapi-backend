@@ -1,0 +1,34 @@
+{
+  "body": {
+    "items": [
+      {
+        "created_at": "<ts>",
+        "delivery_note_no": null,
+        "entry_date": "2026-05-03",
+        "entry_type": "transfer",
+        "id": "<stok:transfer>",
+        "lines": [
+          {
+            "boq_item_id": null,
+            "id": "<stok_satir:4>",
+            "item_id": "<kart:k1>",
+            "quality": "ok",
+            "quantity": "25.000",
+            "section_id": null,
+            "unit_price": null
+          }
+        ],
+        "note": "Hareket 2",
+        "purchase_order_id": null,
+        "received_by_user_id": null,
+        "source_warehouse_id": "<depo:2>",
+        "supplier_name": null,
+        "warehouse_id": "<depo:1>"
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "total": 1
+  },
+  "status": 200
+}

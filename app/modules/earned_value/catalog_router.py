@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -73,9 +74,12 @@ def _discipline_read(row, usage: catalog_service.DisciplineUsage) -> DisciplineR
 
 
 @router.get("/earned-value/disciplines", response_model=list[DisciplineRead], dependencies=[VIEW])
-async def list_disciplines_endpoint(session: _Session) -> list[DisciplineRead]:
+async def list_disciplines_endpoint(
+    session: _Session, scope: DisciplineScoped
+) -> list[DisciplineRead]:
     """Sirket disiplinleri (K2) — `sort_order`, sonra `code` sirasiyla."""
-    rows = await catalog_service.list_disciplines(session)
+    # Kisitli kullanici yalniz kendi disiplinlerini gorur (Ü8) — `list_disciplines(scope)`.
+    rows = await catalog_service.list_disciplines(session, scope)
     usage = await catalog_service.discipline_usage(session, [r.id for r in rows])
     return [_discipline_read(row, usage[row.id]) for row in rows]
 
@@ -138,6 +142,7 @@ async def delete_discipline_endpoint(
 @router.get("/earned-value/catalog", response_model=list[CatalogItemRead], dependencies=[VIEW])
 async def list_catalog_endpoint(
     session: _Session,
+    scope: DisciplineScoped,
     discipline_id: Annotated[uuid.UUID | None, Query()] = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> list[CatalogItemRead]:
@@ -147,7 +152,7 @@ async def list_catalog_endpoint(
     agirlikli ortalamasi (`catalog_service.catalog_actuals`); tamamlanmis santiye verisi
     yoksa bostur.
     """
-    rows = await catalog_service.list_catalog(session, discipline_id, q)
+    rows = await catalog_service.list_catalog(session, discipline_id, q, scope)
     return [catalog_service.to_read(row) for row in rows]
 
 

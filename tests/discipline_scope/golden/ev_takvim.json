@@ -1,0 +1,60 @@
+{
+  "body": {
+    "bars": [
+      {
+        "budget_mhr": "150.0000000",
+        "discipline_id": "<DUV>",
+        "discipline_node_id": "d:<DUV>",
+        "end_date": "2026-05-15",
+        "outside_section_dates": false,
+        "section_id": "<S1>",
+        "section_name": "A Blok",
+        "source": "section",
+        "start_date": "2026-05-04"
+      },
+      {
+        "budget_mhr": "60.0000000",
+        "discipline_id": "<DUV>",
+        "discipline_node_id": "d:<DUV>",
+        "end_date": "2026-05-29",
+        "outside_section_dates": false,
+        "section_id": "<S2>",
+        "section_name": "B Blok",
+        "source": "section",
+        "start_date": "2026-05-18"
+      },
+      {
+        "budget_mhr": "20.0000000",
+        "discipline_id": "<DUV>",
+        "discipline_node_id": "d:<DUV>",
+        "end_date": "2026-05-29",
+        "outside_section_dates": false,
+        "section_id": null,
+        "section_name": null,
+        "source": "union",
+        "start_date": "2026-05-04"
+      }
+    ],
+    "holidays": [],
+    "sections": [
+      {
+        "end_date": "2026-05-15",
+        "id": "<S1>",
+        "name": "A Blok",
+        "planned_worker_count": 12,
+        "start_date": "2026-05-04"
+      },
+      {
+        "end_date": "2026-05-29",
+        "id": "<S2>",
+        "name": "B Blok",
+        "planned_worker_count": 8,
+        "start_date": "2026-05-18"
+      }
+    ],
+    "weekly_off_days": [
+      6
+    ]
+  },
+  "status": 200
+}

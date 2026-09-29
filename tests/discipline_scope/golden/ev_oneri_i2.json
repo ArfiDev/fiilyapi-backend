@@ -1,0 +1,26 @@
+{
+  "body": {
+    "catalog": [
+      {
+        "catalog_item_id": "<katalog:2>",
+        "discipline_id": "<DUV>",
+        "match": "exact",
+        "name": "Tuğla",
+        "standard_unit_mhr": "0.5500",
+        "uom": "m2"
+      }
+    ],
+    "history": [],
+    "recent_actuals": [
+      {
+        "avg": null,
+        "catalog_item_id": "<katalog:2>",
+        "name": "Tuğla",
+        "site_count": 0,
+        "sites": [],
+        "uom": "m2"
+      }
+    ]
+  },
+  "status": 200
+}

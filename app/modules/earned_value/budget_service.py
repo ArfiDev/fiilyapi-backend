@@ -27,11 +27,13 @@ from decimal import Decimal
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, visible_item_set
 from app.core.errors import ConflictError, EarnedValueValidationError, NotFoundError
 from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import guards
 from app.modules.earned_value.access import SiteContext, assert_site_writable, is_site_completed
+from app.modules.earned_value.budget_scope import item_ids, prune_tree
 from app.modules.earned_value.budget_snapshot import frozen_tree
 from app.modules.earned_value.budget_tree import BudgetTree, LeafKey, RevisionInputs, build_tree
 from app.modules.earned_value.models import (
@@ -94,8 +96,13 @@ async def current_revision(session: AsyncSession, site_id: uuid.UUID) -> EvRevis
 
 
 async def load_state(
-    session: AsyncSession, ctx: SiteContext, revision_id: uuid.UUID | None = None
+    session: AsyncSession,
+    ctx: SiteContext,
+    revision_id: uuid.UUID | None = None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> BudgetState:
+    """Butce durumu. `scope` kisitliysa agac `budget_scope.prune_tree` ile budanir (K5:
+    donmus → `d:` koku; taslak → `d:` ∩ R(site)); kisitsizda agac degismez."""
     rev = (
         await get_revision(session, ctx, revision_id)
         if revision_id
@@ -107,10 +114,13 @@ async def load_state(
     completed = is_site_completed(ctx.site.status)
     if rev is not None and rev.status is not RevisionStatus.DRAFT:
         tree = await frozen_tree(session, rev, disciplines, calendar.is_working_day)
+        tree = prune_tree(tree, scope, None, True)
         return BudgetState(rev, False, tree, synced, completed)
     inputs = await repo.load_inputs(session, rev.id) if rev else RevisionInputs()
     boq = await repo.load_boq(session, ctx.site.id)
     tree = build_tree(boq, disciplines, inputs, calendar.is_working_day)
+    visible = await visible_item_set(session, scope, item_ids(tree))
+    tree = prune_tree(tree, scope, visible, False, calendar.is_working_day)
     return BudgetState(rev, True, tree, synced, completed)
 
 

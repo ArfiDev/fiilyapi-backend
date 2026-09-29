@@ -6,8 +6,9 @@ atamasi olmayan kullanici KISITSIZdir. Cekirdek moduller planlamayi (EV) IMPORT 
 (§2.7); bu dosya sozlesmedir, bir modul (bugun `earned_value/discipline_adapter.py`)
 uygulamasini `register_provider` ile KAYDEDER.
 
-* Kayit YOKSA port bostur: `user_scope` → `UNRESTRICTED`, `item_visible_clause` → `true()`,
-  `item_discipline_expr` → `null()` (modulsuz kurulum bugunku gibi calisir).
+* Kayit YOKSA port bostur: `user_scope` → `UNRESTRICTED`, `item_visible_clause` →
+  `ItemVisible(true())`, `item_discipline_expr` → `null()` (modulsuz kurulum bugunku gibi
+  calisir).
 * Bagimlilik yonu tek: modul → `app.core.discipline_scope`. Bu dosya hicbir urun modulunu
   import etmez (`BoqItem` bile) — kalem varligi PARAMETRE gelir (`BoqItem` ya da alias'i).
 * `day_hooks`tan FARKLI olarak TEK saglayici tutulur (liste degil): "kalem hangi
@@ -33,17 +34,32 @@ disiplinleri)`: NULL hicbir zaman `IN`e uymaz.
 
 ## Test uclusu
 `unregister_all()` / `registered()` / `restore()` — `day_hooks` ile ayni sozlesme.
+
+## Yapisal bekci (DSC-B1): `ItemVisible`
+`item_visible_clause` HER ZAMAN `ItemVisible` doner (kisitsizda icindeki ifade `true`,
+SQL'e yalniz `true` yazilir — atamasiz yanit degismez). `ItemVisible` DERLEME ANINDA kalem
+varliginin FROM'u kapsayan SELECT'te (kendi FROM'u ya da korele edilmis dis FROM) olup
+olmadigina bakar; yoksa `RuntimeError` — korelasyon dusup FAIL-OPEN olacagina sorgu
+DERLENMEZ. Kisitsizda da sarmaladigimiz icin bekci her testte (atamasiz aktorle bile)
+calisir. AST bekcisi `item_discipline_expr` sonucunun port disinda `.in_`/karsilastirma ile
+kullanimini yasaklar (`tests/core/test_disiplin_korelasyon_bekcisi.py`).
 """
 
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from sqlalchemy import ColumnElement, null, select, true
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql.selectable import ScalarSelect, Select
+from sqlalchemy.sql.visitors import InternalTraversal
+from sqlalchemy.types import Boolean
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,8 +181,46 @@ async def item_disciplines(
     return result
 
 
+class ItemVisible(ColumnElement[bool]):
+    """Kalem gorunurluk maddesi SARMALAYICISI: `inner` ifadesini oldugu gibi uretir, ama
+    derlenirken `item` (kalem varligi) kapsayan SELECT'in FROM'unda degilse `RuntimeError`
+    atar (`_derle_item_visible`). `_traverse_internals` onbellek anahtarina hem `inner`
+    (kapsam parametreleri) hem `item_from` (BoqItem mi alias mi) girer."""
+
+    __visit_name__ = "item_visible"
+    inherit_cache = True
+    type = Boolean()
+    _traverse_internals = [
+        ("inner", InternalTraversal.dp_clauseelement),
+        ("item_from", InternalTraversal.dp_clauseelement),
+    ]
+
+    def __init__(self, inner: ColumnElement[Any], item: Any) -> None:
+        self.inner = inner
+        self.item_from = sa_inspect(item).selectable
+
+
+@compiles(ItemVisible)
+def _derle_item_visible(element: ItemVisible, compiler: Any, **kw: Any) -> str:
+    """Kalem FROM'u kapsayan SELECT'te yoksa DERLEME hatasi (korelasyon dustu → fail-open).
+
+    Ust duzey (kapsayan SELECT'siz) `str(...)` derlemesi hata DEGILDIR: korele edilecek bir
+    dis sorgu yoktur, yalniz gosterim amaclidir."""
+    if compiler.stack:
+        kapsam = compiler.stack[-1]
+        froms = set(kapsam.get("correlate_froms", ())) | set(kapsam.get("asfrom_froms", ()))
+        if element.item_from not in froms:
+            raise RuntimeError(
+                "ItemVisible: kalem varligi kapsayan sorgunun FROM'unda degil — korelasyon "
+                "dusup kisit FAIL-OPEN olurdu. Baska tablodan suzerken `item_fk_conditions` / "
+                "`visible_item_ids` kullanin."
+            )
+    return compiler.process(element.inner, **kw)
+
+
 def item_visible_clause(scope: DisciplineScope, item: Any) -> ColumnElement[bool]:
-    """WHERE maddesi: kisitsizda `true()`, kisitlida `disiplin IN (kapsam)`.
+    """WHERE maddesi: kisitsizda `true`, kisitlida `disiplin IN (kapsam)` — HER ZAMAN
+    `ItemVisible` ile sarili (bkz. modul docstring'i, "Yapisal bekci").
 
     🔴 `NOT IN` / `!=` YOK — NULL disiplinli kalem kisitliya GORUNMEZ (fail-closed).
 
@@ -174,12 +228,14 @@ def item_visible_clause(scope: DisciplineScope, item: Any) -> ColumnElement[bool
     edilir; `item` dis FROM'da yoksa korelasyon SESSIZCE dusar ve alt sorgu
     `FROM ev_group_disciplines, boq_items` olur: tek esleme varsa FAIL-OPEN (OLCULDU:
     `select(SiteDiaryLine.code).where(item_visible_clause(scope, BoqItem))` {'X','C'} yerine
-    {'C'} donmeliydi), cok esleme varsa `CardinalityViolation`. Baska tablodan suzerken
-    `visible_item_ids` kullanin.
+    {'C'} donmeliydi), cok esleme varsa `CardinalityViolation`. Bu durum artik DERLEMEDE
+    `RuntimeError`dur. Baska tablodan suzerken `item_fk_conditions` / `visible_item_ids`.
     """
     if not scope.is_restricted:
-        return true()
-    return item_discipline_expr(item).in_(sorted(scope.discipline_ids or (), key=str))
+        return ItemVisible(true(), item)
+    return ItemVisible(
+        item_discipline_expr(item).in_(sorted(scope.discipline_ids or (), key=str)), item
+    )
 
 
 def visible_item_ids(scope: DisciplineScope, item: Any) -> Select[Any]:
@@ -192,3 +248,35 @@ def visible_item_ids(scope: DisciplineScope, item: Any) -> Select[Any]:
     (gereksiz alt sorgu + `boq_item_id IS NULL` satirlarini eleme riski).
     """
     return select(item.id).where(item_visible_clause(scope, item))
+
+
+def item_fk_conditions(
+    scope: DisciplineScope, fk_column: Any, item: Any
+) -> list[ColumnElement[bool]]:
+    """Baska tablonun `boq_item_id` FK'sini gorunur kalemle sinirlayan WHERE maddeleri.
+
+    Kisitsizda BOS liste (filtre HIC eklenmez: `boq_item_id IS NULL` satirlari da kalir,
+    atamasiz yanit degismez); kisitlida `fk IN (gorunur kalem id'leri)` — NULL FK gorunmez
+    (Ü1). Kalem varligi ic sorgunun kendi FROM'unda oldugu icin korelasyon bozulamaz.
+
+    Ic sorgu `item`in ALIAS'i ile kurulur: cagiran sorgu ayni kalem varligini kendi
+    FROM'unda tasiyorsa (ornegin `outerjoin(BoqItem)`) SQLAlchemy ic sorguyu ona OTOMATIK
+    korele edip FROM'unu dusururdu ("no FROM clauses" ya da yanlis satir kumesi).
+    """
+    if not scope.is_restricted:
+        return []
+    return [fk_column.in_(visible_item_ids(scope, aliased(item)))]
+
+
+async def visible_item_set(
+    session: AsyncSession, scope: DisciplineScope, item_ids: Iterable[uuid.UUID]
+) -> set[uuid.UUID] | None:
+    """Verilen kalem id'lerinden kapsamda GORUNENLER; kisitsizda `None` (= hepsi gorunur,
+    filtre yok). Python tarafi ayni tek tanimdan (`item_disciplines` → `item_discipline_expr`)
+    turer; disiplinsiz (None) kalem hicbir kumeye uymaz (fail-closed)."""
+    if not scope.is_restricted:
+        return None
+    ids = list(dict.fromkeys(item_ids))
+    disiplin = await item_disciplines(session, ids)
+    izinli = scope.discipline_ids or frozenset()
+    return {item_id for item_id, discipline_id in disiplin.items() if discipline_id in izinli}

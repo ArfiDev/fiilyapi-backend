@@ -14,6 +14,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.errors import ConflictError, EarnedValueValidationError
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import budget_service as svc
@@ -57,13 +58,18 @@ class Candidate:
 
 
 def _candidates(
-    catalog: list[EvCatalogItem], node: ItemNode, discipline_id: uuid.UUID | None
+    catalog: list[EvCatalogItem],
+    node: ItemNode,
+    discipline_id: uuid.UUID | None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> list[Candidate]:
     name, uom = normalize_label(node.description), normalize_label(node.uom)
     out: list[Candidate] = []
     for c in catalog:
         if node.catalog_item_id == c.id:
-            out.append(Candidate(c, "linked"))
+            # Kisitlida capraz bagli (kapsam disi disiplin) katalog kalemi aday OLMAZ (Ü8).
+            if not scope.is_restricted or c.discipline_id in (scope.discipline_ids or ()):
+                out.append(Candidate(c, "linked"))
             continue
         if discipline_id is not None and c.discipline_id != discipline_id:
             continue
@@ -91,13 +97,20 @@ def _find_item(tree: BudgetTree, item_id: uuid.UUID) -> tuple[uuid.UUID | None, 
     return None
 
 
-async def suggestions(session: AsyncSession, ctx: SiteContext, item_id: uuid.UUID) -> list:
-    state = await svc.load_state(session, ctx)
+async def suggestions(
+    session: AsyncSession,
+    ctx: SiteContext,
+    item_id: uuid.UUID,
+    scope: DisciplineScope = UNRESTRICTED,
+) -> list:
+    """Oneri adaylari. Kalem BUDANMIS agacta aranir: baska disiplinin kalemi olmayanla
+    BIREBIR ayni 422 `BOQ_ITEM_FOREIGN` govdesini verir (Ü7)."""
+    state = await svc.load_state(session, ctx, scope=scope)
     found = _find_item(state.tree, item_id)
     if found is None:
         raise EarnedValueValidationError(guards.BOQ_ITEM_FOREIGN)
     disc_id, node = found
-    return _candidates(await _catalog(session), node, disc_id)
+    return _candidates(await _catalog(session), node, disc_id, scope)
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,7 +351,13 @@ class RevisionDiff:
     direct_after: Decimal
 
 
-async def diff(session: AsyncSession, ctx: SiteContext, rev_id: uuid.UUID) -> RevisionDiff:
+async def diff(
+    session: AsyncSession,
+    ctx: SiteContext,
+    rev_id: uuid.UUID,
+    scope: DisciplineScope = UNRESTRICTED,
+) -> RevisionDiff:
+    """Revizyon farki; iki agac da kapsamla budanir, `_direct` budanmis agactan (Ü3)."""
     rev = await svc.get_revision(session, ctx, rev_id)
     revisions = await repo.list_revisions(session, ctx.site.id)
     prev = max(
@@ -346,8 +365,8 @@ async def diff(session: AsyncSession, ctx: SiteContext, rev_id: uuid.UUID) -> Re
         key=lambda r: r.number,
         default=None,
     )
-    after = await svc.load_state(session, ctx, rev.id)
-    before = await svc.load_state(session, ctx, prev.id) if prev else None
+    after = await svc.load_state(session, ctx, rev.id, scope)
+    before = await svc.load_state(session, ctx, prev.id, scope) if prev else None
     now = {lf.id: (i, lf) for *_, i, lf in after.tree.leaves()}
     old = {lf.id: (i, lf) for *_, i, lf in before.tree.leaves()} if before else {}
     out: list[LeafDiff] = []

@@ -1,0 +1,151 @@
+{
+  "body": {
+    "items": [
+      {
+        "created_at": "<ts>",
+        "delivery_note_no": null,
+        "entry_date": "2026-05-04",
+        "entry_type": "adjustment",
+        "id": "<stok:sarf>",
+        "lines": [
+          {
+            "boq_item_id": "<I1>",
+            "id": "<stok_satir:5>",
+            "item_id": "<kart:k1>",
+            "quality": "ok",
+            "quantity": "-30.000",
+            "section_id": "<S1>",
+            "unit_price": "12.50"
+          },
+          {
+            "boq_item_id": "<I2>",
+            "id": "<stok_satir:6>",
+            "item_id": "<kart:k2>",
+            "quality": "ok",
+            "quantity": "-12.000",
+            "section_id": "<S1>",
+            "unit_price": "8.00"
+          },
+          {
+            "boq_item_id": null,
+            "id": "<stok_satir:7>",
+            "item_id": "<kart:k1>",
+            "quality": "ok",
+            "quantity": "-4.000",
+            "section_id": "<S1>",
+            "unit_price": "12.50"
+          }
+        ],
+        "note": "Hareket 3",
+        "purchase_order_id": null,
+        "received_by_user_id": null,
+        "source_warehouse_id": null,
+        "supplier_name": null,
+        "warehouse_id": "<depo:1>"
+      },
+      {
+        "created_at": "<ts>",
+        "delivery_note_no": null,
+        "entry_date": "2026-05-04",
+        "entry_type": "adjustment",
+        "id": "<stok:sarf_yabanci>",
+        "lines": [
+          {
+            "boq_item_id": "<I1>",
+            "id": "<stok_satir:8>",
+            "item_id": "<kart:k1>",
+            "quality": "ok",
+            "quantity": "-6.000",
+            "section_id": "<S2>",
+            "unit_price": "12.50"
+          },
+          {
+            "boq_item_id": null,
+            "id": "<stok_satir:9>",
+            "item_id": "<kart:k2>",
+            "quality": "ok",
+            "quantity": "-2.000",
+            "section_id": "<S2>",
+            "unit_price": null
+          }
+        ],
+        "note": "Hareket 4",
+        "purchase_order_id": null,
+        "received_by_user_id": null,
+        "source_warehouse_id": null,
+        "supplier_name": null,
+        "warehouse_id": "<depo:1>"
+      },
+      {
+        "created_at": "<ts>",
+        "delivery_note_no": null,
+        "entry_date": "2026-05-03",
+        "entry_type": "transfer",
+        "id": "<stok:transfer>",
+        "lines": [
+          {
+            "boq_item_id": null,
+            "id": "<stok_satir:4>",
+            "item_id": "<kart:k1>",
+            "quality": "ok",
+            "quantity": "25.000",
+            "section_id": null,
+            "unit_price": null
+          }
+        ],
+        "note": "Hareket 2",
+        "purchase_order_id": null,
+        "received_by_user_id": null,
+        "source_warehouse_id": "<depo:2>",
+        "supplier_name": null,
+        "warehouse_id": "<depo:1>"
+      },
+      {
+        "created_at": "<ts>",
+        "delivery_note_no": null,
+        "entry_date": "2026-05-02",
+        "entry_type": "purchase",
+        "id": "<stok:alim>",
+        "lines": [
+          {
+            "boq_item_id": "<I1>",
+            "id": "<stok_satir:1>",
+            "item_id": "<kart:k1>",
+            "quality": "ok",
+            "quantity": "100.000",
+            "section_id": null,
+            "unit_price": "12.50"
+          },
+          {
+            "boq_item_id": "<I2>",
+            "id": "<stok_satir:2>",
+            "item_id": "<kart:k2>",
+            "quality": "ok",
+            "quantity": "40.000",
+            "section_id": null,
+            "unit_price": "8.00"
+          },
+          {
+            "boq_item_id": null,
+            "id": "<stok_satir:3>",
+            "item_id": "<kart:k1>",
+            "quality": "ok",
+            "quantity": "10.000",
+            "section_id": null,
+            "unit_price": "12.50"
+          }
+        ],
+        "note": "Hareket 1",
+        "purchase_order_id": null,
+        "received_by_user_id": null,
+        "source_warehouse_id": null,
+        "supplier_name": null,
+        "warehouse_id": "<depo:1>"
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "total": 4
+  },
+  "status": 200
+}

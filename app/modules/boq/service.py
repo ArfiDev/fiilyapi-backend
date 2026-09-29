@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, visible_item_set
 from app.core.errors import (
     BoqGroupSiteMismatchError,
     ConflictError,
@@ -160,11 +161,17 @@ def to_group(
     section_quantities: dict[uuid.UUID, Decimal] | None = None,
     realized_totals: dict[uuid.UUID, Decimal] | None = None,
     izinli: bool = False,
+    visible: set[uuid.UUID] | None = None,
 ) -> BoqGroupResponse:
     """`section_quantities` verilmisse (bolum suzgeci, K5) o bolume TAHSISI OLMAYAN
-    kalemler listeden DUSER — sifir miktarli hayalet satir basilmaz."""
+    kalemler listeden DUSER — sifir miktarli hayalet satir basilmaz.
+
+    `visible` (DSC-B1): `None` = kisitsiz (suzgec yok); kume verilirse yalniz o kalemler
+    listelenir ve `group_total` (kalem tutarlarinin toplami) de BUNLARDAN turer."""
     items = []
     for item in group.items:
+        if visible is not None and item.id not in visible:
+            continue
         allocated = allocated_totals.get(item.id, _ZERO_QUANTITY)
         realized = (realized_totals or {}).get(item.id)
         if section_quantities is None:
@@ -240,7 +247,11 @@ async def visible_section_in_site(
 
 
 async def get_boq_export_for_site(
-    session: AsyncSession, actor: User, site_id: uuid.UUID, section_id: uuid.UUID | None = None
+    session: AsyncSession,
+    actor: User,
+    site_id: uuid.UUID,
+    section_id: uuid.UUID | None = None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> tuple[Site, BoqListResponse]:
     """Spec §5.1/§5.3 ortak okuma yolu. Gorunmeyen santiye 404 doner (P2 §5.2
     deseni), 403 degil — varligin kendisi sizdirilmaz. `Site` de donulur:
@@ -251,6 +262,12 @@ async def get_boq_export_for_site(
     BOSALAN GRUPLAR listeden DUSER (aksi hâlde ekran bos basliklarla dolardi).
     Disa aktarim ucu bu AYNI cagriyi kullanir — iki ayri suzme kodu yazilmaz
     (`timesheet/router.py:57↔93` emsali), yoksa Excel ile ekran ayrisirdi.
+
+    DSC-B1 `scope`: kisitlida yalniz gorunur kalemler (disiplinsiz/NULL gorunmez, Ü1); grup
+    ya tumden gorunur ya hic (kalem disiplini grubundan turer) ve gorunur kalemi kalmayan
+    grup DUSER. `grand_total` suzulmus gruplardan, `grand_progress_pct` AYNI kume uzerinden
+    `progress`in `scope` parametresiyle hesaplanir — yarim suzme (satirlar suzuk, agrega
+    sirket geneli) yoktur. Kisitsizda hicbir suzgec eklenmez.
     """
     site, _ = await _visible_site(session, actor, site_id)
     section = await visible_section_in_site(session, site, section_id)
@@ -261,6 +278,9 @@ async def get_boq_export_for_site(
         else await repository.section_allocations_for_site(session, site.id, section.id)
     )
     boq_groups = await repository.list_groups_for_site(session, site.id)
+    gorunur = await visible_item_set(
+        session, scope, [item.id for group in boq_groups for item in group.items]
+    )
 
     # --- ILR-1 FIZIKSEL ILERLEME (izne duyarli) ---
     #
@@ -271,13 +291,18 @@ async def get_boq_export_for_site(
     realized_totals: dict[uuid.UUID, Decimal] = {}
     grand_progress: MetricPlaceholder | None = restricted()
     if izinli:
-        item_ids = [item.id for group in boq_groups for item in group.items]
+        item_ids = [
+            item.id
+            for group in boq_groups
+            for item in group.items
+            if gorunur is None or item.id in gorunur
+        ]
         kapsam_section = None if section is None else section.id
         realized_totals = await progress.realized_by_item(session, item_ids, kapsam_section)
         pct = (
-            await progress.physical_for_site(session, site.id)
+            await progress.physical_for_site(session, site.id, scope)
             if section is None
-            else await progress.physical_for_section(session, section.id)
+            else await progress.physical_for_section(session, section.id, scope)
         )
         grand_progress = metric(pct, _SITE_DIARY)
 
@@ -288,19 +313,24 @@ async def get_boq_export_for_site(
             section_quantities=section_quantities,
             realized_totals=realized_totals,
             izinli=izinli,
+            visible=gorunur,
         )
         for group in boq_groups
     ]
-    if section is not None:
+    if section is not None or gorunur is not None:
         groups = [group for group in groups if group.items]
     return site, BoqListResponse(totals=_totals(groups, grand_progress), groups=groups)
 
 
 async def get_boq_for_site(
-    session: AsyncSession, actor: User, site_id: uuid.UUID, section_id: uuid.UUID | None = None
+    session: AsyncSession,
+    actor: User,
+    site_id: uuid.UUID,
+    section_id: uuid.UUID | None = None,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> BoqListResponse:
     """Spec §5.1 okuma yolu — `get_boq_export_for_site`'in ince sarmalayicisi."""
-    _, response = await get_boq_export_for_site(session, actor, site_id, section_id)
+    _, response = await get_boq_export_for_site(session, actor, site_id, section_id, scope)
     return response
 
 
@@ -631,7 +661,10 @@ async def replace_allocations(
 
 
 async def get_allocations(
-    session: AsyncSession, actor: User, item_id: uuid.UUID
+    session: AsyncSession,
+    actor: User,
+    item_id: uuid.UUID,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> BoqItemAllocationsResponse:
     """`GET /boq/items/{item_id}/allocations` — pozun TÜM tahsislerini okur.
 
@@ -662,6 +695,11 @@ async def get_allocations(
     boş küme geçerli bir cevaptır ve PUT'un `[]` kabulüyle simetriktir.
     """
     item, _ = await _visible_item(session, actor, item_id)
+    # DSC-B1 (Ü7): baska disiplinin (ya da disiplinsiz) kalemi kisitliya "yok" ile AYNI 404
+    # govdesini alir — varligi sizmaz.
+    gorunur = await visible_item_set(session, scope, [item.id])
+    if gorunur is not None and item.id not in gorunur:
+        raise NotFoundError(_ITEM_MISSING)
     satirlar = await repository.list_allocations_for_item(session, item.id)
     adlar = await sites_repository.section_names_by_ids(
         session, [row.section_id for row in satirlar]

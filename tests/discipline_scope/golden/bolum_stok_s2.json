@@ -1,0 +1,44 @@
+{
+  "body": {
+    "items": [
+      {
+        "assigned_quantity": "0",
+        "boq_code": "01.001",
+        "boq_description": "Beton",
+        "boq_item_id": "<I1>",
+        "category": "structural",
+        "code": "STK-1",
+        "issued_quantity": "6.000",
+        "item_id": "<kart:k1>",
+        "name": "Çimento",
+        "net_quantity": "-6.000",
+        "total_value": "-75.00",
+        "unit": "Adet"
+      },
+      {
+        "assigned_quantity": "0",
+        "boq_code": null,
+        "boq_description": null,
+        "boq_item_id": null,
+        "category": "structural",
+        "code": "STK-2",
+        "issued_quantity": "2.000",
+        "item_id": "<kart:k2>",
+        "name": "Tuğla kartı",
+        "net_quantity": "-2.000",
+        "total_value": "0.00",
+        "unit": "Adet"
+      }
+    ],
+    "kpis": {
+      "issued_value": "75.00",
+      "item_count": 2,
+      "lines_without_price": 1,
+      "total_value": "-75.00"
+    },
+    "limit": 50,
+    "offset": 0,
+    "total": 2
+  },
+  "status": 200
+}

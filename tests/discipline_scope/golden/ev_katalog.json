@@ -1,0 +1,53 @@
+{
+  "body": [
+    {
+      "actual": {
+        "avg": null,
+        "max": null,
+        "min": null,
+        "site_count": 0,
+        "sites": []
+      },
+      "default_contractor_type": "own",
+      "description": null,
+      "diff_pct": null,
+      "discipline": {
+        "code": "KAB",
+        "color": "#2563eb",
+        "id": "<KAB>",
+        "name": "Civil"
+      },
+      "id": "<katalog:1>",
+      "name": "Beton",
+      "standard_unit_mhr": "1.8000",
+      "standard_updated_at": "<ts>",
+      "uom": "m³",
+      "used_by_site_count": 0
+    },
+    {
+      "actual": {
+        "avg": null,
+        "max": null,
+        "min": null,
+        "site_count": 0,
+        "sites": []
+      },
+      "default_contractor_type": "subcon",
+      "description": null,
+      "diff_pct": null,
+      "discipline": {
+        "code": "DUV",
+        "color": "#16a34a",
+        "id": "<DUV>",
+        "name": "Elektrik"
+      },
+      "id": "<katalog:2>",
+      "name": "Tuğla",
+      "standard_unit_mhr": "0.5500",
+      "standard_updated_at": "<ts>",
+      "uom": "m2",
+      "used_by_site_count": 0
+    }
+  ],
+  "status": 200
+}
