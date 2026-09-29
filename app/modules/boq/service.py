@@ -4,7 +4,12 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, visible_item_set
+from app.core.discipline_scope import (
+    UNRESTRICTED,
+    DisciplineScope,
+    visible_group_set,
+    visible_item_set,
+)
 from app.core.errors import (
     BoqGroupSiteMismatchError,
     ConflictError,
@@ -318,7 +323,16 @@ async def get_boq_export_for_site(
         for group in boq_groups
     ]
     if section is not None or gorunur is not None:
-        groups = [group for group in groups if group.items]
+        # DSC-B2: kisitlida KENDI disiplinindeki BOS grup de gorunur (yeni kalem eklenebilsin);
+        # yabanci/eslenmemis bos grup gorunmez. Bolum suzgecinde bos grup eskisi gibi duser.
+        bos_gorunur = await visible_group_set(
+            session, scope, [g.id for g in boq_groups if not g.items]
+        )
+        groups = [
+            group
+            for group in groups
+            if group.items or (section is None and group.id in (bos_gorunur or ()))
+        ]
     return site, BoqListResponse(totals=_totals(groups, grand_progress), groups=groups)
 
 
@@ -338,44 +352,71 @@ async def get_boq_for_site(
 
 
 async def _visible_group(
-    session: AsyncSession, actor: User, group_id: uuid.UUID
+    session: AsyncSession,
+    actor: User,
+    group_id: uuid.UUID,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> tuple[BoqGroup, Site]:
     """Grup -> santiye -> proje. PATCH /boq/groups/{id} bu zincirden gecer;
 
     gorunmeyen kayit 404 doner, 403 DEGIL (P2 IDOR dersi, spec §5.5) — en kolay
-    atlanan guvenlik noktasi budur.
+    atlanan guvenlik noktasi budur. DSC-B2 `scope`: kisitliya gorunmeyen (yabanci /
+    eslenmemis) grup "yok" ile AYNI 404'u alir (S6).
     """
     group = await repository.get_group(session, group_id)
     if group is None:
         raise NotFoundError(_GROUP_MISSING)
     site, _ = await _visible_site(session, actor, group.site_id, _GROUP_MISSING)
+    gorunur = await visible_group_set(session, scope, [group.id])
+    if gorunur is not None and group.id not in gorunur:
+        raise NotFoundError(_GROUP_MISSING)
     return group, site
 
 
 async def _visible_item(
-    session: AsyncSession, actor: User, item_id: uuid.UUID
+    session: AsyncSession,
+    actor: User,
+    item_id: uuid.UUID,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> tuple[BoqItem, Site]:
     """Kalem -> santiye -> proje (item.site_id dogrudan tutulur, spec §5.5:
 
     "item→site→project"). Gorunmeyen kayit 404 doner, 403 DEGIL.
+
+    DSC-B2 `scope`: baska disiplinin (ya da disiplinsiz) kalemi kisitliya "yok" ile AYNI 404
+    govdesini alir (Ü7) — varligi sizmaz. Kisitsizda ek sorgu YOK (`visible_item_set` None).
     """
     item = await repository.get_item(session, item_id)
     if item is None:
         raise NotFoundError(_ITEM_MISSING)
     site, _ = await _visible_site(session, actor, item.site_id, _ITEM_MISSING)
+    gorunur = await visible_item_set(session, scope, [item.id])
+    if gorunur is not None and item.id not in gorunur:
+        raise NotFoundError(_ITEM_MISSING)
     return item, site
 
 
-async def _ensure_group_in_site(session: AsyncSession, group_id: uuid.UUID, site: Site) -> BoqGroup:
+async def _ensure_group_in_site(
+    session: AsyncSession,
+    group_id: uuid.UUID,
+    site: Site,
+    scope: DisciplineScope = UNRESTRICTED,
+) -> BoqGroup:
     """Spec §3.3 invariant 1: kalemin baglandigi grubun site_id'si kalemin
 
     site_id'si ile ayni olmali. Grup hic yoksa da (spec §5.5 IDOR-2) ayni 422
     ile karsilanir — varliginin gizli tutulmasi gerekmez, cunku site zaten
     gorunurluk suzgecinden gecmis; yalnizca ait olmadigi bir grup enjekte
     edilmesi engellenir.
+
+    DSC-B2 `scope`: kisitliya gorunmeyen (yabanci / eslenmemis) grup, olmayanla AYNI 422'yi
+    alir (Ü7).
     """
     group = await repository.get_group(session, group_id)
     if group is None or group.site_id != site.id:
+        raise BoqGroupSiteMismatchError(_GROUP_SITE_MISMATCH)
+    gorunur = await visible_group_set(session, scope, [group.id])
+    if gorunur is not None and group.id not in gorunur:
         raise BoqGroupSiteMismatchError(_GROUP_SITE_MISMATCH)
     return group
 
@@ -387,6 +428,11 @@ async def _ensure_code_unique(
 
     mesaj. IntegrityError → 409 handler'ı yarış durumu emniyet ağı olarak KALIR
     (DuplicateError deseni, `projects.service.create_employer` emsali).
+
+    DSC-B2 Ü7 İSTİSNASI (CEO kararı 2026-09-29, KABUL EDİLEN "poz kodu kâhini"): UQ
+    `uq_boq_items_site_code` şantiye düzeyindedir; kısıtlı kullanıcı başka disiplinin kodunu
+    girerse 409, olmayan kodu girerse 201 alır. YALNIZ kodun varlığı sızar (ad/tutar/kimlik
+    değil). Test: `test_b2_boq.py::test_kabul_edilen_kahin_*`.
     """
     existing = await repository.get_item_by_code(session, site_id, code, exclude_item_id)
     if existing is not None:
@@ -408,14 +454,18 @@ async def create_group(
 
 
 async def create_item(
-    session: AsyncSession, actor: User, site_id: uuid.UUID, data: BoqItemCreate
+    session: AsyncSession,
+    actor: User,
+    site_id: uuid.UUID,
+    data: BoqItemCreate,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> BoqItem:
     """Spec §5.5 IDOR-2: govdedeki `group_id` baska santiyenin grubu olabilir —
 
     yol parametresi `site_id` ile karsi karsiya konur, uyusmazlik 422 doner.
     """
     site, _ = await _visible_site(session, actor, site_id)
-    group = await _ensure_group_in_site(session, data.group_id, site)
+    group = await _ensure_group_in_site(session, data.group_id, site, scope)
     await _ensure_code_unique(session, site.id, data.code)
     item = BoqItem(
         site_id=site.id,
@@ -434,9 +484,13 @@ async def create_item(
 
 
 async def update_group(
-    session: AsyncSession, actor: User, group_id: uuid.UUID, data: BoqGroupUpdate
+    session: AsyncSession,
+    actor: User,
+    group_id: uuid.UUID,
+    data: BoqGroupUpdate,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> BoqGroup:
-    group, _ = await _visible_group(session, actor, group_id)
+    group, _ = await _visible_group(session, actor, group_id, scope)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(group, field, value)
     await session.flush()
@@ -445,17 +499,21 @@ async def update_group(
 
 
 async def update_item(
-    session: AsyncSession, actor: User, item_id: uuid.UUID, data: BoqItemUpdate
+    session: AsyncSession,
+    actor: User,
+    item_id: uuid.UUID,
+    data: BoqItemUpdate,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> BoqItem:
     """`group_id` verilirse spec §3.3 invariant 1/4 tekrar kontrol edilir
 
     (baska santiyenin grubuna tasima yasak); `code` degisirse §invariant 2
     tekrar kontrol edilir. `site_id` semada yok — tasima ucu kapali.
     """
-    item, site = await _visible_item(session, actor, item_id)
+    item, site = await _visible_item(session, actor, item_id, scope)
     updates = data.model_dump(exclude_unset=True)
     if "group_id" in updates:
-        await _ensure_group_in_site(session, updates["group_id"], site)
+        await _ensure_group_in_site(session, updates["group_id"], site, scope)
     if "code" in updates and updates["code"] != item.code:
         await _ensure_code_unique(session, site.id, updates["code"], exclude_item_id=item.id)
     if updates.get("quantity") is not None:
@@ -496,7 +554,12 @@ async def delete_group(session: AsyncSession, actor: User, group_id: uuid.UUID) 
     return name
 
 
-async def delete_item(session: AsyncSession, actor: User, item_id: uuid.UUID) -> tuple[str, str]:
+async def delete_item(
+    session: AsyncSession,
+    actor: User,
+    item_id: uuid.UUID,
+    scope: DisciplineScope = UNRESTRICTED,
+) -> tuple[str, str]:
     """Kalemi siler; denetim satiri icin (code, description) doner.
 
     Kimlik silmeden ONCE okunur — sonra okunursa satir yoktur (users/roles
@@ -514,7 +577,7 @@ async def delete_item(session: AsyncSession, actor: User, item_id: uuid.UUID) ->
     # korkuluk EKLENMEZ. Tahsis satiri kalemin bir ALT PARCASIDIR (grup->kalem
     # iliskisindeki gibi bagimsiz bir kayit degil); "once tahsisleri kaldir"
     # demek, kullaniciya anlamsiz bir ara adim dayatmak olurdu.
-    item, _ = await _visible_item(session, actor, item_id)
+    item, _ = await _visible_item(session, actor, item_id, scope)
     # 🔴 Borc #53: gunluk satirinin FK'si `ondelete="SET NULL"`dur — CASCADE
     # DEGIL. Tahsisin aksine gunluk satiri kalemin ALT PARCASI degildir; silme
     # onu yok etmez, BAGSIZ birakir ve o satir Hakedis Ozeti ile gunun detay
@@ -592,7 +655,11 @@ async def _resolve_sections(
 
 
 async def replace_allocations(
-    session: AsyncSession, actor: User, item_id: uuid.UUID, data: BoqItemAllocationsReplace
+    session: AsyncSession,
+    actor: User,
+    item_id: uuid.UUID,
+    data: BoqItemAllocationsReplace,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> BoqItemAllocationsResponse:
     """`PUT /boq/items/{item_id}/allocations` — pozun TÜM tahsislerini gövdeye eşitler.
 
@@ -614,7 +681,7 @@ async def replace_allocations(
     Boş dizi `[]` tüm tahsisleri kaldırır ve miktar tamamen "atanmamış"a döner —
     bu bir HATA DEĞİL geçerli bir istektir (K4).
     """
-    item, site = await _visible_item(session, actor, item_id)
+    item, site = await _visible_item(session, actor, item_id, scope)
     istenen = _assert_body_shape(data)
 
     locked = await repository.lock_item(session, item.id)
@@ -694,12 +761,9 @@ async def get_allocations(
     Tahsisi olmayan poz `allocations: []` ile **200** döner, 404 DEĞİL (K6):
     boş küme geçerli bir cevaptır ve PUT'un `[]` kabulüyle simetriktir.
     """
-    item, _ = await _visible_item(session, actor, item_id)
     # DSC-B1 (Ü7): baska disiplinin (ya da disiplinsiz) kalemi kisitliya "yok" ile AYNI 404
-    # govdesini alir — varligi sizmaz.
-    gorunur = await visible_item_set(session, scope, [item.id])
-    if gorunur is not None and item.id not in gorunur:
-        raise NotFoundError(_ITEM_MISSING)
+    # govdesini alir — `_visible_item(scope)` ic kontrolu.
+    item, _ = await _visible_item(session, actor, item_id, scope)
     satirlar = await repository.list_allocations_for_item(session, item.id)
     adlar = await sites_repository.section_names_by_ids(
         session, [row.section_id for row in satirlar]

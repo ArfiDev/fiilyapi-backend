@@ -96,6 +96,11 @@ class DisciplineProvider(Protocol):
         """`item` (BoqItem ya da alias'i) icin disiplin id'si (ya da NULL) SQL ifadesi."""
         ...
 
+    def group_discipline_expr(self, group: Any) -> ColumnElement[Any]:
+        """`group` (BoqGroup ya da alias'i) icin disiplin id'si (ya da NULL) SQL ifadesi —
+        kalem ifadesiyle AYNI R(site) alt sorgusunu kullanir (tek tanim)."""
+        ...
+
     def user_discipline_ids_subquery(self, user_id: uuid.UUID) -> ScalarSelect[Any] | Any:
         """`expr.in_(...)` icin kullanicinin atanmis disiplinleri (alt sorgu)."""
         ...
@@ -104,6 +109,12 @@ class DisciplineProvider(Protocol):
         self, session: AsyncSession, item_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, uuid.UUID | None]:
         """Kalem → disiplin (esleme yoksa None). Uygulama `item_discipline_expr`i KULLANMALI."""
+        ...
+
+    async def group_disciplines(
+        self, session: AsyncSession, group_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, uuid.UUID | None]:
+        """Grup → disiplin (esleme yoksa None). Uygulama `group_discipline_expr`i KULLANMALI."""
         ...
 
 
@@ -151,6 +162,13 @@ def item_discipline_expr(item: Any) -> ColumnElement[Any]:
     return _provider.item_discipline_expr(item)
 
 
+def group_discipline_expr(group: Any) -> ColumnElement[Any]:
+    """BOQ grubunun disiplini (SQL, tek tanim). Kayit yoksa `NULL` sabiti."""
+    if _provider is None:
+        return null()
+    return _provider.group_discipline_expr(group)
+
+
 def user_discipline_ids_subquery(user_id: uuid.UUID) -> Any:
     """`IN` icin atanmis disiplin alt sorgusu; kayit yoksa None. Yalniz KISITLI kullanici icin
     anlamlidir (atamasiz kullanici bos alt sorgu = hicbir sey gorunmez olurdu)."""
@@ -177,6 +195,22 @@ async def item_disciplines(
     for start in range(0, len(item_ids), ITEM_ID_CHUNK):
         result.update(
             await _provider.item_disciplines(session, item_ids[start : start + ITEM_ID_CHUNK])
+        )
+    return result
+
+
+async def group_disciplines(
+    session: AsyncSession, group_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, uuid.UUID | None]:
+    """Grup → disiplin toplu esleme (`item_disciplines` ile ayni sozlesme, ayni parcalama)."""
+    if not group_ids:
+        return {}
+    if _provider is None:
+        return {group_id: None for group_id in group_ids}
+    result: dict[uuid.UUID, uuid.UUID | None] = {}
+    for start in range(0, len(group_ids), ITEM_ID_CHUNK):
+        result.update(
+            await _provider.group_disciplines(session, group_ids[start : start + ITEM_ID_CHUNK])
         )
     return result
 
@@ -238,6 +272,18 @@ def item_visible_clause(scope: DisciplineScope, item: Any) -> ColumnElement[bool
     )
 
 
+def group_visible_clause(scope: DisciplineScope, group: Any) -> ColumnElement[bool]:
+    """Grup icin `item_visible_clause` esi (DSC-B2): kisitsizda `true`, kisitlida
+    `grup disiplini IN (kapsam)`. AYNI `ItemVisible` sarmalayicisi (kurucusu varlik
+    bagimsiz) → grup FROM'u kapsayan sorguda yoksa derleme `RuntimeError` verir.
+    🔴 `NOT IN` / `!=` YOK — eslenmemis grup kisitliya GORUNMEZ (fail-closed)."""
+    if not scope.is_restricted:
+        return ItemVisible(true(), group)
+    return ItemVisible(
+        group_discipline_expr(group).in_(sorted(scope.discipline_ids or (), key=str)), group
+    )
+
+
 def visible_item_ids(scope: DisciplineScope, item: Any) -> Select[Any]:
     """KENDI KENDINE YETEN alt sorgu: kapsamdaki kalemlerin id'leri (`select(item.id)`).
 
@@ -280,3 +326,16 @@ async def visible_item_set(
     disiplin = await item_disciplines(session, ids)
     izinli = scope.discipline_ids or frozenset()
     return {item_id for item_id, discipline_id in disiplin.items() if discipline_id in izinli}
+
+
+async def visible_group_set(
+    session: AsyncSession, scope: DisciplineScope, group_ids: Iterable[uuid.UUID]
+) -> set[uuid.UUID] | None:
+    """Verilen grup id'lerinden kapsamda GORUNENLER; kisitsizda `None` (= hepsi gorunur).
+    `visible_item_set` ile ayni tanim: eslenmemis grup hicbir kumeye uymaz (fail-closed)."""
+    if not scope.is_restricted:
+        return None
+    ids = list(dict.fromkeys(group_ids))
+    disiplin = await group_disciplines(session, ids)
+    izinli = scope.discipline_ids or frozenset()
+    return {group_id for group_id, discipline_id in disiplin.items() if discipline_id in izinli}

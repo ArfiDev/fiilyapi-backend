@@ -15,9 +15,15 @@ from tests._disiplin_dunyasi import Dunya, kur
 
 @pytest.fixture
 async def dunya(
-    seeded_db: AsyncSession, client: AsyncClient, user_factory, project_factory
+    request: pytest.FixtureRequest,
+    seeded_db: AsyncSession,
+    client: AsyncClient,
+    user_factory,
+    project_factory,
 ) -> Dunya:
-    return await kur(seeded_db, client, user_factory, project_factory)
+    """Modülde `YAZANLAR = True` varsa (B2) F1 yazan aktörleri de kurulur."""
+    yazanlar = bool(getattr(request.module, "YAZANLAR", False))
+    return await kur(seeded_db, client, user_factory, project_factory, yazanlar=yazanlar)
 
 
 @pytest.fixture
@@ -33,3 +39,23 @@ def civil(dunya: Dunya) -> dict[str, str]:
 @pytest.fixture
 def elek(dunya: Dunya) -> dict[str, str]:
     return dunya.baslik["elek"]
+
+
+@pytest.fixture
+def civil_yazar(dunya: Dunya) -> dict[str, str]:
+    return dunya.baslik["civil_yazar"]
+
+
+@pytest.fixture
+def elek_yazar(dunya: Dunya) -> dict[str, str]:
+    return dunya.baslik["elek_yazar"]
+
+
+@pytest.fixture
+def yazar_atamasiz(dunya: Dunya) -> dict[str, str]:
+    return dunya.baslik["yazar_atamasiz"]
+
+
+@pytest.fixture
+def admin_kisitli(dunya: Dunya) -> dict[str, str]:
+    return dunya.baslik["admin_kisitli"]

@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import discipline_scope as port
 from app.core.discipline_scope import DisciplineScope
-from app.modules.boq.models import BoqItem
+from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.earned_value.models import (
     EvGroupDiscipline,
     EvRevision,
@@ -34,32 +34,43 @@ from app.modules.earned_value.models import (
 )
 
 
-def _visibility_revision(item: Any) -> ColumnElement[Any]:
-    """R(site): kalemin santiyesinin aktif revizyonu, yoksa taslagi (arsiv yok sayilir)."""
+def _visibility_revision(site_id_col: Any, correlate: Any) -> ColumnElement[Any]:
+    """R(site): santiyenin aktif revizyonu, yoksa taslagi (arsiv yok sayilir)."""
     return (
         select(EvRevision.id)
         .where(
-            EvRevision.site_id == item.site_id,
+            EvRevision.site_id == site_id_col,
             EvRevision.status.in_([RevisionStatus.ACTIVE, RevisionStatus.DRAFT]),
         )
         .order_by(case((EvRevision.status == RevisionStatus.ACTIVE, 0), else_=1))
         .limit(1)
-        .correlate(item)
+        .correlate(correlate)
+        .scalar_subquery()
+    )
+
+
+def _discipline_of(group_id_col: Any, site_id_col: Any, correlate: Any) -> ColumnElement[Any]:
+    """TEK SQL TANIMI: (grup kimligi, santiye kimligi) → R(site) revizyonundaki disiplin.
+    Kalem ve grup ifadeleri AYNI alt sorguyu cagirir; ayrisamazlar."""
+    return (
+        select(EvGroupDiscipline.discipline_id)
+        .where(
+            EvGroupDiscipline.boq_group_id == group_id_col,
+            EvGroupDiscipline.revision_id == _visibility_revision(site_id_col, correlate),
+        )
+        .correlate(correlate)
         .scalar_subquery()
     )
 
 
 def item_discipline_expr(item: Any) -> ColumnElement[Any]:
     """Kalemin disiplini (SQL, TEK TANIM): eslenmemis grup / revizyonsuz santiye → NULL."""
-    return (
-        select(EvGroupDiscipline.discipline_id)
-        .where(
-            EvGroupDiscipline.boq_group_id == item.group_id,
-            EvGroupDiscipline.revision_id == _visibility_revision(item),
-        )
-        .correlate(item)
-        .scalar_subquery()
-    )
+    return _discipline_of(item.group_id, item.site_id, item)
+
+
+def group_discipline_expr(group: Any) -> ColumnElement[Any]:
+    """Grubun disiplini: kalem ifadesiyle AYNI tanim (`_discipline_of`)."""
+    return _discipline_of(group.id, group.site_id, group)
 
 
 class EvDisciplineProvider:
@@ -74,6 +85,9 @@ class EvDisciplineProvider:
     def item_discipline_expr(self, item: Any) -> ColumnElement[Any]:
         return item_discipline_expr(item)
 
+    def group_discipline_expr(self, group: Any) -> ColumnElement[Any]:
+        return group_discipline_expr(group)
+
     def user_discipline_ids_subquery(self, user_id: uuid.UUID) -> Any:
         return select(UserDiscipline.discipline_id).where(UserDiscipline.user_id == user_id)
 
@@ -85,6 +99,17 @@ class EvDisciplineProvider:
         )
         found = {item_id: discipline_id for item_id, discipline_id in rows.all()}
         return {item_id: found.get(item_id) for item_id in item_ids}
+
+    async def group_disciplines(
+        self, session: AsyncSession, group_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, uuid.UUID | None]:
+        rows = await session.execute(
+            select(BoqGroup.id, self.group_discipline_expr(BoqGroup)).where(
+                BoqGroup.id.in_(group_ids)
+            )
+        )
+        found = {group_id: discipline_id for group_id, discipline_id in rows.all()}
+        return {group_id: found.get(group_id) for group_id in group_ids}
 
 
 PROVIDER = EvDisciplineProvider()

@@ -19,7 +19,7 @@ from sqlalchemy.orm import aliased
 import app.main  # noqa: F401 — EV saglayicisini porta kaydeder
 from app.core import discipline_scope as port
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
-from app.modules.boq.models import BoqItem
+from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.site_diary.models import SiteDiaryEntry, SiteDiaryLine
 
 DIALECT = postgresql.dialect()
@@ -54,6 +54,22 @@ def _mesru_kaliplar(scope: DisciplineScope) -> dict[str, object]:
         "item_fk_conditions": select(SiteDiaryLine.code).where(
             *port.item_fk_conditions(scope, SiteDiaryLine.boq_item_id, BoqItem)
         ),
+        **_grup_kaliplari(scope),
+    }
+
+
+def _grup_kaliplari(scope: DisciplineScope) -> dict[str, object]:
+    """DSC-B2: `group_visible_clause` aynı sarmalayıcıdır; grup kalıpları da derlenir."""
+    gvis = port.group_visible_clause
+    return {
+        "grup_orm_varlik": select(BoqGroup).where(gvis(scope, BoqGroup)),
+        "grup_kolon_olarak": select(BoqGroup.id, gvis(scope, BoqGroup)),
+        "grup_exists_dis_gruba_korele": select(BoqGroup.id).where(
+            exists().where(BoqItem.group_id == BoqGroup.id, gvis(scope, BoqGroup))
+        ),
+        "grup_exists_ic_from": select(BoqItem.id).where(
+            exists().where(BoqGroup.id == BoqItem.group_id, gvis(scope, BoqGroup))
+        ),
     }
 
 
@@ -68,6 +84,10 @@ def _mesru_kaliplar(scope: DisciplineScope) -> dict[str, object]:
         "visible_item_ids_kalibi",
         "subquery_c",
         "item_fk_conditions",
+        "grup_orm_varlik",
+        "grup_kolon_olarak",
+        "grup_exists_dis_gruba_korele",
+        "grup_exists_ic_from",
     ],
 )
 def test_mesru_kalip_derlenir(scope: DisciplineScope, ad: str) -> None:
@@ -87,12 +107,29 @@ def _hatali_kaliplar(scope: DisciplineScope) -> dict[str, object]:
         "exists_icinde_kalem_yok": select(SiteDiaryEntry.id).where(
             exists().where(SiteDiaryLine.entry_id == SiteDiaryEntry.id, vis(scope, BoqItem))
         ),
+        "grup_from_da_yok": select(BoqItem.id).where(port.group_visible_clause(scope, BoqGroup)),
+        "grup_yanlis_alias": select(BoqGroup.id).where(
+            port.group_visible_clause(scope, aliased(BoqGroup))
+        ),
+        "grup_union_all_grupsuz_dal": union_all(
+            select(BoqGroup.id).where(port.group_visible_clause(scope, BoqGroup)),
+            select(BoqItem.id).where(port.group_visible_clause(scope, BoqGroup)),
+        ),
     }
 
 
 @KAPSAMLAR
 @pytest.mark.parametrize(
-    "ad", ["kalem_from_da_yok", "union_all_kalemsiz_dal", "yanlis_alias", "exists_icinde_kalem_yok"]
+    "ad",
+    [
+        "kalem_from_da_yok",
+        "union_all_kalemsiz_dal",
+        "yanlis_alias",
+        "exists_icinde_kalem_yok",
+        "grup_from_da_yok",
+        "grup_yanlis_alias",
+        "grup_union_all_grupsuz_dal",
+    ],
 )
 def test_hatali_kalip_derleme_hatasi_verir(scope: DisciplineScope, ad: str) -> None:
     with pytest.raises(RuntimeError, match="ItemVisible"):
@@ -104,6 +141,13 @@ def test_kisitsiz_sql_yalniz_true_uretir() -> None:
     sql = _derle(select(BoqItem.id).where(port.item_visible_clause(UNRESTRICTED, BoqItem)))
     assert sql.split("WHERE")[1].strip() == "true"
     assert "ev_group_disciplines" not in sql
+
+
+def test_grup_kisitsiz_sql_yalniz_true_kisitli_in_uretir() -> None:
+    sql = _derle(select(BoqGroup.id).where(port.group_visible_clause(UNRESTRICTED, BoqGroup)))
+    assert sql.split("WHERE")[1].strip() == "true"
+    sql = _derle(select(BoqGroup.id).where(port.group_visible_clause(KISITLI, BoqGroup)))
+    assert " IN (" in sql and "ev_group_disciplines" in sql
 
 
 def test_kisitli_sql_in_uretir() -> None:
@@ -151,7 +195,7 @@ _IZINLI = {
     _APP / "core" / "discipline_scope.py",
     _APP / "modules" / "earned_value" / "discipline_adapter.py",
 }
-_YASAK_ADLAR = ("item_discipline_expr", "user_discipline_ids_subquery")
+_YASAK_ADLAR = ("item_discipline_expr", "group_discipline_expr", "user_discipline_ids_subquery")
 
 
 def _ad(dugum: ast.AST) -> str | None:
@@ -193,6 +237,8 @@ def test_item_discipline_expr_port_disindan_cagrilamaz() -> None:
         "from app.core.discipline_scope import item_discipline_expr",
         "x = port.user_discipline_ids_subquery(uid)",
         "from app.core.discipline_scope import user_discipline_ids_subquery",
+        "x = port.group_discipline_expr(BoqGroup).in_(ids)",
+        "from app.core.discipline_scope import group_discipline_expr",
     ],
 )
 def test_ast_bekcisi_ihlali_yakalar(kaynak: str) -> None:

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import day_hooks
 from app.core.access import AccessLevel, can_delete
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.errors import (
     ConflictError,
     DeleteNotAllowedError,
@@ -304,7 +305,11 @@ async def update(
 
 
 async def save_lines(
-    session: AsyncSession, actor: User, entry_id: uuid.UUID, data: SiteDiaryLinesSave
+    session: AsyncSession,
+    actor: User,
+    entry_id: uuid.UUID,
+    data: SiteDiaryLinesSave,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> tuple[EntryContext, int]:
     """`PUT /diary/{entry_id}/lines` — DEĞİŞTİRME semantiği (gövde ekranın TAMAMI).
 
@@ -317,14 +322,23 @@ async def save_lines(
     kapısını TOCTOU ile atlatır, gönderilmiş kayda satır yazılabilirdi.
 
     İkinci öğe: gövdeden adreslenemediği için düşen bağı-kopmuş satır sayısı.
+
+    DSC-B2 `scope`: kısıtsızda bugünkü yol AYNEN (`apply_lines`). Kısıtlıda gövde yalnız
+    görünür satırları değiştirir (`lines.apply_lines_scoped`, BİRLEŞTİRME): gizli satırlar
+    korunur ve düşen sayısı 0'dır. Kilit (`FOR UPDATE`) iki yolda da aynıdır; kısıtlı+kısıtsız
+    eşzamanlı yazımda kısıtsızın TAM DEĞİŞTİRMESİ "son yazan kazanır" (S7, dokümante karar):
+    kilit yazmaları serileştirir, ama kısıtsız gövde kısıtlının satırını içermiyorsa siler.
     """
     context = await visible_entry_locked(session, actor, entry_id)
     await assert_entry_days_unlocked(session, context.entry)
     if context.entry.status != DiaryStatus.draft:
         raise ConflictError(guards.ENTRY_NOT_EDITABLE)
 
-    lines.assert_current_line_client(context.entry, data.lines)
-    dropped = await lines.apply_lines(session, context.entry, data.lines)
+    if scope.is_restricted:
+        dropped = await lines.apply_lines_scoped(session, context.entry, data.lines, scope)
+    else:
+        lines.assert_current_line_client(context.entry, data.lines)
+        dropped = await lines.apply_lines(session, context.entry, data.lines)
     await session.refresh(context.entry)
     return context, dropped
 

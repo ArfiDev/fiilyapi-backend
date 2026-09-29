@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import DisciplineScoped
+from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.errors import SiteValidationError
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -144,6 +144,7 @@ async def create_site_diary_entry_endpoint(
     data: SiteDiaryEntryCreate,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SiteDiaryEntryDetail:
     """Satır iskeleti şantiyenin BOQ pozlarından OTOMATİK üretilir; gövdede satır YOK.
 
@@ -151,6 +152,8 @@ async def create_site_diary_entry_endpoint(
     Yanıt `read.build_detail`den gelir — `get_detail` çağrılsaydı kapsam sorgusu
     istek başına İKİ KEZ koşardı.
     """
+    # DSC-B2 (S5): kısıtlı kullanıcı günlük OLUŞTURABİLİR — iskelet TÜM kalemler için açılır,
+    # yanıt ve audit satır sayısı süzülür (görünür satır sayısı).
     context = await service.create(session, user, site_id, data)
     await record_audit(
         session,
@@ -159,12 +162,12 @@ async def create_site_diary_entry_endpoint(
             context.project.name,
             context.site.name,
             context.entry.entry_date,
-            len(context.entry.lines),
+            await read.visible_line_count(session, context.entry, scope),
         ),
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )
-    return await read.build_detail(session, context)
+    return await read.build_detail(session, context, scope=scope)
 
 
 @router.patch("/diary/{entry_id}", response_model=SiteDiaryEntryDetail, dependencies=[_FULL])
@@ -174,6 +177,7 @@ async def update_site_diary_entry_endpoint(
     data: SiteDiaryEntryUpdate,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SiteDiaryEntryDetail:
     """Yalnız `status=draft`; gönderilmiş kayda YAZMA YASAK (409). Kesin karar
     `service.update`tedir — kural burada TEKRARLANMAZ."""
@@ -187,7 +191,7 @@ async def update_site_diary_entry_endpoint(
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )
-    return await read.build_detail(session, context)
+    return await read.build_detail(session, context, scope=scope)
 
 
 @router.put("/diary/{entry_id}/lines", response_model=SiteDiaryEntryDetail, dependencies=[_FULL])
@@ -197,6 +201,7 @@ async def save_site_diary_lines_endpoint(
     data: SiteDiaryLinesSave,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SiteDiaryEntryDetail:
     """GK'nin miktar girişi — **DEĞİŞTİRME** semantiği.
 
@@ -208,7 +213,10 @@ async def save_site_diary_lines_endpoint(
     `dropped_orphan_count` alanında BİLDİRİLİR (sessiz atlama yok). Kesin
     kararlar `service.save_lines` + `lines.apply_lines`tadır.
     """
-    context, dropped_orphan_count = await service.save_lines(session, user, entry_id, data)
+    # DSC-B2: kısıtlı kullanıcıda gövde yalnız GÖRÜNÜR satırları değiştirir (birleştirme,
+    # `lines.apply_lines_scoped`); gizli satırlar korunur, `dropped_orphan_count` 0'dır, audit
+    # satır sayısı gövdedeki satır sayısıdır, yanıt süzülmüş görünümdür.
+    context, dropped_orphan_count = await service.save_lines(session, user, entry_id, data, scope)
     await record_audit(
         session,
         action=AuditAction.update,
@@ -216,16 +224,20 @@ async def save_site_diary_lines_endpoint(
             context.project.name,
             context.site.name,
             context.entry.entry_date,
-            len(context.entry.lines),
+            len(data.lines) if scope.is_restricted else len(context.entry.lines),
         ),
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )
-    detail = await read.build_detail(session, context)
+    detail = await read.build_detail(session, context, scope=scope)
     return detail.model_copy(update={"dropped_orphan_count": dropped_orphan_count})
 
 
-@router.delete("/diary/{entry_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_FULL])
+@router.delete(
+    "/diary/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[_FULL, RequireUnrestricted],
+)
 async def delete_site_diary_entry_endpoint(
     request: Request,
     entry_id: uuid.UUID,
@@ -236,6 +248,7 @@ async def delete_site_diary_entry_endpoint(
     admin kapısı olsaydı taslağı üreten şef/saha rollerinin KENDİ taslağını
     silme istisnası (`can_delete`) ölü kural olurdu. Kesin karar
     `service.delete_entry`tedir."""
+    # DSC-B2 (Ü5): günü silmek yalnız kısıtsız kullanıcıya (403).
     summary = await service.delete_entry(session, user, entry_id)
     await record_audit(
         session,

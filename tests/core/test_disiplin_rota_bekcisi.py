@@ -46,7 +46,7 @@ import typing
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute, iter_route_contexts
 
-from app.core.discipline_deps import resolve_discipline_scope
+from app.core.discipline_deps import require_unrestricted, resolve_discipline_scope
 from app.main import app
 
 Rota = tuple[str, str]
@@ -158,6 +158,44 @@ def _isaretli(dependant: Dependant, gorulen: set[int] | None = None) -> bool:
     return any(_isaretli(alt, gorulen) for alt in dependant.dependencies)
 
 
+def _bagimlilik_agacinda(
+    dependant: Dependant, hedef: object, gorulen: set[int] | None = None
+) -> bool:
+    gorulen = gorulen if gorulen is not None else set()
+    if id(dependant) in gorulen:
+        return False
+    gorulen.add(id(dependant))
+    if dependant.call is hedef:
+        return True
+    return any(_bagimlilik_agacinda(alt, hedef, gorulen) for alt in dependant.dependencies)
+
+
+#: DSC-B2 Ü6/Ü5: kısıtlıya 403 veren (`RequireUnrestricted`) rotalar. Her biri bağımlılık
+#: ağacında `require_unrestricted` taşımalı; A2 (EV) kendi Ü6 rotalarını buraya EKLER.
+U6_ROTALARI: frozenset[Rota] = frozenset(
+    {
+        ("POST", "/sites/{site_id}/boq/groups"),
+        ("DELETE", "/boq/groups/{group_id}"),
+        ("DELETE", "/diary/{entry_id}"),
+        ("POST", "/earned-value/catalog"),
+        ("PATCH", "/earned-value/catalog/{item_id}"),
+        ("POST", "/earned-value/catalog/{item_id}/adopt-actual"),
+        ("POST", "/earned-value/disciplines"),
+        ("DELETE", "/earned-value/disciplines/{discipline_id}"),
+        ("PATCH", "/earned-value/disciplines/{discipline_id}"),
+        ("PUT", "/sites/{site_id}/earned-value/budget/distributions"),
+        ("POST", "/sites/{site_id}/earned-value/budget/fill-from-catalog"),
+        ("POST", "/sites/{site_id}/earned-value/budget/freeze"),
+        ("PUT", "/sites/{site_id}/earned-value/budget/group-disciplines"),
+        ("POST", "/sites/{site_id}/earned-value/budget/revisions"),
+        ("DELETE", "/sites/{site_id}/earned-value/budget/revisions/{revision_id}"),
+        ("PUT", "/sites/{site_id}/earned-value/budget/windows"),
+        ("POST", "/sites/{site_id}/earned-value/days/{day}/unlock"),
+        ("POST", "/sites/{site_id}/earned-value/reports/daily/{day}/approve"),
+    }
+)
+
+
 def isaretli_rotalar() -> set[Rota]:
     sonuc: set[Rota] = set()
     for ctx in iter_route_contexts(app.routes):
@@ -178,38 +216,7 @@ IZIN_LISTESI: dict[Rota, str] = {
     ("GET", "/sites/{site_id}/stock"): "DSC-B4",
     ("GET", "/stock/summary"): "DSC-B4",
     ("GET", "/subcontractor-contracts/{contract_id}/progress-payments/diary-suggestion"): "DSC-B5",
-    ("DELETE", "/boq/groups/{group_id}"): "DSC-B2",
-    ("PATCH", "/boq/groups/{group_id}"): "DSC-B2",
-    ("DELETE", "/boq/items/{item_id}"): "DSC-B2",
-    ("PATCH", "/boq/items/{item_id}"): "DSC-B2",
-    ("PUT", "/boq/items/{item_id}/allocations"): "DSC-B2",
-    ("DELETE", "/diary/{entry_id}"): "DSC-B2",
-    ("PATCH", "/diary/{entry_id}"): "DSC-B2",
-    ("PUT", "/diary/{entry_id}/lines"): "DSC-B2",
-    ("POST", "/diary/{entry_id}/reopen"): "DSC-B2",
-    ("POST", "/diary/{entry_id}/submit"): "DSC-B2",
-    ("POST", "/earned-value/catalog"): "DSC-B2",
-    ("PATCH", "/earned-value/catalog/{item_id}"): "DSC-B2",
-    ("POST", "/earned-value/catalog/{item_id}/adopt-actual"): "DSC-B2",
-    ("POST", "/earned-value/disciplines"): "DSC-B2",
-    ("DELETE", "/earned-value/disciplines/{discipline_id}"): "DSC-B2",
-    ("PATCH", "/earned-value/disciplines/{discipline_id}"): "DSC-B2",
-    ("POST", "/sites/{site_id}/boq/groups"): "DSC-B2",
-    ("POST", "/sites/{site_id}/boq/items"): "DSC-B2",
-    ("POST", "/sites/{site_id}/diary"): "DSC-B2",
-    ("PUT", "/sites/{site_id}/earned-value/budget/distributions"): "DSC-B2",
-    ("POST", "/sites/{site_id}/earned-value/budget/fill-from-catalog"): "DSC-B2",
-    ("POST", "/sites/{site_id}/earned-value/budget/freeze"): "DSC-B2",
-    ("PUT", "/sites/{site_id}/earned-value/budget/group-disciplines"): "DSC-B2",
-    ("PATCH", "/sites/{site_id}/earned-value/budget/items/{boq_item_id}"): "DSC-B2",
-    ("PATCH", "/sites/{site_id}/earned-value/budget/leaves"): "DSC-B2",
     ("POST", "/sites/{site_id}/earned-value/budget/preview"): "DSC-B3",
-    ("POST", "/sites/{site_id}/earned-value/budget/revisions"): "DSC-B2",
-    ("DELETE", "/sites/{site_id}/earned-value/budget/revisions/{revision_id}"): "DSC-B2",
-    ("PUT", "/sites/{site_id}/earned-value/budget/windows"): "DSC-B2",
-    ("PUT", "/sites/{site_id}/earned-value/days/{day}/allocation"): "DSC-B2",
-    ("POST", "/sites/{site_id}/earned-value/days/{day}/unlock"): "DSC-B2",
-    ("POST", "/sites/{site_id}/earned-value/reports/daily/{day}/approve"): "DSC-B2",
     ("GET", "/sites/{site_id}/earned-value/panel"): "DSC-B3",
     ("GET", "/sites/{site_id}/earned-value/reports/daily"): "DSC-B3",
     ("GET", "/sites/{site_id}/earned-value/reports/weekly"): "DSC-B3",
@@ -312,6 +319,28 @@ def test_izin_listesi_etiketi_duyarli_rota_hedef_dilimine_esittir() -> None:
         r: (IZIN_LISTESI[r], duyarli[r]) for r in IZIN_LISTESI if IZIN_LISTESI[r] != duyarli[r]
     }
     assert not farkli, f"izin listesi etiketi != sınıflandırıcı hedefi: {farkli}"
+
+
+def test_u6_rotalari_require_unrestricted_tasir_ve_isaretli_sayilir() -> None:
+    """🔴 Ü6 rotası `require_unrestricted` bağımlılığını KAYBEDERSE (kısıtlı kullanıcı yapısal
+    işlemi yapabilir) kırmızı. Alt bağımlılık `DisciplineScoped`ı çözdüğü için rota aynı zamanda
+    süzülmüş (işaretli) sayılır; imzada `scope` parametresi olmadığından "gövdede kullanılır"
+    kuralı bu rotaları kendiliğinden atlar."""
+    bulunan: set[Rota] = set()
+    isaretli = isaretli_rotalar()
+    for ctx in iter_route_contexts(app.routes):
+        if not isinstance(ctx.original_route, APIRoute):
+            continue
+        dependant = ctx.dependant or ctx.original_route.dependant
+        for yontem in ctx.methods:
+            rota = (yontem, ctx.path)
+            if rota not in U6_ROTALARI:
+                continue
+            bulunan.add(rota)
+            assert _bagimlilik_agacinda(dependant, require_unrestricted), rota
+            assert rota in isaretli, rota
+            assert not _isaretli_parametreler(ctx.original_route.endpoint), rota
+    assert bulunan == set(U6_ROTALARI), f"bayat/eksik Ü6 rotası: {set(U6_ROTALARI) - bulunan}"
 
 
 def _isaretli_parametreler(fonksiyon) -> list[str]:  # noqa: ANN001

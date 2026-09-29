@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import RequireUnrestricted
 from app.core.errors import ConflictError, NotFoundError
 from app.core.http import content_disposition
 from app.core.openapi import COMMON_ERROR_RESPONSES
@@ -97,7 +98,7 @@ async def get_daily_report(
 @router.post(
     f"{_BASE}/daily/{{day}}/approve",
     response_model=ApprovalResult,
-    dependencies=[APPROVE],
+    dependencies=[APPROVE, RequireUnrestricted],
     responses=_APPROVE_409,
 )
 async def approve_daily_report(

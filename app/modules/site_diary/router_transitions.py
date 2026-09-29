@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, Request
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.core.ratelimit import client_ip
@@ -43,6 +44,7 @@ async def submit_site_diary_entry_endpoint(
     entry_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SiteDiaryEntryDetail:
     """`draft → submitted` + `submitted_at` damgası (E7'nin "Gönder" butonu).
 
@@ -60,7 +62,7 @@ async def submit_site_diary_entry_endpoint(
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )
-    return await read.build_detail(session, context)
+    return await read.build_detail(session, context, scope=scope)
 
 
 @router.post("/diary/{entry_id}/reopen", response_model=SiteDiaryEntryDetail, dependencies=[_ADMIN])
@@ -69,6 +71,7 @@ async def reopen_site_diary_entry_endpoint(
     entry_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SiteDiaryEntryDetail:
     """`submitted → draft` (yanlış gönderim düzeltmesi) — YALNIZ `admin`.
 
@@ -86,4 +89,4 @@ async def reopen_site_diary_entry_endpoint(
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )
-    return await read.build_detail(session, context)
+    return await read.build_detail(session, context, scope=scope)

@@ -253,14 +253,27 @@ async def patch_item(
     actor: User,
     item_id: uuid.UUID,
     changes: dict[str, object],
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> BoqItem:
-    """Is tipi ayari (K3). `contractor_type=None` → disiplin varsayilanina DON (miras)."""
+    """Is tipi ayari (K3). `contractor_type=None` → disiplin varsayilanina DON (miras).
+
+    KISITLI (DSC-B2): kalem BUDANMIS agacta aranir; yoksa bugunku "yok" 404 govdesi (Ü7). S1:
+    kapsam disi disiplinin katalog kalemi govdede → 404 `CATALOG_ITEM_MISSING` (bugunku "yok"
+    yaniti); kisitsizda birebir bugunku."""
     item = await session.get(BoqItem, item_id)
     if item is None or item.site_id != ctx.site.id:
         raise NotFoundError(guards.BOQ_ITEM_FOREIGN)
+    if scope.is_restricted:
+        state = await load_state(session, ctx, scope=scope)
+        if item_id not in set(item_ids(state.tree)):
+            raise NotFoundError(guards.BOQ_ITEM_FOREIGN)
     catalog_id = changes.get("catalog_item_id")
-    if catalog_id is not None and await session.get(EvCatalogItem, catalog_id) is None:
-        raise NotFoundError(guards.CATALOG_ITEM_MISSING)
+    if catalog_id is not None:
+        catalog = await session.get(EvCatalogItem, catalog_id)
+        if catalog is None or (
+            scope.is_restricted and catalog.discipline_id not in (scope.discipline_ids or ())
+        ):
+            raise NotFoundError(guards.CATALOG_ITEM_MISSING)
     draft = await _draft_for_write(session, ctx, actor)
     row = await session.get(EvItemSettings, (draft.id, item_id))
     if row is None:
@@ -298,10 +311,15 @@ def _normalize_rate(fields: dict[str, object]) -> dict[str, object]:
 
 
 async def patch_leaves(
-    session: AsyncSession, ctx: SiteContext, actor: User, changes: list[LeafChange]
+    session: AsyncSession,
+    ctx: SiteContext,
+    actor: User,
+    changes: list[LeafChange],
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> int:
-    """Tekil ya da toplu yaprak yazmasi (oran, kaynak, own/subcon ve dogrudan ezmeleri)."""
-    state = await load_state(session, ctx)
+    """Tekil ya da toplu yaprak yazmasi (oran, kaynak, own/subcon ve dogrudan ezmeleri).
+    Kisitlida gorunmeyen yaprak → olmayanla ayni 422 `LEAF_MISSING` (Ü7)."""
+    state = await load_state(session, ctx, scope=scope)
     live: set[LeafKey] = {(lf.item_id, lf.section_id) for *_, lf in state.tree.leaves()}
     for ch in changes:
         if (ch.item_id, ch.section_id) not in live:
