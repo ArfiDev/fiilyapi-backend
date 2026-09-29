@@ -37,7 +37,9 @@ MISSING_GROUP_NAME = "—"
 
 async def load_leaves(session: AsyncSession, revision_id: uuid.UUID) -> list[EvBaselineLeaf]:
     rows = await session.execute(
-        select(EvBaselineLeaf).where(EvBaselineLeaf.revision_id == revision_id)
+        select(EvBaselineLeaf)
+        .where(EvBaselineLeaf.revision_id == revision_id)
+        .order_by(EvBaselineLeaf.boq_item_id, EvBaselineLeaf.section_id)
     )
     return list(rows.scalars())
 
@@ -50,7 +52,9 @@ async def load_curves(
     if not by_id:
         return {}
     rows = await session.execute(
-        select(EvBaselineCurve).where(EvBaselineCurve.leaf_id.in_(list(by_id)))
+        select(EvBaselineCurve)
+        .where(EvBaselineCurve.leaf_id.in_(list(by_id)))
+        .order_by(EvBaselineCurve.leaf_id, EvBaselineCurve.day)
     )
     out: dict[str, dict[date, Decimal]] = {}
     for r in rows.scalars():

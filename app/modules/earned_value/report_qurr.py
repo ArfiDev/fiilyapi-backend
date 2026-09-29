@@ -339,9 +339,18 @@ def composite_value(
     )
 
 
+def composite_hidden(
+    site: SiteInput, numerator_item_ids: Iterable[uuid.UUID], denominator_item_id: uuid.UUID
+) -> bool:
+    """S3: pay/payda terimlerinden biri tam agacta var ama kapsama gorunmuyor (kisitsizda False)."""
+    return bool(site.hidden_items.intersection([*numerator_item_ids, denominator_item_id]))
+
+
 def composite_cards(site: SiteInput, report: DailyReport, metrics) -> list[CompositeCard]:  # noqa: ANN001
     cards = []
     for cm in metrics:
+        if composite_hidden(site, cm.numerator_item_ids, cm.denominator_item_id):
+            continue  # S3: gorunmeyen terimli kart kisitliya DUSER
         v = composite_value(site, report, cm.measure, cm.numerator_item_ids, cm.denominator_item_id)
         cards.append(
             CompositeCard(

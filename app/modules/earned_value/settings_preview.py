@@ -12,6 +12,7 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.modules.earned_value import settings_service
 from app.modules.earned_value.engine import RowKind, compute_daily_report, variance_points
 from app.modules.earned_value.ev_input import build_site_input
@@ -19,8 +20,10 @@ from app.modules.earned_value.report_qurr import composite_cards, composite_valu
 from app.modules.earned_value.schemas_reports import CompositeValueOut, SettingsPreview
 
 
-async def preview(session: AsyncSession, site_id: uuid.UUID, day: date) -> SettingsPreview:
-    site = await build_site_input(session, site_id, day)
+async def preview(
+    session: AsyncSession, site_id: uuid.UUID, day: date, scope: DisciplineScope = UNRESTRICTED
+) -> SettingsPreview:
+    site = await build_site_input(session, site_id, day, scope)
     settings = await settings_service.get_settings(session, site_id)
     if site is None:
         return SettingsPreview(
@@ -67,8 +70,10 @@ async def composite_preview(
     measure: str,
     numerator_item_ids: list[uuid.UUID],
     denominator_item_id: uuid.UUID,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> CompositeValueOut:
-    site = await build_site_input(session, site_id, day)
+    # Ü7: yabanci kalem budanmis agacta yok → "baseline'da yok" ile ayni yanit
+    site = await build_site_input(session, site_id, day, scope)
     if site is None:
         return CompositeValueOut(unit=None, actual=None, planned=None, deviation=None)
     report = compute_daily_report(site.inp, day)

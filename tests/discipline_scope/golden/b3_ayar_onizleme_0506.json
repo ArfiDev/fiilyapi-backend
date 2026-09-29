@@ -1,0 +1,73 @@
+{
+  "body": {
+    "composites": [
+      {
+        "actual": "0.50",
+        "denominator_name": "Beton",
+        "deviation": "-0.75",
+        "id": "<bilesik:C1>",
+        "measure": "spent",
+        "name": "C1 Beton harcanan",
+        "numerator_names": [
+          "Beton"
+        ],
+        "planned": "2.0000",
+        "unit": "m3"
+      },
+      {
+        "actual": "2.2500",
+        "denominator_name": "Beton",
+        "deviation": "0",
+        "id": "<bilesik:C2>",
+        "measure": "earned",
+        "name": "C2 Karma kazanilan",
+        "numerator_names": [
+          "Beton",
+          "Tuğla"
+        ],
+        "planned": "2.2500",
+        "unit": "m3"
+      },
+      {
+        "actual": "5.0000000",
+        "denominator_name": "Tuğla",
+        "deviation": "9.000",
+        "id": "<bilesik:C3>",
+        "measure": "budget",
+        "name": "C3 Tugla butce",
+        "numerator_names": [
+          "Tuğla"
+        ],
+        "planned": "0.5000",
+        "unit": "m2"
+      },
+      {
+        "actual": "0",
+        "denominator_name": "Boya",
+        "deviation": null,
+        "id": "<bilesik:C4>",
+        "measure": "spent",
+        "name": "C4 Boya harcanan",
+        "numerator_names": [
+          "Boya"
+        ],
+        "planned": "0",
+        "unit": "m2"
+      }
+    ],
+    "day": "2026-05-06",
+    "day_no": 3,
+    "has_baseline": true,
+    "pf_day": null,
+    "pf_day_band": null,
+    "pf_week": "2.50",
+    "pf_week_band": "green",
+    "status": "late",
+    "variance": "-0.0873518",
+    "variance_points": "-8.7",
+    "week_end": "2026-05-10",
+    "week_no": 1,
+    "week_start": "2026-05-04"
+  },
+  "status": 200
+}

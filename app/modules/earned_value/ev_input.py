@@ -19,9 +19,11 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, visible_item_set
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import settings_service
 from app.modules.earned_value.budget_engine import calendar_bounds, to_engine_nodes
+from app.modules.earned_value.budget_scope import item_ids, node_ids, prune_tree
 from app.modules.earned_value.budget_snapshot import frozen_tree, load_curves, load_leaves
 from app.modules.earned_value.budget_tree import BudgetTree, leaf_node_id
 from app.modules.earned_value.engine import (
@@ -53,6 +55,9 @@ class SiteInput:
     diary_status: dict[date, DiaryStatus]  # gun → gunluk durumu (taslak/gonderildi)
     last_entry_day: date | None  # son miktar/saat girisi olan gun
     unknown_lines: list[tuple[date, uuid.UUID, uuid.UUID | None]] = field(default_factory=list)
+    #: DSC-B3 (S3): tam agacta VAR ama kapsama gorunmeyen kalemler (kisitsizda bos) — kayitli
+    #: pacal kart bunlardan birine dokunuyorsa KART DUSER (sessiz atlama yarim suzmedir).
+    hidden_items: frozenset[uuid.UUID] = frozenset()
 
 
 async def _diaries(session: AsyncSession, site_id: uuid.UUID) -> dict[date, SiteDiaryEntry]:
@@ -114,18 +119,38 @@ def bands_of(settings) -> tuple[PfBands, PfBands]:  # noqa: ANN001
     )
 
 
+async def _visible_unknown(
+    session: AsyncSession,
+    scope: DisciplineScope,
+    unknown: list[tuple[date, uuid.UUID, uuid.UUID | None]],
+) -> list[tuple[date, uuid.UUID, uuid.UUID | None]]:
+    """Bilinmeyen satirlardan yalniz kapsamdaki KALEMLERE ait olanlar (Ç3, fail-closed)."""
+    visible = await visible_item_set(session, scope, (item for _, item, _ in unknown))
+    if visible is None:
+        return unknown
+    return [u for u in unknown if u[1] in visible]
+
+
 async def build_site_input(
-    session: AsyncSession, site_id: uuid.UUID, as_of: date
+    session: AsyncSession,
+    site_id: uuid.UUID,
+    as_of: date,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> SiteInput | None:
-    """Aktif baseline yoksa None (rapor yok)."""
+    """Aktif baseline yoksa None (rapor yok).
+
+    DSC-B3: girdi BUDANIR, motora dokunulmaz. Agac, sinflama (bilinen/bilinmeyen) ve takvim
+    siniri TAM girdiden hesaplanir (Ç1/Ç3); kisitlida yalniz sonra `prune_tree` (donmus: `d:`
+    koku) + dugum kumesine gore qty/saat/planli suzulur. Varsayilan KISITSIZ: `actuals` ve rapor
+    onayi kisitsiz kalir (Ç5). Puantaj kaynagi (Ü3) burada YOK — site duzeyi kalir."""
     rev = await repo.revision_by_status(session, site_id, RevisionStatus.ACTIVE)
     if rev is None:
         return None
     calendar = await repo.load_calendar(session, site_id)
-    tree = await frozen_tree(
+    tree_full = await frozen_tree(
         session, rev, await repo.load_disciplines(session), calendar.is_working_day
     )
-    nodes = to_engine_nodes(tree)
+    nodes = to_engine_nodes(tree_full)
     known = {n.id for n in nodes}
     leaves = await load_leaves(session, rev.id)
     curves = await load_curves(session, leaves)
@@ -139,8 +164,21 @@ async def build_site_input(
     qty, unknown = await _qty(session, diaries, known)
     hours = await _hours(session, site_id, known)
     entry_days = [q.day for q in qty] + [h.day for h in hours]
-    bounds = calendar_bounds(tree, [*entry_days, *(p.day for p in planned), as_of])
+    bounds = calendar_bounds(tree_full, [*entry_days, *(p.day for p in planned), as_of])
     assert bounds is not None  # as_of her zaman var
+    tree = tree_full
+    hidden: frozenset[uuid.UUID] = frozenset()
+    if scope.is_restricted:
+        tree = prune_tree(tree_full, scope, None, frozen=True)
+        keep = node_ids(tree)
+        if not keep:
+            return None  # kapsamda baseline koku yok: motor bos agac kabul etmez → "rapor yok"
+        nodes = [n for n in nodes if n.id in keep]
+        qty = [q for q in qty if q.node_id in keep]
+        hours = [h for h in hours if h.node_id in keep]
+        planned = [p for p in planned if p.node_id in keep]
+        unknown = await _visible_unknown(session, scope, unknown)
+        hidden = frozenset(item_ids(tree_full)) - frozenset(item_ids(tree))
     settings = await settings_service.get_settings(session, site_id)
     daily_bands, cumulative_bands = bands_of(settings)
     inp = EngineInput(
@@ -166,4 +204,5 @@ async def build_site_input(
         diary_status={d: e.status for d, e in diaries.items()},
         last_entry_day=max(entry_days, default=None),
         unknown_lines=unknown,
+        hidden_items=hidden,
     )

@@ -246,6 +246,10 @@ def _series(s: SeriesPreview, planned: Mapping[date, int] | None = None) -> Seri
 def preview_out(result: PreviewResult) -> PreviewOut:
     by_node = {d.id: d for d in result.tree.disciplines}
     p = result.preview
+    # Belirlenimli sira: AGAC sirasi (donmus egriler DB satir sirasiyla gelir); agacta olmayan
+    # anahtarlar sona, kendi sirasiyla (kararli siralama).
+    tree_order = {d.id: n for n, d in enumerate(result.tree.disciplines)}
+    ordered = sorted(p.disciplines.items(), key=lambda kv: tree_order.get(kv[0], len(tree_order)))
     return PreviewOut(
         start=p.start,
         end=p.end,
@@ -260,7 +264,7 @@ def preview_out(result: PreviewResult) -> PreviewOut:
                 share=dp.share,
                 series=_series(dp.series),
             )
-            for key, dp in p.disciplines.items()
+            for key, dp in ordered
         ],
         total=_series(p.total, result.planned_people),
         indirect_budget_mhr=p.indirect_budget_mhr,
@@ -312,7 +316,7 @@ def schedule_out(
 async def diff_out(session: AsyncSession, result: RevisionDiff) -> RevisionDiffOut:
     rows = []
     for x in result.leaves:
-        removed = x.reason == "removed"
+        removed = x.reason in ("removed", "moved_out")
         rows.append(
             LeafDiffOut(
                 leaf_id=x.leaf.id,

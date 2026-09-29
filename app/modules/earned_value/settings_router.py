@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.core.timezone import today
@@ -46,14 +47,19 @@ _Writable = Annotated[SiteContext, Depends(completed_site_guard(SITE_COMPLETED_R
 @router.get(
     "/sites/{site_id}/earned-value/settings", response_model=SettingsRead, dependencies=[VIEW]
 )
-async def get_settings_endpoint(site_id: uuid.UUID, user: _User, session: _Session) -> SettingsRead:
+async def get_settings_endpoint(
+    site_id: uuid.UUID, user: _User, session: _Session, scope: DisciplineScoped
+) -> SettingsRead:
     """Santiyenin EV ayarlari. Satir yoksa sabit varsayilanlar, `is_default` = true (K1)."""
     await visible_site(session, user, site_id)
-    return await settings_service.get_settings(session, site_id)
+    # DSC-B3 S11: yabanci terimli pacal kartlar QURR/onizleme ile AYNI kuralla gizlenir
+    return await settings_service.get_settings(session, site_id, scope)
 
 
 @router.put(
-    "/sites/{site_id}/earned-value/settings", response_model=SettingsRead, dependencies=[WRITE]
+    "/sites/{site_id}/earned-value/settings",
+    response_model=SettingsRead,
+    dependencies=[WRITE, RequireUnrestricted],
 )
 async def save_settings_endpoint(
     request: Request,
@@ -90,12 +96,12 @@ _Day = Annotated[date | None, Query(alias="date", description="Varsayilan: bugun
     dependencies=[VIEW],
 )
 async def get_settings_preview(
-    site_id: uuid.UUID, user: _User, session: _Session, day: _Day = None
+    site_id: uuid.UUID, user: _User, session: _Session, scope: DisciplineScoped, day: _Day = None
 ) -> SettingsPreview:
     """AYP canli degerleri: bugunun sapmasi (K27 puan) · gunluk/haftalik PF · hafta no ·
     kayitli pacal metriklerin gerceklesen/planlisi (B3-3). Kayitli ayarla hesaplanir."""
     await visible_site(session, user, site_id)
-    return await settings_preview.preview(session, site_id, day or today())
+    return await settings_preview.preview(session, site_id, day or today(), scope)
 
 
 @router.get(
@@ -110,10 +116,11 @@ async def get_composite_preview(
     measure: CompositeMeasure,
     numerator_item_id: Annotated[list[uuid.UUID], Query(min_length=1, max_length=200)],
     denominator_item_id: uuid.UUID,
+    scope: DisciplineScoped,
     day: _Day = None,
 ) -> CompositeValueOut:
     """Duzenlenen (kaydedilmemis) pacal metrigin canli degeri — kayitli metriklerle AYNI formul."""
     await visible_site(session, user, site_id)
     return await settings_preview.composite_preview(
-        session, site_id, day or today(), measure, numerator_item_id, denominator_item_id
+        session, site_id, day or today(), measure, numerator_item_id, denominator_item_id, scope
     )

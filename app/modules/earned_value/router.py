@@ -374,7 +374,7 @@ async def get_budget_schedule(
 
 @router.post(f"{_BASE}/preview", response_model=PreviewOut, dependencies=[VIEW])
 async def preview_budget(
-    site_id: uuid.UUID, body: PreviewBody, user: _User, session: _Db
+    site_id: uuid.UUID, body: PreviewBody, user: _User, session: _Db, scope: DisciplineScoped
 ) -> PreviewOut:
     """KALICI OLMAYAN egri onizlemesi (frontend istegi 2): govdedeki dagilim/pencere ezmeleri
     kaydedilmeden uygulanir. Donmus revizyon snapshot egrisinden gelir (K8)."""
@@ -385,6 +385,7 @@ async def preview_budget(
         body.revision_id,
         {p.discipline_id: p.distribution for p in body.distributions},
         {(w.discipline_id, w.section_id): (w.start_date, w.end_date) for w in body.windows},
+        scope,
     )
     hours = (await repo.load_calendar(session, ctx.site.id)).standard_daily_hours
     return present.preview_out(result).model_copy(update={"standard_daily_hours": hours})

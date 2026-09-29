@@ -1,0 +1,9 @@
+{
+  "body": {
+    "actual": null,
+    "deviation": null,
+    "planned": null,
+    "unit": "m3"
+  },
+  "status": 200
+}
