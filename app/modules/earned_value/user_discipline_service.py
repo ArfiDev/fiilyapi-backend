@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_ref import DisciplineRef
 from app.core.errors import NotFoundError
 from app.modules.earned_value import guards
 from app.modules.earned_value.models import EvDiscipline, UserDiscipline
@@ -36,16 +37,21 @@ class DisciplineAssignment:
     """Atama sonucu: hedef kullanici + son disiplin kumesi (id → kod)."""
 
     user: User
-    codes_by_id: dict[uuid.UUID, str]
+    refs_by_id: dict[uuid.UUID, DisciplineRef]
     changed: bool = False  # PUT kumeyi degistirdi mi (degismediyse denetim yazilmaz)
 
     @property
     def discipline_ids(self) -> list[uuid.UUID]:
-        return sorted(self.codes_by_id, key=str)
+        return sorted(self.refs_by_id, key=str)
+
+    @property
+    def disciplines(self) -> list[DisciplineRef]:
+        """`discipline_ids` ile AYNI sira."""
+        return [self.refs_by_id[i] for i in self.discipline_ids]
 
     @property
     def codes(self) -> list[str]:
-        return sorted(self.codes_by_id.values())
+        return sorted(ref.code for ref in self.refs_by_id.values())
 
 
 async def _assigned_ids(session: AsyncSession, user_id: uuid.UUID) -> set[uuid.UUID]:
@@ -55,29 +61,29 @@ async def _assigned_ids(session: AsyncSession, user_id: uuid.UUID) -> set[uuid.U
     return set(rows.scalars())
 
 
-async def _codes(session: AsyncSession, ids: set[uuid.UUID]) -> dict[uuid.UUID, str]:
+async def _refs(session: AsyncSession, ids: set[uuid.UUID]) -> dict[uuid.UUID, DisciplineRef]:
     if not ids:
         return {}
-    rows = await session.execute(
-        select(EvDiscipline.id, EvDiscipline.code).where(EvDiscipline.id.in_(ids))
-    )
-    return {discipline_id: code for discipline_id, code in rows.all()}
+    rows = await session.execute(select(EvDiscipline).where(EvDiscipline.id.in_(ids)))
+    return {row.id: DisciplineRef.model_validate(row) for row in rows.scalars()}
 
 
-async def _assert_all_exist(session: AsyncSession, ids: set[uuid.UUID]) -> dict[uuid.UUID, str]:
+async def _assert_all_exist(
+    session: AsyncSession, ids: set[uuid.UUID]
+) -> dict[uuid.UUID, DisciplineRef]:
     """Bilinmeyen disiplin → 404 (FK RESTRICT'e carpip 409'a dusmesin); hangileri govdede."""
-    codes = await _codes(session, ids)
-    missing = sorted(ids - codes.keys(), key=str)
+    refs = await _refs(session, ids)
+    missing = sorted(ids - refs.keys(), key=str)
     if missing:
         raise NotFoundError(f"{guards.DISCIPLINE_MISSING}: {', '.join(map(str, missing))}")
-    return codes
+    return refs
 
 
 async def get_assignment(session: AsyncSession, user_id: uuid.UUID) -> DisciplineAssignment:
     user = await users_repository.get_user(session, user_id)
     if user is None:
         raise NotFoundError(USER_MISSING)
-    return DisciplineAssignment(user, await _codes(session, await _assigned_ids(session, user_id)))
+    return DisciplineAssignment(user, await _refs(session, await _assigned_ids(session, user_id)))
 
 
 async def replace_assignment(
@@ -89,7 +95,7 @@ async def replace_assignment(
     if user is None:
         raise NotFoundError(USER_MISSING)
     wanted = set(discipline_ids)  # yinelenenler tekillesir
-    codes = await _assert_all_exist(session, wanted)
+    refs = await _assert_all_exist(session, wanted)
     current = await _assigned_ids(session, user_id)
     removed = current - wanted
     if removed:
@@ -100,4 +106,4 @@ async def replace_assignment(
         )
     session.add_all(UserDiscipline(user_id=user_id, discipline_id=d) for d in wanted - current)
     await session.flush()
-    return DisciplineAssignment(user, codes, changed=bool(removed or wanted - current))
+    return DisciplineAssignment(user, refs, changed=bool(removed or wanted - current))

@@ -5,7 +5,8 @@ Santiye kapsami YOKTUR — izin kapisi yeter.
 
 | uc | kapi |
 |----|------|
-| disiplin/katalog okuma | `VIEW` |
+| disiplin listesi okuma | `VIEW` VEYA `user_management:view` (B0b) |
+| katalog okuma | `VIEW` |
 | disiplin/katalog yazma, "gerceklesen standart yap" | `CATALOG` (full) |
 | disiplin silme | `ADMIN` (B1-9) |
 
@@ -20,15 +21,17 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.permissions import require_any_permission
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.earned_value import audit_messages, catalog_service, discipline_adapter
-from app.modules.earned_value.access import ADMIN, CATALOG, VIEW
+from app.modules.earned_value.access import ADMIN, CATALOG, PERMISSION_MODULE, VIEW
 from app.modules.earned_value.schemas_catalog import (
     CatalogItemCreate,
     CatalogItemRead,
@@ -62,6 +65,14 @@ async def _audit(
 
 # ------------------------------------------------------------------ disiplin
 
+# DSC-B0b: kullanici yonetimi ekrani (atama secicisi) disiplin katalogunu okur ama EV izni
+# gerektirmez → `earned_value:view` VEYA `user_management:view`. Izin MATRISI degismez; yalniz
+# bu ucun kapisi "herhangi biri yeter". Kisitli kullanici yine yalniz kendi disiplinlerini gorur
+# (`DisciplineScoped`, B1). Gerekce `#` yorumdur: docstring openapi aciklamasina sizar.
+_DISCIPLINE_LIST_GATE = require_any_permission(
+    (PERMISSION_MODULE, AccessLevel.view), ("user_management", AccessLevel.view)
+)
+
 
 def _discipline_read(row, usage: catalog_service.DisciplineUsage) -> DisciplineRead:  # noqa: ANN001
     return DisciplineRead.model_validate(row).model_copy(
@@ -73,7 +84,11 @@ def _discipline_read(row, usage: catalog_service.DisciplineUsage) -> DisciplineR
     )
 
 
-@router.get("/earned-value/disciplines", response_model=list[DisciplineRead], dependencies=[VIEW])
+@router.get(
+    "/earned-value/disciplines",
+    response_model=list[DisciplineRead],
+    dependencies=[_DISCIPLINE_LIST_GATE],
+)
 async def list_disciplines_endpoint(
     session: _Session, scope: DisciplineScoped
 ) -> list[DisciplineRead]:

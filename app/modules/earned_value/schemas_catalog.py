@@ -20,6 +20,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
+from app.core.discipline_ref import DisciplineRef
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.earned_value.decimal_out import EvDecimal
 from app.modules.earned_value.engine import ContractorType
@@ -115,17 +116,7 @@ class UserDisciplinesRead(BaseModel):
     """Kullanicinin atanmis disiplinleri (id'ye gore sirali; atamasiz = [])."""
 
     discipline_ids: list[uuid.UUID]
-
-
-class DisciplineRef(BaseModel):
-    """Katalog satirina gomulu disiplin ozeti (rozet + renk)."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    code: str
-    name: str
-    color: str
+    disciplines: list[DisciplineRef]  # `discipline_ids` ile AYNI sira
 
 
 # ------------------------------------------------------------------- katalog

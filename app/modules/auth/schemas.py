@@ -3,6 +3,7 @@ import uuid
 from pydantic import BaseModel, EmailStr
 
 from app.core.access import AccessLevel
+from app.core.discipline_ref import DisciplineRef
 from app.modules.users.models import UserStatus
 
 
@@ -36,6 +37,7 @@ class MeResponse(BaseModel):
     # İzin satırı olmayan modül haritada YER ALMAZ; frontend bunu "bilinmezlik"
     # sayıp kontrolü görünür bırakır (güvenlik sınırı her zaman backend'dedir).
     permissions: dict[str, AccessLevel]
-    # Kullanicinin atanmis disiplinleri (DSC-B0; id'ye gore sirali). Bos = atamasiz =
-    # KISITSIZ (proje muduru/admin). Modul kaydi yoksa da bos.
-    disciplines: list[uuid.UUID]
+    # Kullanicinin atanmis disiplinleri (DSC-B0/B0b; id'ye gore sirali; `/users/{id}/
+    # disciplines` ile AYNI anahtar). Bos = atamasiz = KISITSIZ (proje muduru/admin).
+    # Modul kaydi yoksa da bos.
+    disciplines: list[DisciplineRef]

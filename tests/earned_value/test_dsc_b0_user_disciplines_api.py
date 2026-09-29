@@ -62,6 +62,18 @@ def _siralı(*disciplines: EvDiscipline) -> list[str]:
     return sorted(str(d.id) for d in disciplines)
 
 
+def _nesneler(*disciplines: EvDiscipline) -> list[dict[str, str]]:
+    """`disciplines` alani: `discipline_ids` ile AYNI sira (str(id))."""
+    return [
+        {"id": str(d.id), "code": d.code, "name": d.name, "color": d.color}
+        for d in sorted(disciplines, key=lambda d: str(d.id))
+    ]
+
+
+def _govde(*disciplines: EvDiscipline) -> dict[str, object]:
+    return {"discipline_ids": _siralı(*disciplines), "disciplines": _nesneler(*disciplines)}
+
+
 async def _put(client, headers, user_id, ids) -> object:
     return await client.put(
         _url(user_id), json={"discipline_ids": [str(i) for i in ids]}, headers=headers
@@ -81,22 +93,20 @@ async def _satirlar(session: AsyncSession, user_id: uuid.UUID) -> set[uuid.UUID]
 async def test_atamasiz_kullanici_bos_liste_doner(client, admin, hedef) -> None:
     resp = await client.get(_url(hedef.id), headers=admin)
     assert resp.status_code == 200
-    assert resp.json() == {"discipline_ids": []}
+    assert resp.json() == {"discipline_ids": [], "disciplines": []}
 
 
 async def test_put_atar_get_okur_sirali(client, admin, hedef, civ, elk) -> None:
     resp = await _put(client, admin, hedef.id, [elk.id, civ.id])
     assert resp.status_code == 200
-    assert resp.json() == {"discipline_ids": _siralı(civ, elk)}
-    assert (await client.get(_url(hedef.id), headers=admin)).json() == {
-        "discipline_ids": _siralı(civ, elk)
-    }
+    assert resp.json() == _govde(civ, elk)
+    assert (await client.get(_url(hedef.id), headers=admin)).json() == _govde(civ, elk)
 
 
 async def test_put_tam_degistirir_fark_uygular(client, admin, hedef, civ, elk, seeded_db) -> None:
     await _put(client, admin, hedef.id, [civ.id])
     yeni = await _put(client, admin, hedef.id, [elk.id])
-    assert yeni.json() == {"discipline_ids": _siralı(elk)}
+    assert yeni.json() == _govde(elk)
     assert await _satirlar(seeded_db, hedef.id) == {elk.id}
 
 
@@ -104,14 +114,14 @@ async def test_bos_liste_tum_atamalari_siler_kisitsiz(client, admin, hedef, civ,
     await _put(client, admin, hedef.id, [civ.id, elk.id])
     resp = await _put(client, admin, hedef.id, [])
     assert resp.status_code == 200
-    assert resp.json() == {"discipline_ids": []}
+    assert resp.json() == {"discipline_ids": [], "disciplines": []}
     assert await _satirlar(seeded_db, hedef.id) == set()
 
 
 async def test_yinelenen_idler_tekillesir(client, admin, hedef, civ, seeded_db) -> None:
     resp = await _put(client, admin, hedef.id, [civ.id, civ.id, civ.id])
     assert resp.status_code == 200
-    assert resp.json() == {"discipline_ids": _siralı(civ)}
+    assert resp.json() == _govde(civ)
     assert await _satirlar(seeded_db, hedef.id) == {civ.id}
 
 
@@ -201,7 +211,7 @@ async def test_ayni_kume_ikinci_put_denetim_satiri_yazmaz(
     once = await guncellemeler()
     resp = await _put(client, admin, hedef.id, [civ.id, civ.id])
     assert resp.status_code == 200
-    assert resp.json() == {"discipline_ids": _siralı(civ)}
+    assert resp.json() == _govde(civ)
     assert await guncellemeler() == once == 1
 
 
@@ -248,6 +258,7 @@ async def test_me_disiplinleri_atamadan_once_bos_sonra_dolu(
     email = f"me.{uuid.uuid4().hex[:6]}@dsc-b0-api.co"
     kisi = await user_factory(email=email, password=PASSWORD, role_key="site_chief")
     kisi_id, beklenen = kisi.id, _siralı(civ, elk)
+    beklenen_nesneler = _nesneler(civ, elk)
     civ_id, elk_id = civ.id, elk.id
     token = (await client.post("/auth/login", json={"email": email, "password": PASSWORD})).json()[
         "access_token"
@@ -264,7 +275,8 @@ async def test_me_disiplinleri_atamadan_once_bos_sonra_dolu(
     seeded_db.expunge_all()
 
     sonra = await client.get("/auth/me", headers=kendi)
-    assert sonra.json()["disciplines"] == beklenen
+    assert sonra.json()["disciplines"] == beklenen_nesneler
+    assert [d["id"] for d in sonra.json()["disciplines"]] == beklenen
 
     await _put(client, admin, kisi_id, [])
     seeded_db.expunge_all()

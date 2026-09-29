@@ -35,6 +35,29 @@ def require_permission(module_key: str, min_level: AccessLevel):
     return Depends(_check)
 
 
+def require_any_permission(*gates: tuple[str, AccessLevel]):
+    """Uç için "HERHANGİ BİRİ YETER" kapısı: `gates` içinden en az biri sağlanırsa geçer.
+
+    Reddedişte gövde `require_permission` ile BİREBİR aynıdır (403, "Bu işlem için yetkiniz
+    yok"). İzin satırı yoksa o kapı sağlanmamış sayılır (varsayılan kapalı). İzin matrisini
+    DEĞİŞTİRMEZ; yalnız tek bir ucun kapısını genişletir.
+    """
+
+    async def _check_any(
+        user: Annotated[User, Depends(get_current_user)],
+        session: DbSession,
+    ) -> None:
+        for module_key, min_level in gates:
+            permission = await get_permission(session, user.role_id, module_key)
+            if permission is not None and satisfies(permission.access_level, min_level):
+                return
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Bu işlem için yetkiniz yok"
+        )
+
+    return Depends(_check_any)
+
+
 async def can_read(session: AsyncSession, user: User, module_key: str) -> bool:
     """ILR-1/2 — bir ROLUN o modulu OKUYUP okuyamadigi (uc kapisi DEGIL, ALAN kapisi).
 

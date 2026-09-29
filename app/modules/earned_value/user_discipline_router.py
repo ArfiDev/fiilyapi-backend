@@ -32,7 +32,9 @@ router = APIRouter(
 
 
 def _read(assignment: DisciplineAssignment) -> UserDisciplinesRead:
-    return UserDisciplinesRead(discipline_ids=assignment.discipline_ids)
+    return UserDisciplinesRead(
+        discipline_ids=assignment.discipline_ids, disciplines=assignment.disciplines
+    )
 
 
 @router.get(

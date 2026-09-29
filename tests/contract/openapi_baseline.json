@@ -16904,8 +16904,7 @@
         "properties": {
           "disciplines": {
             "items": {
-              "format": "uuid",
-              "type": "string"
+              "$ref": "#/components/schemas/DisciplineRef"
             },
             "title": "Disciplines",
             "type": "array"
@@ -42022,10 +42021,18 @@
             },
             "title": "Discipline Ids",
             "type": "array"
+          },
+          "disciplines": {
+            "items": {
+              "$ref": "#/components/schemas/DisciplineRef"
+            },
+            "title": "Disciplines",
+            "type": "array"
           }
         },
         "required": [
-          "discipline_ids"
+          "discipline_ids",
+          "disciplines"
         ],
         "title": "UserDisciplinesRead",
         "type": "object"
