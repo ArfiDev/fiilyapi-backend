@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.core.config import settings
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_scope import user_scope
+from app.core.discipline_scope import user_disciplines_detail
 from app.core.ratelimit import client_ip, limiter
 from app.core.security import TokenError, create_access_token, create_refresh_token, decode_token
 from app.modules.audit import messages
@@ -113,7 +113,7 @@ async def me(
     aynen kullanilir — `/roles/{id}/permissions` ucuyla ayni kaynak, tek fark
     rol kimliginin aktörün kendi rolü olmasi ve ek yetki aranmamasi."""
     matrix = await get_role_matrix(session, user.role_id)
-    scope = await user_scope(session, user.id)
+    disciplines = await user_disciplines_detail(session, user.id)
     return MeResponse(
         id=user.id,
         email=user.email,
@@ -122,5 +122,5 @@ async def me(
         role_key=user.role.key,
         status=user.status,
         permissions={module.key: perm.access_level for module, perm in matrix},
-        disciplines=sorted(scope.discipline_ids or (), key=str),
+        disciplines=disciplines,
     )

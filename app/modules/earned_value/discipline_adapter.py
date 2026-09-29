@@ -24,9 +24,11 @@ from sqlalchemy import ColumnElement, case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import discipline_scope as port
+from app.core.discipline_ref import DisciplineRef
 from app.core.discipline_scope import DisciplineScope
 from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.earned_value.models import (
+    EvDiscipline,
     EvGroupDiscipline,
     EvRevision,
     RevisionStatus,
@@ -81,6 +83,18 @@ class EvDisciplineProvider:
             select(UserDiscipline.discipline_id).where(UserDiscipline.user_id == user_id)
         )
         return DisciplineScope.of(set(rows.scalars()))
+
+    async def user_disciplines_detail(
+        self, session: AsyncSession, user_id: uuid.UUID
+    ) -> list[DisciplineRef]:
+        rows = await session.execute(
+            select(EvDiscipline)
+            .join(UserDiscipline, UserDiscipline.discipline_id == EvDiscipline.id)
+            .where(UserDiscipline.user_id == user_id)
+        )
+        return sorted(
+            (DisciplineRef.model_validate(row) for row in rows.scalars()), key=lambda d: str(d.id)
+        )
 
     def item_discipline_expr(self, item: Any) -> ColumnElement[Any]:
         return item_discipline_expr(item)

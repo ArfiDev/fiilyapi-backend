@@ -61,6 +61,8 @@ from sqlalchemy.sql.selectable import ScalarSelect, Select
 from sqlalchemy.sql.visitors import InternalTraversal
 from sqlalchemy.types import Boolean
 
+from app.core.discipline_ref import DisciplineRef
+
 
 @dataclass(frozen=True, slots=True)
 class DisciplineScope:
@@ -91,6 +93,12 @@ class DisciplineProvider(Protocol):
     SQL tanimindan turer (`item_discipline_expr`)."""
 
     async def user_scope(self, session: AsyncSession, user_id: uuid.UUID) -> DisciplineScope: ...
+
+    async def user_disciplines_detail(
+        self, session: AsyncSession, user_id: uuid.UUID
+    ) -> list[DisciplineRef]:
+        """Kullanicinin atanmis disiplinleri (id, kod, ad, renk); `str(id)` sirali; yoksa `[]`."""
+        ...
 
     def item_discipline_expr(self, item: Any) -> ColumnElement[Any]:
         """`item` (BoqItem ya da alias'i) icin disiplin id'si (ya da NULL) SQL ifadesi."""
@@ -153,6 +161,14 @@ async def user_scope(session: AsyncSession, user_id: uuid.UUID) -> DisciplineSco
     if _provider is None:
         return UNRESTRICTED
     return await _provider.user_scope(session, user_id)
+
+
+async def user_disciplines_detail(session: AsyncSession, user_id: uuid.UUID) -> list[DisciplineRef]:
+    """Kullanicinin atanmis disiplinleri AYRINTILI (`/auth/me`); kayit yoksa `[]`. Izin kapisi
+    YOKTUR: cagiran kisi kendi atamasini gorur."""
+    if _provider is None:
+        return []
+    return await _provider.user_disciplines_detail(session, user_id)
 
 
 def item_discipline_expr(item: Any) -> ColumnElement[Any]:
