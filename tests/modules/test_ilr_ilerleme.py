@@ -24,6 +24,7 @@ from decimal import Decimal
 from sqlalchemy import text
 
 from app.core.access import AccessLevel, Scope
+from app.core.discipline_scope import UNRESTRICTED
 from app.modules.boq import progress
 from app.modules.progress_payments import project_progress
 from app.modules.progress_payments.models import ProgressPaymentStatus
@@ -72,7 +73,7 @@ async def test_para_agirlikli_yuzde_MIKTAR_ORTALAMASINDAN_FARKLIDIR(
     """
     _, site, _, _, _ = await _canli_sekil(seeded_db, project_factory, user_factory, "ILR-A1")
 
-    olculen = await progress.physical_for_site(seeded_db, site.id)
+    olculen = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
 
     duz_miktar_orani = progress.quantize_pct(
         (Decimal("900") + Decimal("12")) / (Decimal("7440") + Decimal("98")) * Decimal("100")
@@ -116,11 +117,11 @@ async def test_TASLAK_gunluk_yuzdeye_GIRMEZ__GONDERILINCE_oynar(
         seeded_db, site, yazan, [(filiz, "900"), (demir, "12")], status=DiaryStatus.draft
     )
 
-    taslakken = await progress.physical_for_site(seeded_db, site.id)
+    taslakken = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
 
     entry.status = DiaryStatus.submitted
     await seeded_db.flush()
-    gonderilince = await progress.physical_for_site(seeded_db, site.id)
+    gonderilince = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
 
     assert (taslakken, gonderilince) == (Decimal("0.00"), Decimal("12.21")), (
         f"taslak/gonderilmis ayrimi bozuldu: {taslakken} → {gonderilince}"
@@ -133,7 +134,7 @@ async def test_BASKA_santiyenin_gonderilmis_gunlugu_yuzdeye_GIRMEZ(
     """Kapsam suzgeci: baska PROJENIN baska SANTIYESINDE ayni kodlu pozlara
     gonderilmis gunluk yazilir; olculen santiyenin yuzdesi KIMILDAMAZ."""
     _, site, _, _, _ = await _canli_sekil(seeded_db, project_factory, user_factory, "ILR-B2")
-    once = await progress.physical_for_site(seeded_db, site.id)
+    once = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
 
     komsu_proje = await project_factory("ILR-B2X")
     komsu = await _ilr.santiye(seeded_db, komsu_proje, code="X-BLOK")
@@ -142,8 +143,8 @@ async def test_BASKA_santiyenin_gonderilmis_gunlugu_yuzdeye_GIRMEZ(
     komsu_yazan = await _ilr.aktor(seeded_db, user_factory, "b2x@ilr.co")
     await _ilr.gunluk(seeded_db, komsu, komsu_yazan, [(komsu_filiz, "7440")])
 
-    sonra = await progress.physical_for_site(seeded_db, site.id)
-    komsu_yuzdesi = await progress.physical_for_site(seeded_db, komsu.id)
+    sonra = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
+    komsu_yuzdesi = await progress.physical_for_site(seeded_db, komsu.id, scope=UNRESTRICTED)
 
     assert (once, sonra) == (Decimal("12.21"), Decimal("12.21")), (
         f"baska santiyenin gunlugu yuzdeye sizdi: {once} → {sonra}"
@@ -165,9 +166,9 @@ async def test_GERCEK_uretim_yuzdeyi_SIFIRDAN_YUKARI_OYNATIR(
     demir = await _ilr.poz(seeded_db, site, boq_grup, "15.185.1002", **_DEMIR)
     yazan = await _ilr.aktor(seeded_db, user_factory, "b3@ilr.co")
 
-    uretimsiz = await progress.physical_for_site(seeded_db, site.id)
+    uretimsiz = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
     await _ilr.gunluk(seeded_db, site, yazan, [(demir, "49")])
-    uretimli = await progress.physical_for_site(seeded_db, site.id)
+    uretimli = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
 
     assert (uretimsiz, uretimli) == (Decimal("0.00"), Decimal("50.00")), (
         f"uretim yuzdeyi oynatmadi: {uretimsiz} → {uretimli} (49/98 = %50)"
@@ -184,7 +185,7 @@ async def test_boq_bagi_KOPMUS_satir_yuzdeye_GIRMEZ(seeded_db, project_factory, 
     yazan = await _ilr.aktor(seeded_db, user_factory, "b4@ilr.co")
     await _ilr.gunluk(seeded_db, site, yazan, [(demir, "49"), (None, "1000000")])
 
-    olculen = await progress.physical_for_site(seeded_db, site.id)
+    olculen = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
 
     kopuk_sayisi = await seeded_db.scalar(
         text("SELECT count(*) FROM site_diary_lines WHERE boq_item_id IS NULL")
@@ -209,9 +210,9 @@ async def test_BOLUM_ETIKETSIZ_gunluk_SANTIYEYE_girer_HICBIR_BOLUME_girmez(
     yazan = await _ilr.aktor(seeded_db, user_factory, "b5@ilr.co")
     await _ilr.gunluk(seeded_db, site, yazan, [(demir, "49")], section=None)
 
-    santiye_yuzdesi = await progress.physical_for_site(seeded_db, site.id)
-    bolum_yuzdesi = await progress.physical_for_section(seeded_db, section.id)
-    toplu = await progress.physical_for_sections(seeded_db, [section.id])
+    santiye_yuzdesi = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
+    bolum_yuzdesi = await progress.physical_for_section(seeded_db, section.id, scope=UNRESTRICTED)
+    toplu = await progress.physical_for_sections(seeded_db, [section.id], scope=UNRESTRICTED)
 
     assert (santiye_yuzdesi, bolum_yuzdesi, toplu[section.id]) == (
         Decimal("50.00"),
@@ -313,9 +314,9 @@ async def test_BOLUM_paydasi_TAHSISTIR_santiye_kotasi_DEGIL(
     yazan = await _ilr.aktor(seeded_db, user_factory, "d1@ilr.co")
     await _ilr.gunluk(seeded_db, site, yazan, [(beton, "400")], section=section)
 
-    bolum_yuzdesi = await progress.physical_for_section(seeded_db, section.id)
-    toplu = await progress.physical_for_sections(seeded_db, [section.id])
-    santiye_yuzdesi = await progress.physical_for_site(seeded_db, site.id)
+    bolum_yuzdesi = await progress.physical_for_section(seeded_db, section.id, scope=UNRESTRICTED)
+    toplu = await progress.physical_for_sections(seeded_db, [section.id], scope=UNRESTRICTED)
+    santiye_yuzdesi = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
 
     assert (bolum_yuzdesi, toplu[section.id]) == (Decimal("100.00"), Decimal("100.00")), (
         f"bolum paydasi TAHSIS degil: {bolum_yuzdesi} (kota paydasi %33,33 verirdi)"
@@ -341,8 +342,8 @@ async def test_SANTIYE_paydasi_SANTIYE_BOQUDUR(seeded_db, project_factory, user_
     yazan = await _ilr.aktor(seeded_db, user_factory, "d2@ilr.co")
     await _ilr.gunluk(seeded_db, site, yazan, [(tahsisli, "100")], section=section)
 
-    santiye_yuzdesi = await progress.physical_for_site(seeded_db, site.id)
-    bolum_yuzdesi = await progress.physical_for_section(seeded_db, section.id)
+    santiye_yuzdesi = await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
+    bolum_yuzdesi = await progress.physical_for_section(seeded_db, section.id, scope=UNRESTRICTED)
 
     assert (santiye_yuzdesi, bolum_yuzdesi) == (Decimal("50.00"), Decimal("100.00")), (
         f"santiye paydasi BOQ'un tamami olmali: {santiye_yuzdesi} (100.000/200.000 = %50), "
@@ -366,8 +367,8 @@ async def test_PAYDA_SIFIRKEN_yuzde_YOKTUR__zarf_pending_module_TASIR(
     await _ilr.grup(seeded_db, site)  # BOQ grubu var, POZ YOK → payda 0
     headers = await _ilr.login(client, seeded_db, user_factory, "patron", "d3@ilr.co")
 
-    assert await progress.physical_for_site(seeded_db, site.id) is None
-    assert await progress.physical_for_section(seeded_db, section.id) is None
+    assert await progress.physical_for_site(seeded_db, site.id, scope=UNRESTRICTED) is None
+    assert await progress.physical_for_section(seeded_db, section.id, scope=UNRESTRICTED) is None
 
     boq = (await client.get(f"/sites/{site.id}/boq", headers=headers)).json()
     bolumler = (await client.get(f"/sites/{site.id}/sections", headers=headers)).json()
@@ -551,7 +552,7 @@ async def test_gunluk_VARKEN_onayli_hakedis_YOKKEN_fiziksel_POZITIF_mali_SIFIR(
     project, _, _, _, _ = await _canli_sekil(seeded_db, project_factory, user_factory, "ILR-F1")
     await _ilr.isveren_kalemi(seeded_db, project, quantity="98", unit_price="96250.00")
 
-    fiziksel = await progress.physical_for_project(seeded_db, project.id)
+    fiziksel = await progress.physical_for_project(seeded_db, project.id, scope=UNRESTRICTED)
     mali = await project_progress.financial_for_project(seeded_db, project.id)
 
     assert (fiziksel, mali) == (Decimal("12.21"), Decimal("0.00")), (
@@ -664,9 +665,12 @@ async def test_SANTIYE_KARTI_yuzdesi_para_agirliklidir_ve_KAPSAM_sizdirmaz(
     await _ilr.gunluk(seeded_db, komsu, yazan, [(komsu_demir, "49")])
     bos = await _ilr.santiye(seeded_db, project, code="ILR-G1-C")
 
-    toplu = await progress.physical_for_sites(seeded_db, [site.id, komsu.id, bos.id])
+    toplu = await progress.physical_for_sites(
+        seeded_db, [site.id, komsu.id, bos.id], scope=UNRESTRICTED
+    )
     tekil = {
-        sid: await progress.physical_for_site(seeded_db, sid) for sid in (site.id, komsu.id, bos.id)
+        sid: await progress.physical_for_site(seeded_db, sid, scope=UNRESTRICTED)
+        for sid in (site.id, komsu.id, bos.id)
     }
 
     assert toplu == {

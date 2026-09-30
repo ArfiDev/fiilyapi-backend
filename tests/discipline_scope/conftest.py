@@ -95,3 +95,11 @@ def iki_disiplin(dunya_b3: Dunya) -> dict[str, str]:
 @pytest.fixture
 def pm_atamasiz(dunya_b3: Dunya) -> dict[str, str]:
     return dunya_b3.baslik["pm_atamasiz"]
+
+
+# --- DSC-B4 (dünya ayrı modülde; varsayılan `kur`a eklenmez) ---
+from tests.discipline_scope._b4_dunya import (  # noqa: E402,F401
+    dunya_b4,
+    pm_atamasiz_b4,
+    sabit_bugun_b4,
+)

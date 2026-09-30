@@ -1,0 +1,47 @@
+{
+  "body": {
+    "boq_item_count": {
+      "available": true,
+      "count": 2,
+      "pending_module": "boq"
+    },
+    "budget": {
+      "available": true,
+      "pending_module": null,
+      "value": "1600.00"
+    },
+    "budget_amount": null,
+    "code": null,
+    "created_at": "<ts>",
+    "depends_on_section_id": null,
+    "deputy_manager_name": null,
+    "deputy_manager_user_id": null,
+    "description": null,
+    "end_date": "2026-05-15",
+    "id": "<S1>",
+    "is_draft": false,
+    "manager_name": null,
+    "manager_user_id": null,
+    "milestones": [],
+    "name": "A Blok",
+    "planned_worker_count": 12,
+    "progress_pct": {
+      "available": true,
+      "pending_module": null,
+      "value": "9.38"
+    },
+    "section_type": null,
+    "site_id": "<site>",
+    "slug": null,
+    "sort_order": 1,
+    "start_date": "2026-05-04",
+    "status": "planned",
+    "updated_at": "<ts>",
+    "worker_count": {
+      "available": true,
+      "count": 0,
+      "pending_module": "timesheet"
+    }
+  },
+  "status": 200
+}

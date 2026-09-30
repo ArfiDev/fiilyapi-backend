@@ -4,6 +4,7 @@ Bu GERCEK bir degerdir, yer tutucu degil: sayacin girdisi (sites tablosu) bu
 dilimde yazildi. P1 sozlesmesine EKLEMEDIR, kirici degisiklik degil.
 """
 
+from app.core.discipline_scope import UNRESTRICTED
 from app.modules.projects.schemas import ProjectDetailResponse, ProjectListItem
 from app.modules.projects.service import get_project_detail
 from app.modules.sites.models import Site
@@ -28,7 +29,7 @@ async def test_project_without_sites_counts_zero(seeded_db, user_factory, projec
     project = await project_factory("SC-1")
     admin = await _admin(seeded_db, user_factory, "sc1@t.co")
 
-    detail = await get_project_detail(seeded_db, admin, project.id)
+    detail = await get_project_detail(seeded_db, admin, project.id, scope=UNRESTRICTED)
 
     assert detail.site_count == 0
 
@@ -40,7 +41,7 @@ async def test_project_with_two_sites_counts_two(seeded_db, user_factory, projec
     await seeded_db.flush()
     admin = await _admin(seeded_db, user_factory, "sc2@t.co")
 
-    detail = await get_project_detail(seeded_db, admin, project.id)
+    detail = await get_project_detail(seeded_db, admin, project.id, scope=UNRESTRICTED)
 
     assert detail.site_count == 2
 
@@ -54,8 +55,12 @@ async def test_site_count_does_not_leak_other_projects(seeded_db, user_factory, 
     await seeded_db.flush()
     admin = await _admin(seeded_db, user_factory, "sc3@t.co")
 
-    assert (await get_project_detail(seeded_db, admin, project.id)).site_count == 1
-    assert (await get_project_detail(seeded_db, admin, other.id)).site_count == 2
+    assert (
+        await get_project_detail(seeded_db, admin, project.id, scope=UNRESTRICTED)
+    ).site_count == 1
+    assert (
+        await get_project_detail(seeded_db, admin, other.id, scope=UNRESTRICTED)
+    ).site_count == 2
 
 
 async def test_site_count_over_api(client, db_session, user_factory, project_factory):

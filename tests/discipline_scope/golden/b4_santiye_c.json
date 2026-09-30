@@ -1,0 +1,77 @@
+{
+  "body": {
+    "address": null,
+    "budget": null,
+    "city": null,
+    "city_inherited": false,
+    "code": "DSC-C",
+    "construction_area_m2": null,
+    "contract_amount": {
+      "available": false,
+      "pending_module": "contracts",
+      "value": null
+    },
+    "delivery_date": null,
+    "electricity_subscription_no": null,
+    "end_date": null,
+    "facilities": {
+      "canteen": false,
+      "changing_room_wc": false,
+      "closed_warehouse": false,
+      "cold_storage": false,
+      "dormitory": false,
+      "infirmary": false,
+      "open_storage": false,
+      "site_office": false
+    },
+    "floor_info": null,
+    "gps_coordinates": null,
+    "id": "<siteC>",
+    "is_draft": false,
+    "land_area_m2": null,
+    "name": "C-Blok Şantiyesi",
+    "neighborhood": null,
+    "parcel": null,
+    "planned_worker_count": null,
+    "progress_pct": {
+      "available": true,
+      "pending_module": null,
+      "value": "40.00"
+    },
+    "project": {
+      "city": null,
+      "employer_name": null,
+      "id": "<proje2>",
+      "name": "Revizyonsuz Proje",
+      "slug": null
+    },
+    "remaining_days": null,
+    "safety_officer_is_outsourced": false,
+    "safety_officer_name": null,
+    "safety_officer_user_id": null,
+    "section_count": 0,
+    "section_status_counts": {
+      "active": 0,
+      "completed": 0,
+      "planned": 0
+    },
+    "sections": [],
+    "site_manager_name": null,
+    "site_manager_user_id": null,
+    "slug": null,
+    "start_date": null,
+    "status": "active",
+    "total_progress_payment": {
+      "available": false,
+      "pending_module": "progress_payments",
+      "value": null
+    },
+    "water_subscription_no": null,
+    "worker_count": {
+      "available": true,
+      "count": 0,
+      "pending_module": "timesheet"
+    }
+  },
+  "status": 200
+}

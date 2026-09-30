@@ -20,12 +20,13 @@ tanımları.
 ## Modül-kökü dışı EK duyarlı rotalar (CEO kararı 2026-09-29) — `EK_DUYARLI_ROTALAR`
 (a) `GET/PUT /projects/{project_id}/contract/distribution` (`contracts/distribution.py:154,498`)
     → DSC-B5: ticari/proje düzeyi belge, Ü2 (hakediş) ile aynı sınıf → kısıtlıya 403.
-(b) `GET /dashboard/summary` (`dashboard/risks.py:141-143`) → DSC-B4: stok riskleri
-    `/stock/summary` ile aynı kaynak; Ü3 kendi disiplini üzerinden yeniden hesap.
+(b) `GET /dashboard/summary` (`dashboard/risks.py:141-143`) → DSC-B5: yalnız hakediş kaynakları
+    duyarlı (S2); stok riskleri disiplinsiz (kullanıcı kararı 2026-09-29).
 
 ## DSC-B1 yeniden etiketleri (CEO 2026-09-29) — gerekçeler `_dilim`in yorumlarında
 * iki `diary-suggestion` ucu → DSC-B5 (hakediş sınıfı, 403) · `/stock/summary` +
-  `/sites/{site_id}/stock` → DSC-B4 (çekirdek agrega) · `GET …/budget/revisions` sınıflandırıcıdan
+  `/sites/{site_id}/stock` → (B4) DUYARLI DEĞİL: stok disiplinsiz,
+  `STOK_DUYARSIZ_ROTALAR` · `GET …/budget/revisions` sınıflandırıcıdan
   ÇIKTI (disiplin verisi yok) · `POST …/budget/preview` → DSC-B3 (VIEW kapılı okuma).
 * `test_izin_listesi_etiketi_duyarli_rota_hedef_dilimine_esittir`: etiket ↔ hedef dilim eşitliği.
 
@@ -66,12 +67,28 @@ KAPSAM_DISI_EV_MODULLERI = ("app.modules.earned_value.user_discipline_router",)
 STOK_SATIR_YOLLARI = frozenset(
     {"/stock/entries", "/stock/summary", "/sites/{site_id}/stock", "/sections/{section_id}/stock"}
 )
-#: Stok AGREGA uçları (kart/özet toplamları): satır uçlarından (B1) ayrı, B4 çekirdek agregatı.
-STOK_AGREGA_YOLLARI = frozenset({"/stock/summary", "/sites/{site_id}/stock"})
+_STOK_GEREKCE = (
+    "Kullanıcı kararı 2026-09-29: stok disiplinsiz — gerçek depo bakiyesi ve tüm hareketler "
+    "herkese açık"
+)
+#: Duyarlı OLMAYAN stok OKUMA uçları (kullanıcı kararı): (yöntem, yol) -> gerekçe. `_dilim` bu
+#: yolları None döner; listeden çıkarılırsa rota duyarlı sayılır ve ne işaretli ne izin
+#: listesinde olduğu için bekçi KIRMIZI olur. Yazma (POST /stock/entries) B5 kalır.
+STOK_DUYARSIZ_ROTALAR: dict[Rota, str] = {
+    ("GET", "/stock/summary"): _STOK_GEREKCE,
+    ("GET", "/sites/{site_id}/stock"): _STOK_GEREKCE,
+    ("GET", "/stock/entries"): _STOK_GEREKCE,
+    ("GET", "/sections/{section_id}/stock"): _STOK_GEREKCE,
+}
 _EV_B3_YOLU = re.compile(r"/earned-value/(panel|reports/|settings/preview)")
 _EV_AYAR_YOLU = re.compile(r"/earned-value/settings$")
 #: Modül kökü sınıflandırıcısının DIŞINDA kalan duyarlı rotalar: (yöntem, yol) -> (dilim,
 #: gerekçe). Her girdi gerçekten var olmalı (bayat → kırmızı).
+_B4_GEREKCE = (
+    "proje/şantiye/bölüm kartları boq/progress.py fiziksel % + boq_item_count/budget "
+    "agregatlarını okur (S3/S5/S6: kendi disiplini, kalem yoksa —); "
+    "worker_count/section_count/budget_amount değişmez"
+)
 EK_DUYARLI_ROTALAR: dict[Rota, tuple[str, str]] = {
     ("GET", "/projects/{project_id}/contract/distribution"): (
         "DSC-B5",
@@ -82,8 +99,56 @@ EK_DUYARLI_ROTALAR: dict[Rota, tuple[str, str]] = {
         "sözleşme dağıtımı ticari/proje düzeyi belge; Ü2 (hakediş) ile aynı sınıf → 403",
     ),
     ("GET", "/dashboard/summary"): (
+        "DSC-B5",
+        "yalnız hakediş kaynakları duyarlı (S2); stok riskleri disiplinsiz (kullanıcı kararı)",
+    ),
+    ("GET", "/projects/{project_id}/sites"): (
         "DSC-B4",
-        "stok riskleri /stock/summary ile aynı kaynak (Ü3 yeniden hesap; NULL stok satırı Ü1)",
+        _B4_GEREKCE,
+    ),
+    ("POST", "/projects/{project_id}/sites"): (
+        "DSC-B4",
+        _B4_GEREKCE,
+    ),
+    ("GET", "/sites/{site_id}"): (
+        "DSC-B4",
+        _B4_GEREKCE,
+    ),
+    ("PATCH", "/sites/{site_id}"): (
+        "DSC-B4",
+        _B4_GEREKCE,
+    ),
+    ("GET", "/sites/{site_id}/sections"): (
+        "DSC-B4",
+        _B4_GEREKCE,
+    ),
+    ("POST", "/sites/{site_id}/sections"): (
+        "DSC-B4",
+        _B4_GEREKCE,
+    ),
+    ("GET", "/sections/{section_id}"): (
+        "DSC-B4",
+        _B4_GEREKCE,
+    ),
+    ("PATCH", "/sections/{section_id}"): (
+        "DSC-B4",
+        _B4_GEREKCE,
+    ),
+    ("GET", "/projects"): (
+        "DSC-B4",
+        _B4_GEREKCE,
+    ),
+    ("POST", "/projects"): (
+        "DSC-B4",
+        _B4_GEREKCE,
+    ),
+    ("GET", "/projects/{project_id}"): (
+        "DSC-B4",
+        _B4_GEREKCE,
+    ),
+    ("PATCH", "/projects/{project_id}"): (
+        "DSC-B4",
+        _B4_GEREKCE,
     ),
 }
 _YAZMA = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -105,7 +170,7 @@ def _dilim(aile: str, yontem: str, yol: str) -> str | None:
             return None
         if yazma:
             return "DSC-B5"
-        return "DSC-B4" if yol in STOK_AGREGA_YOLLARI else "DSC-B1"
+        return None if (yontem, yol) in STOK_DUYARSIZ_ROTALAR else "DSC-B1"
     if aile == "ev" and _EV_AYAR_YOLU.search(yol):
         # DSC-B3 (S11/Ü6): GET pacal kartları kapsama göre gizler; PUT yapılandırmadır → 403.
         return "DSC-B3"
@@ -213,10 +278,8 @@ def isaretli_rotalar() -> set[Rota]:
 IZIN_LISTESI: dict[Rota, str] = {
     ("GET", "/projects/{project_id}/contract/distribution"): "DSC-B5",
     ("PUT", "/projects/{project_id}/contract/distribution"): "DSC-B5",
-    ("GET", "/dashboard/summary"): "DSC-B4",
+    ("GET", "/dashboard/summary"): "DSC-B5",
     ("GET", "/projects/{project_id}/progress-payments/diary-suggestion"): "DSC-B5",
-    ("GET", "/sites/{site_id}/stock"): "DSC-B4",
-    ("GET", "/stock/summary"): "DSC-B4",
     ("GET", "/subcontractor-contracts/{contract_id}/progress-payments/diary-suggestion"): "DSC-B5",
     ("GET", "/progress-payments"): "DSC-B5",
     ("DELETE", "/progress-payments/{payment_id}"): "DSC-B5",
@@ -265,6 +328,23 @@ def test_ek_duyarli_rotalar_bayat_girdi_icermez() -> None:
     assert not bayat, f"BAYAT ek duyarlı rota (artık yok): {bayat}"
     duyarli, _ = duyarli_rotalar()
     assert set(EK_DUYARLI_ROTALAR) <= set(duyarli)
+
+
+def test_stok_okuma_uclari_duyarli_degildir_ve_suzulmez() -> None:
+    """Kullanıcı kararı 2026-09-29 (stok disiplinsiz): dört stok okuma ucu vardır, duyarlı
+    sayılmaz, `DisciplineScoped` taşımaz ve izin listesinde değildir."""
+    mevcut = {(y, c.path) for c in iter_route_contexts(app.routes) for y in c.methods}
+    assert set(STOK_DUYARSIZ_ROTALAR) <= mevcut, "bayat stok rotası"
+    duyarli, _ = duyarli_rotalar()
+    isaretli = isaretli_rotalar()
+    for rota in STOK_DUYARSIZ_ROTALAR:
+        assert rota not in duyarli, rota
+        assert rota not in isaretli, rota
+        assert rota not in IZIN_LISTESI, rota
+
+
+def test_izin_listesinde_b4_girdisi_kalmadi() -> None:
+    assert not [r for r, d in IZIN_LISTESI.items() if d == "DSC-B4"]
 
 
 def test_kullanici_disiplin_uclari_duyarli_degildir() -> None:

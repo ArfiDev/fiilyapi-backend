@@ -1,0 +1,149 @@
+{
+  "body": {
+    "counts": {
+      "all": 2,
+      "completed": 0,
+      "draft": 0,
+      "kat_karsiligi": 0,
+      "kendi_yatirim": 0,
+      "taahhut": 2
+    },
+    "items": [
+      {
+        "budget": "1000000.00",
+        "budget_lines": {
+          "labor": "0",
+          "material": "0",
+          "overhead": "0",
+          "subcontractor": "0"
+        },
+        "category": null,
+        "city": null,
+        "code": "DSC-P01",
+        "contract": {
+          "advance_pct": "20.00",
+          "amount": "1000000.00",
+          "base_index_value": null,
+          "contract_no": "DSC-SZL",
+          "has_price_escalation": true,
+          "index_type": null,
+          "late_penalty_daily": null,
+          "retainage_pct": "5.00",
+          "signature_date": null,
+          "vat_pct": "20.00"
+        },
+        "contract_amount": null,
+        "contract_no": null,
+        "contracting": {
+          "final_progress_payment": {
+            "available": false,
+            "pending_module": "progress_payments",
+            "value": null
+          },
+          "financial_progress": {
+            "available": true,
+            "pending_module": null,
+            "value": "5.00"
+          },
+          "physical_progress": {
+            "available": true,
+            "pending_module": null,
+            "value": "12.66"
+          },
+          "spent": {
+            "available": true,
+            "pending_module": null,
+            "value": "0.00"
+          },
+          "subcontractor_count": {
+            "available": false,
+            "count": null,
+            "pending_module": "subcontracts"
+          },
+          "worker_count": {
+            "available": true,
+            "count": 4,
+            "pending_module": "timesheet"
+          }
+        },
+        "employer": null,
+        "employer_name": null,
+        "end_date": null,
+        "id": "<proje>",
+        "investment": null,
+        "is_draft": false,
+        "land_share": null,
+        "name": "Disiplin Projesi",
+        "progress_pct": "0.00",
+        "project_type": "taahhut",
+        "slug": null,
+        "start_date": null,
+        "status": "active"
+      },
+      {
+        "budget": "1000000.00",
+        "budget_lines": {
+          "labor": "0",
+          "material": "0",
+          "overhead": "0",
+          "subcontractor": "0"
+        },
+        "category": null,
+        "city": null,
+        "code": "DSC-P02",
+        "contract": null,
+        "contract_amount": null,
+        "contract_no": null,
+        "contracting": {
+          "final_progress_payment": {
+            "available": false,
+            "pending_module": "progress_payments",
+            "value": null
+          },
+          "financial_progress": {
+            "available": false,
+            "pending_module": "progress_payments",
+            "value": null
+          },
+          "physical_progress": {
+            "available": true,
+            "pending_module": null,
+            "value": "40.00"
+          },
+          "spent": {
+            "available": true,
+            "pending_module": null,
+            "value": "0.00"
+          },
+          "subcontractor_count": {
+            "available": false,
+            "count": null,
+            "pending_module": "subcontracts"
+          },
+          "worker_count": {
+            "available": true,
+            "count": 0,
+            "pending_module": "timesheet"
+          }
+        },
+        "employer": null,
+        "employer_name": null,
+        "end_date": null,
+        "id": "<proje2>",
+        "investment": null,
+        "is_draft": false,
+        "land_share": null,
+        "name": "Revizyonsuz Proje",
+        "progress_pct": "0.00",
+        "project_type": "taahhut",
+        "slug": null,
+        "start_date": null,
+        "status": "active"
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "total": 2
+  },
+  "status": 200
+}

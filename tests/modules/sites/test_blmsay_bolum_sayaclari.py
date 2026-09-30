@@ -26,6 +26,7 @@ from decimal import Decimal
 
 from sqlalchemy import UniqueConstraint, event
 
+from app.core.discipline_scope import UNRESTRICTED
 from app.modules.boq.models import BoqItemSectionAllocation
 from app.modules.sites import service
 from app.modules.sites.models import Section, Site
@@ -134,7 +135,9 @@ async def test_LISTE_ucu_budget_amount_ve_planned_worker_count_BASAR(
         seeded_db, user_factory, project_factory, "BS-1", "bs1@t.co"
     )
 
-    satirlar = _satirlar((await service.list_sections_for_site(seeded_db, user, site.id)).items)
+    satirlar = _satirlar(
+        (await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)).items
+    )
 
     assert satirlar[dolu.id].budget_amount == _BEDEL
     assert satirlar[dolu.id].planned_worker_count == _PLANLANAN_ISCI
@@ -151,10 +154,10 @@ async def test_LISTE_ve_DETAY_ayni_TIPI_dondurur(seeded_db, user_factory, projec
         seeded_db, user_factory, project_factory, "BS-2", "bs2@t.co"
     )
 
-    satir = _satirlar((await service.list_sections_for_site(seeded_db, user, site.id)).items)[
-        dolu.id
-    ]
-    detay = await service.get_section_detail(seeded_db, user, dolu.id)
+    satir = _satirlar(
+        (await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)).items
+    )[dolu.id]
+    detay = await service.get_section_detail(seeded_db, user, dolu.id, scope=UNRESTRICTED)
 
     assert type(satir.budget_amount) is type(detay.budget_amount)
     assert type(satir.planned_worker_count) is type(detay.planned_worker_count)
@@ -183,9 +186,9 @@ async def test_boq_item_count_BAGLI__tahsisi_olan_bolum(seeded_db, user_factory,
         seeded_db, user_factory, project_factory, "BS-3", "bs3@t.co"
     )
 
-    satir = _satirlar((await service.list_sections_for_site(seeded_db, user, site.id)).items)[
-        dolu.id
-    ]
+    satir = _satirlar(
+        (await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)).items
+    )[dolu.id]
 
     assert satir.boq_item_count.available is True
     assert satir.boq_item_count.count == 3
@@ -208,9 +211,9 @@ async def test_boq_item_count__TAHSISI_OLMAYAN_bolum_SIFIR_dondurur(
         seeded_db, user_factory, project_factory, "BS-4", "bs4@t.co"
     )
 
-    satir = _satirlar((await service.list_sections_for_site(seeded_db, user, site.id)).items)[
-        bos.id
-    ]
+    satir = _satirlar(
+        (await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)).items
+    )[bos.id]
 
     assert satir.boq_item_count.available is True, "ölçülebilen sayaç yer tutucuya DÜŞMEZ"
     assert satir.boq_item_count.count == 0
@@ -232,9 +235,9 @@ async def test_budget_TAHSIS_EDILEN_miktarlardan_turer(seeded_db, user_factory, 
         seeded_db, user_factory, project_factory, "BS-5", "bs5@t.co"
     )
 
-    satir = _satirlar((await service.list_sections_for_site(seeded_db, user, site.id)).items)[
-        dolu.id
-    ]
+    satir = _satirlar(
+        (await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)).items
+    )[dolu.id]
 
     assert satir.budget.available is True
     assert satir.budget.value == _TUREV_BEDEL
@@ -256,7 +259,9 @@ async def test_budget__ELLE_GIRILEN_budget_amount_ILE_AYNI_SEY_DEGILDIR(
         seeded_db, user_factory, project_factory, "BS-6", "bs6@t.co"
     )
 
-    satirlar = _satirlar((await service.list_sections_for_site(seeded_db, user, site.id)).items)
+    satirlar = _satirlar(
+        (await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)).items
+    )
 
     assert satirlar[dolu.id].budget.value == _TUREV_BEDEL
     assert satirlar[dolu.id].budget_amount == _BEDEL
@@ -282,9 +287,9 @@ async def test_progress_pct_ILR1DE_BAGLANDI__gunluk_YOKKEN_SIFIR(
         seeded_db, user_factory, project_factory, "BS-7", "bs7@t.co"
     )
 
-    satir = _satirlar((await service.list_sections_for_site(seeded_db, user, site.id)).items)[
-        dolu.id
-    ]
+    satir = _satirlar(
+        (await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)).items
+    )[dolu.id]
 
     assert (satir.progress_pct.available, satir.progress_pct.pending_module) == (True, None)
     assert satir.progress_pct.value == Decimal("0.00"), (
@@ -304,11 +309,13 @@ async def test_UC_YUZEY_de_ayni_sayaci_basar(seeded_db, user_factory, project_fa
         seeded_db, user_factory, project_factory, "BS-8", "bs8@t.co"
     )
 
-    liste = _satirlar((await service.list_sections_for_site(seeded_db, user, site.id)).items)[
-        dolu.id
-    ]
-    santiye = _satirlar((await service.get_site_detail(seeded_db, user, site.id)).sections)[dolu.id]
-    detay = await service.get_section_detail(seeded_db, user, dolu.id)
+    liste = _satirlar(
+        (await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)).items
+    )[dolu.id]
+    santiye = _satirlar(
+        (await service.get_site_detail(seeded_db, user, site.id, scope=UNRESTRICTED)).sections
+    )[dolu.id]
+    detay = await service.get_section_detail(seeded_db, user, dolu.id, scope=UNRESTRICTED)
 
     for yuzey in (liste, santiye, detay):
         assert yuzey.boq_item_count.count == 3
@@ -347,7 +354,7 @@ async def test_sorgu_sayisi_BOLUM_SAYISINDAN_bagimsizdir(seeded_db, user_factory
     )
 
     with _sayac() as ifadeler:
-        await service.list_sections_for_site(seeded_db, user, site.id)
+        await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)
         iki_bolum = len(ifadeler)
 
     for sira in range(2, 8):
@@ -355,7 +362,7 @@ async def test_sorgu_sayisi_BOLUM_SAYISINDAN_bagimsizdir(seeded_db, user_factory
     await seeded_db.flush()
 
     with _sayac() as ifadeler:
-        liste = await service.list_sections_for_site(seeded_db, user, site.id)
+        liste = await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)
         sekiz_bolum = len(ifadeler)
 
     assert len(liste.items) == 8

@@ -1,0 +1,54 @@
+{
+  "body": {
+    "active_project_count": 0,
+    "average_margin": {
+      "available": false,
+      "pending_module": "progress_payments",
+      "value": null
+    },
+    "pending_approvals": {
+      "available": true,
+      "count": 0,
+      "items": [],
+      "pending_module": "approvals"
+    },
+    "portfolio": {
+      "available": true,
+      "pending_module": null,
+      "value": "132.00"
+    },
+    "projects": [],
+    "receivables": {
+      "available": false,
+      "pending_module": "invoicing",
+      "value": null
+    },
+    "risks": {
+      "available": true,
+      "items": [
+        {
+          "detail": "2 kalemin asgari stoğu yok — durumu bilinmiyor",
+          "module": "inventory",
+          "severity": "warning",
+          "title": "Stok eşiği girilmemiş"
+        }
+      ],
+      "sources": [
+        {
+          "module": "inventory",
+          "state": "ok"
+        },
+        {
+          "module": "progress_payments",
+          "state": "ok"
+        },
+        {
+          "module": "sites",
+          "state": "ok"
+        }
+      ]
+    },
+    "role_name": "Sistem Yöneticisi"
+  },
+  "status": 200
+}

@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy import event
 
+from app.core.discipline_scope import UNRESTRICTED
 from app.modules.dashboard.service import build_summary
 from app.modules.projects.models import Employer
 from app.modules.projects.schemas import ProjectBudgetInput, ProjectContractInput, ProjectCreate
@@ -96,7 +97,7 @@ async def test_list_item_exposes_new_fields(seeded_db, user_factory):
     )
     user = await _actor(seeded_db, user_factory)
 
-    overview = await list_projects_overview(seeded_db, user, None, None)
+    overview = await list_projects_overview(seeded_db, user, None, None, scope=UNRESTRICTED)
 
     item = overview.items[0]
     assert item.is_draft is True
@@ -122,7 +123,7 @@ async def test_counts_include_draft(seeded_db, user_factory):
     )
     user = await _actor(seeded_db, user_factory)
 
-    overview = await list_projects_overview(seeded_db, user, None, None)
+    overview = await list_projects_overview(seeded_db, user, None, None, scope=UNRESTRICTED)
 
     assert overview.counts.draft == 2
     assert overview.counts.all == 3
@@ -135,7 +136,7 @@ async def test_drafts_appear_in_list(seeded_db, user_factory):
     )
     user = await _actor(seeded_db, user_factory)
 
-    overview = await list_projects_overview(seeded_db, user, None, None)
+    overview = await list_projects_overview(seeded_db, user, None, None, scope=UNRESTRICTED)
 
     assert overview.counts.all == 1
     assert len(overview.items) == 1
@@ -208,7 +209,7 @@ async def test_list_avoids_n_plus_one_for_employer_contract(seeded_db, user_fact
         nonlocal query_count
         query_count += 1
 
-    overview = await list_projects_overview(seeded_db, user, None, None)
+    overview = await list_projects_overview(seeded_db, user, None, None, scope=UNRESTRICTED)
     uc_proje_sorgusu = query_count
 
     assert len(overview.items) == 3
@@ -233,7 +234,7 @@ async def test_list_avoids_n_plus_one_for_employer_contract(seeded_db, user_fact
             ),
         )
     query_count = 0
-    overview6 = await list_projects_overview(seeded_db, user, None, None)
+    overview6 = await list_projects_overview(seeded_db, user, None, None, scope=UNRESTRICTED)
     alti_proje_sorgusu = query_count
 
     assert len(overview6.items) == 6

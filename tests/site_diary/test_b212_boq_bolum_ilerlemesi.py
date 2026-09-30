@@ -12,6 +12,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED
 from app.modules.boq.models import BoqItemSectionAllocation
 from app.modules.boq.progress import (
     physical_for_section,
@@ -59,8 +60,11 @@ async def _gonderilmis_gun(
 
 
 async def _yuzdeler(session: AsyncSession, a: Section, b: Section):
-    tekil = (await physical_for_section(session, a.id), await physical_for_section(session, b.id))
-    toplu = await physical_for_sections(session, [a.id, b.id])
+    tekil = (
+        await physical_for_section(session, a.id, scope=UNRESTRICTED),
+        await physical_for_section(session, b.id, scope=UNRESTRICTED),
+    )
+    toplu = await physical_for_sections(session, [a.id, b.id], scope=UNRESTRICTED)
     return tekil, (toplu[a.id], toplu[b.id])
 
 
@@ -128,7 +132,7 @@ async def test_santiye_yuzdesi_ve_kalem_toplami_bolumden_bagimsiz_AYNEN(
     )
 
     realized = await realized_by_item(seeded_db, [items[0].id])
-    site_pct = await physical_for_site(seeded_db, site.id)
+    site_pct = await physical_for_site(seeded_db, site.id, scope=UNRESTRICTED)
 
     assert realized == {items[0].id: Decimal("50.000")}
     # Pay = 50 × 21.500; payda = 200 × 21.500 + 450 × 1.850.

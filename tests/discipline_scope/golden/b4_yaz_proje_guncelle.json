@@ -1,0 +1,85 @@
+{
+  "audit": [
+    {
+      "action": "update",
+      "actor": "<user:atamasiz>",
+      "detail": "Proje güncellendi: Disiplin Projesi Güncel"
+    }
+  ],
+  "db": {},
+  "yanit": {
+    "body": {
+      "budget": "1000000.00",
+      "budget_lines": {
+        "labor": "0.00",
+        "material": "0.00",
+        "overhead": "0.00",
+        "subcontractor": "0.00"
+      },
+      "category": null,
+      "city": "Ankara",
+      "code": "DSC-P01",
+      "contract": {
+        "advance_pct": "20.00",
+        "amount": "1000000.00",
+        "base_index_value": null,
+        "contract_no": "DSC-SZL",
+        "has_price_escalation": true,
+        "index_type": null,
+        "late_penalty_daily": null,
+        "retainage_pct": "5.00",
+        "signature_date": null,
+        "vat_pct": "20.00"
+      },
+      "contract_amount": null,
+      "contract_no": null,
+      "contracting": {
+        "final_progress_payment": {
+          "available": false,
+          "pending_module": "progress_payments",
+          "value": null
+        },
+        "financial_progress": {
+          "available": true,
+          "pending_module": null,
+          "value": "5.00"
+        },
+        "physical_progress": {
+          "available": true,
+          "pending_module": null,
+          "value": "12.66"
+        },
+        "spent": {
+          "available": true,
+          "pending_module": null,
+          "value": "0.00"
+        },
+        "subcontractor_count": {
+          "available": false,
+          "count": null,
+          "pending_module": "subcontracts"
+        },
+        "worker_count": {
+          "available": true,
+          "count": 4,
+          "pending_module": "timesheet"
+        }
+      },
+      "employer": null,
+      "employer_name": null,
+      "end_date": null,
+      "id": "<proje>",
+      "investment": null,
+      "is_draft": false,
+      "land_share": null,
+      "name": "Disiplin Projesi Güncel",
+      "progress_pct": "0.00",
+      "project_type": "taahhut",
+      "site_count": 2,
+      "slug": null,
+      "start_date": null,
+      "status": "active"
+    },
+    "status": 200
+  }
+}

@@ -15,6 +15,7 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
+from app.core.discipline_scope import UNRESTRICTED
 from app.modules.projects.models import ProjectInvestment, ProjectLandShare
 from app.modules.projects.schemas import (
     CountPlaceholder,
@@ -400,7 +401,7 @@ async def test_proje_listesinde_sorgu_sayisi_proje_sayisindan_bagimsizdir(
     await db_session.flush()
 
     _sorgu_sayaci.clear()
-    await list_projects_overview(db_session, user, None, None)
+    await list_projects_overview(db_session, user, None, None, scope=UNRESTRICTED)
     tek_sayim = _tablo_sayimi(_sorgu_sayaci, "units")
 
     for sira in range(3):
@@ -410,7 +411,7 @@ async def test_proje_listesinde_sorgu_sayisi_proje_sayisindan_bagimsizdir(
     await db_session.flush()
 
     _sorgu_sayaci.clear()
-    yanit = await list_projects_overview(db_session, user, None, None)
+    yanit = await list_projects_overview(db_session, user, None, None, scope=UNRESTRICTED)
     cok_sayim = _tablo_sayimi(_sorgu_sayaci, "units")
 
     assert len(yanit.items) == 4
@@ -439,7 +440,7 @@ async def test_taahhut_kartlarinda_sorgu_sayisi_proje_ve_hakedis_sayisindan_bagi
     await db_session.flush()
 
     _sorgu_sayaci.clear()
-    await list_projects_overview(db_session, user, None, None)
+    await list_projects_overview(db_session, user, None, None, scope=UNRESTRICTED)
     tek_sayim = {tablo: _tablo_sayimi(_sorgu_sayaci, tablo) for tablo in _TAAHHUT_TABLOLARI}
 
     for sira in range(3):
@@ -458,7 +459,7 @@ async def test_taahhut_kartlarinda_sorgu_sayisi_proje_ve_hakedis_sayisindan_bagi
     await db_session.flush()
 
     _sorgu_sayaci.clear()
-    yanit = await list_projects_overview(db_session, user, None, None)
+    yanit = await list_projects_overview(db_session, user, None, None, scope=UNRESTRICTED)
     cok_sayim = {tablo: _tablo_sayimi(_sorgu_sayaci, tablo) for tablo in _TAAHHUT_TABLOLARI}
 
     assert len(yanit.items) == 4
@@ -482,7 +483,7 @@ async def test_kendi_yatirim_kartlarinda_harcanan_okumasi_da_TEK_sorgudur(
     await db_session.flush()
 
     _sorgu_sayaci.clear()
-    await list_projects_overview(db_session, user, None, None)
+    await list_projects_overview(db_session, user, None, None, scope=UNRESTRICTED)
     tek_sayim = {tablo: _tablo_sayimi(_sorgu_sayaci, tablo) for tablo in _TAAHHUT_TABLOLARI}
 
     for sira in range(3):
@@ -501,7 +502,7 @@ async def test_kendi_yatirim_kartlarinda_harcanan_okumasi_da_TEK_sorgudur(
     await db_session.flush()
 
     _sorgu_sayaci.clear()
-    yanit = await list_projects_overview(db_session, user, None, None)
+    yanit = await list_projects_overview(db_session, user, None, None, scope=UNRESTRICTED)
     cok_sayim = {tablo: _tablo_sayimi(_sorgu_sayaci, tablo) for tablo in _TAAHHUT_TABLOLARI}
 
     assert len(yanit.items) == 4
@@ -528,7 +529,7 @@ async def test_harcanan_alani_olmayan_tipte_taseron_okumasi_HIC_kosmaz(
     await db_session.flush()
 
     _sorgu_sayaci.clear()
-    await list_projects_overview(db_session, user, None, None)
+    await list_projects_overview(db_session, user, None, None, scope=UNRESTRICTED)
 
     assert _tablo_sayimi(_sorgu_sayaci, "subcontractor_progress_payments") == 0
 

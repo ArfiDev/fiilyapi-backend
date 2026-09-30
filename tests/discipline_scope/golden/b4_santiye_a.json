@@ -1,0 +1,150 @@
+{
+  "body": {
+    "address": null,
+    "budget": null,
+    "city": null,
+    "city_inherited": false,
+    "code": "DSC-A",
+    "construction_area_m2": null,
+    "contract_amount": {
+      "available": false,
+      "pending_module": "contracts",
+      "value": null
+    },
+    "delivery_date": null,
+    "electricity_subscription_no": null,
+    "end_date": null,
+    "facilities": {
+      "canteen": false,
+      "changing_room_wc": false,
+      "closed_warehouse": false,
+      "cold_storage": false,
+      "dormitory": false,
+      "infirmary": false,
+      "open_storage": false,
+      "site_office": false
+    },
+    "floor_info": null,
+    "gps_coordinates": null,
+    "id": "<site>",
+    "is_draft": false,
+    "land_area_m2": null,
+    "name": "A-Blok Şantiyesi",
+    "neighborhood": null,
+    "parcel": null,
+    "planned_worker_count": null,
+    "progress_pct": {
+      "available": true,
+      "pending_module": null,
+      "value": "8.13"
+    },
+    "project": {
+      "city": null,
+      "employer_name": null,
+      "id": "<proje>",
+      "name": "Disiplin Projesi",
+      "slug": null
+    },
+    "remaining_days": null,
+    "safety_officer_is_outsourced": false,
+    "safety_officer_name": null,
+    "safety_officer_user_id": null,
+    "section_count": 2,
+    "section_status_counts": {
+      "active": 0,
+      "completed": 0,
+      "planned": 2
+    },
+    "sections": [
+      {
+        "boq_item_count": {
+          "available": true,
+          "count": 2,
+          "pending_module": "boq"
+        },
+        "budget": {
+          "available": true,
+          "pending_module": null,
+          "value": "1600.00"
+        },
+        "budget_amount": null,
+        "code": null,
+        "depends_on_section_id": null,
+        "end_date": "2026-05-15",
+        "id": "<S1>",
+        "manager_name": null,
+        "manager_user_id": null,
+        "milestones": [],
+        "name": "A Blok",
+        "planned_worker_count": 12,
+        "progress_pct": {
+          "available": true,
+          "pending_module": null,
+          "value": "9.38"
+        },
+        "slug": null,
+        "sort_order": 1,
+        "start_date": "2026-05-04",
+        "status": "planned",
+        "worker_count": {
+          "available": true,
+          "count": 0,
+          "pending_module": "timesheet"
+        }
+      },
+      {
+        "boq_item_count": {
+          "available": true,
+          "count": 2,
+          "pending_module": "boq"
+        },
+        "budget": {
+          "available": true,
+          "pending_module": null,
+          "value": "900.00"
+        },
+        "budget_amount": null,
+        "code": null,
+        "depends_on_section_id": null,
+        "end_date": "2026-05-29",
+        "id": "<S2>",
+        "manager_name": null,
+        "manager_user_id": null,
+        "milestones": [],
+        "name": "B Blok",
+        "planned_worker_count": 8,
+        "progress_pct": {
+          "available": true,
+          "pending_module": null,
+          "value": "12.22"
+        },
+        "slug": null,
+        "sort_order": 2,
+        "start_date": "2026-05-18",
+        "status": "planned",
+        "worker_count": {
+          "available": true,
+          "count": 0,
+          "pending_module": "timesheet"
+        }
+      }
+    ],
+    "site_manager_name": null,
+    "site_manager_user_id": null,
+    "slug": null,
+    "start_date": null,
+    "status": "active",
+    "total_progress_payment": {
+      "available": false,
+      "pending_module": "progress_payments",
+      "value": null
+    },
+    "water_subscription_no": null,
+    "worker_count": {
+      "available": true,
+      "count": 2,
+      "pending_module": "timesheet"
+    }
+  },
+  "status": 200
+}

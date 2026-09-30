@@ -6,6 +6,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.core.discipline_scope import UNRESTRICTED
 from app.core.errors import NotFoundError
 from app.core.timezone import today
 from app.modules.audit import messages
@@ -43,7 +44,9 @@ async def test_remaining_days_is_null_without_end_date(seeded_db, user_factory, 
     await _site(seeded_db, project, end_date=None)
     user = await _patron(seeded_db, user_factory, "s1@t.co")
 
-    card = (await service.list_sites_overview(seeded_db, user, project.id)).items[0]
+    card = (
+        await service.list_sites_overview(seeded_db, user, project.id, scope=UNRESTRICTED)
+    ).items[0]
 
     assert card.remaining_days is None
 
@@ -59,7 +62,9 @@ async def test_remaining_days_is_null_when_completed(seeded_db, user_factory, pr
     )
     user = await _patron(seeded_db, user_factory, "s2@t.co")
 
-    card = (await service.list_sites_overview(seeded_db, user, project.id)).items[0]
+    card = (
+        await service.list_sites_overview(seeded_db, user, project.id, scope=UNRESTRICTED)
+    ).items[0]
 
     assert card.remaining_days is None
 
@@ -69,7 +74,9 @@ async def test_remaining_days_counts_forward(seeded_db, user_factory, project_fa
     await _site(seeded_db, project, end_date=today() + timedelta(days=157))
     user = await _patron(seeded_db, user_factory, "s3@t.co")
 
-    card = (await service.list_sites_overview(seeded_db, user, project.id)).items[0]
+    card = (
+        await service.list_sites_overview(seeded_db, user, project.id, scope=UNRESTRICTED)
+    ).items[0]
 
     assert card.remaining_days == 157
 
@@ -80,7 +87,9 @@ async def test_remaining_days_is_negative_when_overdue(seeded_db, user_factory, 
     await _site(seeded_db, project, end_date=today() - timedelta(days=12))
     user = await _patron(seeded_db, user_factory, "s4@t.co")
 
-    card = (await service.list_sites_overview(seeded_db, user, project.id)).items[0]
+    card = (
+        await service.list_sites_overview(seeded_db, user, project.id, scope=UNRESTRICTED)
+    ).items[0]
 
     assert card.remaining_days == -12
 
@@ -93,7 +102,9 @@ async def test_city_is_inherited_from_project_when_blank(seeded_db, user_factory
     await _site(seeded_db, project, city=None)
     user = await _patron(seeded_db, user_factory, "s5@t.co")
 
-    card = (await service.list_sites_overview(seeded_db, user, project.id)).items[0]
+    card = (
+        await service.list_sites_overview(seeded_db, user, project.id, scope=UNRESTRICTED)
+    ).items[0]
 
     assert card.city == "Ankara"
     assert card.city_inherited is True
@@ -104,7 +115,9 @@ async def test_own_city_wins_and_is_not_flagged(seeded_db, user_factory, project
     await _site(seeded_db, project, city="Bursa")
     user = await _patron(seeded_db, user_factory, "s6@t.co")
 
-    card = (await service.list_sites_overview(seeded_db, user, project.id)).items[0]
+    card = (
+        await service.list_sites_overview(seeded_db, user, project.id, scope=UNRESTRICTED)
+    ).items[0]
 
     assert card.city == "Bursa"
     assert card.city_inherited is False
@@ -115,7 +128,9 @@ async def test_city_stays_null_when_project_has_none(seeded_db, user_factory, pr
     await _site(seeded_db, project, city=None)
     user = await _patron(seeded_db, user_factory, "s7@t.co")
 
-    card = (await service.list_sites_overview(seeded_db, user, project.id)).items[0]
+    card = (
+        await service.list_sites_overview(seeded_db, user, project.id, scope=UNRESTRICTED)
+    ).items[0]
 
     assert card.city is None
     assert card.city_inherited is False
@@ -132,7 +147,7 @@ async def test_site_counts_by_status(seeded_db, user_factory, project_factory):
     await _site(seeded_db, project, "D", status=SiteStatus.completed)
     user = await _patron(seeded_db, user_factory, "s8@t.co")
 
-    result = await service.list_sites_overview(seeded_db, user, project.id)
+    result = await service.list_sites_overview(seeded_db, user, project.id, scope=UNRESTRICTED)
 
     assert result.counts.all == 4
     assert result.counts.active == 1
@@ -154,7 +169,7 @@ async def test_section_status_counts(seeded_db, user_factory, project_factory):
     await seeded_db.flush()
     user = await _patron(seeded_db, user_factory, "s9@t.co")
 
-    detail = await service.get_site_detail(seeded_db, user, site.id)
+    detail = await service.get_site_detail(seeded_db, user, site.id, scope=UNRESTRICTED)
 
     assert detail.section_count == 5
     assert detail.section_status_counts.planned == 1
@@ -168,7 +183,7 @@ async def test_site_without_sections_is_valid(seeded_db, user_factory, project_f
     site = await _site(seeded_db, project)
     user = await _patron(seeded_db, user_factory, "s10@t.co")
 
-    detail = await service.get_site_detail(seeded_db, user, site.id)
+    detail = await service.get_site_detail(seeded_db, user, site.id, scope=UNRESTRICTED)
 
     assert detail.sections == []
     assert detail.section_count == 0
@@ -182,7 +197,7 @@ async def test_detail_carries_project_summary(seeded_db, user_factory, project_f
     site = await _site(seeded_db, project)
     user = await _patron(seeded_db, user_factory, "s11@t.co")
 
-    detail = await service.get_site_detail(seeded_db, user, site.id)
+    detail = await service.get_site_detail(seeded_db, user, site.id, scope=UNRESTRICTED)
 
     assert detail.project.name == "Güneşkent"
     assert detail.project.employer_name == "GK A.Ş."
@@ -198,7 +213,7 @@ async def test_list_placeholders_use_correct_pending_modules(
     await _site(seeded_db, project)
     user = await _patron(seeded_db, user_factory, "s12@t.co")
 
-    result = await service.list_sites_overview(seeded_db, user, project.id)
+    result = await service.list_sites_overview(seeded_db, user, project.id, scope=UNRESTRICTED)
     card = result.items[0]
 
     # T4 (puantaj §4): `worker_count` artik YER TUTUCU DEGIL — puantaj kaydi
@@ -235,7 +250,7 @@ async def test_detail_and_section_placeholders(seeded_db, user_factory, project_
     await seeded_db.flush()
     user = await _patron(seeded_db, user_factory, "s13@t.co")
 
-    detail = await service.get_site_detail(seeded_db, user, site.id)
+    detail = await service.get_site_detail(seeded_db, user, site.id, scope=UNRESTRICTED)
     section = detail.sections[0]
 
     assert detail.total_progress_payment.pending_module == "progress_payments"
@@ -272,7 +287,7 @@ async def test_list_for_invisible_project_raises_not_found(
     user = await user_factory(email="s14@t.co", password="parola1234", role_key="patron")
 
     with pytest.raises(NotFoundError):
-        await service.list_sites_overview(seeded_db, user, hidden.id)
+        await service.list_sites_overview(seeded_db, user, hidden.id, scope=UNRESTRICTED)
 
 
 async def test_detail_of_invisible_project_site_raises_not_found(
@@ -283,7 +298,7 @@ async def test_detail_of_invisible_project_site_raises_not_found(
     user = await user_factory(email="s15@t.co", password="parola1234", role_key="patron")
 
     with pytest.raises(NotFoundError):
-        await service.get_site_detail(seeded_db, user, site.id)
+        await service.get_site_detail(seeded_db, user, site.id, scope=UNRESTRICTED)
 
 
 async def test_section_list_of_invisible_site_raises_not_found(
@@ -294,7 +309,7 @@ async def test_section_list_of_invisible_site_raises_not_found(
     user = await user_factory(email="s16@t.co", password="parola1234", role_key="patron")
 
     with pytest.raises(NotFoundError):
-        await service.list_sections_for_site(seeded_db, user, site.id)
+        await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)
 
 
 async def test_update_section_of_invisible_site_raises_not_found(
@@ -316,11 +331,11 @@ async def test_missing_ids_raise_not_found(seeded_db, user_factory):
     user = await _patron(seeded_db, user_factory, "s18@t.co")
 
     with pytest.raises(NotFoundError):
-        await service.get_site_detail(seeded_db, user, uuid.uuid4())
+        await service.get_site_detail(seeded_db, user, uuid.uuid4(), scope=UNRESTRICTED)
     with pytest.raises(NotFoundError):
         await service.update_section(seeded_db, user, uuid.uuid4(), SectionUpdate(name="X"))
     with pytest.raises(NotFoundError):
-        await service.list_sites_overview(seeded_db, user, uuid.uuid4())
+        await service.list_sites_overview(seeded_db, user, uuid.uuid4(), scope=UNRESTRICTED)
 
 
 # --- yazma ---
@@ -424,7 +439,7 @@ async def test_section_list_response_counts(seeded_db, user_factory, project_fac
     await seeded_db.flush()
     user = await _patron(seeded_db, user_factory, "s25@t.co")
 
-    result = await service.list_sections_for_site(seeded_db, user, site.id)
+    result = await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)
 
     assert [s.name for s in result.items] == ["B1", "B2"]
     assert result.counts.active == 1

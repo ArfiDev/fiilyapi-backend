@@ -152,29 +152,23 @@ async def _weighted_for_scope(
     return Decimal(pay), Decimal(payda)
 
 
-def _kapsam_maddeleri(scope: DisciplineScope | None) -> list[ColumnElement[bool]]:
-    """DSC-B1: `scope` VERILMISSE (BOQ ekrani) tabana gorunur-kalem maddesi eklenir. `None`
-    (kartlar, projeler — B4'e kadar) → madde YOK, SQL bugunku gibi kalir. `BoqItem` bu
-    tabanlarin FROM'unda oldugu icin `item_visible_clause` korelasyonu meşrudur."""
-    return [] if scope is None else [item_visible_clause(scope, BoqItem)]
-
-
 def _site_taban(
-    site_id: uuid.UUID, scope: DisciplineScope | None = None
+    site_id: uuid.UUID, scope: DisciplineScope
 ) -> Select[tuple[uuid.UUID, Decimal, Decimal]]:
     """PAYDA = SANTIYE BOQ'u: pozun KENDI `quantity`si (santiye kotasi).
 
-    `scope` (DSC-B1): PAY ve PAYDA ayni gorunur kalem kumesinden hesaplanir — B4'un
-    kartlara baglayacagi parametre budur."""
+    `scope` ZORUNLU (DSC-B4): suzgec YALNIZ tabana (BoqItem FROM'da) konur; gerceklesen
+    taraf tabana dis birlesimle baglandigindan gorunmez kalemin gerceklesen'i kendiliginden
+    duser (PAY ve PAYDA ayni gorunur kume). SiteDiaryLine tarafina `ItemVisible` KONMAZ."""
     return select(
         BoqItem.id.label("boq_item_id"),
         BoqItem.quantity.label("taban"),
         BoqItem.unit_price.label("unit_price"),
-    ).where(BoqItem.site_id == site_id, *_kapsam_maddeleri(scope))
+    ).where(BoqItem.site_id == site_id, item_visible_clause(scope, BoqItem))
 
 
 def _section_taban(
-    section_id: uuid.UUID, scope: DisciplineScope | None = None
+    section_id: uuid.UUID, scope: DisciplineScope
 ) -> Select[tuple[uuid.UUID, Decimal, Decimal]]:
     """PAYDA = BOLUM TAHSISI (`BoqItemSectionAllocation`), pozun kotasi DEGIL.
 
@@ -189,11 +183,15 @@ def _section_taban(
             BoqItem.unit_price.label("unit_price"),
         )
         .join(BoqItem, BoqItem.id == BoqItemSectionAllocation.boq_item_id)
-        .where(BoqItemSectionAllocation.section_id == section_id, *_kapsam_maddeleri(scope))
+        .where(
+            BoqItemSectionAllocation.section_id == section_id, item_visible_clause(scope, BoqItem)
+        )
     )
 
 
-def _project_taban(project_id: uuid.UUID) -> Select[tuple[uuid.UUID, Decimal, Decimal]]:
+def _project_taban(
+    project_id: uuid.UUID, scope: DisciplineScope
+) -> Select[tuple[uuid.UUID, Decimal, Decimal]]:
     """PAYDA = PROJE geneli BOQ: projenin TUM santiyelerinin pozlari."""
     return (
         select(
@@ -202,7 +200,7 @@ def _project_taban(project_id: uuid.UUID) -> Select[tuple[uuid.UUID, Decimal, De
             BoqItem.unit_price.label("unit_price"),
         )
         .join(Site, Site.id == BoqItem.site_id)
-        .where(Site.project_id == project_id)
+        .where(Site.project_id == project_id, item_visible_clause(scope, BoqItem))
     )
 
 
@@ -212,14 +210,14 @@ def _project_taban(project_id: uuid.UUID) -> Select[tuple[uuid.UUID, Decimal, De
 
 
 async def physical_for_site(
-    session: AsyncSession, site_id: uuid.UUID, scope: DisciplineScope | None = None
+    session: AsyncSession, site_id: uuid.UUID, scope: DisciplineScope
 ) -> Decimal | None:
     pay, payda = await _weighted_for_scope(session, _site_taban(site_id, scope))
     return weighted_pct(pay, payda)
 
 
 async def physical_for_section(
-    session: AsyncSession, section_id: uuid.UUID, scope: DisciplineScope | None = None
+    session: AsyncSession, section_id: uuid.UUID, scope: DisciplineScope
 ) -> Decimal | None:
     pay, payda = await _weighted_for_scope(
         session, _section_taban(section_id, scope), section_id=section_id
@@ -227,13 +225,15 @@ async def physical_for_section(
     return weighted_pct(pay, payda)
 
 
-async def physical_for_project(session: AsyncSession, project_id: uuid.UUID) -> Decimal | None:
-    pay, payda = await _weighted_for_scope(session, _project_taban(project_id))
+async def physical_for_project(
+    session: AsyncSession, project_id: uuid.UUID, scope: DisciplineScope
+) -> Decimal | None:
+    pay, payda = await _weighted_for_scope(session, _project_taban(project_id, scope))
     return weighted_pct(pay, payda)
 
 
 async def physical_for_sections(
-    session: AsyncSession, section_ids: list[uuid.UUID]
+    session: AsyncSession, section_ids: list[uuid.UUID], scope: DisciplineScope
 ) -> dict[uuid.UUID, Decimal | None]:
     """TOPLU bolum yuzdesi — bolum LISTESI ekrani icin TEK sorgu.
 
@@ -250,7 +250,10 @@ async def physical_for_sections(
             BoqItem.unit_price.label("unit_price"),
         )
         .join(BoqItem, BoqItem.id == BoqItemSectionAllocation.boq_item_id)
-        .where(BoqItemSectionAllocation.section_id.in_(section_ids))
+        .where(
+            BoqItemSectionAllocation.section_id.in_(section_ids),
+            item_visible_clause(scope, BoqItem),
+        )
         .subquery()
     )
     realized = (
@@ -291,7 +294,7 @@ async def physical_for_sections(
 
 
 async def physical_for_projects(
-    session: AsyncSession, project_ids: list[uuid.UUID]
+    session: AsyncSession, project_ids: list[uuid.UUID], scope: DisciplineScope
 ) -> dict[uuid.UUID, Decimal | None]:
     """TOPLU proje yuzdesi — proje KARTLARI icin TEK sorgu.
 
@@ -308,7 +311,7 @@ async def physical_for_projects(
             BoqItem.unit_price.label("unit_price"),
         )
         .join(Site, Site.id == BoqItem.site_id)
-        .where(Site.project_id.in_(project_ids))
+        .where(Site.project_id.in_(project_ids), item_visible_clause(scope, BoqItem))
         .subquery()
     )
     realized = _realized_line_sums().subquery()
@@ -329,7 +332,7 @@ async def physical_for_projects(
 
 
 async def physical_for_sites(
-    session: AsyncSession, site_ids: list[uuid.UUID]
+    session: AsyncSession, site_ids: list[uuid.UUID], scope: DisciplineScope
 ) -> dict[uuid.UUID, Decimal | None]:
     """TOPLU santiye yuzdesi — santiye KARTI listesi icin TEK sorgu.
 
@@ -345,7 +348,7 @@ async def physical_for_sites(
             BoqItem.quantity.label("taban"),
             BoqItem.unit_price.label("unit_price"),
         )
-        .where(BoqItem.site_id.in_(site_ids))
+        .where(BoqItem.site_id.in_(site_ids), item_visible_clause(scope, BoqItem))
         .subquery()
     )
     realized = _realized_line_sums().subquery()

@@ -1,0 +1,87 @@
+{
+  "audit": [
+    {
+      "action": "create",
+      "actor": "<user:atamasiz>",
+      "detail": "Yeni şantiye oluşturuldu: Kodsuz Şantiye"
+    }
+  ],
+  "db": {},
+  "yanit": {
+    "body": {
+      "address": null,
+      "budget": null,
+      "city": "Ankara",
+      "city_inherited": false,
+      "code": "SNT-2026-001",
+      "construction_area_m2": "1200.00",
+      "contract_amount": {
+        "available": false,
+        "pending_module": "contracts",
+        "value": null
+      },
+      "delivery_date": null,
+      "electricity_subscription_no": null,
+      "end_date": "2026-12-31",
+      "facilities": {
+        "canteen": false,
+        "changing_room_wc": false,
+        "closed_warehouse": false,
+        "cold_storage": false,
+        "dormitory": false,
+        "infirmary": false,
+        "open_storage": false,
+        "site_office": false
+      },
+      "floor_info": null,
+      "gps_coordinates": null,
+      "id": "<yeni:id>",
+      "is_draft": false,
+      "land_area_m2": null,
+      "name": "Kodsuz Şantiye",
+      "neighborhood": null,
+      "parcel": null,
+      "planned_worker_count": null,
+      "progress_pct": {
+        "available": false,
+        "pending_module": "site_diary",
+        "value": null
+      },
+      "project": {
+        "city": null,
+        "employer_name": null,
+        "id": "<proje>",
+        "name": "Disiplin Projesi",
+        "slug": null
+      },
+      "remaining_days": 235,
+      "safety_officer_is_outsourced": false,
+      "safety_officer_name": null,
+      "safety_officer_user_id": null,
+      "section_count": 0,
+      "section_status_counts": {
+        "active": 0,
+        "completed": 0,
+        "planned": 0
+      },
+      "sections": [],
+      "site_manager_name": "Şantiye Şefi",
+      "site_manager_user_id": null,
+      "slug": "kodsuz-santiye",
+      "start_date": "2026-06-01",
+      "status": "active",
+      "total_progress_payment": {
+        "available": false,
+        "pending_module": "progress_payments",
+        "value": null
+      },
+      "water_subscription_no": null,
+      "worker_count": {
+        "available": true,
+        "count": 0,
+        "pending_module": "timesheet"
+      }
+    },
+    "status": 201
+  }
+}
