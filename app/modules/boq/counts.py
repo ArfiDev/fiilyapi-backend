@@ -68,6 +68,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import DisciplineScope, item_visible_clause
 from app.modules.boq.models import BoqItem, BoqItemSectionAllocation
 from app.modules.boq.schemas import quantize_money
 
@@ -90,9 +91,13 @@ EMPTY = SectionBoqTotals(item_count=0, amount=Decimal("0.00"))
 
 
 async def by_section(
-    session: AsyncSession, section_ids: Sequence[uuid.UUID]
+    session: AsyncSession, section_ids: Sequence[uuid.UUID], scope: DisciplineScope
 ) -> dict[uuid.UUID, SectionBoqTotals]:
-    """Bölüm başına tahsis edilmiş poz sayısı + tutar — TEK sorgu."""
+    """Bölüm başına tahsis edilmiş poz sayısı + tutar — TEK sorgu.
+
+    `scope` ZORUNLU (DSC-B4): yalnız görünür kalemler sayılır (FARKLI kalem sayısı ve
+    tahsis tutarı aynı görünür kümeden). Görünür kalemi olmayan bölüm sonuçta YOKTUR →
+    çağıran `EMPTY` (0 / 0.00) okur; 404 değildir."""
     if not section_ids:
         return {}
     stmt = (
@@ -103,7 +108,10 @@ async def by_section(
             BoqItem.unit_price,
         )
         .join(BoqItem, BoqItem.id == BoqItemSectionAllocation.boq_item_id)
-        .where(BoqItemSectionAllocation.section_id.in_(list(section_ids)))
+        .where(
+            BoqItemSectionAllocation.section_id.in_(list(section_ids)),
+            item_visible_clause(scope, BoqItem),
+        )
     )
     pozlar: dict[uuid.UUID, set[uuid.UUID]] = {}
     tutarlar: dict[uuid.UUID, Decimal] = {}

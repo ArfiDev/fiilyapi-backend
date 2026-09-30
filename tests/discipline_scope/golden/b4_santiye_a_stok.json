@@ -1,0 +1,63 @@
+{
+  "body": {
+    "items": [
+      {
+        "balance": "95.000",
+        "category": "structural",
+        "code": "STK-1",
+        "id": "<kart:k1>",
+        "min_stock": null,
+        "monthly_need": {
+          "available": false,
+          "pending_module": "site_planning",
+          "value": null
+        },
+        "name": "Çimento",
+        "section": {
+          "available": true,
+          "items": [
+            "A Blok",
+            "B Blok"
+          ],
+          "pending_module": "site_planning"
+        },
+        "status": null,
+        "unit": "Adet"
+      },
+      {
+        "balance": "26.000",
+        "category": "structural",
+        "code": "STK-2",
+        "id": "<kart:k2>",
+        "min_stock": null,
+        "monthly_need": {
+          "available": false,
+          "pending_module": "site_planning",
+          "value": null
+        },
+        "name": "Tuğla kartı",
+        "section": {
+          "available": true,
+          "items": [
+            "A Blok",
+            "B Blok"
+          ],
+          "pending_module": "site_planning"
+        },
+        "status": null,
+        "unit": "Adet"
+      }
+    ],
+    "kpis": {
+      "critical_count": 0,
+      "items_without_price": 0,
+      "low_count": 0,
+      "total_items": 2,
+      "total_value": "1395.50"
+    },
+    "limit": 50,
+    "offset": 0,
+    "total": 2
+  },
+  "status": 200
+}

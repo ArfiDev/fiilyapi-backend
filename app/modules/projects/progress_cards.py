@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import DisciplineScope
 from app.core.permissions import can_read
 from app.modules.boq import progress as boq_progress
 from app.modules.progress_payments import project_progress
@@ -46,9 +47,12 @@ EMPTY = _empty()
 
 
 async def by_projects(
-    session: AsyncSession, actor: User, projects: list[Project]
+    session: AsyncSession, actor: User, projects: list[Project], scope: DisciplineScope
 ) -> dict[uuid.UUID, CardProgress]:
-    """Proje -> iki ilerleme zarfi. En fazla IKI toplu sorgu ailesi acar."""
+    """Proje -> iki ilerleme zarfi. En fazla IKI toplu sorgu ailesi acar.
+
+    `scope` ZORUNLU (DSC-B4): YALNIZ fiziksel % suzulur (kendi disiplininin kalemleri, pay ve
+    payda kendi); mali ilerleme (hakedis) suzulmez — Ü3."""
     project_ids = [p.id for p in projects]
     if not project_ids:
         return {}
@@ -56,7 +60,9 @@ async def by_projects(
     gunluk_izni = await can_read(session, actor, _SITE_DIARY)
     hakedis_izni = await can_read(session, actor, _PROGRESS_PAYMENTS)
 
-    fiziksel = await boq_progress.physical_for_projects(session, project_ids) if gunluk_izni else {}
+    fiziksel = (
+        await boq_progress.physical_for_projects(session, project_ids, scope) if gunluk_izni else {}
+    )
     mali = (
         await project_progress.financial_for_projects(session, project_ids) if hakedis_izni else {}
     )

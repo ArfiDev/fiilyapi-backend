@@ -1,0 +1,66 @@
+{
+  "body": {
+    "items": [
+      {
+        "balance": "70.000",
+        "category": "structural",
+        "code": "STK-1",
+        "id": "<kart:k1>",
+        "last_unit_price": "12.50",
+        "min_stock": null,
+        "name": "Çimento",
+        "status": null,
+        "unit": "Adet",
+        "warehouses": [
+          {
+            "balance": "95.000",
+            "site_id": "<site>",
+            "warehouse_id": "<depo:1>",
+            "warehouse_name": "A-Blok Depo"
+          },
+          {
+            "balance": "-25.000",
+            "site_id": null,
+            "warehouse_id": "<depo:2>",
+            "warehouse_name": "Merkez Depo"
+          }
+        ]
+      },
+      {
+        "balance": "26.000",
+        "category": "structural",
+        "code": "STK-2",
+        "id": "<kart:k2>",
+        "last_unit_price": "8.00",
+        "min_stock": null,
+        "name": "Tuğla kartı",
+        "status": null,
+        "unit": "Adet",
+        "warehouses": [
+          {
+            "balance": "26.000",
+            "site_id": "<site>",
+            "warehouse_id": "<depo:1>",
+            "warehouse_name": "A-Blok Depo"
+          }
+        ]
+      }
+    ],
+    "kpis": {
+      "critical_count": 0,
+      "items_without_price": 0,
+      "low_count": 0,
+      "pending_orders": {
+        "available": true,
+        "pending_module": null,
+        "value": "0"
+      },
+      "total_items": 2,
+      "total_value": "1083.00"
+    },
+    "limit": 50,
+    "offset": 0,
+    "total": 2
+  },
+  "status": 200
+}

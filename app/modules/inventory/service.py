@@ -26,7 +26,6 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.errors import (
     DuplicateError,
     InventoryValidationError,
@@ -554,10 +553,7 @@ async def list_stock_entries(
     date_to: date | None,
     limit: int,
     offset: int,
-    scope: DisciplineScope = UNRESTRICTED,
 ) -> tuple[list[StockEntryResponse], int]:
-    """DSC-B1 `scope`: kısıtlıda yalnız ≥1 görünür-kalem satırı olan hareketler, satırları da
-    görünür kalemle sınırlı; `total` aynı kümeyi sayar."""
     project_ids = await _visible_project_ids(session, actor)
     suzgec = {
         "entry_type": entry_type,
@@ -566,9 +562,9 @@ async def list_stock_entries(
         "date_to": date_to,
     }
     entries = await repository.list_entries(
-        session, project_ids, limit=limit, offset=offset, scope=scope, **suzgec
+        session, project_ids, limit=limit, offset=offset, **suzgec
     )
-    total = await repository.count_entries(session, project_ids, scope=scope, **suzgec)
+    total = await repository.count_entries(session, project_ids, **suzgec)
     return [to_entry_response(e, list(e.lines)) for e in entries], total
 
 
@@ -820,13 +816,7 @@ async def _visible_section(
 
 
 async def build_section_stock(
-    session: AsyncSession,
-    actor: User,
-    section_id: uuid.UUID,
-    *,
-    limit: int,
-    offset: int,
-    scope: DisciplineScope = UNRESTRICTED,
+    session: AsyncSession, actor: User, section_id: uuid.UUID, *, limit: int, offset: int
 ) -> SectionStockResponse:
     """`A1 › Malzeme` sekmesinin verisi — bölümün malzeme KIRILIMI.
 
@@ -842,17 +832,12 @@ async def build_section_stock(
     **YER TUTUCU YOKTUR** (K-ZARF): dört KPI de gerçek sayıdır. Fiyatsız satır
     `lines_without_price` ile AYRICA raporlanır — `total_value`in eksikliği
     sessizce 0 sayılmaz (`SiteStockKpis.items_without_price` emsali).
-
-    DSC-B1 `scope`: satırlar, `total` ve KPI şeridi AYNI iskeletten (`_section_line_scope`)
-    türer → kısıtlıda yalnız görünür-kalem satırları; NULL kalemli satır görünmez (Ü1).
     """
     await _visible_section(session, actor, section_id)
 
-    rows = await repository.list_section_stock_rows(
-        session, section_id, limit=limit, offset=offset, scope=scope
-    )
-    total = await repository.count_section_stock_rows(session, section_id, scope)
-    kpi = await repository.section_stock_kpis(session, section_id, scope)
+    rows = await repository.list_section_stock_rows(session, section_id, limit=limit, offset=offset)
+    total = await repository.count_section_stock_rows(session, section_id)
+    kpi = await repository.section_stock_kpis(session, section_id)
 
     return SectionStockResponse(
         items=[

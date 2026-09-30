@@ -1,0 +1,64 @@
+{
+  "body": {
+    "budget": "1000000.00",
+    "budget_lines": {
+      "labor": "0",
+      "material": "0",
+      "overhead": "0",
+      "subcontractor": "0"
+    },
+    "category": null,
+    "city": null,
+    "code": "DSC-P02",
+    "contract": null,
+    "contract_amount": null,
+    "contract_no": null,
+    "contracting": {
+      "final_progress_payment": {
+        "available": false,
+        "pending_module": "progress_payments",
+        "value": null
+      },
+      "financial_progress": {
+        "available": false,
+        "pending_module": "progress_payments",
+        "value": null
+      },
+      "physical_progress": {
+        "available": true,
+        "pending_module": null,
+        "value": "40.00"
+      },
+      "spent": {
+        "available": true,
+        "pending_module": null,
+        "value": "0.00"
+      },
+      "subcontractor_count": {
+        "available": false,
+        "count": null,
+        "pending_module": "subcontracts"
+      },
+      "worker_count": {
+        "available": true,
+        "count": 0,
+        "pending_module": "timesheet"
+      }
+    },
+    "employer": null,
+    "employer_name": null,
+    "end_date": null,
+    "id": "<proje2>",
+    "investment": null,
+    "is_draft": false,
+    "land_share": null,
+    "name": "Revizyonsuz Proje",
+    "progress_pct": "0.00",
+    "project_type": "taahhut",
+    "site_count": 1,
+    "slug": null,
+    "start_date": null,
+    "status": "active"
+  },
+  "status": 200
+}

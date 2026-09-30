@@ -2,6 +2,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.core.discipline_scope import UNRESTRICTED
 from app.core.errors import NotFoundError, ProjectTypeMismatchError
 from app.modules.projects.models import LandShareShareholder, ProjectLandShare
 from app.modules.projects.schemas import (
@@ -44,7 +45,7 @@ async def test_counts_ignore_filters(seeded_db, user_factory, project_factory):
     await _grant_all(seeded_db, user)
 
     result = await list_projects_overview(
-        seeded_db, user, type_filter="taahhut", status_filter=None
+        seeded_db, user, type_filter="taahhut", status_filter=None, scope=UNRESTRICTED
     )
 
     assert [p.code for p in result.items] == ["T-1", "T-2"]
@@ -62,7 +63,7 @@ async def test_status_filter_selects_completed(seeded_db, user_factory, project_
     await _grant_all(seeded_db, user)
 
     result = await list_projects_overview(
-        seeded_db, user, type_filter=None, status_filter="completed"
+        seeded_db, user, type_filter=None, status_filter="completed", scope=UNRESTRICTED
     )
 
     assert [p.code for p in result.items] == ["T-2"]
@@ -76,7 +77,9 @@ async def test_scope_filter_limits_non_admin(seeded_db, user_factory, project_fa
     seeded_db.add(UserProjectAccess(user_id=user.id, project_id=granted.id, all_projects=False))
     await seeded_db.flush()
 
-    result = await list_projects_overview(seeded_db, user, type_filter=None, status_filter=None)
+    result = await list_projects_overview(
+        seeded_db, user, type_filter=None, status_filter=None, scope=UNRESTRICTED
+    )
 
     assert [p.code for p in result.items] == ["T-1"]
     assert result.counts.all == 1
@@ -88,7 +91,9 @@ async def test_admin_bypasses_scope_filter(seeded_db, user_factory, project_fact
     await project_factory("T-2")
     admin = await user_factory(email="a@t.co", password="parola1234", role_key="system_admin")
 
-    result = await list_projects_overview(seeded_db, admin, type_filter=None, status_filter=None)
+    result = await list_projects_overview(
+        seeded_db, admin, type_filter=None, status_filter=None, scope=UNRESTRICTED
+    )
 
     assert [p.code for p in result.items] == ["T-1", "T-2"]
 
@@ -105,7 +110,7 @@ async def test_taahhut_item_has_contracting_placeholders(seeded_db, user_factory
     user = await user_factory(email="p4@t.co", password="parola1234", role_key="patron")
     await _grant_all(seeded_db, user)
 
-    item = (await list_projects_overview(seeded_db, user, None, None)).items[0]
+    item = (await list_projects_overview(seeded_db, user, None, None, scope=UNRESTRICTED)).items[0]
 
     assert item.investment is None
     assert item.land_share is None
@@ -143,7 +148,7 @@ async def test_land_share_item_is_real_where_data_exists(seeded_db, user_factory
     user = await user_factory(email="p5@t.co", password="parola1234", role_key="patron")
     await _grant_all(seeded_db, user)
 
-    item = (await list_projects_overview(seeded_db, user, None, None)).items[0]
+    item = (await list_projects_overview(seeded_db, user, None, None, scope=UNRESTRICTED)).items[0]
 
     assert item.contracting is None
     assert item.land_share.landowner_name == "Yılmaz Ailesi"
@@ -168,7 +173,7 @@ async def test_detail_outside_visible_set_raises_not_found(
     user = await user_factory(email="p6@t.co", password="parola1234", role_key="patron")
 
     with pytest.raises(NotFoundError):
-        await get_project_detail(seeded_db, user, hidden.id)
+        await get_project_detail(seeded_db, user, hidden.id, scope=UNRESTRICTED)
 
 
 async def test_create_taahhut_project(db_session):

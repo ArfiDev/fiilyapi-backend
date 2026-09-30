@@ -24,6 +24,7 @@ olculen zarf, ucun onu basmayi unutmasini goremezdi.
 import ast
 import pathlib
 
+from app.core.discipline_scope import UNRESTRICTED
 from app.modules.sites import service
 from app.modules.sites.models import Site
 from app.modules.sites.schemas import SectionCreate
@@ -185,7 +186,9 @@ async def test_BOLUM_zarflari__anahtar_ve_bos_durum_alan_alan(
         seeded_db, user_factory, project_factory, "YT-1", "yt1@t.co"
     )
 
-    satir = (await service.list_sections_for_site(seeded_db, user, site.id)).items[0]
+    satir = (
+        await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)
+    ).items[0]
 
     # ⚠️ ILR-1'DE DEGISTI: alan BAGLANDI ve sahibi artik GUNLUKTUR. Bu bolumun
     # TAHSISI YOK (payda 0) — yuzde "0" degil, YOKTUR; zarf bos kalir ama artik
@@ -217,7 +220,7 @@ async def test_SANTIYE_DETAY_zarflari__ikisi_de_C_olarak_kaldi(
         seeded_db, user_factory, project_factory, "YT-2", "yt2@t.co"
     )
 
-    detay = await service.get_site_detail(seeded_db, user, site.id)
+    detay = await service.get_site_detail(seeded_db, user, site.id, scope=UNRESTRICTED)
 
     assert (
         detay.total_progress_payment.available,
@@ -244,7 +247,7 @@ async def test_ALT_KPI_seridi__uc_bos_bir_bagli(seeded_db, user_factory, project
         seeded_db, user_factory, project_factory, "YT-3", "yt3@t.co"
     )
 
-    seri = (await service.list_sites_overview(seeded_db, user, proje.id)).totals
+    seri = (await service.list_sites_overview(seeded_db, user, proje.id, scope=UNRESTRICTED)).totals
 
     assert (
         seri.total_progress_payment.available,

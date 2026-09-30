@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import DisciplineScoped
+from app.core.discipline_scope import DisciplineScope
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
 from app.core.ratelimit import client_ip
@@ -76,14 +78,16 @@ async def _audit(
     )
 
 
-async def _detail_of(session: AsyncSession, site: Site, actor: User) -> SiteDetailResponse:
+async def _detail_of(
+    session: AsyncSession, site: Site, actor: User, scope: DisciplineScope
+) -> SiteDetailResponse:
     """Yazma uclarinin yaniti da okuma ucuyla ayni zarfi tasir.
 
     🔴 `actor` ILR-1'de EKLENDI ve varsayilani YOKTUR: bolum yuzdesi izne
     duyarlidir, izni olcmeden yanit uretmek fail-open bir yol acardi.
     """
     await session.refresh(site, attribute_names=["sections", "project"])
-    return await service.build_site_detail(session, site, actor, site.project)
+    return await service.build_site_detail(session, site, actor, site.project, scope)
 
 
 @router.get("/projects/{project_id}/sites", response_model=SiteListResponse, dependencies=[_VIEW])
@@ -91,8 +95,9 @@ async def list_sites_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SiteListResponse:
-    return await service.list_sites_overview(session, user, project_id)
+    return await service.list_sites_overview(session, user, project_id, scope)
 
 
 @router.post(
@@ -107,6 +112,7 @@ async def create_site_endpoint(
     data: SiteCreate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SiteDetailResponse:
     site = await service.create_site(session, current_user, project_id, data)
     # Taslak ve yayin AYRI metinlerdir (spec §10): denetim ekraninda "gercekten
@@ -127,7 +133,7 @@ async def create_site_endpoint(
             AuditAction.create,
             messages.site_sections_created(site.name, len(data.sections)),
         )
-    return await _detail_of(session, site, current_user)
+    return await _detail_of(session, site, current_user, scope)
 
 
 @router.get("/sites/{site_id}", response_model=SiteDetailResponse, dependencies=[_VIEW])
@@ -135,6 +141,7 @@ async def get_site_endpoint(
     site_id: str,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
     project: Annotated[str | None, Query()] = None,
 ) -> SiteDetailResponse:
     """URL-2 — yol parametresi UUID **ya da** slug (karar 2).
@@ -150,6 +157,7 @@ async def get_site_endpoint(
         session,
         user,
         parse_ref(site_id),
+        scope,
         project_ref=parse_ref(project) if project is not None else None,
     )
 
@@ -161,13 +169,14 @@ async def update_site_endpoint(
     data: SiteUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SiteDetailResponse:
     # Metin SERVISTEN gelir: `is_draft: true -> false` gecisi ("yayına alındı")
     # duz guncellemeden ayirt edilebilsin diye — onceki `is_draft` degeri yalniz
     # orada gorunur.
     site, detail = await service.update_site(session, current_user, site_id, data)
     await _audit(request, session, current_user, AuditAction.update, detail)
-    return await _detail_of(session, site, current_user)
+    return await _detail_of(session, site, current_user, scope)
 
 
 @router.delete("/sites/{site_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_ADMIN])
@@ -196,8 +205,9 @@ async def list_sections_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SectionListResponse:
-    return await service.list_sections_for_site(session, user, site_id)
+    return await service.list_sections_for_site(session, user, site_id, scope)
 
 
 async def _owning_site_name(session: AsyncSession, section: Section) -> str:
@@ -219,6 +229,7 @@ async def create_section_endpoint(
     data: SectionCreate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SectionDetailResponse:
     section = await service.create_section(session, current_user, site_id, data)
     await _audit(
@@ -228,7 +239,7 @@ async def create_section_endpoint(
         AuditAction.create,
         messages.section_created(await _owning_site_name(session, section), section.name),
     )
-    return await service.build_section_detail(session, section, current_user)
+    return await service.build_section_detail(session, section, current_user, scope)
 
 
 @router.get("/sections/{section_id}", response_model=SectionDetailResponse, dependencies=[_VIEW])
@@ -236,6 +247,7 @@ async def get_section_endpoint(
     section_id: str,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
     site: Annotated[str | None, Query()] = None,
     project: Annotated[str | None, Query()] = None,
 ) -> SectionDetailResponse:
@@ -250,6 +262,7 @@ async def get_section_endpoint(
         session,
         user,
         parse_ref(section_id),
+        scope,
         site_ref=parse_ref(site) if site is not None else None,
         project_ref=parse_ref(project) if project is not None else None,
     )
@@ -294,10 +307,11 @@ async def update_section_endpoint(
     data: SectionUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> SectionDetailResponse:
     # Metin SERVISTEN gelir (`update_site` deseni): `is_draft: true -> false`
     # gecisi ("yayına alındı") duz guncellemeden ayirt edilebilsin diye — onceki
     # `is_draft` degeri yalniz orada gorunur.
     section, detail = await service.update_section(session, current_user, section_id, data)
     await _audit(request, session, current_user, AuditAction.update, detail)
-    return await service.build_section_detail(session, section, current_user)
+    return await service.build_section_detail(session, section, current_user, scope)

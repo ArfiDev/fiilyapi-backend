@@ -47,7 +47,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.core.ratelimit import client_ip
@@ -314,7 +313,6 @@ async def create_stock_entry_endpoint(
 async def list_stock_entries_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
-    scope: DisciplineScoped,
     entry_type: StockEntryType | None = None,
     warehouse_id: uuid.UUID | None = None,
     date_from: date | None = None,
@@ -340,7 +338,6 @@ async def list_stock_entries_endpoint(
         date_to=date_to,
         limit=limit,
         offset=offset,
-        scope=scope,
     )
     return StockEntryListResponse(items=items, total=total, limit=limit, offset=offset)
 
@@ -411,7 +408,6 @@ async def section_stock_endpoint(
     section_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
-    scope: DisciplineScoped,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> SectionStockResponse:
@@ -429,6 +425,4 @@ async def section_stock_endpoint(
 
     Görünmeyen bölüm ile var olmayan bölüm AYNI 404 gövdesini alır.
     """
-    return await service.build_section_stock(
-        session, user, section_id, limit=limit, offset=offset, scope=scope
-    )
+    return await service.build_section_stock(session, user, section_id, limit=limit, offset=offset)

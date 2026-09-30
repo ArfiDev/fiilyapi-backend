@@ -1,0 +1,76 @@
+{
+  "audit": [
+    {
+      "action": "create",
+      "actor": "<user:atamasiz>",
+      "detail": "Yeni proje oluşturuldu: Yeni Proje"
+    }
+  ],
+  "db": {},
+  "yanit": {
+    "body": {
+      "budget": "0.00",
+      "budget_lines": {
+        "labor": "0.00",
+        "material": "0.00",
+        "overhead": "0.00",
+        "subcontractor": "0.00"
+      },
+      "category": null,
+      "city": "Bursa",
+      "code": "DSC-P09",
+      "contract": null,
+      "contract_amount": null,
+      "contract_no": null,
+      "contracting": null,
+      "employer": null,
+      "employer_name": null,
+      "end_date": null,
+      "id": "<yeni:id>",
+      "investment": {
+        "estimated_profit": {
+          "available": false,
+          "pending_module": "project_costs",
+          "value": null
+        },
+        "land_cost": null,
+        "margin": {
+          "available": false,
+          "pending_module": "project_costs",
+          "value": null
+        },
+        "sales_ratio": {
+          "available": false,
+          "pending_module": "units",
+          "value": null
+        },
+        "sales_target": null,
+        "sold_amount": {
+          "available": false,
+          "pending_module": "units",
+          "value": null
+        },
+        "total_cost": {
+          "available": true,
+          "pending_module": null,
+          "value": "0.00"
+        },
+        "unit_summary": {
+          "available": false,
+          "count": null,
+          "pending_module": "units"
+        }
+      },
+      "is_draft": false,
+      "land_share": null,
+      "name": "Yeni Proje",
+      "progress_pct": "0.00",
+      "project_type": "kendi_yatirim",
+      "site_count": 0,
+      "slug": "yeni-proje",
+      "start_date": null,
+      "status": "active"
+    },
+    "status": 201
+  }
+}

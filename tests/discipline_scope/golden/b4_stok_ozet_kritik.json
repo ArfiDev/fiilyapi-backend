@@ -1,0 +1,21 @@
+{
+  "body": {
+    "items": [],
+    "kpis": {
+      "critical_count": 0,
+      "items_without_price": 0,
+      "low_count": 0,
+      "pending_orders": {
+        "available": true,
+        "pending_module": null,
+        "value": "0"
+      },
+      "total_items": 0,
+      "total_value": "0.00"
+    },
+    "limit": 50,
+    "offset": 0,
+    "total": 0
+  },
+  "status": 200
+}

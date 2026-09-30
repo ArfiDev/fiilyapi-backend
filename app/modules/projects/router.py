@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
 from app.core.ratelimit import client_ip
@@ -108,6 +109,7 @@ async def create_employer_endpoint(
 async def list_projects_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
     type: ProjectType | None = None,
     status_filter: Annotated[ProjectStatus | None, Query(alias="status")] = None,
     limit: _LIMIT = 50,
@@ -119,7 +121,9 @@ async def list_projects_endpoint(
     `total` SÜZGEÇLENMİŞ kümenin boyutudur (sayfa çubuğu). Ayrıntı:
     `ProjectListResponse` docstring'i.
     """
-    return await service.list_projects_overview(session, user, type, status_filter, limit, offset)
+    return await service.list_projects_overview(
+        session, user, type, status_filter, scope, limit, offset
+    )
 
 
 # DIKKAT — ROTA SIRASI: bu STATIK yol, `/{project_id}` parametreli yolundan
@@ -149,6 +153,7 @@ async def get_project_endpoint(
     project_id: str,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> ProjectDetailResponse:
     """URL-2 — yol parametresi UUID **ya da** slug kabul eder (karar 2).
 
@@ -165,7 +170,7 @@ async def get_project_endpoint(
     kimligi, okumanin dondurdugu `id`den gelir; yazma yuzeyini tahmin edilebilir
     bir anahtara acmak icin sebep YOKTUR.
     """
-    return await service.get_project_detail(session, user, parse_ref(project_id))
+    return await service.get_project_detail(session, user, parse_ref(project_id), scope)
 
 
 @router.get(
@@ -247,6 +252,7 @@ async def create_project_endpoint(
     data: ProjectCreate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> ProjectDetailResponse:
     project = await service.create_project(session, data)
     await record_audit(
@@ -256,7 +262,7 @@ async def create_project_endpoint(
         actor_user_id=current_user.id,
         ip_address=client_ip(request),
     )
-    return await service.build_project_detail(session, project, current_user)
+    return await service.build_project_detail(session, project, current_user, scope)
 
 
 @router.patch(
@@ -270,6 +276,7 @@ async def update_project_endpoint(
     data: ProjectUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> ProjectDetailResponse:
     project = await service.update_project(session, current_user, project_id, data)
     await record_audit(
@@ -279,4 +286,4 @@ async def update_project_endpoint(
         actor_user_id=current_user.id,
         ip_address=client_ip(request),
     )
-    return await service.build_project_detail(session, project, current_user)
+    return await service.build_project_detail(session, project, current_user, scope)

@@ -4,6 +4,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
+from app.core.discipline_scope import DisciplineScope
 from app.core.errors import (
     ConflictError,
     DuplicateError,
@@ -150,13 +151,13 @@ def to_detail(
 
 
 async def build_project_detail(
-    session: AsyncSession, project: Project, actor: User
+    session: AsyncSession, project: Project, actor: User, scope: DisciplineScope
 ) -> ProjectDetailResponse:
     """Proje detay zarfi + isci sayaci. YAZMA uclarinin yaniti da buradan gecer:
     okuma ve yazma ayni zarfi tasimazsa ekran kaydettikten sonra sayaci kaybeder."""
     worker_counts = await timesheet_counts.by_project(session, [project.id])
     card_costs = await cost_cards.by_projects(session, [project])
-    progress = await progress_cards.by_projects(session, actor, [project])
+    progress = await progress_cards.by_projects(session, actor, [project], scope)
     return to_detail(
         project,
         worker_counts.get(project.id, 0),
@@ -196,6 +197,7 @@ async def list_projects_overview(
     actor: User,
     type_filter: ProjectType | str | None,
     status_filter: ProjectStatus | str | None,
+    scope: DisciplineScope,
     limit: int = 50,
     offset: int = 0,
 ) -> ProjectListResponse:
@@ -232,7 +234,7 @@ async def list_projects_overview(
     # P10 T3: kart maliyet/kâr türevleri TEK toplu okumadan gelir — proje başına
     # sorgu YASAK (spec §4, `timesheet_counts.by_project` ile aynı desen).
     card_costs = await cost_cards.by_projects(session, page)
-    card_progress = await progress_cards.by_projects(session, actor, page)
+    card_progress = await progress_cards.by_projects(session, actor, page, scope)
     return ProjectListResponse(
         counts=_counts(visible),
         items=[
@@ -294,10 +296,10 @@ async def _visible_project(
 
 
 async def get_project_detail(
-    session: AsyncSession, actor: User, project_ref: uuid.UUID | str
+    session: AsyncSession, actor: User, project_ref: uuid.UUID | str, scope: DisciplineScope
 ) -> ProjectDetailResponse:
     project = await _visible_project(session, actor, project_ref)
-    return await build_project_detail(session, project, actor)
+    return await build_project_detail(session, project, actor, scope)
 
 
 def _ensure_type_consistency(

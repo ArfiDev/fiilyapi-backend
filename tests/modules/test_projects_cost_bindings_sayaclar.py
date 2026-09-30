@@ -16,6 +16,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.core.discipline_scope import UNRESTRICTED
 from app.modules.projects.models import Project, ProjectLandShare
 from app.modules.sites.models import Site
 from app.modules.units.models import Block, Unit, UnitKind, UnitOwnerSide
@@ -45,7 +46,7 @@ async def test_kart_hesabi_orm_nesnesini_DEGISTIRMEZ(
     uniteler = await _units(db_session, project, [{"list_price": Decimal("9000000.00")}])
     once = (project.budget_material, project.budget, uniteler[0].list_price)
 
-    await list_projects_overview(db_session, user, None, None)
+    await list_projects_overview(db_session, user, None, None, scope=UNRESTRICTED)
 
     assert (project.budget_material, project.budget, uniteler[0].list_price) == once
 
@@ -254,12 +255,12 @@ async def test_taraf_sayaclari_unite_sayisi_arttikca_SORGU_ACMAZ(
 
     await _unite_ekle(1, 2)
     _sorgu_sayaci.clear()
-    az = await list_projects_overview(db_session, user, None, None)
+    az = await list_projects_overview(db_session, user, None, None, scope=UNRESTRICTED)
     az_sayim = _tablo_sayimi(_sorgu_sayaci, "units")
 
     await _unite_ekle(3, 12)
     _sorgu_sayaci.clear()
-    cok = await list_projects_overview(db_session, user, None, None)
+    cok = await list_projects_overview(db_session, user, None, None, scope=UNRESTRICTED)
     cok_sayim = _tablo_sayimi(_sorgu_sayaci, "units")
 
     # Sayaçların GERÇEKTEN büyüdüğünü de doğrula: sabit 0 dönen bir uygulama

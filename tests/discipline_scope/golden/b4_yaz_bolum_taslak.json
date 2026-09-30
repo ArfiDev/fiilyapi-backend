@@ -1,0 +1,57 @@
+{
+  "audit": [
+    {
+      "action": "create",
+      "actor": "<user:atamasiz>",
+      "detail": "Yeni bölüm oluşturuldu: A-Blok Şantiyesi · Taslak Bölüm"
+    }
+  ],
+  "db": {},
+  "yanit": {
+    "body": {
+      "boq_item_count": {
+        "available": true,
+        "count": 0,
+        "pending_module": "boq"
+      },
+      "budget": {
+        "available": true,
+        "pending_module": null,
+        "value": "0.00"
+      },
+      "budget_amount": null,
+      "code": "BLM-01",
+      "created_at": "<ts>",
+      "depends_on_section_id": null,
+      "deputy_manager_name": null,
+      "deputy_manager_user_id": null,
+      "description": null,
+      "end_date": null,
+      "id": "<yeni:id>",
+      "is_draft": true,
+      "manager_name": null,
+      "manager_user_id": null,
+      "milestones": [],
+      "name": "Taslak Bölüm",
+      "planned_worker_count": null,
+      "progress_pct": {
+        "available": false,
+        "pending_module": "site_diary",
+        "value": null
+      },
+      "section_type": null,
+      "site_id": "<site>",
+      "slug": "taslak-bolum",
+      "sort_order": 0,
+      "start_date": null,
+      "status": "planned",
+      "updated_at": "<ts>",
+      "worker_count": {
+        "available": true,
+        "count": 0,
+        "pending_module": "timesheet"
+      }
+    },
+    "status": 201
+  }
+}
