@@ -25,7 +25,9 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import timezone
 from app.modules.contracts.models import SubcontractorContract, SubcontractorContractItem
+from app.modules.subcontractor_progress_payments import summary
 from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
     SubcontractorProgressPayment,
@@ -179,7 +181,9 @@ async def test_donem_suzgeci_yoksa_tum_donemler_toplanir(
     assert yanit.status_code == 200, yanit.text
     govde = yanit.json()
     assert Decimal(govde["total_gross"]) == Decimal("288750.00")  # +21.500 (2026/6)
-    bugun = datetime.now(UTC)
+    # Uygulama "bu ay"ı GÖRÜNTÜLEME saat diliminden (İstanbul) okur; UTC'yle kıyaslanırsa
+    # TR 00:00-03:00 arasında ayın 1'inde test bir önceki ayı bekleyip kırmızı olur.
+    bugun = timezone.today()
     assert govde["period_year"] == bugun.year
     assert govde["period_month"] == bugun.month
     # Fixture verisi 2026/7 ve 2026/6 dönemlerinde; bugünün ayına ait ödeme yoksa 0.
@@ -191,6 +195,34 @@ async def test_donem_suzgeci_yoksa_tum_donemler_toplanir(
         else Decimal("0.00")
     )
     assert Decimal(govde["paid_period_gross"]) == beklenen
+
+
+def _saati_dondur(monkeypatch: pytest.MonkeyPatch, anlik_utc: datetime) -> None:
+    """`summary.datetime.now(tz)` sabit bir UTC anını istenen saat dilimine çevirir."""
+
+    class _DonukSaat(datetime):
+        @classmethod
+        def now(cls, tz=None):  # noqa: ANN001, ANN206 — datetime.now imzası
+            return anlik_utc.astimezone(tz) if tz is not None else anlik_utc
+
+    monkeypatch.setattr(summary, "datetime", _DonukSaat)
+
+
+@pytest.mark.parametrize(
+    ("anlik_utc", "beklenen"),
+    [
+        # İstanbul 30.09 23:59 — UTC'de de eylül: iki saat dilimi aynı ayda.
+        (datetime(2026, 9, 30, 20, 59, tzinfo=UTC), (2026, 9)),
+        # İstanbul 01.10 00:30 — UTC hâlâ 30.09: etkin dönem İSTANBUL'un ayı olmalı.
+        (datetime(2026, 9, 30, 21, 30, tzinfo=UTC), (2026, 10)),
+    ],
+)
+def test_etkin_donem_ay_sinirinda_istanbul_ayini_izler(
+    monkeypatch: pytest.MonkeyPatch, anlik_utc: datetime, beklenen: tuple[int, int]
+) -> None:
+    """Ay sınırında iki yön: 21:00 UTC öncesi eylül, sonrası ekim (TR = UTC+3)."""
+    _saati_dondur(monkeypatch, anlik_utc)
+    assert summary.effective_period(None, None) == beklenen
 
 
 async def test_bos_kume_sifir_doner(
