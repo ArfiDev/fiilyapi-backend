@@ -21,7 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        # Debian (glibc) imajı: alpine (musl) en_US.utf8'i BAYT sırasıyla harmanlar
+        # ("Tuğla" < "Çimento"); yerel fiil-pg16 ve üretim glibc dil sırasıdır.
+        # ORDER BY name içeren golden'lar alpine'de sahte-kırmızı olur (#148).
+        image: postgres:16
         env:
           POSTGRES_USER: fiil
           POSTGRES_PASSWORD: fiil
@@ -64,7 +67,10 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        # Debian (glibc) imajı: alpine (musl) en_US.utf8'i BAYT sırasıyla harmanlar
+        # ("Tuğla" < "Çimento"); yerel fiil-pg16 ve üretim glibc dil sırasıdır.
+        # ORDER BY name içeren golden'lar alpine'de sahte-kırmızı olur (#148).
+        image: postgres:16
         env:
           POSTGRES_USER: fiil
           POSTGRES_PASSWORD: fiil
