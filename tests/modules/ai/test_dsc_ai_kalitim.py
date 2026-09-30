@@ -148,4 +148,8 @@ async def test_gosterge_ozeti_stok_disiplinsiz_civil_esittir_pm_atamasiz(
         "gosterge_ozeti", dunya.kullanici["pm_atamasiz"], transport_factory, actor_factory
     )
     assert civil["risk_notu"] == pm["risk_notu"]
-    assert civil == pm
+    # DSC-B5 (Ü2): portföy (hakediş hasılatı) kısıtlıda kapanır; GERİSİ (stok riskleri dahil) eşit.
+    assert civil["portfoy"] != pm["portfoy"]
+    assert {k: v for k, v in civil.items() if k != "portfoy"} == {
+        k: v for k, v in pm.items() if k != "portfoy"
+    }

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
@@ -33,5 +34,6 @@ router = APIRouter(
 async def get_dashboard_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    scope: DisciplineScoped,
 ) -> DashboardSummaryResponse:
-    return await build_summary(session, user)
+    return await build_summary(session, user, scope)

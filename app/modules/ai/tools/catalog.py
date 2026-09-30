@@ -350,6 +350,7 @@ ISVEREN_HAKEDISLERI = ToolSpec(
     girdi=schemas.BosGirdi,
     yanit_modeli=schemas.AiIsverenHakedisListesi,
     calistir=ai2bd.isveren_hakedisleri,
+    disiplin_kisitliya_kapali=True,  # Ü2: `/progress-payments` RequireUnrestricted
 )
 
 TASERON_HAKEDISLERI = ToolSpec(
@@ -371,6 +372,7 @@ TASERON_HAKEDISLERI = ToolSpec(
     girdi=schemas.BosGirdi,
     yanit_modeli=schemas.AiTaseronHakedisListesi,
     calistir=ai2bd.taseron_hakedisleri,
+    disiplin_kisitliya_kapali=True,  # Ü2: `/subcontractor-progress-payments` RequireUnrestricted
 )
 
 SOZLESMELER = ToolSpec(

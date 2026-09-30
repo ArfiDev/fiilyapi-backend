@@ -475,6 +475,9 @@ async def test_MODUL_KAPISINDAN_GECEN_aktorun_sorgu_sayisi_ARTMAMALIDIR(
         yanit = await client.post(f"{_TASERON_YOL}/{document_id}/approve", headers=basliklar)
 
     assert yanit.status_code == 200, yanit.text
-    assert len(ifadeler) == 27, (
-        f"sıcak yol sorgu sayısı 27 iken {len(ifadeler)} oldu — ikame sıcak yola sızdı mı?"
+    # 27 → 28 (DSC-B5, 2026-10-01): hakediş router'ları `RequireUnrestricted` taşır;
+    # kapı istek başına TEK `SELECT … FROM user_disciplines` (resolve_discipline_scope)
+    # koşar. Ölçüldü: origin/main 27 ile fark yalnız bu satır. İkame sıcak yola sızmadı.
+    assert len(ifadeler) == 28, (
+        f"sıcak yol sorgu sayısı 28 iken {len(ifadeler)} oldu — ikame sıcak yola sızdı mı?"
     )

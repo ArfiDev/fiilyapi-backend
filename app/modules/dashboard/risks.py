@@ -73,6 +73,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.permissions import can_read
 from app.core.timezone import today
 from app.modules.contracts.models import SubcontractorContract
@@ -317,7 +318,9 @@ async def _schedule_alerts(session: AsyncSession, project_ids: list[uuid.UUID]) 
     ]
 
 
-async def build_risks(session: AsyncSession, actor: User) -> RiskAlertsPlaceholder:
+async def build_risks(
+    session: AsyncSession, actor: User, scope: DisciplineScope = UNRESTRICTED
+) -> RiskAlertsPlaceholder:
     """Kartin zarfini kurar: UC kaynak, UC kapi, KISMI dolus.
 
     Gorunur projeler kaynak basina degil BIR KEZ okunur; hicbir kaynagin izni
@@ -325,7 +328,10 @@ async def build_risks(session: AsyncSession, actor: User) -> RiskAlertsPlacehold
     """
     izinler = {
         STOCK_MODULE: await can_read(session, actor, STOCK_MODULE),
-        PROGRESS_PAYMENT_MODULE: await can_read(session, actor, PROGRESS_PAYMENT_MODULE),
+        # DSC-B5 (Ü2): hakedis kaynagi ticari → disiplin kisitlisina KAPALI (gecikme uyarisi yok).
+        PROGRESS_PAYMENT_MODULE: (
+            await can_read(session, actor, PROGRESS_PAYMENT_MODULE) and not scope.is_restricted
+        ),
         SCHEDULE_MODULE: await can_read(session, actor, SCHEDULE_MODULE),
     }
     sources = [

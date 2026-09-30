@@ -32,6 +32,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import RequireUnrestricted
 from app.core.errors import SiteValidationError
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
@@ -40,7 +41,12 @@ from app.modules.site_diary.guards import MAX_YEAR, MIN_YEAR
 from app.modules.site_diary.schemas import EmployerDiarySuggestion, SubcontractorDiarySuggestion
 from app.modules.users.models import User
 
-router = APIRouter(tags=["site-diary"], responses=COMMON_ERROR_RESPONSES)
+# Ü2 (DSC-B5): iki uc de hakedis onerisi → kisitli kullaniciya router duzeyinde 403.
+router = APIRouter(
+    tags=["site-diary"],
+    responses=COMMON_ERROR_RESPONSES,
+    dependencies=[RequireUnrestricted],
+)
 
 # İki hakediş router'ının kendi kapılarında kullandığı izin anahtarının aynısı
 # (`progress_payments/router.py`, `subcontractor_progress_payments/router.py`):

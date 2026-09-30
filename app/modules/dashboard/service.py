@@ -23,6 +23,7 @@ kaldirilinca gerekcesi de onunla birlikte tasinsin.
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel, Scope, satisfies
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.field_scope import maskele
 from app.core.permissions import can_read
 from app.modules.approvals import service as approvals_service
@@ -120,7 +121,9 @@ async def _pending_approvals(session: AsyncSession, user: User) -> PendingApprov
     )
 
 
-async def _portfolio(session: AsyncSession, user: User) -> MetricPlaceholder:
+async def _portfolio(
+    session: AsyncSession, user: User, scope: DisciplineScope = UNRESTRICTED
+) -> MetricPlaceholder:
     """(A) — "Portfoy · Toplam Hakedis" (mockup `:196`). **BAGLANDI.**
 
     HANGI AILE: **ISVEREN** hakedisi (taseron DEGIL). OLCULDU — kart HASILATTIR:
@@ -167,7 +170,8 @@ async def _portfolio(session: AsyncSession, user: User) -> MetricPlaceholder:
          sonuc 0.00'dir — 'bilinmiyor' DEGIL") ve zaten bagli olan
          `pending_approvals` sayacinin sifiri aynidir.
     """
-    if not await can_read(session, user, _PORTFOLIO_MODULE):
+    # DSC-B5 (Ü2): hasilat ticari → disiplin kisitlisi da `restricted()` (can_read dalıyla ayni).
+    if scope.is_restricted or not await can_read(session, user, _PORTFOLIO_MODULE):
         return restricted()
     projects = await projects_service.visible_projects(session, user)
     if not projects:
@@ -246,7 +250,9 @@ def _average_margin() -> MetricPlaceholder:
     return MetricPlaceholder(pending_module=_MARGIN_MODULE)
 
 
-async def _risks(session: AsyncSession, user: User) -> RiskAlertsPlaceholder:
+async def _risks(
+    session: AsyncSession, user: User, scope: DisciplineScope = UNRESTRICTED
+) -> RiskAlertsPlaceholder:
     """✅ **BAGLANDI** (RISK-1) — "Risk & Uyarilar" (mockup `:375-400`).
 
     Eski notun UC kusuru da kapandi; gerekceler kartin YANINDA durur, yani
@@ -268,10 +274,12 @@ async def _risks(session: AsyncSession, user: User) -> RiskAlertsPlaceholder:
     `warning` satiriyla SAYILIR — bos liste artik "risk yok" ile "risk
     bilinmiyor"u ayni sayiya cevirmiyor.
     """
-    return await build_risks(session, user)
+    return await build_risks(session, user, scope)
 
 
-async def build_summary(session: AsyncSession, user: User) -> DashboardSummaryResponse:
+async def build_summary(
+    session: AsyncSession, user: User, scope: DisciplineScope = UNRESTRICTED
+) -> DashboardSummaryResponse:
     """Gosterge paneli ozeti. Projeler + ONAY + PORTFOY + RISK gercek, iki kart bos.
 
     🔴 PROJE KARTLARININ ALAN KAPISI (K4 — turev alan sizintisi). Ucun kapisi
@@ -343,9 +351,9 @@ async def build_summary(session: AsyncSession, user: User) -> DashboardSummaryRe
             maskele(DashboardProjectCard.model_validate(p), projects_kapsami)
             for p in projects
         ],
-        portfolio=await _portfolio(session, user),
+        portfolio=await _portfolio(session, user, scope),
         receivables=_receivables(),
         average_margin=_average_margin(),
         pending_approvals=await _pending_approvals(session, user),
-        risks=await _risks(session, user),
+        risks=await _risks(session, user, scope),
     )
