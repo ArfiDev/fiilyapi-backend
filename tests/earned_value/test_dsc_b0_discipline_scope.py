@@ -20,9 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import discipline_scope as port
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.modules.boq.models import BoqGroup, BoqItem
+from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value import discipline_adapter, guards
 from app.modules.earned_value.models import (
-    EvDiscipline,
     EvGroupDiscipline,
     EvRevision,
     RevisionStatus,

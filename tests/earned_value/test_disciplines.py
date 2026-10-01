@@ -11,11 +11,11 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.boq.models import BoqGroup
+from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value import guards
 from app.modules.earned_value.engine import ContractorType
 from app.modules.earned_value.models import (
     EvBaselineLeaf,
-    EvDiscipline,
     EvDistribution,
     EvGroupDiscipline,
     EvRevision,
@@ -165,7 +165,7 @@ async def _use_group(session, site, rev, disc) -> None:
 
 
 async def _use_catalog(session, site, rev, disc) -> None:
-    from app.modules.earned_value.models import EvCatalogItem
+    from app.modules.catalog.models import EvCatalogItem
 
     session.add(
         EvCatalogItem(

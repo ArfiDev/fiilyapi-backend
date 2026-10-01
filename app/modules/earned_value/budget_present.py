@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
+from app.modules.catalog.models import EvCatalogItem
 from app.modules.earned_value.budget_ops import PreviewResult, RevisionDiff
 from app.modules.earned_value.budget_scope import catalog_link_ids, mask_catalog_links
 from app.modules.earned_value.budget_service import BudgetState
@@ -24,7 +25,7 @@ from app.modules.earned_value.budget_tree import (
     LeafNode,
 )
 from app.modules.earned_value.engine import SeriesPreview, WeekLoad
-from app.modules.earned_value.models import EvCatalogItem, EvRevision
+from app.modules.earned_value.models import EvRevision
 from app.modules.earned_value.schemas_budget import (
     BarOut,
     BudgetTotals,

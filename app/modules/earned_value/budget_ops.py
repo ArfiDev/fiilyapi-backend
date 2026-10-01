@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, visible_item_set
 from app.core.errors import ConflictError, EarnedValueValidationError
+from app.modules.catalog.models import EvCatalogItem
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import budget_service as svc
 from app.modules.earned_value import guards
@@ -38,7 +39,6 @@ from app.modules.earned_value.engine import (
 )
 from app.modules.earned_value.labels import normalize_label  # tek kural (katalog tekilligi de)
 from app.modules.earned_value.models import (
-    EvCatalogItem,
     EvItemSettings,
     EvLeafSettings,
     EvRevision,

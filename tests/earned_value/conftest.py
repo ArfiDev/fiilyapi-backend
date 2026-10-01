@@ -26,8 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.audit.models import AuditLog
 from app.modules.boq.models import BoqGroup, BoqItem
+from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.earned_value.engine import ContractorType
-from app.modules.earned_value.models import EvCatalogItem, EvDiscipline
 from app.modules.projects.models import Project
 from app.modules.sites.models import Site
 from app.modules.users.models import UserProjectAccess

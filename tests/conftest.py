@@ -24,6 +24,7 @@ from app.modules.ai import models as ai_models  # noqa: F401
 from app.modules.approvals import models as approvals_models  # noqa: F401
 from app.modules.audit import models as audit_models  # noqa: F401
 from app.modules.boq import models as boq_models  # noqa: F401
+from app.modules.catalog import models as catalog_models  # noqa: F401
 from app.modules.company import models as company_models  # noqa: F401
 from app.modules.contracts import models as contracts_models  # noqa: F401
 from app.modules.customers import models as customers_models  # noqa: F401

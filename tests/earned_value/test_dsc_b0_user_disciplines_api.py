@@ -15,7 +15,8 @@ from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.audit.models import AuditAction, AuditLog
-from app.modules.earned_value.models import EvDiscipline, UserDiscipline
+from app.modules.catalog.models import EvDiscipline
+from app.modules.earned_value.models import UserDiscipline
 from app.modules.users.models import User
 from tests.conftest import test_engine
 

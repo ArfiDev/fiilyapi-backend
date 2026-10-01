@@ -27,8 +27,8 @@ from app.core import discipline_scope as port
 from app.core.discipline_ref import DisciplineRef
 from app.core.discipline_scope import DisciplineScope
 from app.modules.boq.models import BoqGroup, BoqItem
+from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value.models import (
-    EvDiscipline,
     EvGroupDiscipline,
     EvRevision,
     RevisionStatus,

@@ -22,9 +22,10 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 
 from app.core.discipline_ref import DisciplineRef
 from app.core.text import FREE_TEXT_MAX_LENGTH
+from app.modules.catalog.models import RATE_PRECISION
+from app.modules.earned_value.contractor_bridge import to_engine_ct
 from app.modules.earned_value.decimal_out import EvDecimal
 from app.modules.earned_value.engine import ContractorType
-from app.modules.earned_value.models import RATE_PRECISION
 
 _STRICT = ConfigDict(extra="forbid")
 _NULL_REJECTED = "Alan boşaltılamaz; değiştirmemek için gövdeden çıkarın."
@@ -94,6 +95,9 @@ class DisciplineRead(BaseModel):
     used_by_item_count: int = 0  # katalog is tipi sayisi
     used_by_site_count: int = 0  # BOQ grubu eslenmis / baseline'i olan santiye; >0 silinemez
     user_count: int = 0  # disiplinin atandigi kullanici sayisi (DSC-B0); >0 silinemez
+
+    # TKL-B1: ORM (cekirdek `ContractorType`) → motor enumu (`contractor_bridge`).
+    _engine_ct = field_validator("default_contractor_type", mode="before")(to_engine_ct)
 
 
 #: Bir kullaniciya atanabilecek en fazla disiplin (sirket katalogu kucuktur; sinir govdeyi

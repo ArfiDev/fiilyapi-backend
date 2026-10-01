@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
+from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value import defaults
 from app.modules.earned_value.budget_tree import (
     BoqSnapshot,
@@ -27,9 +28,9 @@ from app.modules.earned_value.budget_tree import (
     RevisionInputs,
     SectionInfo,
 )
+from app.modules.earned_value.contractor_bridge import to_engine_ct
 from app.modules.earned_value.engine import expand_holiday_ranges, working_day_predicate
 from app.modules.earned_value.models import (
-    EvDiscipline,
     EvDistribution,
     EvGroupDiscipline,
     EvHoliday,
@@ -90,7 +91,9 @@ async def boq_synced_at(session: AsyncSession, site_id: uuid.UUID) -> datetime |
 async def load_disciplines(session: AsyncSession) -> list[DisciplineInfo]:
     rows = (await session.execute(select(EvDiscipline))).scalars()
     return [
-        DisciplineInfo(d.id, d.code, d.name, d.color, d.default_contractor_type, d.sort_order)
+        DisciplineInfo(
+            d.id, d.code, d.name, d.color, to_engine_ct(d.default_contractor_type), d.sort_order
+        )
         for d in rows
     ]
 

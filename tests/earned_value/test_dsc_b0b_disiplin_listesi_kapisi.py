@@ -16,7 +16,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
-from app.modules.earned_value.models import EvDiscipline, UserDiscipline
+from app.modules.catalog.models import EvDiscipline
+from app.modules.earned_value.models import UserDiscipline
 from app.modules.roles import service as roles_service
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.roles.schemas import RoleCreate

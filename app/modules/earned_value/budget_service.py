@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, visible_item_set
 from app.core.errors import ConflictError, EarnedValueValidationError, NotFoundError
 from app.modules.boq.models import BoqGroup, BoqItem
+from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import guards
 from app.modules.earned_value.access import SiteContext, assert_site_writable, is_site_completed
@@ -38,8 +39,6 @@ from app.modules.earned_value.budget_snapshot import frozen_tree
 from app.modules.earned_value.budget_tree import BudgetTree, LeafKey, RevisionInputs, build_tree
 from app.modules.earned_value.models import (
     DISTRIBUTION_VALUES,
-    EvCatalogItem,
-    EvDiscipline,
     EvDistribution,
     EvGroupDiscipline,
     EvItemSettings,
