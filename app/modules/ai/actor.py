@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import user_scope
 from app.modules.ai.registry import ActorContext
 from app.modules.roles.models import Role
 from app.modules.roles.repository import get_role_matrix
@@ -41,4 +42,5 @@ async def aktor_baglami(session: AsyncSession, user: User) -> ActorContext:
         role_key=rol.key,
         role_is_system=bool(rol.is_system),
         permissions={modul.key: izin.access_level for modul, izin in matris},
+        disiplin_kisitli=(await user_scope(session, user.id)).is_restricted,
     )

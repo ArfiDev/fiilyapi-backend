@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
 from app.core.ratelimit import client_ip
@@ -133,7 +134,7 @@ async def get_employer_contract_items_endpoint(
 @router.get(
     "/projects/{project_id}/contract/distribution",
     response_model=ContractDistributionResponse,
-    dependencies=[_VIEW],
+    dependencies=[_VIEW, RequireUnrestricted],
 )
 async def get_contract_distribution_endpoint(
     project_id: str,
@@ -151,7 +152,7 @@ async def get_contract_distribution_endpoint(
 @router.put(
     "/projects/{project_id}/contract/distribution",
     response_model=ContractDistributionResponse,
-    dependencies=[_FULL],
+    dependencies=[_FULL, RequireUnrestricted],
 )
 async def save_contract_distribution_endpoint(
     request: Request,

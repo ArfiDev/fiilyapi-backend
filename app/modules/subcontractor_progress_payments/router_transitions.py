@@ -25,6 +25,7 @@ from fastapi import APIRouter, Depends, Request
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.discipline_deps import RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.core.ratelimit import client_ip
@@ -42,7 +43,12 @@ from app.modules.subcontractor_progress_payments.schemas import (
 from app.modules.subcontractor_progress_payments.service import PaymentContext
 from app.modules.users.models import User
 
-router = APIRouter(tags=["subcontractor-progress-payments"], responses=COMMON_ERROR_RESPONSES)
+# Ü2 (DSC-B5): hakedis ticari/proje duzeyi → kisitli kullaniciya router duzeyinde 403.
+router = APIRouter(
+    tags=["subcontractor-progress-payments"],
+    responses=COMMON_ERROR_RESPONSES,
+    dependencies=[RequireUnrestricted],
+)
 
 _DRAFT = require_permission("progress_payments", AccessLevel.draft)
 _APPROVE = require_permission("progress_payments", AccessLevel.approve)

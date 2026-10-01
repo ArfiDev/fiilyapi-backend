@@ -105,6 +105,9 @@ class ActorContext:
     role_key: str
     role_is_system: bool
     permissions: Mapping[str, AccessLevel]
+    #: DSC-B5 (Ü2): kullanıcı disiplin kapsamıyla KISITLI mı (`user_scope(...).is_restricted`).
+    #: `scope` ALANI DEĞİL (S1 bekçisi, izin-matrisi `Scope`u ile karışmasın diye ayrı ad).
+    disiplin_kisitli: bool = False
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -138,6 +141,10 @@ class ToolSpec:
     yanit_modeli: type[BaseModel]
     calistir: Callable[[AracBaglami, BaseModel], Awaitable[AracSonucu]]
     satir_tavani: int = 200
+    #: DSC-B5 (Ü2): `ucler`den biri `RequireUnrestricted` kapılı bir rotaya gidiyorsa True →
+    #: disiplin kısıtlısına HİÇ sunulmaz. Tanım TEK yerdedir (burası); rota bağımlılık
+    #: ağacıyla eşitliği `tests/modules/ai/test_dsc_ai_hakedis.py` kilitler.
+    disiplin_kisitliya_kapali: bool = False
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -226,10 +233,17 @@ class ToolRegistry:
         """
         from app.modules.roles.models import SYSTEM_ADMIN_KEY
 
-        araclar = [s for s in self._okuma if kapilar_gecti(s, actor.permissions)]
+        araclar = [s for s in self._okuma if self._sunulur(s, actor)]
         if actor.role_key == SYSTEM_ADMIN_KEY and actor.role_is_system:
-            araclar += [s for s in self._propose if kapilar_gecti(s, actor.permissions)]
+            araclar += [s for s in self._propose if self._sunulur(s, actor)]
         return araclar
+
+    @staticmethod
+    def _sunulur(spec: ToolSpec, actor: ActorContext) -> bool:
+        """İzin kapıları + DSC-B5 (Ü2) disiplin süzgeci: kısıtlıya ticari araç sunulmaz."""
+        if actor.disiplin_kisitli and spec.disiplin_kisitliya_kapali:
+            return False
+        return kapilar_gecti(spec, actor.permissions)
 
     def dusurulen_moduller(self, actor: ActorContext) -> list[str]:
         """Yetkisi olmadığı için kataloğa GİRMEYEN araçların modülleri (S9-c).

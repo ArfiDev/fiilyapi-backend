@@ -73,12 +73,14 @@ _STOK_GEREKCE = (
 )
 #: Duyarlı OLMAYAN stok OKUMA uçları (kullanıcı kararı): (yöntem, yol) -> gerekçe. `_dilim` bu
 #: yolları None döner; listeden çıkarılırsa rota duyarlı sayılır ve ne işaretli ne izin
-#: listesinde olduğu için bekçi KIRMIZI olur. Yazma (POST /stock/entries) B5 kalır.
+#: listesinde olduğu için bekçi KIRMIZI olur. Yazma (POST /stock/entries) da dahildir (S5).
 STOK_DUYARSIZ_ROTALAR: dict[Rota, str] = {
     ("GET", "/stock/summary"): _STOK_GEREKCE,
     ("GET", "/sites/{site_id}/stock"): _STOK_GEREKCE,
     ("GET", "/stock/entries"): _STOK_GEREKCE,
     ("GET", "/sections/{section_id}/stock"): _STOK_GEREKCE,
+    # DSC-B5 (S5): yazma da disiplinsiz — gerçek depo bakiyesi tek kaynak.
+    ("POST", "/stock/entries"): _STOK_GEREKCE,
 }
 _EV_B3_YOLU = re.compile(r"/earned-value/(panel|reports/|settings/preview)")
 _EV_AYAR_YOLU = re.compile(r"/earned-value/settings$")
@@ -168,9 +170,7 @@ def _dilim(aile: str, yontem: str, yol: str) -> str | None:
     if aile == "stok":
         if yol not in STOK_SATIR_YOLLARI:
             return None
-        if yazma:
-            return "DSC-B5"
-        return None if (yontem, yol) in STOK_DUYARSIZ_ROTALAR else "DSC-B1"
+        return None if (yontem, yol) in STOK_DUYARSIZ_ROTALAR else ("DSC-B2" if yazma else "DSC-B1")
     if aile == "ev" and _EV_AYAR_YOLU.search(yol):
         # DSC-B3 (S11/Ü6): GET pacal kartları kapsama göre gizler; PUT yapılandırmadır → 403.
         return "DSC-B3"
@@ -259,6 +259,37 @@ U6_ROTALARI: frozenset[Rota] = frozenset(
         ("POST", "/sites/{site_id}/earned-value/days/{day}/unlock"),
         ("POST", "/sites/{site_id}/earned-value/reports/daily/{day}/approve"),
         ("PUT", "/sites/{site_id}/earned-value/settings"),
+        # DSC-B5 (Ü2): hakediş router'ları + diary-suggestion + sözleşme dağıtımı.
+        ("GET", "/projects/{project_id}/contract/distribution"),
+        ("PUT", "/projects/{project_id}/contract/distribution"),
+        ("GET", "/projects/{project_id}/progress-payments/diary-suggestion"),
+        ("GET", "/subcontractor-contracts/{contract_id}/progress-payments/diary-suggestion"),
+        ("GET", "/progress-payments"),
+        ("DELETE", "/progress-payments/{payment_id}"),
+        ("GET", "/progress-payments/{payment_id}"),
+        ("PATCH", "/progress-payments/{payment_id}"),
+        ("POST", "/progress-payments/{payment_id}/approve"),
+        ("PUT", "/progress-payments/{payment_id}/lines"),
+        ("POST", "/progress-payments/{payment_id}/mark-paid"),
+        ("POST", "/progress-payments/{payment_id}/refresh-prices"),
+        ("POST", "/progress-payments/{payment_id}/reject"),
+        ("POST", "/progress-payments/{payment_id}/submit"),
+        ("POST", "/progress-payments/{payment_id}/unapprove"),
+        ("POST", "/projects/{project_id}/progress-payments"),
+        ("GET", "/projects/{project_id}/progress-payments/summary"),
+        ("POST", "/subcontractor-contracts/{contract_id}/progress-payments"),
+        ("GET", "/subcontractor-progress-payments"),
+        ("GET", "/subcontractor-progress-payments/summary"),
+        ("DELETE", "/subcontractor-progress-payments/{payment_id}"),
+        ("GET", "/subcontractor-progress-payments/{payment_id}"),
+        ("PATCH", "/subcontractor-progress-payments/{payment_id}"),
+        ("POST", "/subcontractor-progress-payments/{payment_id}/approve"),
+        ("PUT", "/subcontractor-progress-payments/{payment_id}/lines"),
+        ("POST", "/subcontractor-progress-payments/{payment_id}/mark-paid"),
+        ("POST", "/subcontractor-progress-payments/{payment_id}/refresh-prices"),
+        ("POST", "/subcontractor-progress-payments/{payment_id}/reject"),
+        ("POST", "/subcontractor-progress-payments/{payment_id}/submit"),
+        ("POST", "/subcontractor-progress-payments/{payment_id}/unapprove"),
     }
 )
 
@@ -275,40 +306,7 @@ def isaretli_rotalar() -> set[Rota]:
 
 
 #: (yöntem, yol) -> hedef dilim. B1-B5 girdi siler; B6 boşaltır.
-IZIN_LISTESI: dict[Rota, str] = {
-    ("GET", "/projects/{project_id}/contract/distribution"): "DSC-B5",
-    ("PUT", "/projects/{project_id}/contract/distribution"): "DSC-B5",
-    ("GET", "/dashboard/summary"): "DSC-B5",
-    ("GET", "/projects/{project_id}/progress-payments/diary-suggestion"): "DSC-B5",
-    ("GET", "/subcontractor-contracts/{contract_id}/progress-payments/diary-suggestion"): "DSC-B5",
-    ("GET", "/progress-payments"): "DSC-B5",
-    ("DELETE", "/progress-payments/{payment_id}"): "DSC-B5",
-    ("GET", "/progress-payments/{payment_id}"): "DSC-B5",
-    ("PATCH", "/progress-payments/{payment_id}"): "DSC-B5",
-    ("POST", "/progress-payments/{payment_id}/approve"): "DSC-B5",
-    ("PUT", "/progress-payments/{payment_id}/lines"): "DSC-B5",
-    ("POST", "/progress-payments/{payment_id}/mark-paid"): "DSC-B5",
-    ("POST", "/progress-payments/{payment_id}/refresh-prices"): "DSC-B5",
-    ("POST", "/progress-payments/{payment_id}/reject"): "DSC-B5",
-    ("POST", "/progress-payments/{payment_id}/submit"): "DSC-B5",
-    ("POST", "/progress-payments/{payment_id}/unapprove"): "DSC-B5",
-    ("POST", "/projects/{project_id}/progress-payments"): "DSC-B5",
-    ("GET", "/projects/{project_id}/progress-payments/summary"): "DSC-B5",
-    ("POST", "/stock/entries"): "DSC-B5",
-    ("POST", "/subcontractor-contracts/{contract_id}/progress-payments"): "DSC-B5",
-    ("GET", "/subcontractor-progress-payments"): "DSC-B5",
-    ("GET", "/subcontractor-progress-payments/summary"): "DSC-B5",
-    ("DELETE", "/subcontractor-progress-payments/{payment_id}"): "DSC-B5",
-    ("GET", "/subcontractor-progress-payments/{payment_id}"): "DSC-B5",
-    ("PATCH", "/subcontractor-progress-payments/{payment_id}"): "DSC-B5",
-    ("POST", "/subcontractor-progress-payments/{payment_id}/approve"): "DSC-B5",
-    ("PUT", "/subcontractor-progress-payments/{payment_id}/lines"): "DSC-B5",
-    ("POST", "/subcontractor-progress-payments/{payment_id}/mark-paid"): "DSC-B5",
-    ("POST", "/subcontractor-progress-payments/{payment_id}/refresh-prices"): "DSC-B5",
-    ("POST", "/subcontractor-progress-payments/{payment_id}/reject"): "DSC-B5",
-    ("POST", "/subcontractor-progress-payments/{payment_id}/submit"): "DSC-B5",
-    ("POST", "/subcontractor-progress-payments/{payment_id}/unapprove"): "DSC-B5",
-}
+IZIN_LISTESI: dict[Rota, str] = {}
 
 
 # --------------------------------------------------------------------- testler
@@ -318,7 +316,9 @@ def test_siniflandirici_bos_donmez_ve_her_aile_rota_tarar() -> None:
     """🔴 Sessiz-boş tarama (önek/`_IncludedRouter` bozulması) KIRMIZI olur."""
     duyarli, aile_sayilari = duyarli_rotalar()
     assert duyarli, "sıfır rota tarandı — sınıflandırıcı ya da rota dolaşımı bozuk"
-    eksik = set(AILE_KOKLERI.values()) - aile_sayilari.keys()
+    # `stok` ailesi B5 (S5) sonrası tamamen duyarsız: taranan duyarlı rota 0 BEKLENİR; varlığı
+    # `test_stok_okuma_uclari_duyarli_degildir_ve_suzulmez` (bayat stok rotası) kilitler.
+    eksik = set(AILE_KOKLERI.values()) - aile_sayilari.keys() - {"stok"}
     assert not eksik, f"şu ailelerde HİÇ rota taranmadı (önek bozuk?): {sorted(eksik)}"
 
 
@@ -345,6 +345,10 @@ def test_stok_okuma_uclari_duyarli_degildir_ve_suzulmez() -> None:
 
 def test_izin_listesinde_b4_girdisi_kalmadi() -> None:
     assert not [r for r, d in IZIN_LISTESI.items() if d == "DSC-B4"]
+
+
+def test_izin_listesinde_b5_girdisi_kalmadi() -> None:
+    assert not [r for r, d in IZIN_LISTESI.items() if d == "DSC-B5"]
 
 
 def test_kullanici_disiplin_uclari_duyarli_degildir() -> None:

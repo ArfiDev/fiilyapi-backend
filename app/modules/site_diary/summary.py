@@ -66,7 +66,7 @@ class _Bucket:
         self.amount = _ZERO_MONEY
 
 
-def _to_schema(bucket: _Bucket) -> SiteDiarySummaryItem:
+def _to_schema(bucket: _Bucket, scope: DisciplineScope) -> SiteDiarySummaryItem:
     item = bucket.item
     contract_item = bucket.contract_item
     return SiteDiarySummaryItem(
@@ -82,7 +82,12 @@ def _to_schema(bucket: _Bucket) -> SiteDiarySummaryItem:
         completion_ratio=_completion_ratio(bucket.quantity, item.quantity),
         contract_item_id=contract_item.id if contract_item is not None else None,
         contract_item_quantity=contract_item.quantity if contract_item is not None else None,
-        contract_item_unit_price=contract_item.unit_price if contract_item is not None else None,
+        # DSC-B5 K7: sozlesme birim fiyati ticari veri → kisitlida None (miktar/kimlik kalir).
+        contract_item_unit_price=(
+            contract_item.unit_price
+            if contract_item is not None and not scope.is_restricted
+            else None
+        ),
     )
 
 
@@ -118,7 +123,7 @@ async def get_summary(
         bucket.quantity += line.quantity
         bucket.amount += read.line_amount(line)
 
-    items = [_to_schema(bucket) for bucket in buckets.values()]
+    items = [_to_schema(bucket, scope) for bucket in buckets.values()]
     return SiteDiarySummary(
         site_id=site.id,
         year=year,

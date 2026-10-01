@@ -149,9 +149,10 @@ async def test_ozet_kalemler_ve_toplam_kendi_disiplininden(
 async def test_ozet_sozlesme_kalemi_alanlari_satirla_birlikte_suzulur(
     client: AsyncClient, dunya: Dunya, civil, elek
 ) -> None:
-    """K7: `contract_item_*` (id · miktar · BİRİM FİYAT) yalnız görünür kalemin satırında."""
+    """K7: `contract_item_*` (id · miktar) yalnız görünür kalemin satırında; BİRİM FİYAT ticari
+    veridir (DSC-B5 K7) → kısıtlıda None (atamasızda dolu: `test_b5_hakedis.py`)."""
     c = (await _ozet(client, dunya, civil))["items"][0]
     e = (await _ozet(client, dunya, elek))["items"][0]
-    assert (D(c["contract_item_quantity"]), D(c["contract_item_unit_price"])) == (D(120), D(11))
-    assert (D(e["contract_item_quantity"]), D(e["contract_item_unit_price"])) == (D(60), D(22))
+    assert D(c["contract_item_quantity"]) == D(120) and c["contract_item_unit_price"] is None
+    assert D(e["contract_item_quantity"]) == D(60) and e["contract_item_unit_price"] is None
     assert c["contract_item_id"] != e["contract_item_id"]
