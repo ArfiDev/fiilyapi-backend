@@ -9,6 +9,7 @@
             "allocated_quantity": "90.000",
             "amount": "600.00",
             "code": "01.001",
+            "contract_item_id": "<sozlesme_kalemi:1>",
             "description": "Beton",
             "id": "<I1>",
             "progress_pct": {
@@ -34,6 +35,7 @@
             "allocated_quantity": "50.000",
             "amount": "1000.00",
             "code": "02.001",
+            "contract_item_id": "<sozlesme_kalemi:2>",
             "description": "Tuğla",
             "id": "<I2>",
             "progress_pct": {

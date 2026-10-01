@@ -3,7 +3,7 @@
     {
       "action": "update",
       "actor": "<user:atamasiz>",
-      "detail": "İş kalemi güncellendi: 01.001 — Beton C30"
+      "detail": "İş kalemi güncellendi: 01.001 — Beton"
     }
   ],
   "db": {
@@ -72,14 +72,14 @@
         "code": "01.001",
         "contract_item_id": "<sozlesme_kalemi:1>",
         "created_at": "<ts>",
-        "description": "Beton C30",
+        "description": "Beton",
         "group_id": "<G2>",
         "id": "<I1>",
         "quantity": "110.000",
         "site_id": "<site>",
         "sort_order": 1,
         "unit": "m3",
-        "unit_price": "11.00",
+        "unit_price": "10.00",
         "updated_at": "<ts>"
       },
       {
@@ -989,9 +989,10 @@
   "yanit": {
     "body": {
       "allocated_quantity": "90.000",
-      "amount": "1210.00",
+      "amount": "1100.00",
       "code": "01.001",
-      "description": "Beton C30",
+      "contract_item_id": "<sozlesme_kalemi:1>",
+      "description": "Beton",
       "id": "<I1>",
       "progress_pct": {
         "available": true,
@@ -1002,7 +1003,7 @@
       "sort_order": 1,
       "unallocated_quantity": "20.000",
       "unit": "m3",
-      "unit_price": "11.00"
+      "unit_price": "10.00"
     },
     "content_type": "application/json",
     "status": 200

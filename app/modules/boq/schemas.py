@@ -109,6 +109,9 @@ class BoqItemResponse(BaseModel):
     unit_price: Annotated[Decimal | None, Gorunurluk.para]
     progress_pct: Annotated[MetricPlaceholder, Gorunurluk.operasyonel]
     sort_order: int
+    # SZK-B1: sozlesme kalemine bag (kimlik, etiketsiz). Doluysa code/description/
+    # unit/unit_price sahada KILITLIDIR; frontend kilidi buna bakar.
+    contract_item_id: uuid.UUID | None
     # --- BOQ-SEC (K6) — MEVCUT alanlarin hicbiri degismedi, ikisi EKLENDI ---
     #
     # 🔴 IKI ANLAM TUZAGI: `section_id` suzgeciyle okundugunda `quantity` O BOLUME
@@ -242,7 +245,8 @@ class BoqItemAllocationInput(BaseModel):
     """
 
     section_id: uuid.UUID
-    quantity: Decimal = Field(gt=0)
+    # Kolon `Numeric(14, 3)` ile BIREBIR (`1e30` / `0.0004` -> 422, 500 degil).
+    quantity: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
 
 
 class BoqItemAllocationsReplace(BaseModel):

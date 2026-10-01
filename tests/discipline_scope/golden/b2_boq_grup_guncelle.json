@@ -995,6 +995,7 @@
           "allocated_quantity": "90.000",
           "amount": "1000.00",
           "code": "01.001",
+          "contract_item_id": "<sozlesme_kalemi:1>",
           "description": "Beton",
           "id": "<I1>",
           "progress_pct": {

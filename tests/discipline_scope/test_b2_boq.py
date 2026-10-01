@@ -126,7 +126,8 @@ async def test_kalem_guncelleme_tahsis_silme_yabanci_ve_olmayan_ayni_404(
             assert ozet(await istek(kalem.id, yazar)) == olmayan, (ad, kalem.code)
     # pozitif kontrol: atamasız eşler (i2 üzerinde aynı istekler) 404 DEĞİL
     assert (
-        await client.patch(f"/boq/items/{i2.id}", headers=yazar_atamasiz, json={"description": "Z"})
+        # SZK-B1: i2 sözleşmeye bağlı → description kilitli; pozitif kontrol kilitsiz alanla.
+        await client.patch(f"/boq/items/{i2.id}", headers=yazar_atamasiz, json={"sort_order": 9})
     ).status_code == 200
     assert (
         await client.put(
@@ -228,7 +229,7 @@ async def test_reddedilen_yabanci_istekler_db_yi_degistirmez(
 
 
 async def test_kabul_edilen_kahin_poz_kodu_varligi_sizar_baska_hicbir_sey(
-    client: AsyncClient, dunya: Dunya, civil_yazar
+    client: AsyncClient, seeded_db, dunya: Dunya, civil_yazar
 ) -> None:
     """KABUL EDİLEN KÂHİN (CEO kararı 2026-09-29, Ü7 istisnası): UQ `uq_boq_items_site_code`
     şantiye düzeyindedir → civil, kendi grubuna başka disiplinin kodunu (02.001) girince 409,
@@ -247,7 +248,10 @@ async def test_kabul_edilen_kahin_poz_kodu_varligi_sizar_baska_hicbir_sey(
         url, headers=civil_yazar, json=_kalem_govdesi(dunya.g["g1"].id, "7.777")
     )
     assert yok.status_code == 201, yok.text  # olmayan kod → 201 (kâhin: 409 ↔ 201 farkı)
-    # update_item kod değişimi yolu: aynı ayrım
+    # update_item kod değişimi yolu: aynı ayrım. SZK-B1: sözleşmeye bağlı kalemde `code`
+    # kilitli (422) → kâhin yolunu ölçmek için kalem sözleşmeden ayrılır (bağsız = serbest).
+    dunya.i["i1"].contract_item_id = None
+    await seeded_db.flush()
     kendi = f"/boq/items/{dunya.i['i1'].id}"
     cakisan = await client.patch(kendi, headers=civil_yazar, json={"code": yabanci.code})
     assert cakisan.status_code == 409 and cakisan.json() == varolan.json()

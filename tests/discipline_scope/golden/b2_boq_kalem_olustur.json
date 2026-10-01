@@ -1005,6 +1005,7 @@
       "allocated_quantity": "0",
       "amount": "42.00",
       "code": "01.999",
+      "contract_item_id": null,
       "description": "Yeni kalem",
       "id": "<uuid:1>",
       "progress_pct": {

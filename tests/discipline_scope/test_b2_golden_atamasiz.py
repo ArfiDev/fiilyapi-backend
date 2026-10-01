@@ -299,9 +299,9 @@ SENARYOLAR: dict[str, Senaryo] = {
     "boq_kalem_guncelle": Senaryo(
         _patch(
             lambda x: f"/boq/items/{x.d.i['i1'].id}",
+            # SZK-B1: I1 sözleşmeye bağlı; `description`/`unit_price` kilitli (422) → yalnız
+            # kilitsiz alanlar (`quantity`, `group_id`) yazılır.
             lambda x: {
-                "description": "Beton C30",
-                "unit_price": "11",
                 "quantity": "110",
                 "group_id": str(x.d.g["g2"].id),
             },
