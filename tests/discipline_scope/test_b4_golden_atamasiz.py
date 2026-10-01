@@ -20,6 +20,7 @@ from collections.abc import Callable
 import pytest
 from httpx import AsyncClient
 
+from tests._section_types import SEED_TYPE_IDS
 from tests.discipline_scope._b2_golden_araclari import anlik_goruntu, audit_kimlikleri, yeni_audit
 from tests.discipline_scope._b4_dunya import DunyaB4
 from tests.discipline_scope._golden import golden_yolu, oku, yaz
@@ -114,11 +115,10 @@ YAZMALAR: dict[str, tuple[str, Yol, Govde]] = {
         lambda x: {
             "name": "C Blok",
             "code": "BLM-C",
-            "section_type": "structural",
+            "section_type_id": str(SEED_TYPE_IDS["structural"]),
             "manager_name": "Bölüm Sorumlusu",
             "start_date": "2026-06-01",
             "end_date": "2026-06-30",
-            "budget_amount": "1000",
         },
     ),
     "b4_yaz_bolum_taslak": (
@@ -129,7 +129,7 @@ YAZMALAR: dict[str, tuple[str, Yol, Govde]] = {
     "b4_yaz_bolum_guncelle": (
         "PATCH",
         lambda x: f"/sections/{x.d.s1.id}",
-        lambda x: {"name": "A Blok Güncel", "budget_amount": "12345", "status": "active"},
+        lambda x: {"name": "A Blok Güncel", "status": "active"},
     ),
     "b4_yaz_proje_olustur": (
         "POST",

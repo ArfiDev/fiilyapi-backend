@@ -25,6 +25,7 @@ from app.modules.sites.schemas import (
     SectionMilestoneResponse,
     SectionResponse,
     SectionStatusCounts,
+    SectionTypeRead,
     SiteCard,
     SiteCounts,
     SiteDetailResponse,
@@ -235,8 +236,7 @@ def to_section(
         kopyadir, burada ikinci bir carpim YAZILMAZ.
       * *toplu okuyucu yok* — `boq/counts.py::by_section` yazildi, TEK sorgu
         (`section_allocations_for_site` BOLUM BASINA sorguydu, N+1 acardi).
-    `budget_amount` (elle girilen kolon) ile AYNI SEY DEGILDIR ve UZERINE
-    YAZMAZ: ikisi de yanittadir.
+    BLF-B1: eski elle `budget_amount` kolonu artik okunmaz; bedel TEK kaynak budur.
 
     ✅ `worker_count` — T4'te baglandi (`_worker_count`).
 
@@ -264,10 +264,8 @@ def to_section(
         boq_item_count=_boq_item_count(boq_totals.item_count),
         budget=_boq_budget(boq_totals.amount),
         worker_count=_worker_count(worker_count),
-        # BLM-SAY: kayitli kolonlar LISTE yanitina da girer — kullanicinin
-        # canlida bildirdigi kusur tam buradaydi (deger vardi, uc dondurmuyordu).
+        # BLM-SAY: kayitli kolonlar LISTE yanitina da girer. BLF-B1: `budget_amount` kalkti.
         planned_worker_count=section.planned_worker_count,
-        budget_amount=section.budget_amount,
         # P11 (spec §3): iki alan da TEK donusturucuden gectigi icin bolum basan
         # UC yuzeyde (detay, liste, santiye detayi) ayni anda dogar. Milestone
         # sirasi DETERMINISTIKTIR — `Section.milestones` iliskisi
@@ -289,15 +287,19 @@ def to_section_detail(
     da bos yer tutucular da tek yerde uretilir, aksi hâlde liste ve detay
     ekranlari zamanla farkli sayi/anahtar gosterirdi.
 
-    🔴 `planned_worker_count`/`budget_amount` BURADA ARTIK VERILMEZ — BLM-SAY'de
-    `to_section`e tasindilar ve `model_dump()` ile gelirler. Ikisini de burada
+    🔴 `planned_worker_count` BURADA ARTIK VERILMEZ — BLM-SAY'de
+    `to_section`e tasindi ve `model_dump()` ile gelirler. Ikisini de burada
     tekrar gecmek `TypeError` verirdi; sessiz bir ayrisma degil, gurultulu bir
     hata — istenen budur.
     """
     return SectionDetailResponse(
         **to_section(section, worker_count, boq_totals, progress).model_dump(),
         site_id=section.site_id,
-        section_type=section.section_type,
+        section_type=(
+            SectionTypeRead.model_validate(section.section_type)
+            if section.section_type is not None
+            else None
+        ),
         description=section.description,
         deputy_manager_user_id=section.deputy_manager_user_id,
         deputy_manager_name=section.deputy_manager_name,

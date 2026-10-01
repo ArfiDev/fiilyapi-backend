@@ -13,10 +13,10 @@ dolayisiyla PATCH testlerinin yaninda degil kendi dosyasinda durur.
    Ekle.dc.html` icinde `<span class="req">*</span>` tasiyan alanlar:
    * 67 Bölüm Adı → `name` (Pydantic zaten zorunlu)
    * 69 Bölüm Sırası → `sort_order` (varsayilani 0 oldugu icin ASLA bos olamaz)
-   * 70 Bölüm Tipi → `section_type`
+   * 70 Bölüm Tipi → `section_type_id`
    * 83 Bölüm Sorumlusu → `manager_user_id` **veya** `manager_name`
    * 107/108 Başlangıç + Planlanan Bitiş → `start_date` / `end_date`
-   * 110 Bölüm Bedeli → `budget_amount`
+   * 110 Bölüm Bedeli → BLF-B1: KALKTI (yalniz turev `budget`, formda salt-okunur)
    * 66 Şantiye → YOL PARAMETRESIDIR, govdede aranmaz.
    Mockup'ta `*` TASIMAYAN alan zorunlu YAPILMAZ: 68 Bölüm Kodu ("Boş
    bırakılırsa otomatik"), 71 Durum, 74 Açıklama, 84 Yardımcı Sorumlu,
@@ -34,7 +34,6 @@ dolayisiyla PATCH testlerinin yaninda degil kendi dosyasinda durur.
 """
 
 import uuid
-from decimal import Decimal
 
 import pytest
 from sqlalchemy import func, select
@@ -43,8 +42,9 @@ from app.core.access import AccessLevel, Scope
 from app.modules.audit.messages import section_created
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.roles.models import Module, Role, RolePermission
-from app.modules.sites.models import Section, SectionStatus, SectionType, Site
+from app.modules.sites.models import Section, SectionStatus, Site
 from app.modules.users.models import UserProjectAccess
+from tests._section_types import SEED_TYPE_IDS, seed_section_types
 
 SITE_MISSING = "Şantiye bulunamadı"
 USER_MISSING = "Seçilen kullanıcı bulunamadı"
@@ -53,7 +53,7 @@ DUPLICATE_SECTION_CODE = "Bu bölüm kodu bu şantiyede zaten kullanılıyor"
 SECTION_TYPE_REQUIRED = "Bölüm tipi seçiniz."
 SECTION_MANAGER_REQUIRED = "Bölüm sorumlusu seçiniz."
 SECTION_DATES_REQUIRED = "Başlangıç ve planlanan bitiş tarihi zorunludur."
-SECTION_BUDGET_REQUIRED = "Bölüm bedeli zorunludur."
+SECTION_TYPE_MISSING = "Bölüm tipi bulunamadı"
 END_BEFORE_START = "Planlanan bitiş tarihi başlangıçtan önce olamaz."
 
 WRITE_ROLE = "patron"  # sites=full
@@ -63,11 +63,10 @@ VIEW_ROLE = "site_chief"  # sites=view
 # docstring'i 1. madde). `name` ayri tutulur: onu Pydantic zorunlu kilar.
 PUBLISHED_PAYLOAD = {
     "name": "Kat 11–14 Kaba İnşaat",
-    "section_type": "structural",
+    "section_type_id": str(SEED_TYPE_IDS["structural"]),
     "manager_name": "Sercan Öztürk",
     "start_date": "2026-10-01",
     "end_date": "2027-03-31",
-    "budget_amount": "2840000.00",
 }
 
 
@@ -112,6 +111,8 @@ async def _site(session, project_factory, slug: str) -> Site:
     project = await project_factory(f"{slug}-{uuid.uuid4().hex[:6]}")
     site = Site(project_id=project.id, code=f"SNT-{uuid.uuid4().hex[:6]}", name="A-Blok Şantiyesi")
     session.add(site)
+    # BLF-B1: testler `create_all` kullanir, migration tohumu YOK — 7 tip burada eklenir.
+    await seed_section_types(session)
     await session.flush()
     return site
 
@@ -162,14 +163,14 @@ async def test_create_writes_every_new_column(client, db_session, user_factory, 
     assert section.code == "BLM-06"
     assert section.name == "Kat 11–14 Kaba İnşaat"
     assert section.status is SectionStatus.on_hold
-    assert section.section_type is SectionType.structural
+    assert section.section_type_id == SEED_TYPE_IDS["structural"]
     assert section.description == "Kat 11–14 arası betonarme."
     assert section.manager_user_id == manager.id
     assert section.manager_name == "Sercan Öztürk"
     assert section.deputy_manager_user_id == deputy.id
     assert section.deputy_manager_name == "Kadir Yıldız"
     assert section.planned_worker_count == 42
-    assert section.budget_amount == Decimal("2840000.00")
+    assert section.budget_amount is None  # BLF-B1: kolon artik yazilmaz
     assert section.sort_order == 6
     assert section.is_draft is False
 
@@ -211,7 +212,7 @@ async def test_draft_create_relaxes_required_fields(
     assert resp.status_code == 201, resp.text
     (section,) = await _sections(db_session, site.id)
     assert section.is_draft is True
-    assert section.section_type is None
+    assert section.section_type_id is None
     assert section.budget_amount is None
     assert section.start_date is None
 
@@ -219,11 +220,10 @@ async def test_draft_create_relaxes_required_fields(
 @pytest.mark.parametrize(
     ("omitted", "message"),
     [
-        ("section_type", SECTION_TYPE_REQUIRED),
+        ("section_type_id", SECTION_TYPE_REQUIRED),
         ("manager_name", SECTION_MANAGER_REQUIRED),
         ("start_date", SECTION_DATES_REQUIRED),
         ("end_date", SECTION_DATES_REQUIRED),
-        ("budget_amount", SECTION_BUDGET_REQUIRED),
     ],
 )
 async def test_published_create_requires_every_starred_field(
@@ -374,11 +374,6 @@ async def test_negative_numbers_return_422(client, db_session, user_factory, pro
     site = await _site(db_session, project_factory, "P6T3-NEG")
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=True)
 
-    budget = await client.post(
-        f"/sites/{site.id}/sections",
-        json=_published(budget_amount="-1.00"),
-        headers=_auth(token),
-    )
     workers = await client.post(
         f"/sites/{site.id}/sections",
         json=_published(planned_worker_count=-1),
@@ -388,22 +383,24 @@ async def test_negative_numbers_return_422(client, db_session, user_factory, pro
         f"/sites/{site.id}/sections", json=_published(sort_order=-1), headers=_auth(token)
     )
 
-    assert budget.status_code == 422, budget.text
     assert workers.status_code == 422, workers.text
     assert order.status_code == 422, order.text
     assert await _sections(db_session, site.id) == []
 
 
 async def test_unknown_section_type_returns_422(client, db_session, user_factory, project_factory):
-    """Enum disi deger sessizce NULL'a DUSMEZ."""
+    """Var olmayan tip kimligi sessizce NULL'a DUSMEZ (BLF-B1: 422, tip bulunamadi)."""
     site = await _site(db_session, project_factory, "P6T3-ENUM")
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=True)
 
     resp = await client.post(
-        f"/sites/{site.id}/sections", json=_published(section_type="çatı"), headers=_auth(token)
+        f"/sites/{site.id}/sections",
+        json=_published(section_type_id=str(uuid.uuid4())),
+        headers=_auth(token),
     )
 
     assert resp.status_code == 422, resp.text
+    assert resp.json() == {"detail": SECTION_TYPE_MISSING}
     assert await _sections(db_session, site.id) == []
 
 
@@ -617,15 +614,17 @@ def test_openapi_create_body_carries_every_new_field():
     body = node["properties"]
 
     for field in (
-        "section_type",
+        "section_type_id",
         "description",
         "deputy_manager_user_id",
         "deputy_manager_name",
         "planned_worker_count",
-        "budget_amount",
         "is_draft",
     ):
         assert field in body, field
+    # BLF-B1: elle bedel ve eski enum alani govdeden KALKTI.
+    assert "budget_amount" not in body
+    assert "section_type" not in body
     # BOQ-bolum bagi ACILMAZ (kalici karar 1) — spec §6.
     assert "boq_item_ids" not in body
     assert "subcontractor_ids" not in body

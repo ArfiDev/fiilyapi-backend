@@ -41,6 +41,7 @@ from app.modules.sites.models import Section, Site
 from app.modules.timesheet.models import TimesheetEntry
 from app.modules.users.models import UserProjectAccess
 from tests._disiplin_dunyasi import GUN1, SIFRE, Dunya, _giris, _kimlik, kur
+from tests._section_types import seed_section_types
 from tests.discipline_scope._b2_golden_araclari import rastgele_kimlikleri_etiketle
 
 D = Decimal
@@ -343,6 +344,7 @@ async def genislet_b4(
         session.add(
             UserProjectAccess(user_id=d.kullanici[ad].id, project_id=proje2.id, all_projects=False)
         )
+    await seed_section_types(session)  # BLF-B1: bölüm tipi tohumu (atamasız ve kısıtlı aynı)
     await session.flush()
     x = DunyaB4(d, santiye_b, proje2, santiye_c, bolum_b, gb, ib, ic["ic1"])
     await _etiketle(session, x)

@@ -39,6 +39,7 @@ from sqlalchemy import select
 from app.modules.audit.messages import section_updated
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.sites.models import Section, SectionMilestone, Site
+from tests._section_types import SEED_TYPE_IDS, seed_section_types
 
 SECTION_MISSING = "Bölüm bulunamadı"
 
@@ -56,11 +57,10 @@ ADMIN_ROLE = "system_admin"  # sites=admin -> view/full/delete kapilarinin hepsi
 
 PUBLISHED_PAYLOAD = {
     "name": "Kat 11–14 Kaba İnşaat",
-    "section_type": "structural",
+    "section_type_id": str(SEED_TYPE_IDS["structural"]),
     "manager_name": "Sercan Öztürk",
     "start_date": "2026-10-01",
     "end_date": "2027-03-31",
-    "budget_amount": "2840000.00",
 }
 
 
@@ -83,6 +83,8 @@ async def _site(session, project_factory, slug: str) -> Site:
     project = await project_factory(f"{slug}-{uuid.uuid4().hex[:6]}")
     site = Site(project_id=project.id, code=f"SNT-{uuid.uuid4().hex[:6]}", name="A-Blok Şantiyesi")
     session.add(site)
+    # BLF-B1: `create_all` migration tohumu getirmez — 7 tip burada eklenir.
+    await seed_section_types(session)
     await session.flush()
     return site
 

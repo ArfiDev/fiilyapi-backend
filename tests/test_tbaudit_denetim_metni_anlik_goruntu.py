@@ -33,6 +33,12 @@ ile tazelendi; farkta **KAYIP 0**, yalnız bu fonksiyonun dört çağrısı EKLE
 (`git diff` ile gözle doğrulandı). `timesheet_saved` KALDI: aylık okuma yüzeyi
 (Excel/arşiv) duruyor ve eski denetim satırları o metni taşıyor.
 
+## 🔴 REFERANSA EKLENEN SEMBOL (BLF-B1, 2026-10-01)
+
+`section_type_created` — yeni bölüm tipi kaydı için eklendi. Referans
+`python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta
+**KAYIP 0**, yalnız bu fonksiyonun 1 çağrısı EKLENDİ (`diff` ile doğrulandı).
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok
@@ -202,9 +208,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 206, f"sembol sayısı 206 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 207, f"sembol sayısı 207 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 194, f"fonksiyon sayısı 194 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 195, f"fonksiyon sayısı 195 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

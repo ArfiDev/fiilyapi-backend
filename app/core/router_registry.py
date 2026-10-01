@@ -124,6 +124,7 @@ from app.modules.site_diary.router import router as site_diary_router
 from app.modules.site_planning.router import router as site_planning_router
 from app.modules.sites.flat_list_router import router as sites_flat_list_router
 from app.modules.sites.router import router as sites_router
+from app.modules.sites.section_type_router import router as sites_section_type_router
 from app.modules.subcontractor_progress_payments.router import (
     router as subcontractor_progress_payments_router,
 )
@@ -202,6 +203,9 @@ ROUTERS: tuple[APIRouter, ...] = (
     # tuzağının aksine). Yine de önce kaydedilir: maliyeti sıfır ucuz sigorta.
     sites_flat_list_router,
     sites_router,
+    # BLF-B1 `/section-types` (literal, TEK segment): `/sites/...` ile ortusmez, baska
+    # router'in yoluyla cakismaz — sira onemsiz (olculdu).
+    sites_section_type_router,
     subcontractor_progress_payments_router,
     timesheet_router,
     treasury_router,

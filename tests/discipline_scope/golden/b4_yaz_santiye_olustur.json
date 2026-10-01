@@ -81,7 +81,6 @@
             "pending_module": null,
             "value": "0.00"
           },
-          "budget_amount": null,
           "code": null,
           "depends_on_section_id": null,
           "end_date": "2026-06-30",
@@ -117,7 +116,6 @@
             "pending_module": null,
             "value": "0.00"
           },
-          "budget_amount": null,
           "code": null,
           "depends_on_section_id": null,
           "end_date": null,

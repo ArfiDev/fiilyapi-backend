@@ -205,3 +205,8 @@ def site_plan_sprint_saved(project_name: str, site_name: str, name: str | None) 
     if name is None:
         return f"Şantiye planı aktif sprinti kaldırıldı: {project_name} · {site_name}"
     return f"Şantiye planı aktif sprinti kaydedildi: {project_name} · {site_name} · {name}"
+
+
+def section_type_created(name: str) -> str:
+    """BLF-B1 — sirket geneli bolum tipi listesine yeni tip eklendi."""
+    return f"Bölüm tipi eklendi: {name}"

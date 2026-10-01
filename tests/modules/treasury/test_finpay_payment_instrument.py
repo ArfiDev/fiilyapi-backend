@@ -800,6 +800,10 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     🔴 **DSC-B0 (+1 yol / +2 operasyon):** `GET`/`PUT /users/{user_id}/disciplines` —
     kullanıcı disiplin ataması (EV uzantısı; DISIPLIN-KAPSAMI-SPEC). Tek yol üzerinde iki
     operasyon. Yani 286→**287** · 408→**410**.
+
+    🔴 **BLF-B1.1 (+1 yol / +2 operasyon):** `GET`/`POST /section-types` — şirket geneli
+    bölüm tipi listesi. Tek yol üzerinde iki operasyon (ölçüldü: baseline farkı
+    `+ EKLENDİ: GET /section-types · POST /section-types`). Yani 287→**288** · 410→**412**.
     """
     from app.main import app
 
@@ -824,5 +828,6 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # 243/351'den türetilmedi: 239→245 · 348→354.
     # BDG-B1: `GET`/`PUT /sites/{site_id}/boq/section-distribution` = +1 yol / +2 operasyon
     # (287→288 · 410→412).
-    assert len(yollar) == 288
-    assert operasyonlar == 412
+    # BLF-B1: `GET`/`POST /section-types` = +1 yol / +2 operasyon (288→289 · 412→414).
+    assert len(yollar) == 289
+    assert operasyonlar == 414

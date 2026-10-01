@@ -65,7 +65,7 @@ DATES_REQUIRED = "Başlangıç ve planlanan bitiş tarihi zorunludur."
 #   * 83  Bölüm Sorumlusu      -> SECTION_MANAGER_REQUIRED
 #   * 107 Başlangıç Tarihi     -> SECTION_DATES_REQUIRED
 #   * 108 Planlanan Bitiş      -> SECTION_DATES_REQUIRED
-#   * 110 Bölüm Bedeli (₺)     -> SECTION_BUDGET_REQUIRED
+#   * 110 Bölüm Bedeli (₺)     -> BLF-B1: KALKTI (bedel yalniz turev, formda salt-okunur)
 #   * 66  Şantiye              -> YOL PARAMETRESI, govdede aranmaz.
 #
 # `*` TASIMAYAN ve bu yuzden zorunlu OLMAYANLAR: 68 Bölüm Kodu (ipucu: "Boş
@@ -74,7 +74,10 @@ DATES_REQUIRED = "Başlangıç ve planlanan bitiş tarihi zorunludur."
 SECTION_TYPE_REQUIRED = "Bölüm tipi seçiniz."
 SECTION_MANAGER_REQUIRED = "Bölüm sorumlusu seçiniz."
 SECTION_DATES_REQUIRED = "Başlangıç ve planlanan bitiş tarihi zorunludur."
-SECTION_BUDGET_REQUIRED = "Bölüm bedeli zorunludur."
+# BLF-B1: bolum tipi artik sirket geneli tablodan secilir; var olmayan id 422.
+SECTION_TYPE_MISSING = "Bölüm tipi bulunamadı"
+# 409 — yeni bolum tipi adi mevcut bir tiple (normalize esitligiyle) cakisiyor.
+SECTION_TYPE_TAKEN_AS = "Bu bölüm tipi zaten var: {name}"
 
 # 422 — P11 bolum bagimliligi (spec §3, S3). UCU DE 422'DIR, 404 DEGIL: istenen
 # kaynak GUNCELLENEN bolumdur, oncul burada bir ALAN DEGERIDIR.
@@ -251,12 +254,11 @@ class _SectionLike(Protocol):
     zorunlu kilardi.
     """
 
-    section_type: object
+    section_type_id: object
     manager_user_id: object
     manager_name: object
     start_date: object
     end_date: object
-    budget_amount: object
 
 
 def validate_section(data: _SectionLike, *, is_draft: bool) -> None:
@@ -280,7 +282,7 @@ def validate_section(data: _SectionLike, *, is_draft: bool) -> None:
     if is_draft:
         return
 
-    if data.section_type is None:
+    if data.section_type_id is None:
         raise SiteValidationError(SECTION_TYPE_REQUIRED)
 
     # Sorumlu ya sistem kullanicisi ya serbest metin olarak verilir — santiye
@@ -290,9 +292,3 @@ def validate_section(data: _SectionLike, *, is_draft: bool) -> None:
 
     if data.start_date is None or data.end_date is None:
         raise SiteValidationError(SECTION_DATES_REQUIRED)
-
-    # Bölüm Bedeli (Form 110) ELLE girilir: BOQ-bolum bagi kapali oldugu icin
-    # turetilemez (spec §7 S2a). `0` GECERLI bir bedeldir — bu yuzden kontrol
-    # `is None`dir, dogruluk (`falsy`) kontrolu DEGIL.
-    if data.budget_amount is None:
-        raise SiteValidationError(SECTION_BUDGET_REQUIRED)

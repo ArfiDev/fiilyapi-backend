@@ -108,7 +108,7 @@ def test_section_response_carries_four_placeholders():
         # YOKTUR (yukaridaki P11 gerekcesi): dolduran taraf unutursa
         # ValidationError patlar, sessizce `None` DOGMAZ.
         planned_worker_count=None,
-        budget_amount=None,
+        # BLF-B1: `budget_amount` yanittan KALKTI.
         # P11 additive alanlari (spec §3): VARSAYILANLARI YOKTUR — alani
         # doldurmayi unutan bir donusturucu sessizce degil, ValidationError ile
         # patlamalidir; bu yuzden dogrudan kurulan her govde de onlari verir.
