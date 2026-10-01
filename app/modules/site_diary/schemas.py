@@ -365,6 +365,15 @@ class SiteDiarySkeletonLine(BaseModel):
     section_name: str | None
 
 
+class OwnCrewFromTimesheet(BaseModel):
+    """Puantajdan türeyen ekip satırı (EV-BORC-2): personelin KENDİ `trade` + `source` alanı."""
+
+    trade: str
+    source: WorkerSource
+    headcount: int
+    hours: Decimal
+
+
 class SiteDiarySkeleton(BaseModel):
     """`GET /sites/{site_id}/diary/skeleton` — kaydetmeden önizleme (GKS-B1)."""
 
@@ -378,6 +387,9 @@ class SiteDiarySkeleton(BaseModel):
     lock_report_date: date | None
     lines: list[SiteDiarySkeletonLine]
     lines_total: Decimal
+    own_crew_from_timesheet: list[OwnCrewFromTimesheet] = Field(default_factory=list)
+    """GKS-B1.1: kayıtsız günde de puantajdan türeyen ekip özeti — detay ucuyla AYNI türetme
+    (`read.own_crew_from_timesheet`); puantaj yoksa `[]`."""
 
 
 class SiteDiaryWorkerCountRead(BaseModel):
@@ -428,15 +440,6 @@ class SiteDiaryEntryListResponse(BaseModel):
     total: int
     limit: int
     offset: int
-
-
-class OwnCrewFromTimesheet(BaseModel):
-    """Puantajdan türeyen ekip satırı (EV-BORC-2): personelin KENDİ `trade` + `source` alanı."""
-
-    trade: str
-    source: WorkerSource
-    headcount: int
-    hours: Decimal
 
 
 class SiteDiaryEntryDetail(BaseModel):

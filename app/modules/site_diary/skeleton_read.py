@@ -10,6 +10,7 @@ kaydedilmediği için kimliksizdir (`SiteDiarySkeletonLine`) ve `quantity` 0'dı
 Kapsam: şantiye görünürlüğü 404 (`visible_site`), bölüm doğrulaması 422 (`validate_section`),
 DSC süzgeci (kısıtlıda yalnız görünür kalemler; kısıtsızda ek sorgu YOK). BOQ izni İSTENMEZ —
 kapı yalnız `site_diary` görüntülemedir (router).
+GKS-B1.1: `own_crew_from_timesheet` kayıtsız günde de gelir — detay ucuyla AYNI fonksiyon.
 """
 
 import uuid
@@ -94,4 +95,5 @@ async def get_skeleton(
             for line in lines
         ],
         lines_total=read.lines_total(lines),
+        own_crew_from_timesheet=await read.own_crew_from_timesheet(session, site.id, entry_date),
     )

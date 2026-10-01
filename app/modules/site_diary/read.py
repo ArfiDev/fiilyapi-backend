@@ -336,7 +336,9 @@ async def build_detail(
         ],
         lines_total=lines_total(gorunur),
         worker_total=worker_total(entry),
-        own_crew_from_timesheet=await own_crew_from_timesheet(session, entry),
+        own_crew_from_timesheet=await own_crew_from_timesheet(
+            session, entry.site_id, entry.entry_date
+        ),
     )
 
 
@@ -345,15 +347,15 @@ UNSPECIFIED_TRADE = "Belirtilmemiş"
 
 
 async def own_crew_from_timesheet(
-    session: AsyncSession, entry: SiteDiaryEntry
+    session: AsyncSession, site_id: uuid.UUID, entry_date: date
 ) -> list[OwnCrewFromTimesheet]:
     """EV-BORC-2: gunun puantaji → (meslek, kaynak) basina kisi sayisi + saat. TURETILIR,
     eslenmez: gunluk isci satirlariyla kimlik bagi yok (ikisi de serbest metin). Tek sorgu
-    (`timesheet.repository.day_person_hours` — EV dagitim izgarasiyla AYNI kaynak)."""
+    (`timesheet.repository.day_person_hours` — EV dagitim izgarasiyla AYNI kaynak).
+    GKS-B1.1: gunluk kaydi olmayan gun icin de cagrilabilsin diye (iskelet ucu) kayit degil
+    (site_id, entry_date) alir."""
     groups: dict[tuple[str, WorkerSource], list[Decimal]] = {}
-    for ts, person, _ in await timesheet_repository.day_person_hours(
-        session, entry.site_id, entry.entry_date
-    ):
+    for ts, person, _ in await timesheet_repository.day_person_hours(session, site_id, entry_date):
         trade = (person.trade or "").strip() or UNSPECIFIED_TRADE
         groups.setdefault((trade, person.source), []).append(ts.hours)
     return [

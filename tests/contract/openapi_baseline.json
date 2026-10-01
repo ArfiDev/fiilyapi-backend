@@ -32603,6 +32603,13 @@
             "title": "Locked",
             "type": "boolean"
           },
+          "own_crew_from_timesheet": {
+            "items": {
+              "$ref": "#/components/schemas/OwnCrewFromTimesheet"
+            },
+            "title": "Own Crew From Timesheet",
+            "type": "array"
+          },
           "section_id": {
             "anyOf": [
               {
