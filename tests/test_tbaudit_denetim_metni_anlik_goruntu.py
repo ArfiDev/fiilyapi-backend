@@ -53,6 +53,14 @@ guncellemesinin denetim metni (`eski → yeni` fiyat). Referans
 yalniz bu iki sembolun cagrilari EKLENDI (`diff` ile dogrulandi; `work_item_updated` metni
 DEGISMEDI).
 
+## 🔴 REFERANSA EKLENEN SEMBOLLER (TKL-B3.1, 2026-10-01)
+
+`employer_contract_items_bulk_created` (+ sabiti `BULK_AUDIT_CODES_SHOWN`) — toplu poz
+ekleme ucunun TEK denetim satırı. Referans
+`python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta **KAYIP 0**,
+yalnız bu iki sembolün satırları EKLENDİ (`diff` ile doğrulandı); sayaçlar 211→213 sembol,
+199→200 fonksiyon.
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok
@@ -222,9 +230,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 211, f"sembol sayısı 211 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 213, f"sembol sayısı 213 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 199, f"fonksiyon sayısı 199 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 200, f"fonksiyon sayısı 200 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

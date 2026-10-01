@@ -7,8 +7,10 @@ eksikse task başarısızdır (task brief kararı).
 """
 
 import uuid
+from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import (
@@ -19,6 +21,9 @@ from app.core.errors import (
 )
 from app.core.slug import matches_ref
 from app.core.timezone import today
+from app.modules.catalog import service as catalog_service
+from app.modules.catalog.guards import CATALOG_ITEM_MISSING
+from app.modules.catalog.models import EvCatalogItem
 from app.modules.company.service import get_company
 from app.modules.contracts import distribution_quantity, repository
 from app.modules.contracts.guards import (
@@ -48,6 +53,7 @@ from app.modules.contracts.schemas import (
     EmployerContractGroupUpdate,
     EmployerContractItemCreate,
     EmployerContractItemResponse,
+    EmployerContractItemsBulkCreate,
     EmployerContractItemsResponse,
     EmployerContractItemUpdate,
 )
@@ -405,6 +411,7 @@ def to_item_response(
         quantity=item.quantity,
         unit_price=item.unit_price,
         sort_order=item.sort_order,
+        catalog_item_id=item.catalog_item_id,
         distributed_quantity=distributed,
         remaining_quantity=item.quantity - distributed,
     )
@@ -530,32 +537,94 @@ async def update_employer_group(
     return group, project
 
 
-async def create_employer_item(
-    session: AsyncSession, actor: User, project_id: uuid.UUID, data: EmployerContractItemCreate
-) -> tuple[EmployerContractItem, Project]:
-    """Spec §3.3 IDOR: gövdedeki `group_id` başka projenin grubu olabilir —
-
-    yol parametresi `project_id` ile karşı karşıya konur, uyuşmazlık 422 döner.
-    """
-    project = await _visible_project(session, actor, project_id)
-    if project.contract is None:
-        raise NotFoundError(CONTRACT_MISSING)
-    group = await _ensure_group_in_project(session, data.group_id, project.id)
-    await _ensure_code_unique(session, project.id, data.code)
-    item = EmployerContractItem(
-        project_id=project.id,
-        group_id=group.id,
+def _new_item(
+    project_id: uuid.UUID, group_id: uuid.UUID, data: EmployerContractItemCreate
+) -> EmployerContractItem:
+    """TKL-B3.1: `price_changed_at` açıkça `now` yazılır (server_default eski konteyner
+    penceresi içindir) — aynı işlemde sonradan gelen fiyat değişimi ondan ÖNCE damgalanamaz."""
+    return EmployerContractItem(
+        project_id=project_id,
+        group_id=group_id,
         code=data.code,
         description=data.description,
         unit=data.unit,
         quantity=data.quantity,
         unit_price=data.unit_price,
         sort_order=data.sort_order,
+        catalog_item_id=data.catalog_item_id,
+        price_changed_at=datetime.now(UTC),
     )
+
+
+async def create_employer_item(
+    session: AsyncSession, actor: User, project_id: uuid.UUID, data: EmployerContractItemCreate
+) -> tuple[EmployerContractItem, Project]:
+    """Spec §3.3 IDOR: gövdedeki `group_id` başka projenin grubu olabilir —
+
+    yol parametresi `project_id` ile karşı karşıya konur, uyuşmazlık 422 döner.
+    TKL-B3.1: `catalog_item_id` verilirse katalog kaleminin VARLIĞI doğrulanır (yoksa 404).
+    """
+    project = await _visible_project(session, actor, project_id)
+    if project.contract is None:
+        raise NotFoundError(CONTRACT_MISSING)
+    group = await _ensure_group_in_project(session, data.group_id, project.id)
+    if data.catalog_item_id is not None:
+        await catalog_service.get_item(session, data.catalog_item_id)
+    await _ensure_code_unique(session, project.id, data.code)
+    item = _new_item(project.id, group.id, data)
     session.add(item)
     await session.flush()
     await session.refresh(item)
     return item, project
+
+
+async def create_employer_items_bulk(
+    session: AsyncSession,
+    actor: User,
+    project_id: uuid.UUID,
+    data: EmployerContractItemsBulkCreate,
+) -> tuple[list[EmployerContractItem], Project]:
+    """TKL-B3.1: çoklu katalog seçicisinin toplu ekleme ucu — HEP YA HİÇ.
+
+    "Önce doğrula sonra yaz": TÜM kalemler doğrulanmadan hiçbir satır `session`a
+    eklenmez; herhangi bir hata hiçbir şey yazılmadan fırlar. Doğrulama sırası: grup
+    (422) → katalog (404) → gövde içi kod tekrarı (409) → DB'deki kodla çakışma (409).
+    """
+    project = await _visible_project(session, actor, project_id)
+    if project.contract is None:
+        raise NotFoundError(CONTRACT_MISSING)
+    entries = data.items
+
+    group_ids = {entry.group_id for entry in entries}
+    for group_id in sorted(group_ids):
+        await _ensure_group_in_project(session, group_id, project.id)
+    catalog_ids = {e.catalog_item_id for e in entries if e.catalog_item_id is not None}
+    if catalog_ids:
+        # TEK sorgu (N+1 yok); eksik varsa tekil uçla aynı mesajla 404.
+        found = set(
+            (
+                await session.execute(
+                    select(EvCatalogItem.id).where(EvCatalogItem.id.in_(catalog_ids))
+                )
+            ).scalars()
+        )
+        if found != catalog_ids:
+            raise NotFoundError(CATALOG_ITEM_MISSING)
+
+    seen: set[str] = set()
+    for entry in entries:
+        if entry.code in seen:
+            raise DuplicateError(f"{DUPLICATE_ITEM_CODE}: {entry.code}")
+        seen.add(entry.code)
+    taken = await repository.list_employer_item_codes(session, project.id, sorted(seen))
+    for entry in entries:
+        if entry.code in taken:
+            raise DuplicateError(f"{DUPLICATE_ITEM_CODE}: {entry.code}")
+
+    items = [_new_item(project.id, entry.group_id, entry) for entry in entries]
+    session.add_all(items)
+    await session.flush()
+    return items, project
 
 
 async def _refresh_mirror_boq_rows(
@@ -669,8 +738,16 @@ async def update_employer_item(
     }
     refreshed = await _refresh_mirror_boq_rows(session, project.id, item, mirrored_updates)
 
+    # TKL-B3.1: fiyat DEĞER olarak değiştiyse damga ilerler (1250.5 == 1250.50 değişim
+    # değil; karşılaştırma DB ölçeğinde — kuruş altı fark yazılan değeri değiştirmez).
+    price_changed = "unit_price" in updates and _quantize_money(
+        updates["unit_price"]
+    ) != _quantize_money(item.unit_price)
+
     for field, value in updates.items():
         setattr(item, field, value)
+    if price_changed:
+        item.price_changed_at = datetime.now(UTC)
     await session.flush()
     await session.refresh(item)
     return item, project, refreshed

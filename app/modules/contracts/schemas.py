@@ -21,7 +21,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 # Serbest metin tavanı (TB4 S3) `boq` ailesiyle PAYLAŞILIR — tek kaynak.
 from app.core.field_scope import Gorunurluk
@@ -64,7 +64,10 @@ __all__ = [
     "EmployerContractGroupItems",
     "EmployerContractGroupResponse",
     "EmployerContractGroupUpdate",
+    "EMPLOYER_ITEMS_BULK_MAX",
     "EmployerContractItemCreate",
+    "EmployerContractItemsBulkCreate",
+    "EmployerContractItemsBulkResponse",
     "EmployerContractItemResponse",
     "EmployerContractItemsResponse",
     "EmployerContractItemUpdate",
@@ -183,6 +186,13 @@ class EmployerContractGroupResponse(BaseModel):
     sort_order: int
 
 
+#: Toplu poz ekleme ucunun tek istekteki kalem tavani (TKL-B3.1).
+EMPLOYER_ITEMS_BULK_MAX = 200
+
+#: PATCH'te katalog bagi gelirse (TKL-B3.1): bag SABITTIR, yalniz olusturmada verilir.
+CATALOG_LINK_IMMUTABLE = "Katalog bağı sonradan değiştirilemez"
+
+
 class EmployerContractItemCreate(BaseModel):
     group_id: uuid.UUID
     code: str = Field(min_length=1, max_length=50)
@@ -191,6 +201,17 @@ class EmployerContractItemCreate(BaseModel):
     quantity: Decimal = Field(gt=0)
     unit_price: Decimal = Field(ge=0)
     sort_order: int = Field(default=0, ge=0)
+    # TKL-B3.1: degerler (kod/aciklama/birim/fiyat) istemcide katalog seciciden dolar ve
+    # govdede gelir; sunucu yalniz bagin VARLIGINI dogrular (yoksa 404).
+    catalog_item_id: uuid.UUID | None = None
+
+
+class EmployerContractItemsBulkCreate(BaseModel):
+    """`POST /projects/{id}/contract/items/bulk` govdesi (hep-ya-hic)."""
+
+    items: list[EmployerContractItemCreate] = Field(
+        min_length=1, max_length=EMPLOYER_ITEMS_BULK_MAX
+    )
 
 
 class EmployerContractItemUpdate(BaseModel):
@@ -215,6 +236,16 @@ class EmployerContractItemUpdate(BaseModel):
     quantity: Decimal | None = Field(default=None, gt=0)
     unit_price: Decimal | None = Field(default=None, ge=0)
     sort_order: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _katalog_bagi_degistirilemez(cls, data: object) -> object:
+        """`catalog_item_id` anahtari gelirse (degeri `null` olsa da) 422. `extra="forbid"`
+        BILEREK konmadi: baska bilinmeyen alanlar bugun sessizce yok sayiliyor, davranis
+        degismesin."""
+        if isinstance(data, dict) and "catalog_item_id" in data:
+            raise ValueError(CATALOG_LINK_IMMUTABLE)
+        return data
 
     @field_validator(
         "group_id",
@@ -250,8 +281,15 @@ class EmployerContractItemResponse(BaseModel):
     quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
     unit_price: Annotated[Decimal | None, Gorunurluk.para]
     sort_order: int
+    catalog_item_id: uuid.UUID | None
     distributed_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
     remaining_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+
+
+class EmployerContractItemsBulkResponse(BaseModel):
+    """Toplu ekleme yanıtı (BaseModel sarmalayıcı: kapsam maskesi modele uygulanır)."""
+
+    items: list[EmployerContractItemResponse]
 
 
 class EmployerContractGroupItems(BaseModel):

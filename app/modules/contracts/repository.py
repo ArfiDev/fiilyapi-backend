@@ -251,6 +251,18 @@ async def get_employer_item(
     return await session.get(EmployerContractItem, item_id)
 
 
+async def list_employer_item_codes(
+    session: AsyncSession, project_id: uuid.UUID, codes: list[str]
+) -> set[str]:
+    """TKL-B3.1: verilen kodlardan sözleşmede ZATEN kullanılanlar (toplu ekleme ön kontrolü)."""
+    result = await session.execute(
+        select(EmployerContractItem.code).where(
+            EmployerContractItem.project_id == project_id, EmployerContractItem.code.in_(codes)
+        )
+    )
+    return set(result.scalars())
+
+
 async def get_employer_item_by_code(
     session: AsyncSession,
     project_id: uuid.UUID,

@@ -69,6 +69,18 @@ def employer_contract_item_created(project_name: str, code: str, description: st
     return f"Sözleşme poz kalemi oluşturuldu: {project_name} · {code} — {description}"
 
 
+#: Toplu eklemede denetim metnine yazılan en çok kod sayısı (kalanı "+N" ile özetlenir).
+BULK_AUDIT_CODES_SHOWN = 10
+
+
+def employer_contract_items_bulk_created(project_name: str, codes: list[str]) -> str:
+    """TKL-B3.1: toplu poz ekleme TEK denetim satırı — `N poz eklendi: kod1, kod2, …`."""
+    shown = ", ".join(codes[:BULK_AUDIT_CODES_SHOWN])
+    rest = len(codes) - BULK_AUDIT_CODES_SHOWN
+    tail = f" … (+{rest})" if rest > 0 else ""
+    return f"Sözleşmeye {len(codes)} poz eklendi: {project_name} · {shown}{tail}"
+
+
 def employer_contract_item_updated(
     project_name: str, code: str, description: str, refreshed_boq_count: int = 0
 ) -> str:
