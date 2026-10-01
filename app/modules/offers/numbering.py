@@ -27,12 +27,10 @@ ADLI parametre olarak ister — gizli bir varsayilan yoktur.
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.timezone import DISPLAY_TIMEZONE
+from app.core import timezone
 from app.modules.offers.models import OfferCounter
 
 __all__ = [
@@ -57,8 +55,9 @@ _COUNTERS = OfferCounter.__table__
 
 
 def current_offer_year() -> int:
-    """Olusturma anindaki Istanbul takvim yili (SO-7)."""
-    return datetime.now(DISPLAY_TIMEZONE).year
+    """Olusturma anindaki Istanbul takvim yili (SO-7) — gun siniri TEK kaynaktan
+    (`app.core.timezone.today`; yerel takvim bekcisi `tests/test_local_calendar_guard.py`)."""
+    return timezone.today().year
 
 
 def format_offer_no(year: int, sequence: int) -> str:

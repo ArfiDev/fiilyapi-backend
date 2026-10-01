@@ -16,6 +16,7 @@ import pytest
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core import timezone
 from app.core.db import Base
 from app.modules.offers import numbering
 from app.modules.offers.models import Offer, OfferCounter
@@ -96,7 +97,7 @@ class _SahteDatetime(datetime):
 
 def test_yil_Istanbul_saatiyle_belirlenir_UTC_ile_degil(monkeypatch: pytest.MonkeyPatch) -> None:
     """31 Aralik 21:30 UTC = 1 Ocak 00:30 Istanbul: teklif YENI yilin numarasini alir."""
-    monkeypatch.setattr(numbering, "datetime", _SahteDatetime)
+    monkeypatch.setattr(timezone, "datetime", _SahteDatetime)
     assert numbering.current_offer_year() == 2027
 
 
