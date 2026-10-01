@@ -326,7 +326,13 @@ SENARYOLAR: dict[str, Senaryo] = {
             lambda x: f"{_site(x)}/diary",
             lambda x: {
                 "entry_date": "2026-05-09",
-                "section_id": str(x.d.s1.id),
+                # Başlıkta section_id YOK: GKS-B1 başlık bölümü iskeleti süzer (tam
+                # tahsisli kalem Bölümsüz açılmaz); o davranış
+                # tests/site_diary/test_gks_b1_* içinde bekçili. Bu golden yalnız
+                # "atamasız kullanıcının günlük OLUŞTURMA yanıtı DSC ile değişmedi"yi
+                # bekçiler; bölümsüz POST bölüm süzmesinden bağımsızdır.
+                # I2 (tam tahsisli) G4 gereği S1 satırıyla açılır; bu golden G4'ü de
+                # atamasız kullanıcı için bekçiler; main'den farkı yalnız I2 satırıdır (GKS-B1).
                 "work_done": "Yeni gün",
             },
         )

@@ -117,12 +117,21 @@ async def test_bolumsuz_satir_tahsisli_kalemde_de_yazilir(
     client: AsyncClient, admin_headers, santiye, bolum, seeded_db: AsyncSession
 ) -> None:
     """Canlıda tahsisli kalemler var ve eski ekran YALNIZ Bölümsüz yazar — 422 OLMAMALI.
-    Kalan tamamen tahsisliyse planlı 0'dır, miktar AŞIM olarak görünür."""
+    Kalan tamamen tahsisliyse planlı 0'dır, miktar AŞIM olarak görünür.
+
+    GKS-B1/G4: tamamen tahsisli kalemde POST iskeleti Bölümsüz satır AÇMAZ; bu yüzden gövde
+    `section_id: null` anahtarını AÇIKÇA taşır (anahtarsız B2 öncesi imza, kayıtta bölümlü
+    satır varken 409 `STALE_CLIENT` alır — `test_gks_b1_g4.py` bunu da sabitler)."""
     site, _, items = santiye
     await _tahsis(seeded_db, items[0], bolum, "200")
 
     govde = await _gun(
-        client, admin_headers, site.id, VARSAYILAN_TARIH, [_satir(items[0], "5")], gonder=False
+        client,
+        admin_headers,
+        site.id,
+        VARSAYILAN_TARIH,
+        [_satir(items[0], "5", section_id=None)],
+        gonder=False,
     )
 
     satir = _bul(govde, items[0])

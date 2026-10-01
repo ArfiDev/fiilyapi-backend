@@ -13,13 +13,14 @@ verisini kurar ve kök `db_session` savepoint'i içinde geri alınır.
 import uuid
 from datetime import date
 from decimal import Decimal
+from typing import NamedTuple
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.boq.models import BoqGroup, BoqItem
+from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
 from app.modules.contracts.models import (
     EmployerContractGroup,
     EmployerContractItem,
@@ -480,3 +481,66 @@ async def _mu3d_esleme(seeded_db: AsyncSession) -> None:
         JournalSourceType.subcontractor_progress_payment,
         SUBCONTRACTOR_POSTING_RULES,
     )
+
+
+class KarisikSantiye(NamedTuple):
+    """GKS-B1 — her iskelet dalını taşıyan şantiye (bkz. `karisik_santiye`)."""
+
+    site: Site
+    project: Project
+    items: dict[str, BoqItem]
+    s1: Section
+    s2: Section
+
+
+#: SABİT bölüm kimlikleri: S1'in UUID'si S2'ninkinden BÜYÜK — UUID sırası ile `sort_order`
+#: sırası TERS düşer; sıra mutasyonları (UUID sırasına düşen kod) her koşuda kırmızı olur.
+KARISIK_S1_ID = uuid.UUID(int=0x6B51_0000_0000_0000_0000_0000_0000_00F2)
+KARISIK_S2_ID = uuid.UUID(int=0x6B51_0000_0000_0000_0000_0000_0000_0001)
+
+#: Kural (A) beklentisi — (kalem kodu, bölüm adı | None, planlı).
+KARISIK_BOLUMSUZ = [
+    ("01", None, "100"),
+    ("02", None, "60"),
+    ("03", "S1", "70"),
+    ("03", "S2", "30"),
+    ("04", "S1", "50"),
+    ("05", None, "60"),
+]
+KARISIK_S1 = [("02", "S1", "40"), ("03", "S1", "70"), ("04", "S1", "50")]
+KARISIK_S2 = [("03", "S2", "30"), ("05", "S2", "20")]
+
+
+@pytest.fixture
+async def karisik_santiye(
+    seeded_db: AsyncSession, santiye_fabrikasi, proje: Project
+) -> KarisikSantiye:
+    """GKS-B1 iskelet dalları: 01 tahsissiz (100) · 02 KISMEN S1 40/100 · 03 TAM S1 70 + S2 30 ·
+    04 TAM yalnız S1 50/50 · 05 KISMEN S2 20/80. Bölümler: S1 (sıra 0) · S2 (sıra 1)."""
+    spec = [
+        ("01", Decimal("100.000"), Decimal("10.00")),
+        ("02", Decimal("100.000"), Decimal("20.00")),
+        ("03", Decimal("100.000"), Decimal("30.00")),
+        ("04", Decimal("50.000"), Decimal("40.00")),
+        ("05", Decimal("80.000"), Decimal("50.00")),
+    ]
+    site, project, items = await santiye_fabrikasi("GKS", project=proje, item_specs=spec)
+    s1 = Section(id=KARISIK_S1_ID, site_id=site.id, code="S1", name="S1", sort_order=0)
+    s2 = Section(id=KARISIK_S2_ID, site_id=site.id, code="S2", name="S2", sort_order=1)
+    seeded_db.add_all([s1, s2])
+    await seeded_db.flush()
+    by_code = {item.code: item for item in items}
+    for kod, bolum, miktar in (
+        ("02", s1, "40"),
+        ("03", s1, "70"),
+        ("03", s2, "30"),
+        ("04", s1, "50"),
+        ("05", s2, "20"),
+    ):
+        seeded_db.add(
+            BoqItemSectionAllocation(
+                boq_item_id=by_code[kod].id, section_id=bolum.id, quantity=Decimal(miktar)
+            )
+        )
+    await seeded_db.flush()
+    return KarisikSantiye(site, project, by_code, s1, s2)

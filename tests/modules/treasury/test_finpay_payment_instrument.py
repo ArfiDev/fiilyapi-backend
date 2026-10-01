@@ -829,5 +829,6 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # BDG-B1: `GET`/`PUT /sites/{site_id}/boq/section-distribution` = +1 yol / +2 operasyon
     # (287→288 · 410→412).
     # BLF-B1: `GET`/`POST /section-types` = +1 yol / +2 operasyon (288→289 · 412→414).
-    assert len(yollar) == 289
-    assert operasyonlar == 414
+    # GKS-B1: `GET /sites/{site_id}/diary/skeleton` = +1 yol / +1 operasyon (289→290 · 414→415).
+    assert len(yollar) == 290
+    assert operasyonlar == 415

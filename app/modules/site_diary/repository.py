@@ -208,6 +208,19 @@ async def allocations_for_items(
     }
 
 
+async def section_order(session: AsyncSession, site_id: uuid.UUID) -> dict[uuid.UUID, int]:
+    """GKS-B1: şantiyenin bölümleri → sıra (`sort_order, id`), TEK sorgu. İskeletin bölüm
+    satırı sırasının tek kaynağıdır (`skeleton.skeleton_keys`)."""
+    stmt = (
+        select(Section.id)
+        .where(Section.site_id == site_id)
+        .order_by(Section.sort_order, Section.id)
+    )
+    return {
+        section_id: rank for rank, section_id in enumerate((await session.execute(stmt)).scalars())
+    }
+
+
 async def section_site_ids(
     session: AsyncSession, section_ids: Collection[uuid.UUID]
 ) -> dict[uuid.UUID, uuid.UUID]:

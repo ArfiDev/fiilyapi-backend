@@ -10,6 +10,7 @@ buradan hiçbir şey İMPORT ETMEZ — döngüsel import doğmaz.
 
 import uuid
 from collections.abc import Sequence
+from datetime import date
 from decimal import Decimal
 from typing import NamedTuple
 
@@ -121,17 +122,15 @@ class _LeafContext(NamedTuple):
     item_quantities: dict[uuid.UUID, Decimal]
 
 
-async def _leaf_context(
-    session: AsyncSession, entry: SiteDiaryEntry, lines: Sequence[SiteDiaryLine]
+async def leaf_context(
+    session: AsyncSession, site_id: uuid.UUID, entry_date: date, lines: Sequence[SiteDiaryLine]
 ) -> _LeafContext:
     """Üç toplu sorgu (yaprak ön-toplamı · tahsisler · kalem miktarları); satırsız
     ya da yalnız bağı kopmuş satırlı kayıtta HİÇ sorgu açılmaz (N+1 yok)."""
     item_ids = {line.boq_item_id for line in lines if line.boq_item_id is not None}
     if not item_ids:
         return _LeafContext(prior={}, allocations={}, item_quantities={})
-    prior = await repository.leaf_cumulative_before(
-        session, entry.site_id, entry.entry_date, item_ids
-    )
+    prior = await repository.leaf_cumulative_before(session, site_id, entry_date, item_ids)
     allocations = await repository.allocations_for_items(session, item_ids)
     items = await repository.get_boq_items_by_ids(session, list(item_ids))
     return _LeafContext(
@@ -166,6 +165,37 @@ def leaf_cumulative(line: SiteDiaryLine, leaf: _LeafContext) -> Decimal | None:
     return leaf.prior.get((line.boq_item_id, line.section_id), _ZERO_QUANTITY) + line.quantity
 
 
+def line_fields(
+    line: SiteDiaryLine,
+    prior: dict[uuid.UUID, Decimal],
+    own: dict[uuid.UUID, Decimal],
+    leaf: _LeafContext,
+    section_name: str | None,
+) -> dict[str, object]:
+    """Satırın `id` DIŞINDAki okuma alanları — detay satırı (`_line_read`) ve kaydedilmemiş
+    iskelet satırı (`skeleton_read`) AYNI hesaptan beslenir; ikinci formül YAZILMAZ."""
+    planned = planned_quantity(line, leaf)
+    cumulative = leaf_cumulative(line, leaf)
+    return {
+        "boq_item_id": line.boq_item_id,
+        "code": line.code,
+        "description": line.description,
+        "unit": line.unit,
+        "unit_price": line.unit_price,
+        "quantity": line.quantity,
+        "cumulative_quantity": cumulative_quantity(line, prior, own),
+        "line_amount": line_amount(line),
+        "section_id": line.section_id,
+        "section_name": section_name,
+        "overrun_reason": line.overrun_reason,
+        "leaf_cumulative_quantity": cumulative,
+        "planned_quantity": planned,
+        "remaining_quantity": (
+            None if planned is None or cumulative is None else planned - cumulative
+        ),
+    }
+
+
 def _line_read(
     line: SiteDiaryLine,
     prior: dict[uuid.UUID, Decimal],
@@ -173,35 +203,51 @@ def _line_read(
     leaf: _LeafContext,
     extras: DetailContext,
 ) -> SiteDiaryLineRead:
-    planned = planned_quantity(line, leaf)
-    cumulative = leaf_cumulative(line, leaf)
     return SiteDiaryLineRead(
         id=line.id,
-        boq_item_id=line.boq_item_id,
-        code=line.code,
-        description=line.description,
-        unit=line.unit,
-        unit_price=line.unit_price,
-        quantity=line.quantity,
-        cumulative_quantity=cumulative_quantity(line, prior, own),
-        line_amount=line_amount(line),
-        section_id=line.section_id,
-        section_name=extras.section_name(line.section_id),
-        overrun_reason=line.overrun_reason,
-        leaf_cumulative_quantity=cumulative,
-        planned_quantity=planned,
-        remaining_quantity=(
-            None if planned is None or cumulative is None else planned - cumulative
-        ),
+        **line_fields(line, prior, own, leaf, extras.section_name(line.section_id)),
     )
 
 
-def _own_item_totals(lines: Sequence[SiteDiaryLine]) -> dict[uuid.UUID, Decimal]:
+def own_item_totals(lines: Sequence[SiteDiaryLine]) -> dict[uuid.UUID, Decimal]:
     totals: dict[uuid.UUID, Decimal] = {}
     for line in lines:
         if line.boq_item_id is not None:
             totals[line.boq_item_id] = totals.get(line.boq_item_id, _ZERO_QUANTITY) + line.quantity
     return totals
+
+
+async def _in_section_order(
+    session: AsyncSession, site_id: uuid.UUID, lines: list[SiteDiaryLine]
+) -> list[SiteDiaryLine]:
+    """GKS-B1: bir kalemin bölüm satırlarını BÖLÜM SIRASIYLA (`sort_order, id`) dizer — önizleme
+    (`skeleton.skeleton_keys`) ile AYNI sıra. İlişkinin `order_by`ı (kod, `section_id` UUID)
+    bölüm satırlarını rastgele UUID sırasına dizer; kaydetmeden sonra satırlar yer
+    değiştirmesin.
+
+    KALEM SIRASI YENİDEN KURULMAZ: ilişkinin verdiği sıra (PG harmanlaması; önizlemenin
+    `list_boq_items`i ile aynı kaynak) korunur; Python'da `code` karşılaştırılmaz (kod-noktası
+    sırası harmanlamadan sapar: "a.01" / "Ç.01" / "D.01", "01-002" / "01.001"). Yalnız AYNI
+    kalemin satırları kendi ilk konumlarında yeniden dizilir: Bölümsüz önce, sonra bölüm.
+
+    Kalem anahtarı `code`tur (ilişkinin de gruplama anahtarı): `boq_item_id` NULL'a düşmüş
+    (bağı kopmuş) satırlar tek NULL anahtarında birleşip sırayı bozardı; `code` satırda kalır
+    ve (site, code) benzersizdir, böylece bağı kopmuş satır da ilişkideki yerinde durur."""
+    if not any(line.section_id is not None for line in lines):
+        return lines
+    rank = await repository.section_order(session, site_id)
+    first: dict[str, int] = {}
+    for index, line in enumerate(lines):
+        first.setdefault(line.code, index)
+    return sorted(
+        lines,
+        key=lambda ln: (
+            first[ln.code],
+            ln.section_id is not None,
+            rank.get(ln.section_id, 0) if ln.section_id is not None else 0,
+            str(ln.section_id or ""),
+        ),
+    )
 
 
 async def build_detail(
@@ -218,7 +264,7 @@ async def build_detail(
 
     T3'te `async` oldu: kümülatif türevi (GK229) TEK toplu sorgu ister
     (`prior`, satır başına sorgu YOK). PLN-B2.1 yaprak türevleri üç toplu sorgu
-    daha ekler (`_leaf_context`) — kayıt başına SABİT. Sorgular ilişkilere
+    daha ekler (`leaf_context`) — kayıt başına SABİT. Sorgular ilişkilere
     DOKUNMAZ, bu yüzden `worker_counts`/`lines` `selectin` yüklemesi bozulmaz.
 
     DET-1.B: adlar · gün kilidi · önceki/sonraki `detail_context`ten (kayıt başına sabit
@@ -226,7 +272,7 @@ async def build_detail(
     (şantiye bağlamı).
 
     DSC-B1 `scope`: kısıtlıda satırlar GÖRÜNÜR kalemle süzülür (NULL görünmez); `lines_total`,
-    `_leaf_context`, bölüm adları ve önceki/sonraki bu süzülmüş kümeden türer. Başlık ve
+    `leaf_context`, bölüm adları ve önceki/sonraki bu süzülmüş kümeden türer. Başlık ve
     `worker_counts` ortaktır (Ü5/Ü3). Yazma uçları da (B2) `scope` verir: yanıt okumayla
     AYNI süzülmüş görünümdür.
     """
@@ -237,9 +283,10 @@ async def build_detail(
             session, scope, [ln.boq_item_id for ln in entry.lines if ln.boq_item_id]
         ),
     )
+    gorunur = await _in_section_order(session, entry.site_id, gorunur)
     prior = await repository.cumulative_quantities_before(session, entry.site_id, entry.entry_date)
-    own = _own_item_totals(gorunur)
-    leaf = await _leaf_context(session, entry, gorunur)
+    own = own_item_totals(gorunur)
+    leaf = await leaf_context(session, entry.site_id, entry.entry_date, gorunur)
     extras = await detail_context.load(session, entry, section_context, gorunur, scope)
     return SiteDiaryEntryDetail(
         id=entry.id,
@@ -289,7 +336,9 @@ async def build_detail(
         ],
         lines_total=lines_total(gorunur),
         worker_total=worker_total(entry),
-        own_crew_from_timesheet=await own_crew_from_timesheet(session, entry),
+        own_crew_from_timesheet=await own_crew_from_timesheet(
+            session, entry.site_id, entry.entry_date
+        ),
     )
 
 
@@ -298,15 +347,15 @@ UNSPECIFIED_TRADE = "Belirtilmemiş"
 
 
 async def own_crew_from_timesheet(
-    session: AsyncSession, entry: SiteDiaryEntry
+    session: AsyncSession, site_id: uuid.UUID, entry_date: date
 ) -> list[OwnCrewFromTimesheet]:
     """EV-BORC-2: gunun puantaji → (meslek, kaynak) basina kisi sayisi + saat. TURETILIR,
     eslenmez: gunluk isci satirlariyla kimlik bagi yok (ikisi de serbest metin). Tek sorgu
-    (`timesheet.repository.day_person_hours` — EV dagitim izgarasiyla AYNI kaynak)."""
+    (`timesheet.repository.day_person_hours` — EV dagitim izgarasiyla AYNI kaynak).
+    GKS-B1.1: gunluk kaydi olmayan gun icin de cagrilabilsin diye (iskelet ucu) kayit degil
+    (site_id, entry_date) alir."""
     groups: dict[tuple[str, WorkerSource], list[Decimal]] = {}
-    for ts, person, _ in await timesheet_repository.day_person_hours(
-        session, entry.site_id, entry.entry_date
-    ):
+    for ts, person, _ in await timesheet_repository.day_person_hours(session, site_id, entry_date):
         trade = (person.trade or "").strip() or UNSPECIFIED_TRADE
         groups.setdefault((trade, person.source), []).append(ts.hours)
     return [

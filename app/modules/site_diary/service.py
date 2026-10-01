@@ -29,7 +29,7 @@ from app.core.errors import (
 from app.modules.projects.models import Project
 from app.modules.projects.service import visible_projects
 from app.modules.roles.repository import get_permission
-from app.modules.site_diary import guards, lines, repository
+from app.modules.site_diary import guards, lines, repository, skeleton
 from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine
 from app.modules.site_diary.schemas import (
     SiteDiaryEntryCreate,
@@ -190,27 +190,41 @@ def _assert_temperature_order(entry: SiteDiaryEntry) -> None:
 # --- Satır iskeleti (GK: satır ekle/sil YOK, liste BOQ'dan gelir) ---
 
 
-async def _build_lines(session: AsyncSession, site_id: uuid.UUID) -> list[SiteDiaryLine]:
-    """Şantiyenin BOQ pozlarından snapshot DÖRTLÜSÜNÜ kopyalar (spec §2).
+async def _build_lines(
+    session: AsyncSession, site_id: uuid.UUID, section_id: uuid.UUID | None = None
+) -> list[SiteDiaryLine]:
+    """İskelet satırlarını BOQ pozlarından kurar; hangi (kalem, bölüm) satırlarının
+    açılacağı `skeleton.skeleton_keys`in (kural A) kararıdır — önizleme ucu AYNI
+    fonksiyonu çağırır (GKS-B1; bekçi testi). Snapshot DÖRTLÜSÜ kalemden kopyalanır.
 
-    `quantity` 0 başlar: iskelet TÜM pozları açar, o gün dokunulmayan poz sıfır
-    kalır (GK228). Fiyatsız kalem kontrolü YOKTUR — `boq_items.unit_price` NOT
-    NULL'dur, hakediş modülündeki "girilmedi ≠ 0 TL" guard'ı burada ölü kural olurdu.
+    `quantity` 0 başlar: iskelet kuralın açtığı satırları açar, o gün dokunulmayan satır
+    sıfır kalır (GK228). Fiyatsız kalem kontrolü YOKTUR — `boq_items.unit_price` NOT
+    NULL'dur.
 
     BOQ'su hiç girilmemiş şantiyede satırsız taslak açılır: günlük kayıt BOQ'ya
-    BAĞIMLI değildir (hava/İSG/işçi bilgisi tek başına da anlamlıdır), yalnız
-    miktar girişi pozsuz kalır.
+    BAĞIMLI değildir (hava/İSG/işçi bilgisi tek başına da anlamlıdır).
     """
+    items = await repository.list_boq_items(session, site_id)
+    keys = skeleton.skeleton_keys(
+        [skeleton.SkeletonItem(item.id, item.quantity) for item in items],
+        skeleton.group_allocations(
+            await repository.allocations_for_items(session, [item.id for item in items])
+        ),
+        section_id,
+        await repository.section_order(session, site_id),
+    )
+    by_id = {item.id: item for item in items}
     return [
         SiteDiaryLine(
-            boq_item_id=item.id,
-            code=item.code,
-            description=item.description,
-            unit=item.unit,
-            unit_price=item.unit_price,
+            boq_item_id=key.item_id,
+            section_id=key.section_id,
+            code=by_id[key.item_id].code,
+            description=by_id[key.item_id].description,
+            unit=by_id[key.item_id].unit,
+            unit_price=by_id[key.item_id].unit_price,
             quantity=_ZERO_QUANTITY,
         )
-        for item in await repository.list_boq_items(session, site_id)
+        for key in keys
     ]
 
 
@@ -222,12 +236,15 @@ async def create(
     actor: User,
     site_id: uuid.UUID,
     data: SiteDiaryEntryCreate,
+    scope: DisciplineScope = UNRESTRICTED,
 ) -> EntryContext:
     """`project_id` şantiyeden KOPYALANIR: görünürlük süzgeci her liste sorgusunda
     JOIN gerektirmesin diye (model docstring'i).
 
     Doğrulamalar `session.add`DAN ÖNCE koşar — reddedilen istek kısmi yazma
-    bırakmaz.
+    bırakmaz. GKS-B1: iskelet başlığın `section_id`sine göre kurulur (kural A) ve
+    gövdede `lines` varsa İSKELETLE BİRLEŞİR (`lines.merge_lines`: silme YOK) — gövde
+    doğrulaması da yazmadan ÖNCE koşar, patlarsa günlük de yazılmaz.
     """
     site, project = await visible_site(session, actor, site_id)
     await day_hooks.assert_days_unlocked(session, site.id, [data.entry_date])
@@ -242,10 +259,12 @@ async def create(
         site_id=site.id,
         project_id=site.project_id,
         created_by=actor.id,
-        **data.model_dump(),
+        **data.model_dump(exclude={"lines"}),
     )
     _assert_temperature_order(entry)
-    entry.lines = await _build_lines(session, site.id)
+    entry.lines = await _build_lines(session, site.id, data.section_id)
+    if data.lines:
+        await lines.merge_lines(session, entry, data.lines, scope)
     session.add(entry)
     await session.flush()
     await session.refresh(entry)
