@@ -132,12 +132,37 @@ except RuntimeError as hata:
 # önbelleklediği için ortam değişkeni TEK BAŞINA yetmez; ikincisi testlerin açtığı
 # ALT SÜREÇLERİ kapsar.
 #
+# 🔴 ÇAKIŞMA (ölçüldü 2026-10-01, iki ajan eşzamanlı `-n 2`): iki AYRI pytest koşusunun
+# gw0'ı aynı `fiil-erp-test-gw0` dizinine düştü; biri import anında `rmtree` yapınca
+# ötekinin openpyxl geçici dosyaları silindi → xlsx/export testleri rastgele kırmızı.
+# Ayrı DB tabanı bunu çözmez (dizin DB'den bağımsız). Çözüm: ad `-<pid>` taşır. Her
+# xdist işçisi ayrı süreçtir; `os.getpid()` aynı anda yaşayan süreçler arasında
+# benzersiz ve deterministiktir (uuid gereksiz: okunmaz, izlenemez).
+# Çöken koşudan kalan `-<pid>` dizinleri birikebilir; temizlik EKLENMEZ (PID yeniden
+# kullanımı başkasının canlı dizinini silme riski) — OS geçici dizini kendisi temizler.
+#
 # ⚠️ Öksüz bırakılmaz: dizin oturum başında (önceki çöküşten kalmışsa) silinip
 # yeniden kurulur, oturum sonunda — başarısızlıkta da — silinir.
 # ---------------------------------------------------------------------------
 
+
+def _gecici_kok_hesapla(taban: str, isci: str, oturum: str) -> str:
+    """İşçi + oturum kimliğinden geçici kök yolunu üretir (saf)."""
+    return os.path.join(taban, f"fiil-erp-test-{isci}-{oturum}")
+
+
+def _gecici_kok_kur(kok: str, isci: str, oturum: str) -> None:
+    """Adı doğrular, SADECE kendi dizinini siler ve yeniden kurar."""
+    assert (
+        os.path.basename(kok) == f"fiil-erp-test-{isci}-{oturum}"
+    ), f"Geçici dizin adı beklenen kalıba uymuyor: {kok!r}. rmtree çalıştırılmadı."
+    shutil.rmtree(kok, ignore_errors=True)
+    os.makedirs(kok, exist_ok=True)
+
+
+OTURUM_KIMLIGI = str(os.getpid())
 GECICI_KOK = (
-    os.path.join(tempfile.gettempdir(), f"fiil-erp-test-{XDIST_ISCI}") if XDIST_ISCI else None
+    _gecici_kok_hesapla(tempfile.gettempdir(), XDIST_ISCI, OTURUM_KIMLIGI) if XDIST_ISCI else None
 )
 
 
@@ -145,20 +170,19 @@ def _gecici_kok_yolu() -> str:
     """🔴 Silinecek yolun İŞÇİ son ekini TAŞIDIĞI burada çakılır.
 
     `_isci_veritabani_adi`nin geçici dizin kardeşi: `rmtree` çalıştıran her yol,
-    adın `fiil-erp-test-<isci>` kalıbına uyduğunu doğrulamadan çalışmaz — böylece
+    adın `fiil-erp-test-<isci>-<pid>` kalıbına uyduğunu doğrulamadan çalışmaz — böylece
     küresel `/tmp` bu koddan ASLA silinemez.
     """
     assert (
         GECICI_KOK
         and XDIST_ISCI
-        and os.path.basename(GECICI_KOK) == (f"fiil-erp-test-{XDIST_ISCI}")
+        and os.path.basename(GECICI_KOK) == f"fiil-erp-test-{XDIST_ISCI}-{OTURUM_KIMLIGI}"
     ), f"Geçici dizin adı beklenen kalıba uymuyor: {GECICI_KOK!r}. rmtree çalıştırılmadı."
     return GECICI_KOK
 
 
 if GECICI_KOK:
-    shutil.rmtree(_gecici_kok_yolu(), ignore_errors=True)
-    os.makedirs(GECICI_KOK, exist_ok=True)
+    _gecici_kok_kur(_gecici_kok_yolu(), XDIST_ISCI, OTURUM_KIMLIGI)
     os.environ["TMPDIR"] = GECICI_KOK
     tempfile.tempdir = GECICI_KOK
 
