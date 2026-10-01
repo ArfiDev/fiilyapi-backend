@@ -1,11 +1,14 @@
 import uuid
+from collections.abc import Iterable, Iterator
 from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import ITEM_ID_CHUNK
 from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
 from app.modules.site_diary.models import SiteDiaryLine
+from app.modules.sites.models import Section
 
 
 async def list_groups_for_site(session: AsyncSession, site_id: uuid.UUID) -> list[BoqGroup]:
@@ -165,3 +168,117 @@ async def section_allocations_for_site(
         .where(BoqItem.site_id == site_id, BoqItemSectionAllocation.section_id == section_id)
     )
     return {row[0]: Decimal(row[1]) for row in result.all()}
+
+
+# --- BDG: santiye capinda kalem x bolum matrisi ---------------------------
+
+
+async def list_sections_for_distribution(
+    session: AsyncSession, site_id: uuid.UUID
+) -> list[Section]:
+    """Santiyenin TUM bolumleri (taslaklar DAHIL), `sort_order, id` sirasiyla.
+
+    `sites.repository.list_sections` KULLANILMAZ: o yalniz `sort_order` ile siralar
+    (esit siralilarda belirsiz); matris kolonlarinin sirasi tekrarlanabilir olmali.
+    """
+    result = await session.execute(
+        select(Section).where(Section.site_id == site_id).order_by(Section.sort_order, Section.id)
+    )
+    return list(result.scalars().all())
+
+
+async def allocation_rows_for_site(
+    session: AsyncSession, site_id: uuid.UUID
+) -> list[BoqItemSectionAllocation]:
+    """Santiyenin TUM tahsis satirlari — TEK sorgu (N+1 yok)."""
+    result = await session.execute(
+        select(BoqItemSectionAllocation)
+        .join(BoqItem, BoqItem.id == BoqItemSectionAllocation.boq_item_id)
+        .where(BoqItem.site_id == site_id)
+        .order_by(BoqItemSectionAllocation.boq_item_id, BoqItemSectionAllocation.id)
+    )
+    return list(result.scalars().all())
+
+
+def _chunks(ids: list[uuid.UUID]) -> Iterator[list[uuid.UUID]]:
+    """Sirali listeyi SIRAYI koruyarak `ITEM_ID_CHUNK` parcalarina boler (parametre siniri)."""
+    for start in range(0, len(ids), ITEM_ID_CHUNK):
+        yield ids[start : start + ITEM_ID_CHUNK]
+
+
+async def items_in_site(
+    session: AsyncSession, site_id: uuid.UUID, item_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, BoqItem]:
+    """Verilen kimliklerden BU santiyeye ait olan kalemler (kilitsiz)."""
+    ids = list(item_ids)
+    if not ids:
+        return {}
+    found: dict[uuid.UUID, BoqItem] = {}
+    for chunk in _chunks(ids):
+        result = await session.execute(
+            select(BoqItem).where(BoqItem.site_id == site_id, BoqItem.id.in_(chunk))
+        )
+        found.update({item.id: item for item in result.scalars().all()})
+    return found
+
+
+async def sections_in_site(
+    session: AsyncSession, site_id: uuid.UUID, section_ids: Iterable[uuid.UUID]
+) -> set[uuid.UUID]:
+    """Verilen bolum kimliklerinden BU santiyeye ait olanlar."""
+    ids = list(section_ids)
+    if not ids:
+        return set()
+    found: set[uuid.UUID] = set()
+    for chunk in _chunks(ids):
+        result = await session.execute(
+            select(Section.id).where(Section.site_id == site_id, Section.id.in_(chunk))
+        )
+        found.update(result.scalars().all())
+    return found
+
+
+async def lock_items(
+    session: AsyncSession, item_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, BoqItem]:
+    """🔴 Birden cok poz satirini TEK sorguda, **id SIRASINDA** `FOR UPDATE` kilitler.
+
+    `lock_item`in (EŞİK = KİLİT) cogul hâli. Sabit `ORDER BY id` kilit alma
+    sirasini herkes icin ayni yapar: iki matris istegi kesisen kalem kumelerini
+    ters sirada kilitleseydi kilitlenme cevrimi (deadlock) olusurdu. Satirlar
+    `populate_existing` ile TAZELENIR — kilit alip bayat `quantity` okumak kilidi
+    anlamsiz kilardi.
+
+    Parametre sinirina karsi `ITEM_ID_CHUNK` parcalarla calisir; 🔴 id SIRASI
+    KORUNUR: ID'ler ONCE tek listede siralanir, parcalar bu sirayla ardisik
+    kilitlenir (ayni transaction'da, hepsi artan id sirasinda) — parca basina
+    ayri siralama ya da `set` sirasi kilitlenme cevrimi dogururdu.
+    """
+    ids = sorted(set(item_ids))
+    locked: dict[uuid.UUID, BoqItem] = {}
+    for chunk in _chunks(ids):
+        result = await session.execute(
+            select(BoqItem)
+            .where(BoqItem.id.in_(chunk))
+            .order_by(BoqItem.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        locked.update({item.id: item for item in result.scalars().all()})
+    return locked
+
+
+async def allocation_rows_for_items(
+    session: AsyncSession, item_ids: Iterable[uuid.UUID]
+) -> list[BoqItemSectionAllocation]:
+    """Verilen kalemlerin mevcut tahsis satirlari (kilitten SONRA okunmali)."""
+    rows: list[BoqItemSectionAllocation] = []
+    for chunk in _chunks(sorted(set(item_ids))):
+        result = await session.execute(
+            select(BoqItemSectionAllocation)
+            .where(BoqItemSectionAllocation.boq_item_id.in_(chunk))
+            .order_by(BoqItemSectionAllocation.boq_item_id, BoqItemSectionAllocation.id)
+            .execution_options(populate_existing=True)
+        )
+        rows.extend(result.scalars().all())
+    return rows

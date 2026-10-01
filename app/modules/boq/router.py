@@ -15,7 +15,7 @@ from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku, kapsamla_maskele
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
-from app.modules.boq import service
+from app.modules.boq import section_distribution, service
 from app.modules.boq.export import build_boq_workbook
 from app.modules.boq.schemas import (
     BoqGroupCreate,
@@ -27,6 +27,8 @@ from app.modules.boq.schemas import (
     BoqItemResponse,
     BoqItemUpdate,
     BoqListResponse,
+    SectionDistributionResponse,
+    SectionDistributionSave,
 )
 from app.modules.users.models import User
 
@@ -285,6 +287,59 @@ async def replace_boq_item_allocations_endpoint(
         ip_address=client_ip(request),
     )
     return result
+
+
+@router.get(
+    "/sites/{site_id}/boq/section-distribution",
+    response_model=SectionDistributionResponse,
+    dependencies=[_VIEW],
+)
+async def get_section_distribution_endpoint(
+    site_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    session: DbSession,
+    scope: DisciplineScoped,
+) -> SectionDistributionResponse:
+    """BDG-B1 — santiyenin kalem x bolum dagilim matrisi (okuma ucu).
+
+    `record_audit` CAGIRILMAZ (okumalar denetim gunlugune yazmaz). Gorunmeyen
+    santiye **404**; kisitli kullanicida yalniz gorunur kalemler ve onlardan
+    tureyen sayaclar doner (`boq/section_distribution.py`).
+    """
+    return await section_distribution.build_section_distribution(session, user, site_id, scope)
+
+
+@router.put(
+    "/sites/{site_id}/boq/section-distribution",
+    response_model=SectionDistributionResponse,
+    dependencies=[_FULL],
+)
+async def save_section_distribution_endpoint(
+    request: Request,
+    site_id: uuid.UUID,
+    data: SectionDistributionSave,
+    user: Annotated[User, Depends(get_current_user)],
+    session: DbSession,
+    scope: DisciplineScoped,
+) -> SectionDistributionResponse:
+    """BDG-B1 — matris yazma, BIRLESTIRME semantigi (govdede gecmeyen hucre korunur).
+
+    Kapi `PUT /boq/items/{id}/allocations` ile AYNI (`_FULL`). Denetim: GERCEKTEN
+    DEGISEN her kalem icin `replace_allocations` ile ayni kayit turu; degismeyen
+    hucre kayit yazmaz.
+    """
+    result = await section_distribution.save_section_distribution(
+        session, user, site_id, data, scope
+    )
+    for changed in result.changed:
+        await record_audit(
+            session,
+            action=AuditAction.update,
+            detail=messages.boq_item_allocations_replaced(changed.code, changed.section_count),
+            actor_user_id=user.id,
+            ip_address=client_ip(request),
+        )
+    return result.matrix
 
 
 @router.delete(

@@ -28870,6 +28870,430 @@
         "title": "SectionDetailResponse",
         "type": "object"
       },
+      "SectionDistributionAllocation": {
+        "properties": {
+          "quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "section_id": {
+            "format": "uuid",
+            "title": "Section Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "section_id",
+          "quantity"
+        ],
+        "title": "SectionDistributionAllocation",
+        "type": "object"
+      },
+      "SectionDistributionCellInput": {
+        "description": "Matristeki TEK hucre. `quantity` `null` ya da `0` hucreyi BOSALTIR (satir silinir).\n\n`quantity` ZORUNLUDUR (null KABUL, eksik RED): alan unutulunca sessizce silmek\nniyeti sunucunun uydurmasi olurdu. Kolon `Numeric(14, 3)` ile BIREBIR:\nen cok 14 hane, 3 ondalik (`0.0004` / `1e30` -> 422; sessiz yuvarlama/500 yok).",
+        "properties": {
+          "boq_item_id": {
+            "format": "uuid",
+            "title": "Boq Item Id",
+            "type": "string"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,11}|(?=[\\d.]{1,15}0*$)\\d{0,11}\\.\\d{0,3}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "section_id": {
+            "format": "uuid",
+            "title": "Section Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "boq_item_id",
+          "section_id",
+          "quantity"
+        ],
+        "title": "SectionDistributionCellInput",
+        "type": "object"
+      },
+      "SectionDistributionGroup": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SectionDistributionItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sort_order",
+          "items"
+        ],
+        "title": "SectionDistributionGroup",
+        "type": "object"
+      },
+      "SectionDistributionItem": {
+        "properties": {
+          "allocated_quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocated Quantity"
+          },
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/SectionDistributionAllocation"
+            },
+            "title": "Allocations",
+            "type": "array"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "unallocated_quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unallocated Quantity"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Price"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "description",
+          "unit",
+          "quantity",
+          "unit_price",
+          "allocations",
+          "allocated_quantity",
+          "unallocated_quantity"
+        ],
+        "title": "SectionDistributionItem",
+        "type": "object"
+      },
+      "SectionDistributionResponse": {
+        "properties": {
+          "distributed_item_count": {
+            "title": "Distributed Item Count",
+            "type": "integer"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/SectionDistributionGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "section_summaries": {
+            "items": {
+              "$ref": "#/components/schemas/SectionDistributionSectionSummary"
+            },
+            "title": "Section Summaries",
+            "type": "array"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/SectionDistributionSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "site_id": {
+            "format": "uuid",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "site_name": {
+            "title": "Site Name",
+            "type": "string"
+          },
+          "total_item_count": {
+            "title": "Total Item Count",
+            "type": "integer"
+          },
+          "unallocated_item_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unallocated Item Codes",
+            "type": "array"
+          },
+          "unallocated_item_count": {
+            "title": "Unallocated Item Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "site_id",
+          "site_name",
+          "project_name",
+          "sections",
+          "groups",
+          "unallocated_item_count",
+          "unallocated_item_codes",
+          "distributed_item_count",
+          "total_item_count",
+          "section_summaries"
+        ],
+        "title": "SectionDistributionResponse",
+        "type": "object"
+      },
+      "SectionDistributionSave": {
+        "description": "`PUT /sites/{site_id}/boq/section-distribution` govdesi — BIRLESTIRME.\n\nGovdede gecmeyen hucre KORUNUR. `allocations` ZORUNLUDUR (varsayilani YOKTUR):\neksik alani sessizce \"hicbir sey\" saymak niyeti sunucunun uydurmasi olurdu.\nUst sinir `SECTION_DISTRIBUTION_MAX_CELLS` (asyncpg 32767 parametre siniri\naltinda kalir; asimi 422).",
+        "properties": {
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/SectionDistributionCellInput"
+            },
+            "maxItems": 20000,
+            "title": "Allocations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "allocations"
+        ],
+        "title": "SectionDistributionSave",
+        "type": "object"
+      },
+      "SectionDistributionSection": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_draft": {
+            "title": "Is Draft",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "code",
+          "sort_order",
+          "is_draft"
+        ],
+        "title": "SectionDistributionSection",
+        "type": "object"
+      },
+      "SectionDistributionSectionItem": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "boq_item_id": {
+            "format": "uuid",
+            "title": "Boq Item Id",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Price"
+          }
+        },
+        "required": [
+          "boq_item_id",
+          "code",
+          "description",
+          "unit",
+          "quantity",
+          "unit_price",
+          "amount"
+        ],
+        "title": "SectionDistributionSectionItem",
+        "type": "object"
+      },
+      "SectionDistributionSectionSummary": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SectionDistributionSectionItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "section_id": {
+            "format": "uuid",
+            "title": "Section Id",
+            "type": "string"
+          },
+          "section_name": {
+            "title": "Section Name",
+            "type": "string"
+          },
+          "total_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Amount"
+          }
+        },
+        "required": [
+          "section_id",
+          "section_name",
+          "items",
+          "total_amount"
+        ],
+        "title": "SectionDistributionSectionSummary",
+        "type": "object"
+      },
       "SectionListResponse": {
         "properties": {
           "counts": {
@@ -62262,6 +62686,124 @@
           }
         ],
         "summary": "Create Boq Item Endpoint",
+        "tags": [
+          "boq"
+        ]
+      }
+    },
+    "/sites/{site_id}/boq/section-distribution": {
+      "get": {
+        "description": "BDG-B1 — santiyenin kalem x bolum dagilim matrisi (okuma ucu).\n\n`record_audit` CAGIRILMAZ (okumalar denetim gunlugune yazmaz). Gorunmeyen\nsantiye **404**; kisitli kullanicida yalniz gorunur kalemler ve onlardan\ntureyen sayaclar doner (`boq/section_distribution.py`).",
+        "operationId": "get_section_distribution_endpoint_sites__site_id__boq_section_distribution_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionDistributionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Section Distribution Endpoint",
+        "tags": [
+          "boq"
+        ]
+      },
+      "put": {
+        "description": "BDG-B1 — matris yazma, BIRLESTIRME semantigi (govdede gecmeyen hucre korunur).\n\nKapi `PUT /boq/items/{id}/allocations` ile AYNI (`_FULL`). Denetim: GERCEKTEN\nDEGISEN her kalem icin `replace_allocations` ile ayni kayit turu; degismeyen\nhucre kayit yazmaz.",
+        "operationId": "save_section_distribution_endpoint_sites__site_id__boq_section_distribution_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionDistributionSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionDistributionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save Section Distribution Endpoint",
         "tags": [
           "boq"
         ]

@@ -27,9 +27,21 @@ __all__ = [
     "BoqItemUpdate",
     "BoqListResponse",
     "BoqTotals",
+    "SectionDistributionAllocation",
+    "SectionDistributionCellInput",
+    "SectionDistributionGroup",
+    "SectionDistributionItem",
+    "SectionDistributionResponse",
+    "SectionDistributionSave",
+    "SectionDistributionSection",
+    "SectionDistributionSectionItem",
+    "SectionDistributionSectionSummary",
 ]
 
 _MONEY = Decimal("0.01")
+
+#: Matris PUT govdesindeki en fazla hucre sayisi.
+SECTION_DISTRIBUTION_MAX_CELLS = 20_000
 
 #: Miktar hassasiyeti — `boq_items.quantity` / `boq_item_section_allocations.quantity`
 #: kolonlarinin `Numeric(14, 3)` olcegiyle BIREBIR. Govdeden gelen miktar YAZILMADAN
@@ -274,3 +286,100 @@ class BoqItemUpdate(BaseModel):
     quantity: Decimal | None = Field(default=None, gt=0)
     unit_price: Decimal | None = Field(default=None, ge=0)
     sort_order: int | None = Field(default=None, ge=0)
+
+
+# --- BDG: santiye capinda kalem x bolum dagilim matrisi ---
+
+
+class SectionDistributionCellInput(BaseModel):
+    """Matristeki TEK hucre. `quantity` `null` ya da `0` hucreyi BOSALTIR (satir silinir).
+
+    `quantity` ZORUNLUDUR (null KABUL, eksik RED): alan unutulunca sessizce silmek
+    niyeti sunucunun uydurmasi olurdu. Kolon `Numeric(14, 3)` ile BIREBIR:
+    en cok 14 hane, 3 ondalik (`0.0004` / `1e30` -> 422; sessiz yuvarlama/500 yok).
+    """
+
+    boq_item_id: uuid.UUID
+    section_id: uuid.UUID
+    quantity: Decimal | None = Field(..., ge=0, max_digits=14, decimal_places=3)
+
+
+class SectionDistributionSave(BaseModel):
+    """`PUT /sites/{site_id}/boq/section-distribution` govdesi — BIRLESTIRME.
+
+    Govdede gecmeyen hucre KORUNUR. `allocations` ZORUNLUDUR (varsayilani YOKTUR):
+    eksik alani sessizce "hicbir sey" saymak niyeti sunucunun uydurmasi olurdu.
+    Ust sinir `SECTION_DISTRIBUTION_MAX_CELLS` (asyncpg 32767 parametre siniri
+    altinda kalir; asimi 422).
+    """
+
+    allocations: list[SectionDistributionCellInput] = Field(
+        ..., max_length=SECTION_DISTRIBUTION_MAX_CELLS
+    )
+
+
+class SectionDistributionSection(BaseModel):
+    id: uuid.UUID
+    name: str
+    code: str | None
+    sort_order: int
+    is_draft: bool
+
+
+class SectionDistributionAllocation(BaseModel):
+    section_id: uuid.UUID
+    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+
+
+class SectionDistributionItem(BaseModel):
+    id: uuid.UUID
+    code: str
+    description: str
+    unit: str
+    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    unit_price: Annotated[Decimal | None, Gorunurluk.para]
+    allocations: list[SectionDistributionAllocation]
+    allocated_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    unallocated_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+
+
+class SectionDistributionGroup(BaseModel):
+    id: uuid.UUID
+    name: str
+    sort_order: int
+    items: list[SectionDistributionItem]
+
+
+class SectionDistributionSectionItem(BaseModel):
+    boq_item_id: uuid.UUID
+    code: str
+    description: str
+    unit: str
+    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    unit_price: Annotated[Decimal | None, Gorunurluk.para]
+    # IKI KOVA: finance birim fiyati gorur; `amount` acik kalsaydi miktar
+    # `amount / unit_price` ile GERI HESAPLANIRDI (`BoqTotals.grand_total` emsali).
+    amount: Annotated[Decimal | None, Gorunurluk.para, Gorunurluk.operasyonel]
+
+
+class SectionDistributionSectionSummary(BaseModel):
+    section_id: uuid.UUID
+    section_name: str
+    items: list[SectionDistributionSectionItem]
+    total_amount: Annotated[Decimal | None, Gorunurluk.para, Gorunurluk.operasyonel]
+
+
+class SectionDistributionResponse(BaseModel):
+    site_id: uuid.UUID
+    site_name: str
+    project_name: str
+    sections: list[SectionDistributionSection]
+    groups: list[SectionDistributionGroup]
+    unallocated_item_count: int
+    # Sayaclar ve kod listesi MASKELENMEZ (etiketsiz): finance rolde de dolu gelir.
+    # `unallocated_item_count` = atanmamisi > 0 olan kalem (kismen dagitilmislar DAHIL);
+    # `distributed_item_count` = TAM dagitilmis kalem; toplamlari `total_item_count`tur.
+    unallocated_item_codes: list[str]
+    distributed_item_count: int
+    total_item_count: int
+    section_summaries: list[SectionDistributionSectionSummary]
