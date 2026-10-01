@@ -822,5 +822,7 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # EXPORT-XLSX bunun ÜSTÜNE +6 yol / +6 operasyon ekler (aşağıdaki
     # docstring girdisi). Rebase sonrası sayılar YENİDEN ÖLÇÜLDÜ, eski
     # 243/351'den türetilmedi: 239→245 · 348→354.
-    assert len(yollar) == 287
-    assert operasyonlar == 410
+    # BDG-B1: `GET`/`PUT /sites/{site_id}/boq/section-distribution` = +1 yol / +2 operasyon
+    # (287→288 · 410→412).
+    assert len(yollar) == 288
+    assert operasyonlar == 412
