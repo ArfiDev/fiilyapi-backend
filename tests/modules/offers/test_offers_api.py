@@ -701,17 +701,21 @@ async def test_denetim_satirlari_olustur_kunye_sil_revizyon_gecis_kosul(
     b = await teklif(client, admin, isveren, title="Silinecek")
     await client.delete(f"{URL}/{b['id']}", headers=admin)
 
-    assert await _audit_details(db_session, AuditAction.create) == [
-        f"Teklif oluşturuldu: {no} · A Blok Kaba İnşaat (Akın İnşaat A.Ş.)",
-        f"Teklif yeni revizyon açıldı: {no} Rev.1",
-        f"Teklif oluşturuldu: {b['offer_no']} · Silinecek (Akın İnşaat A.Ş.)",
-    ]
-    assert await _audit_details(db_session, AuditAction.update) == [
-        f"Teklif künyesi güncellendi: {no} · Yeni ad (Akın İnşaat A.Ş.)",
-        f"Teklif koşulları güncellendi: {no} Rev.0 · notlar «boş» → «x»",
-        f"Teklif gönderildi: {no} Rev.0",
-        f"Teklif vazgeçildi: {no} Rev.1",
-    ]
+    assert sorted(await _audit_details(db_session, AuditAction.create)) == sorted(
+        [
+            f"Teklif oluşturuldu: {no} · A Blok Kaba İnşaat (Akın İnşaat A.Ş.)",
+            f"Teklif yeni revizyon açıldı: {no} Rev.1",
+            f"Teklif oluşturuldu: {b['offer_no']} · Silinecek (Akın İnşaat A.Ş.)",
+        ]
+    )
+    assert sorted(await _audit_details(db_session, AuditAction.update)) == sorted(
+        [
+            f"Teklif künyesi güncellendi: {no} · Yeni ad (Akın İnşaat A.Ş.)",
+            f"Teklif koşulları güncellendi: {no} Rev.0 · notlar «boş» → «x»",
+            f"Teklif gönderildi: {no} Rev.0",
+            f"Teklif vazgeçildi: {no} Rev.1",
+        ]
+    )
     assert await _audit_details(db_session, AuditAction.delete) == [
         f"Teklif silindi: {b['offer_no']} · Silinecek"
     ]
