@@ -153,9 +153,9 @@ def _gecici_kok_hesapla(taban: str, isci: str, oturum: str) -> str:
 
 def _gecici_kok_kur(kok: str, isci: str, oturum: str) -> None:
     """Adı doğrular, SADECE kendi dizinini siler ve yeniden kurar."""
-    assert (
-        os.path.basename(kok) == f"fiil-erp-test-{isci}-{oturum}"
-    ), f"Geçici dizin adı beklenen kalıba uymuyor: {kok!r}. rmtree çalıştırılmadı."
+    assert os.path.basename(kok) == f"fiil-erp-test-{isci}-{oturum}", (
+        f"Geçici dizin adı beklenen kalıba uymuyor: {kok!r}. rmtree çalıştırılmadı."
+    )
     shutil.rmtree(kok, ignore_errors=True)
     os.makedirs(kok, exist_ok=True)
 
