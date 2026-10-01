@@ -148,8 +148,9 @@ def test_elle_birim_fiyat_ve_maliyet_YOKSA_hata_SO4() -> None:
 def test_maliyet_yok_kalem_fiyatsiz_ama_adam_saati_var() -> None:
     r = calc_item(_item(None, "4", unit_mhr=D("2.5")), **REV)
     assert r.priced is False
-    assert r.customer is None and r.internal is None
-    assert r.man_hours == D("10.0")
+    assert r.customer is None
+    assert r.internal.man_hours == D("10.0")  # adam-saat IC yapidadir (T37)
+    assert (r.internal.cost, r.internal.overhead, r.internal.profit) == (None, None, None)
 
 
 def test_uygulanan_kar_yuzdesi_elle_fiyat_yokken_kalem_veya_revizyon_kari() -> None:
@@ -265,19 +266,109 @@ def test_suggest_cost_son_ref_bos(son, ref, beklenen) -> None:
     assert suggest_cost(son, ref) == beklenen
 
 
+# ------------------------------------------- B4.1 denetim bulgulari (E2, E4, E5)
+
+
+def test_E2a_birim_fiyat_ONCE_yuvarlanir_tutar_miktarla_buyur() -> None:
+    """c=1,00 g=12 k=15 q=1000: B.F. = ROUND(1,288) = 1,29 → tutar 1290,00. "B.F. yuvarlamadan
+    x q" mutanti 1288,00 verirdi (yuvarlama miktarla BUYUR)."""
+    bf, tutar, maliyet, gg, kar = _values(_item("1.00", "1000"))
+    assert bf == D("1.29")
+    assert tutar == D("1290.00")
+    assert (maliyet, gg, kar) == (D("1000.00"), D("120.00"), D("170.00"))
+
+
+def test_E2b_GG_bagimsiz_yuvarlanmaz_iki_yuvarlamanin_FARKIDIR() -> None:
+    """c=1,01 q=2,5 g=7 k=15 (ELLE): maliyet = ROUND(2,525) = 2,53; c(1+g)q = 2,70175 → 2,70;
+    GG = 2,70 - 2,53 = 0,17. BAGIMSIZ ROUND(c x g x q) = ROUND(0,17675) = 0,18 olurdu.
+    B.F. = ROUND(1,01 x 1,07 x 1,15 = 1,242805) = 1,24; tutar = ROUND(3,10) = 3,10;
+    kar = 3,10 - 2,53 - 0,17 = 0,40 (bagimsiz GG ile 0,39)."""
+    bf, tutar, maliyet, gg, kar = _values(_item("1.01", "2.5", overhead_pct="7"))
+    assert (bf, tutar, maliyet, gg, kar) == (
+        D("1.24"),
+        D("3.10"),
+        D("2.53"),
+        D("0.17"),
+        D("0.40"),
+    )
+
+
+def test_E5_elle_birim_fiyat_kurus_ustu_hassasiyet_savunmasi_ROUND() -> None:
+    """Sema 2 haneyi zorlar; calc buna GUVENMEZ: elle B.F. 10,005 → 10,01 (HALF_UP)."""
+    r = calc_item(_item("5", "1", offer_unit_price="10.005"), **REV)
+    assert r.customer and r.customer.unit_price == D("10.01")
+    assert r.customer.amount == D("10.01")
+
+
+def test_E4_tavandaki_girdiler_InvalidOperation_vermez_ve_tam_dogrudur() -> None:
+    """Sema tavani: maliyet <= 1e12, miktar <= 1e9, kar <= 999,99 %, GG <= 100 %. Tek kalem
+    tutari 25 hane; 20 000 kalemin toplami 30 hane — varsayilan 28 haneli baglamda
+    `quantize` `InvalidOperation` verirdi. Beklenen ELLE: B.F. = 1e12 x 2 x 10,9999 =
+    21 999 800 000 000,00; tutar = x 1e9."""
+    tavan = ItemInput(
+        quantity=D("1000000000"),
+        unit_mhr=D("1"),
+        cost_unit_price=D("1000000000000.00"),
+        overhead_pct=D("100"),
+        profit_pct=D("999.99"),
+    )
+    bf = D("21999800000000.00")
+    tutar = D("21999800000000000000000.00")
+    r = calc_item(tavan, **REV)
+    assert r.customer and r.customer.unit_price == bf and r.customer.amount == tutar
+    assert r.internal.cost == D("1000000000000000000000.00")
+    assert r.internal.overhead == D("1000000000000000000000.00")
+    assert r.internal.cost + r.internal.overhead + r.internal.profit == tutar
+
+    rev = calc_revision([tavan] * 20_000, vat_pct=D("100"), **REV)
+    assert rev.customer.net == tutar * 20_000
+    assert rev.customer.vat == rev.customer.net  # KDV %100
+    assert rev.customer.gross == rev.customer.net * 2
+    assert rev.internal.cost + rev.internal.overhead + rev.internal.profit == rev.customer.net
+
+
 # --------------------------------------------------------------- yapisal
 
 
+def _alanlar(*siniflar: type) -> set[str]:
+    return {f.name for s in siniflar for f in dataclasses.fields(s)}
+
+
+#: Isveren ciktisinda ASLA gorunmeyecek kavramlarin ad parcalari (T37).
+_IC_KAVRAMLAR = ("cost", "overhead", "profit", "man_hours", "mhr", "hours", "margin")
+
+
 def test_musteri_ve_ic_alt_yapilari_AYRIK_alanlar_tasir() -> None:
-    musteri = {f.name for f in dataclasses.fields(calc.CustomerLine)} | {
-        f.name for f in dataclasses.fields(calc.CustomerTotals)
-    }
-    ic = {f.name for f in dataclasses.fields(calc.InternalLine)} | {
-        f.name for f in dataclasses.fields(calc.InternalTotals)
-    }
+    musteri = _alanlar(calc.CustomerLine, calc.CustomerTotals)
+    ic = _alanlar(calc.InternalLine, calc.InternalTotals)
     assert musteri == {"unit_price", "amount", "net", "vat", "gross"}
     assert not musteri & ic
     assert {"cost", "overhead", "profit", "profit_pct", "man_hours"} <= ic
+
+
+def test_E3_ust_duzey_sonuclar_ic_alan_TASIMAZ_musteri_yapisinda_ic_kavram_adi_yok() -> None:
+    """Isveren ciktisi (B5) `customer` alt yapilarindan kurulur; adam-saat/maliyet/GG/kar HICBIR
+    musteri alaninin adinda gecmez ve `ItemResult`/`RevisionResult` ust duzeyine SIZMAZ."""
+    ic = _alanlar(calc.InternalLine, calc.InternalTotals)
+    musteri = _alanlar(calc.CustomerLine, calc.CustomerTotals)
+    assert not [a for a in musteri if any(k in a for k in _IC_KAVRAMLAR)], musteri
+    kalem_ust = _alanlar(calc.ItemResult)
+    revizyon_ust = _alanlar(calc.RevisionResult)
+    assert kalem_ust == {"priced", "customer", "internal"}
+    assert revizyon_ust == {"items", "customer", "internal", "unpriced_count"}
+    assert not (kalem_ust | revizyon_ust) & ic, "ic alan ust duzeye SIZDI"
+    assert not [a for a in kalem_ust | revizyon_ust if any(k in a for k in _IC_KAVRAMLAR)]
+
+
+def test_E3_fiyatsiz_kalemde_adam_saat_ic_yapida_musteri_yapisi_bos() -> None:
+    r = calc_item(_item(None, "4", unit_mhr=D("2.5")), **REV)
+    assert r.customer is None and r.internal.man_hours == D("10.0")
+    fiyatli = calc_item(_item("10", "4", unit_mhr=D("2.5")), **REV)
+    assert fiyatli.internal.man_hours == D("10.0")
+    assert fiyatli.customer is not None
+    assert not any(
+        hasattr(fiyatli.customer, k) for k in ("man_hours", "cost", "overhead", "profit")
+    )
 
 
 def test_calc_modulu_yalniz_stdlib_import_eder() -> None:

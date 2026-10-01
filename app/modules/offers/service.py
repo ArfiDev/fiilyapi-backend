@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -36,10 +37,15 @@ async def get_settings(session: AsyncSession) -> OfferSettings:
     return await _get_or_create_settings(session, lock=False)
 
 
-async def update_settings(session: AsyncSession, data: OfferSettingsUpdate) -> OfferSettings:
+async def update_settings(
+    session: AsyncSession, data: OfferSettingsUpdate
+) -> tuple[OfferSettings, dict[str, Any]]:
+    """Tam degistirir; `(satir, ESKI degerler)` doner (denetim `eski → yeni` farki icin). Eski
+    degerler satir KILIT ALTINDA okunduktan sonra alinir (eszamanli PUT'ta dogru onceki deger)."""
     row = await _get_or_create_settings(session, lock=True)
+    before = {field: getattr(row, field) for field in data.model_dump()}
     for field, value in data.model_dump().items():
         setattr(row, field, value)
     await session.flush()
     await session.refresh(row)
-    return row
+    return row, before

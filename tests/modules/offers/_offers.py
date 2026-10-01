@@ -1,0 +1,78 @@
+"""TKL-B4.2 test yardimcilari (HTTP uzerinden teklif kurma)."""
+
+from __future__ import annotations
+
+from decimal import Decimal
+
+D = Decimal
+
+URL = "/offers"
+
+
+def rev_url(offer_id: str, rev_no: int = 0) -> str:
+    return f"{URL}/{offer_id}/revisions/{rev_no}"
+
+
+async def teklif(client, admin, isveren, **over) -> dict:
+    govde = {"employer_id": str(isveren.id), "title": "A Blok Kaba İnşaat", **over}
+    resp = await client.post(URL, json=govde, headers=admin)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def grup(client, admin, offer_id: str, rev_no: int = 0, name: str = "Kaba") -> dict:
+    resp = await client.post(
+        rev_url(offer_id, rev_no) + "/groups", json={"name": name}, headers=admin
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def kalem(
+    client, admin, offer_id: str, group_id: str, katalog_id, rev_no: int = 0, **over
+) -> dict:
+    govde = {
+        "catalog_item_id": str(katalog_id),
+        "group_id": group_id,
+        "quantity": "1",
+        **over,
+    }
+    resp = await client.post(rev_url(offer_id, rev_no) + "/items", json=govde, headers=admin)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def revizyon(client, admin, offer_id: str, rev_no: int = 0) -> dict:
+    resp = await client.get(rev_url(offer_id, rev_no), headers=admin)
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+async def detay(client, admin, offer_id: str) -> dict:
+    resp = await client.get(f"{URL}/{offer_id}", headers=admin)
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+async def gecis(client, admin, offer_id: str, eylem: str, rev_no: int = 0, **govde) -> object:
+    return await client.post(
+        rev_url(offer_id, rev_no) + f"/{eylem}", json=govde or None, headers=admin
+    )
+
+
+async def durum_yap(client, admin, offer_id: str, durum: str, rev_no: int = 0) -> None:
+    """Revizyonu istenen duruma getirir (`draft` → hicbir sey)."""
+    yol = {
+        "draft": [],
+        "sent": ["send"],
+        "won": ["send", "win"],
+        "lost": ["send", "lose"],
+        "withdrawn": ["withdraw"],
+    }[durum]
+    for eylem in yol:
+        resp = await gecis(client, admin, offer_id, eylem, rev_no)
+        assert resp.status_code == 200, resp.text
+
+
+def tum_kalemler(rev: dict) -> list[dict]:
+    return [k for g in rev["groups"] for k in g["items"]]

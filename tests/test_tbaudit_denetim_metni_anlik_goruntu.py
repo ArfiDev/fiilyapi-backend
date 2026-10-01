@@ -68,6 +68,21 @@ yalnız bu iki sembolün satırları EKLENDİ (`diff` ile doğrulandı); sayaçl
 yalnız bu fonksiyonun 2 çağrısı EKLENDİ (`diff` ile doğrulandı); sayaçlar 213→214 sembol,
 200→201 fonksiyon.
 
+## 🔴 REFERANSA EKLENEN SEMBOLLER (TKL-B4.2, 2026-10-02)
+
+`offer_created`, `offer_updated`, `offer_conditions_updated`, `offer_deleted`,
+`offer_revision_created`, `offer_status_changed`, `offer_items_bulk_created`
+(+ sabiti `OFFER_BULK_POZ_SHOWN`) — teklif uçlarının denetim satırları (`messages/offers.py`).
+Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta
+**KAYIP 0**, yalnız bu sembollerin satırları EKLENDİ (`diff` ile doğrulandı); sayaçlar
+214→222 sembol, 201→208 fonksiyon.
+
+`offer_setting_pct_changed`, `offer_setting_days_changed`, `offer_setting_terms_changed`,
+`offer_settings_changed` (+ `OFFER_TERMS_SHOWN`, `_short_terms`) — `PUT /offers/settings` denetim
+satırının `eski → yeni` metni (E8; yalnız DEĞİŞEN alanlar). Farkta **KAYIP 0**; sayaçlar
+222→228 sembol, 208→213 fonksiyon. `offer_settings_updated` (B4.1) KORUNDU ama artık ÇAĞRILMIYOR
+(silinirse bu referanstaki satırları KAYBOLUR — bilinçli bir sonraki turun işi).
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok
@@ -237,9 +252,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 214, f"sembol sayısı 214 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 228, f"sembol sayısı 228 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 201, f"fonksiyon sayısı 201 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 213, f"fonksiyon sayısı 213 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

@@ -78,9 +78,56 @@ async def test_put_gunceller_get_yansitir_ve_denetim_yazar(client, admin, db_ses
     assert again == body
 
     assert await _audit_details(db_session, AuditAction.update) == [
-        "Teklif ayarları güncellendi: genel gider %10.50 · kâr %18.00 · KDV %10.00 · "
-        "geçerlilik 45 gün"
+        "Teklif ayarları güncellendi: genel gider %12.00 → %10.50 · kâr %15.00 → %18.00 · "
+        "KDV %20.00 → %10.00 · geçerlilik 30 → 45 gün · "
+        f"ödeme koşulu «{VARSAYILAN_ODEME}» → «%30 avans, kalanı hakedişle»"
     ]
+
+
+async def test_E8_yalniz_odeme_kosulu_degisince_metinde_yalniz_eski_yeni_odeme_kosulu(
+    client, admin, db_session
+) -> None:
+    """Degisen HER alan `eski → yeni`; degismeyenler metinde YOK (ayar tohum degerlerinde)."""
+    resp = await client.put(
+        URL,
+        json=_govde(
+            default_overhead_pct="12",
+            default_profit_pct="15",
+            default_vat_pct="20",
+            default_validity_days=30,
+            default_payment_terms="Peşin",
+        ),
+        headers=admin,
+    )
+    assert resp.status_code == 200, resp.text
+    assert await _audit_details(db_session, AuditAction.update) == [
+        f"Teklif ayarları güncellendi: ödeme koşulu «{VARSAYILAN_ODEME}» → «Peşin»"
+    ]
+
+
+async def test_E8_degisiklik_yoksa_denetim_satiri_YAZILMAZ(client, admin, db_session) -> None:
+    ayni = _govde(
+        default_overhead_pct="12",
+        default_profit_pct="15",
+        default_vat_pct="20",
+        default_validity_days=30,
+        default_payment_terms=VARSAYILAN_ODEME,
+    )
+    resp = await client.put(URL, json=ayni, headers=admin)
+    assert resp.status_code == 200, resp.text  # 200 + mevcut kayit
+    assert await _audit_details(db_session, AuditAction.update) == []
+    # degisiklikten sonra ayni gövde tekrarlanirsa da ikinci satir YOK
+    await client.put(URL, json=_govde(), headers=admin)
+    await client.put(URL, json=_govde(), headers=admin)
+    assert len(await _audit_details(db_session, AuditAction.update)) == 1
+
+
+async def test_E8_uzun_odeme_kosulu_denetim_metninde_kisaltilir(client, admin, db_session) -> None:
+    uzun = "A" * 200
+    await client.put(URL, json=_govde(default_payment_terms=uzun), headers=admin)
+    [metin] = await _audit_details(db_session, AuditAction.update)
+    assert f"«{'A' * 60}…»" in metin
+    assert "A" * 61 not in metin
 
 
 async def test_tekil_satir_iki_put_sonrasi_hala_tek(client, admin, db_session) -> None:

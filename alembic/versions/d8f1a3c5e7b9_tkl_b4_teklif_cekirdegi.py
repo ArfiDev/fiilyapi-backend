@@ -233,6 +233,12 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         _user_fk("created_by_user_id"),
         sa.UniqueConstraint("offer_id", "rev_no", name="uq_offer_revisions_offer_rev"),
         sa.CheckConstraint("rev_no >= 0", name="ck_offer_revisions_rev_no_nonneg"),
@@ -347,6 +353,10 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(
             "offer_unit_price IS NULL OR offer_unit_price >= 0", name="ck_offer_items_offer_nonneg"
+        ),
+        sa.CheckConstraint(
+            "offer_unit_price IS NULL OR cost_unit_price IS NOT NULL",
+            name="ck_offer_items_manual_price_needs_cost",
         ),
         sa.CheckConstraint(
             "overhead_pct IS NULL OR (overhead_pct >= 0 AND overhead_pct <= 100)",

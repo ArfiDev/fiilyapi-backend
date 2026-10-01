@@ -286,6 +286,9 @@ class OfferRevision(Base):
     lost_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     winning_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     created_at: Mapped[datetime] = _created_at()
+    #: Son KAYIT zamani: kosul/grup/kalem yazimi ve durum gecisi ilerletir (okuma ilerletmez);
+    #: FE bayatlik kontrolu. Servis `datetime.now(UTC)` yazar (`now()` islem baslangicidir).
+    updated_at: Mapped[datetime] = _updated_at()
     created_by_user_id: Mapped[uuid.UUID | None] = _user_fk()
 
 
@@ -335,6 +338,12 @@ class OfferItem(Base):
         ),
         CheckConstraint(
             "offer_unit_price IS NULL OR offer_unit_price >= 0", name="ck_offer_items_offer_nonneg"
+        ),
+        # SO-4: elle teklif B.F. kar % geri hesabi ve `maliyet + GG + kar = tutar` degismezi icin
+        # maliyet ister (servis Turkce 422 verir; CHECK SON savunmadir).
+        CheckConstraint(
+            "offer_unit_price IS NULL OR cost_unit_price IS NOT NULL",
+            name="ck_offer_items_manual_price_needs_cost",
         ),
         CheckConstraint(
             "overhead_pct IS NULL OR (overhead_pct >= 0 AND overhead_pct <= 100)",

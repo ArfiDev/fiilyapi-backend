@@ -346,6 +346,48 @@ from app.modules.audit.messages.invoicing import (
 from app.modules.audit.messages.invoicing import (
     invoice_updated as invoice_updated,
 )
+from app.modules.audit.messages.offers import (
+    OFFER_BULK_POZ_SHOWN as OFFER_BULK_POZ_SHOWN,
+)
+from app.modules.audit.messages.offers import (
+    OFFER_TERMS_SHOWN as OFFER_TERMS_SHOWN,
+)
+from app.modules.audit.messages.offers import (
+    _short_terms as _short_terms,
+)
+from app.modules.audit.messages.offers import (
+    offer_conditions_updated as offer_conditions_updated,
+)
+from app.modules.audit.messages.offers import (
+    offer_created as offer_created,
+)
+from app.modules.audit.messages.offers import (
+    offer_deleted as offer_deleted,
+)
+from app.modules.audit.messages.offers import (
+    offer_items_bulk_created as offer_items_bulk_created,
+)
+from app.modules.audit.messages.offers import (
+    offer_revision_created as offer_revision_created,
+)
+from app.modules.audit.messages.offers import (
+    offer_setting_days_changed as offer_setting_days_changed,
+)
+from app.modules.audit.messages.offers import (
+    offer_setting_pct_changed as offer_setting_pct_changed,
+)
+from app.modules.audit.messages.offers import (
+    offer_setting_terms_changed as offer_setting_terms_changed,
+)
+from app.modules.audit.messages.offers import (
+    offer_settings_changed as offer_settings_changed,
+)
+from app.modules.audit.messages.offers import (
+    offer_status_changed as offer_status_changed,
+)
+from app.modules.audit.messages.offers import (
+    offer_updated as offer_updated,
+)
 from app.modules.audit.messages.payroll import (
     payroll_line_approved as payroll_line_approved,
 )

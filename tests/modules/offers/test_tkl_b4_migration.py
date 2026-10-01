@@ -286,6 +286,27 @@ async def _item_constraints(conn: asyncpg.Connection) -> None:
         1,
         0,
     )
+    # SO-4 / E7: elle teklif B.F. maliyet BOSKEN DB'de reddedilir; maliyetle kabul edilir
+    await _violates(
+        conn,
+        "ck_offer_items_manual_price_needs_cost",
+        "INSERT INTO offer_items (id, revision_id, group_id, catalog_item_id, poz_no, "
+        "description, unit, quantity, unit_mhr, offer_unit_price) "
+        "VALUES ($1, $2, $3, $4, 'MIG-0001', 'd', 'm', 1, 1, 100)",
+        uuid.uuid4(),
+        rev_a,
+        group_a,
+        catalog_id,
+    )
+    await conn.execute(
+        "INSERT INTO offer_items (id, revision_id, group_id, catalog_item_id, poz_no, "
+        "description, unit, quantity, unit_mhr, cost_unit_price, offer_unit_price) "
+        "VALUES ($1, $2, $3, $4, 'MIG-0001', 'd', 'm', 1, 1, 80, 100)",
+        uuid.uuid4(),
+        rev_a,
+        group_a,
+        catalog_id,
+    )
     item_id = uuid.uuid4()
     await conn.execute(ins, item_id, rev_a, group_a, catalog_id, 1, 1)
     # katalog kalemi referanslidir → silinemez (RESTRICT)

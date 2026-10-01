@@ -19,6 +19,7 @@ from app.core.errors import (
     InventoryValidationError,
     InvoicingValidationError,
     NotFoundError,
+    OfferValidationError,
     PayrollValidationError,
     PermissionLockedError,
     PersonnelValidationError,
@@ -210,6 +211,12 @@ async def _equipment_validation_handler(
     )
 
 
+async def _offer_validation_handler(request: Request, exc: OfferValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": str(exc)}
+    )
+
+
 async def _invoicing_validation_handler(
     request: Request, exc: InvoicingValidationError
 ) -> JSONResponse:
@@ -316,6 +323,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(ProcurementValidationError, _procurement_validation_handler)
     app.add_exception_handler(PayrollValidationError, _payroll_validation_handler)
     app.add_exception_handler(EquipmentValidationError, _equipment_validation_handler)
+    app.add_exception_handler(OfferValidationError, _offer_validation_handler)
     app.add_exception_handler(InvoicingValidationError, _invoicing_validation_handler)
     app.add_exception_handler(TreasuryValidationError, _treasury_validation_handler)
     app.add_exception_handler(AccountingValidationError, _accounting_validation_handler)

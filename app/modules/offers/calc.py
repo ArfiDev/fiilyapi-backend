@@ -10,6 +10,7 @@ yerdedir, ekran yalniz gosterir. Para birimi YALNIZ TL (T36). Yuzdeler YUZDE BIR
 * Elle teklif B.F. (`P`) varsa B.F. = `P`; `c` BOS ise HATA (SO-4, `ManualPriceWithoutCostError`:
   kar % geri hesabi ve `maliyet + GG + kar = tutar` degismezi maliyet ister).
   Turev kar % = `P / (c x (1+g)) - 1` (`c > 0` iken; `c = 0` ise `None`).
+* Elle B.F. de `ROUND` edilir (savunma: sema 2 haneyi zorlar, ama hesap buna guvenmez).
 * Yoksa `c` varsa B.F. = `ROUND(c x (1+g) x (1+k))`; `c` yoksa kalem FIYATSIZdir
   (toplamlara girmez, `unpriced_count`).
 * `tutar = ROUND(B.F. x miktar)` · `maliyet = ROUND(c x miktar)` ·
@@ -28,13 +29,21 @@ SUM(GG)) x 100 (payda 0 ise `None`).
 Sonuc yapilari musteriye GORUNUR ve IC alanlari AYRI alt yapilarda tasir ki B5 suzmesi
 tek satir olsun: `CustomerLine`/`CustomerTotals` (B.F., tutar, net/KDV/brut) isveren ciktisina
 girer; `InternalLine`/`InternalTotals` (maliyet, GG, kar, kar %, adam-saat) ASLA girmez.
+`ItemResult`/`RevisionResult` UST DUZEYI yalniz yapisal alanlar tasir (`priced`, `unpriced_count`,
+alt yapilar): adam-saat FIYATSIZ kalemde de `internal` icindedir (T37: isveren ciktisinda adam-saat
+YOKTUR).
+
+## Hassasiyet (E4)
+Hesap `Decimal` baglaminin varsayilan 28 hane sinirina GUVENMEZ: `_CALC_CONTEXT` (60 hane,
+HALF_UP) icinde kosar; tavanli girdilerde (sema: B.F./maliyet <= 1e12, miktar <= 1e9) hicbir
+ara deger `InvalidOperation`a dusmez ve yuvarlama sessizce kayamaz.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Context, Decimal, localcontext
 
 __all__ = [
     "CustomerLine",
@@ -55,6 +64,7 @@ _CENT = Decimal("0.01")
 _ONE = Decimal(1)
 _HUNDRED = Decimal(100)
 _PCT = Decimal("0.01")  # yuzde -> oran carpani
+_CALC_CONTEXT = Context(prec=60, rounding=ROUND_HALF_UP)
 
 
 class OfferCalcError(ValueError):
@@ -87,24 +97,24 @@ class CustomerLine:
 
 @dataclass(frozen=True, slots=True)
 class InternalLine:
-    """IC kalem degerleri — isveren ciktisinda YOKTUR."""
+    """IC kalem degerleri — isveren ciktisinda YOKTUR. Fiyatsiz kalemde para alanlari `None`,
+    `man_hours` YINE DE doludur."""
 
-    cost: Decimal
-    overhead: Decimal
-    profit: Decimal
-    #: Elle B.F. varsa turetilmis kar % (`c = 0` ise `None`); yoksa uygulanan kar %.
-    profit_pct: Decimal | None
     man_hours: Decimal
+    cost: Decimal | None = None
+    overhead: Decimal | None = None
+    profit: Decimal | None = None
+    #: Elle B.F. varsa turetilmis kar % (`c = 0` ise `None`); yoksa uygulanan kar %.
+    profit_pct: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class ItemResult:
-    """`priced` yanlissa `customer`/`internal` `None`; adam-saat YINE de `man_hours`tadir."""
+    """`priced` yanlissa `customer` `None`; `internal` HER ZAMAN vardir (adam-saat orada)."""
 
     priced: bool
-    man_hours: Decimal
     customer: CustomerLine | None
-    internal: InternalLine | None
+    internal: InternalLine
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +148,11 @@ def _round(value: Decimal) -> Decimal:
 
 def calc_item(item: ItemInput, *, overhead_pct: Decimal, profit_pct: Decimal) -> ItemResult:
     """Tek kalem. `overhead_pct`/`profit_pct` revizyon yuzdeleridir (kalem degeri ezer)."""
+    with localcontext(_CALC_CONTEXT):
+        return _calc_item(item, overhead_pct=overhead_pct, profit_pct=profit_pct)
+
+
+def _calc_item(item: ItemInput, *, overhead_pct: Decimal, profit_pct: Decimal) -> ItemResult:
     man_hours = item.quantity * item.unit_mhr
     cost_unit = item.cost_unit_price
     if cost_unit is None:
@@ -145,14 +160,14 @@ def calc_item(item: ItemInput, *, overhead_pct: Decimal, profit_pct: Decimal) ->
             raise ManualPriceWithoutCostError(
                 "Maliyet birim fiyatı boşken elle teklif birim fiyatı girilemez"
             )
-        return ItemResult(priced=False, man_hours=man_hours, customer=None, internal=None)
+        return ItemResult(priced=False, customer=None, internal=InternalLine(man_hours=man_hours))
 
     g = (item.overhead_pct if item.overhead_pct is not None else overhead_pct) * _PCT
     k_pct = item.profit_pct if item.profit_pct is not None else profit_pct
     loaded_unit = cost_unit * (_ONE + g)  # c x (1+g)
 
     if item.offer_unit_price is not None:
-        unit_price = item.offer_unit_price
+        unit_price = _round(item.offer_unit_price)
         derived_pct = (
             _round((unit_price / loaded_unit - _ONE) * _HUNDRED) if loaded_unit > 0 else None
         )
@@ -166,14 +181,13 @@ def calc_item(item: ItemInput, *, overhead_pct: Decimal, profit_pct: Decimal) ->
     profit = amount - cost - overhead
     return ItemResult(
         priced=True,
-        man_hours=man_hours,
         customer=CustomerLine(unit_price=unit_price, amount=amount),
         internal=InternalLine(
+            man_hours=man_hours,
             cost=cost,
             overhead=overhead,
             profit=profit,
             profit_pct=derived_pct,
-            man_hours=man_hours,
         ),
     )
 
@@ -186,14 +200,27 @@ def calc_revision(
     vat_pct: Decimal,
 ) -> RevisionResult:
     """Revizyon toplamlari + kalem sonuclari (girdi sirasiyla)."""
+    with localcontext(_CALC_CONTEXT):
+        return _calc_revision(
+            items, overhead_pct=overhead_pct, profit_pct=profit_pct, vat_pct=vat_pct
+        )
+
+
+def _calc_revision(
+    items: Sequence[ItemInput],
+    *,
+    overhead_pct: Decimal,
+    profit_pct: Decimal,
+    vat_pct: Decimal,
+) -> RevisionResult:
     results = tuple(
         calc_item(item, overhead_pct=overhead_pct, profit_pct=profit_pct) for item in items
     )
-    lines = [(r.customer, r.internal) for r in results if r.customer and r.internal]
+    lines = [(r.customer, r.internal) for r in results if r.customer is not None]
     net = sum((c.amount for c, _ in lines), Decimal(0))
-    cost = sum((i.cost for _, i in lines), Decimal(0))
-    overhead = sum((i.overhead for _, i in lines), Decimal(0))
-    profit = sum((i.profit for _, i in lines), Decimal(0))
+    cost = sum((i.cost or Decimal(0) for _, i in lines), Decimal(0))
+    overhead = sum((i.overhead or Decimal(0) for _, i in lines), Decimal(0))
+    profit = sum((i.profit or Decimal(0) for _, i in lines), Decimal(0))
     vat = _round(net * vat_pct * _PCT)
     base = cost + overhead
     return RevisionResult(
@@ -204,7 +231,7 @@ def calc_revision(
             overhead=overhead,
             profit=profit,
             profit_pct=_round(profit / base * _HUNDRED) if base > 0 else None,
-            man_hours=sum((r.man_hours for r in results), Decimal(0)),
+            man_hours=sum((r.internal.man_hours for r in results), Decimal(0)),
         ),
         unpriced_count=len(results) - len(lines),
     )
