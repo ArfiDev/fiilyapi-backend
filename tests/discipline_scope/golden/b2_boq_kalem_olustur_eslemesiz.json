@@ -1005,6 +1005,7 @@
       "allocated_quantity": "0",
       "amount": "20.00",
       "code": "03.999",
+      "contract_item_id": null,
       "description": "Eşlemesiz gruba kalem",
       "id": "<uuid:1>",
       "progress_pct": {

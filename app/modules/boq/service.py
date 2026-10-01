@@ -38,6 +38,9 @@ from app.modules.boq.schemas import (
     quantize_quantity,
 )
 
+# SZK-B1: kilit kumesi TEK KAYNAKTAN (`contracts.service`) okunur; ikinci liste YOK.
+from app.modules.contracts.service import MIRRORED_ITEM_FIELDS
+
 # Gorunurluk suzgeci P2'DEN GELIR (plan T3 notu): site->proje cozumu kopyalanmaz,
 # `sites.service._visible_site` yeniden kullanilir. Ayni desen zaten
 # `projects.service`'in `sites.service._next_site_code`'u yeniden
@@ -66,6 +69,10 @@ _ITEM_HAS_DIARY_LINES = (
 _ALLOCATION_EXCEEDS_QUANTITY = "Bölümlere dağıtılan miktar poz miktarını aşamaz"
 _ALLOCATION_DUPLICATE_SECTION = "Aynı bölüm gövdede birden fazla kez gönderildi"
 _QUANTITY_BELOW_ALLOCATED = "Poz miktarı bölümlere dağıtılan toplamın altına indirilemez"
+# SZK-B1 (Z1): sözleşmeye bağlı kalemde ayna alanları şantiyede değiştirilemez.
+_CONTRACT_FIELD_LOCKED = (
+    "Bu kalem sözleşmeden geliyor; şantiyede değiştirilemez, sözleşme kaleminden düzenleyin: "
+)
 
 # B6 sozlesmesindeki `pending_module` anahtarlari (kullaniciya gosterilecek
 # metin DEGILDIR).
@@ -134,6 +141,7 @@ def to_item(
         # tutarli — ekranda gorunen miktarin yuzdesi basilir.
         progress_pct=_progress_metric(realized, taban, izinli=izinli),
         sort_order=item.sort_order,
+        contract_item_id=item.contract_item_id,
         allocated_quantity=allocated,
         unallocated_quantity=item.quantity - allocated,
     )
@@ -498,6 +506,24 @@ async def update_group(
     return group
 
 
+def _assert_contract_fields_unchanged(item: BoqItem, updates: dict) -> None:
+    """SZK-B1 (Z1): sözleşmeye bağlı kalemde ayna alanları DEĞİŞEMEZ.
+
+    Değer mevcutla AYNIYSA kabul (tam gövde gönderen istemci kırılmasın): metin
+    birebir, `unit_price` sayısal eşitlik (`Decimal("10") == Decimal("10.00")`).
+    Yalnız FARKLI değer 422; mesaj alan adlarını taşır. Bağsız kalem serbesttir.
+    """
+    if item.contract_item_id is None:
+        return
+    changed = [
+        field
+        for field in MIRRORED_ITEM_FIELDS
+        if field in updates and updates[field] != getattr(item, field)
+    ]
+    if changed:
+        raise SiteValidationError(_CONTRACT_FIELD_LOCKED + ", ".join(changed))
+
+
 async def update_item(
     session: AsyncSession,
     actor: User,
@@ -512,6 +538,7 @@ async def update_item(
     """
     item, site = await _visible_item(session, actor, item_id, scope)
     updates = data.model_dump(exclude_unset=True)
+    _assert_contract_fields_unchanged(item, updates)
     if "group_id" in updates:
         await _ensure_group_in_site(session, updates["group_id"], site, scope)
     if "code" in updates and updates["code"] != item.code:

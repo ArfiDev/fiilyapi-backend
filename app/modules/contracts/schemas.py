@@ -26,6 +26,9 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 # Serbest metin tavanı (TB4 S3) `boq` ailesiyle PAYLAŞILIR — tek kaynak.
 from app.core.field_scope import Gorunurluk
 from app.core.text import FREE_TEXT_MAX_LENGTH
+
+# Hucre tavani BDG-B1 ile AYNI sayi, TEK sabit (boq.schemas) — ikinci kopya yok.
+from app.modules.boq.schemas import SECTION_DISTRIBUTION_MAX_CELLS
 from app.modules.contracts.models import ContractStatus, PaymentPeriod
 
 # İşveren hakediş özeti P7'de GERÇEK veriye bağlandı (spec §9.6): E14 127-147
@@ -347,13 +350,16 @@ class ContractAllocationInput(BaseModel):
 
     contract_item_id: uuid.UUID
     site_id: uuid.UUID
-    quantity: Decimal | None = Field(default=None, gt=0)
+    # Kolon `Numeric(14, 3)` ile BIREBIR (SZK-B1): `1e30` / `0.0004` -> 422.
+    quantity: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=3)
 
 
 class ContractDistributionSave(BaseModel):
     """`PUT .../contract/distribution` gövdesi — ekranın tamamı tek istekte."""
 
-    allocations: list[ContractAllocationInput] = Field(default_factory=list)
+    allocations: list[ContractAllocationInput] = Field(
+        default_factory=list, max_length=SECTION_DISTRIBUTION_MAX_CELLS
+    )
 
 
 class ContractDistributionSite(BaseModel):

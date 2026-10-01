@@ -2694,7 +2694,7 @@
                 "type": "number"
               },
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,11}|(?=[\\d.]{1,15}0*$)\\d{0,11}\\.\\d{0,3}0*$)",
                 "type": "string"
               }
             ],
@@ -2852,6 +2852,18 @@
             "title": "Code",
             "type": "string"
           },
+          "contract_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Item Id"
+          },
           "description": {
             "title": "Description",
             "type": "string"
@@ -2918,6 +2930,7 @@
           "unit_price",
           "progress_pct",
           "sort_order",
+          "contract_item_id",
           "allocated_quantity",
           "unallocated_quantity",
           "amount"
@@ -4865,7 +4878,7 @@
                 "type": "number"
               },
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,11}|(?=[\\d.]{1,15}0*$)\\d{0,11}\\.\\d{0,3}0*$)",
                 "type": "string"
               },
               {
@@ -5091,6 +5104,7 @@
             "items": {
               "$ref": "#/components/schemas/ContractAllocationInput"
             },
+            "maxItems": 20000,
             "title": "Allocations",
             "type": "array"
           }

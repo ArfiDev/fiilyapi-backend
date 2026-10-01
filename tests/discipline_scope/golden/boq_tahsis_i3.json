@@ -11,6 +11,7 @@
       "allocated_quantity": "20.000",
       "amount": "1200.00",
       "code": "03.001",
+      "contract_item_id": null,
       "description": "Boya",
       "id": "<I3>",
       "progress_pct": {
