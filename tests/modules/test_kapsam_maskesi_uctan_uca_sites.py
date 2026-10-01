@@ -18,7 +18,7 @@ bulunmuştu (ekran maskeliyken gömülü özet açıktaydı).
 
 | tip | örnek | maskelenince |
 |---|---|---|
-| çıplak `Decimal \\| None` | `SiteCard.budget`, `SectionResponse.budget_amount` | `null` |
+| çıplak `Decimal \\| None` | `SiteCard.budget` (BLF-B1: bölüm `budget_amount` kalktı) | `null` |
 | zarf (`MetricPlaceholder`) | `SectionResponse.budget`, `…progress_pct` | `kisitli()` üçüncü hâl |
 | sayaç (`CountPlaceholder`) | `worker_count`, `boq_item_count` | ETİKETSİZ → DEĞİŞMEZ |
 
@@ -36,7 +36,6 @@ from ._boq import _auth, _login_with_access, _site
 
 _BUTCE = Decimal("8400000.00")
 _ARSA_M2 = Decimal("5200.00")
-_BOLUM_BEDELI = Decimal("1750000.00")
 
 
 @pytest.fixture
@@ -54,7 +53,6 @@ async def santiye_ve_bolum(db_session, project_factory):
         site_id=site.id,
         code="B-1",
         name="A Blok",
-        budget_amount=_BOLUM_BEDELI,
         planned_worker_count=12,
     )
     db_session.add(section)
@@ -91,7 +89,7 @@ async def test_ADMIN_uc_yuzeyde_de_her_seyi_gorur(
     assert kart["budget"] == "8400000.00"
     assert kart["land_area_m2"] == "5200.00"
     assert detay["budget"] == "8400000.00"
-    assert bolum["budget_amount"] == "1750000.00"
+    assert "budget_amount" not in bolum, "BLF-B1: eski elle bedel yanıttan kalktı"
 
 
 async def test_SITE_CHIEF_limited_PARAYI_goremez_ALANI_gorur(
@@ -105,7 +103,7 @@ async def test_SITE_CHIEF_limited_PARAYI_goremez_ALANI_gorur(
 
     assert kart["budget"] is None, "ŞANTİYE BÜTÇESİ SIZDI (liste)"
     assert detay["budget"] is None, "ŞANTİYE BÜTÇESİ SIZDI (detay)"
-    assert bolum["budget_amount"] is None, "BÖLÜM BEDELİ SIZDI"
+    assert "budget_amount" not in bolum, "BLF-B1: eski elle bedel yanıttan kalktı"
     assert bolum["budget"]["value"] is None, "BÖLÜM BOQ BÜTÇESİ SIZDI (zarf)"
     assert detay["total_progress_payment"]["value"] is None, "HAKEDİŞ TOPLAMI SIZDI"
     assert detay["contract_amount"]["value"] is None, "SÖZLEŞME BEDELİ SIZDI"
@@ -131,7 +129,8 @@ async def test_ACCOUNTING_finance_ALANI_goremez_PARAYI_gorur(
     assert bolum["progress_pct"]["value"] is None, "BÖLÜM İLERLEMESİ SIZDI"
     # PARA muhasebenin işidir — gizlenmesi ekranı kullanılamaz yapardı
     assert kart["budget"] == "8400000.00", "PARA YANLIŞLIKLA GİZLENDİ"
-    assert bolum["budget_amount"] == "1750000.00"
+    assert "budget_amount" not in bolum
+    assert bolum["budget"]["value"] is not None, "BÖLÜM TÜREV BEDELİ YANLIŞLIKLA GİZLENDİ"
     assert kart["name"] == "A-Blok Şantiyesi", "KİMLİK gizlendi"
 
 

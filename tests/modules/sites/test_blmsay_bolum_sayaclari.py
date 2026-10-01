@@ -4,7 +4,9 @@ Kullanıcı canlıda bölüm kartındaki dört alanın da boş olduğunu bildird
 Ölçüm üç ayrı kusur buldu ve bu dosya üçünü de çakar:
 
 1. `budget_amount` / `planned_worker_count` **kayıtlıydı ama LİSTE ucu o
-   alanları hiç döndürmüyordu** — ekran mecburen `budget` yer tutucusunu
+   alanları hiç döndürmüyordu** (BLF-B1: `budget_amount` yanıttan KALKTI —
+   bedel yalnız türev `budget`; bu dosya eski kolonu DOLU kurar ve yanıta
+   SIZMADIĞINI çakar) — ekran mecburen `budget` yer tutucusunu
    ("—") basıyor, planlanan işçiyi bilmediği için `0` yazıyordu.
 2. `boq_item_count` hâlâ `pending_module:"boq"` yer tutucusuydu; oysa
    `boq_item_section_allocations` doldu ve sayı ARTIK ÖLÇÜLEBİLİR.
@@ -127,7 +129,7 @@ def _satirlar(liste) -> dict[uuid.UUID, object]:
 # --------------------------------------------------------------------------- #
 
 
-async def test_LISTE_ucu_budget_amount_ve_planned_worker_count_BASAR(
+async def test_LISTE_ucu_planned_worker_count_BASAR_budget_amount_KALKTI(
     seeded_db, user_factory, project_factory
 ):
     """Kullanıcının bildirdiği kusurun ta kendisi: kayıtlı ama dönmeyen alan."""
@@ -139,10 +141,10 @@ async def test_LISTE_ucu_budget_amount_ve_planned_worker_count_BASAR(
         (await service.list_sections_for_site(seeded_db, user, site.id, scope=UNRESTRICTED)).items
     )
 
-    assert satirlar[dolu.id].budget_amount == _BEDEL
+    # BLF-B1: eski kolon DOLU olsa da yanıtta alan YOKTUR.
+    assert not hasattr(satirlar[dolu.id], "budget_amount")
     assert satirlar[dolu.id].planned_worker_count == _PLANLANAN_ISCI
     # Girilmemiş bölümde `None` KALIR — uydurma sıfır yasağı (K-MKD3).
-    assert satirlar[bos.id].budget_amount is None
     assert satirlar[bos.id].planned_worker_count is None
 
 
@@ -159,19 +161,16 @@ async def test_LISTE_ve_DETAY_ayni_TIPI_dondurur(seeded_db, user_factory, projec
     )[dolu.id]
     detay = await service.get_section_detail(seeded_db, user, dolu.id, scope=UNRESTRICTED)
 
-    assert type(satir.budget_amount) is type(detay.budget_amount)
     assert type(satir.planned_worker_count) is type(detay.planned_worker_count)
-    assert (satir.budget_amount, satir.planned_worker_count) == (
-        detay.budget_amount,
-        detay.planned_worker_count,
-    )
+    assert satir.planned_worker_count == detay.planned_worker_count
     # Şema düzeyinde de TEK tanım: detay sınıfı alanı YENİDEN tanımlamaz.
     from app.modules.sites.schemas import SectionDetailResponse, SectionResponse
 
-    for alan in ("budget_amount", "planned_worker_count"):
+    for alan in ("planned_worker_count",):
         assert SectionResponse.model_fields[alan].annotation == (
             SectionDetailResponse.model_fields[alan].annotation
         ), alan
+    assert "budget_amount" not in SectionResponse.model_fields
 
 
 # --------------------------------------------------------------------------- #
@@ -249,12 +248,11 @@ async def test_budget_TAHSIS_EDILEN_miktarlardan_turer(seeded_db, user_factory, 
     assert satir.budget.pending_module is None
 
 
-async def test_budget__ELLE_GIRILEN_budget_amount_ILE_AYNI_SEY_DEGILDIR(
+async def test_budget__TUREVDIR_eski_budget_amount_kolonu_OKUNMAZ(
     seeded_db, user_factory, project_factory
 ):
-    """🔴 İki alan AYRI kolondur ve biri diğerinin yerine GEÇMEZ (`Section`
-    docstring'i, P6 §7 S2a). Bekçi ikisinin ayrı ayrı basıldığını çakar —
-    türevi elle girilen değerin üstüne yazmak sessiz bir veri kaybı olurdu."""
+    """🔴 BLF-B1: bedel TEK kaynaktır — BOQ türevi. Satırda eski elle `budget_amount`
+    kolonu DOLU durur (`_BEDEL`) ama yanıt onu okumaz: `budget` türevi basar."""
     _p, site, user, dolu, bos = await _kurulum(
         seeded_db, user_factory, project_factory, "BS-6", "bs6@t.co"
     )
@@ -264,12 +262,10 @@ async def test_budget__ELLE_GIRILEN_budget_amount_ILE_AYNI_SEY_DEGILDIR(
     )
 
     assert satirlar[dolu.id].budget.value == _TUREV_BEDEL
-    assert satirlar[dolu.id].budget_amount == _BEDEL
-    assert satirlar[dolu.id].budget.value != satirlar[dolu.id].budget_amount
-    # Tahsisi olmayan bölüm: türev `0`, elle girilen `None`.
+    assert satirlar[dolu.id].budget.value != _BEDEL
+    # Tahsisi olmayan bölüm: türev `0`.
     assert satirlar[bos.id].budget.available is True
     assert satirlar[bos.id].budget.value == Decimal("0.00")
-    assert satirlar[bos.id].budget_amount is None
 
 
 async def test_progress_pct_ILR1DE_BAGLANDI__gunluk_YOKKEN_SIFIR(
@@ -320,7 +316,7 @@ async def test_UC_YUZEY_de_ayni_sayaci_basar(seeded_db, user_factory, project_fa
     for yuzey in (liste, santiye, detay):
         assert yuzey.boq_item_count.count == 3
         assert yuzey.budget.value == _TUREV_BEDEL
-        assert yuzey.budget_amount == _BEDEL
+        assert not hasattr(yuzey, "budget_amount")
         assert yuzey.planned_worker_count == _PLANLANAN_ISCI
 
 

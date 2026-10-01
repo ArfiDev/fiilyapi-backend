@@ -90,6 +90,16 @@ _GOVDELI_MASKESIZ_UCLAR: dict[tuple[str, str], str] = {
         "Uçtaki `project` YALNIZCA dosya adı (`project.code`) ve görünürlük kapısı "
         "için okunur — kod KİMLİK kovasındadır, her kapsamda görünür."
     ),
+    ("GET", "/section-types"): (
+        "BLF-B1 sirket geneli bolum tipi listesi (`list[SectionTypeRead]`). Maskelenmez "
+        "cunku MASKELENECEK VERI YOKTUR: yanit yalniz `{id, name}` tasir (UUID + tip adi), "
+        "hicbir para/alan/metraj/ilerleme alani yoktur ve sirket geneli referans "
+        "verisidir (proje/santiye kapsamina bagli degil). Gerekce OLCULUR: "
+        "`tests/modules/sites/test_blf_b1_section_types.py::"
+        "test_get_lists_types_in_sort_order_with_id_and_name_only` her satirin anahtar "
+        "kumesini `{id, name}`a cakar; semaya para alani eklenirse "
+        "`tests/core/test_para_alani_siniflandirmasi.py` kirmizi verir."
+    ),
 }
 
 

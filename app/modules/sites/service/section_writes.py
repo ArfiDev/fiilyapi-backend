@@ -53,6 +53,14 @@ async def _resolved_manager_names(session: AsyncSession, values: dict) -> dict[s
     }
 
 
+async def _assert_section_type_exists(session: AsyncSession, type_id: uuid.UUID | None) -> None:
+    """BLF-B1 — govdedeki `section_type_id` var mi? Yoksa 422 (404 DEGIL: tip burada bir
+    ALAN DEGERIDIR). `None` gecer: tip zorunlulugu `guards.validate_section`indadir ve
+    taslakta kosmaz. Her yazmadan ONCE kosar — gecersiz tip hicbir alani degistirmez."""
+    if type_id is not None and await repository.get_section_type(session, type_id) is None:
+        raise SiteValidationError(guards.SECTION_TYPE_MISSING)
+
+
 async def _validate_dependency(
     session: AsyncSession,
     site_id: uuid.UUID,
@@ -156,6 +164,7 @@ async def create_section(
     # Taslak-farkindalikli dogrulama (kalici karar 4): "Taslak Kaydet" (Form 242)
     # zorunlulugu kaldirir, TUTARLILIGI kaldirmaz.
     guards.validate_section(data, is_draft=data.is_draft)
+    await _assert_section_type_exists(session, data.section_type_id)
     # FK verilmisse ad govdedeki serbest metnin UZERINE yazilir (create_site ile
     # ayni kural): ad FK'nin turevidir, ikinci bir gercek kaynak degildir.
     names = {"manager_name": data.manager_name, "deputy_manager_name": data.deputy_manager_name}
@@ -183,11 +192,10 @@ async def create_section(
         end_date=data.end_date,
         sort_order=data.sort_order,
         # --- P6 · T3: `Form - Bolum Ekle` alanlari ---
-        section_type=data.section_type,
+        section_type_id=data.section_type_id,
         description=data.description,
         deputy_manager_user_id=data.deputy_manager_user_id,
         planned_worker_count=data.planned_worker_count,
-        budget_amount=data.budget_amount,
         is_draft=data.is_draft,
         depends_on_section_id=data.depends_on_section_id,
         **names,
@@ -207,12 +215,11 @@ async def create_section(
 # `_VALIDATED_FIELDS`in bolum karsiligi. PATCH bunlarin BIRLESIK degerini kurar:
 # gonderilen alan patch'ten, gonderilmeyen MEVCUT SATIRDAN gelir.
 _SECTION_VALIDATED_FIELDS = (
-    "section_type",
+    "section_type_id",
     "manager_user_id",
     "manager_name",
     "start_date",
     "end_date",
-    "budget_amount",
 )
 
 
@@ -247,6 +254,20 @@ async def update_section(
         _merged_for_validation(section, changes, _SECTION_VALIDATED_FIELDS),
         is_draft=not is_publishing,
     )
+    # BLF-B1.5 (F-c): yayindaki bolumde tipi acikca NULL'lamak yasak — PATCH'in TEK sikilan
+    # zorunlulugu (sorumlu/tarihler gevsek KALIR). Ayni govdede `is_draft: true` ile taslaga
+    # cekiliyorsa serbest; taslak bolumde null serbest. `publishing` zaten yukarida tam
+    # dogrulamadan gecer.
+    if (
+        "section_type_id" in changes
+        and changes["section_type_id"] is None
+        and not section.is_draft
+        and changes.get("is_draft") is not True
+    ):
+        raise SiteValidationError(guards.SECTION_TYPE_REQUIRED)
+    # Tip varligi YAZMADAN ONCE (BLF-B1): "gonderilmedi" ile "null" ayrimi `in changes`.
+    if "section_type_id" in changes:
+        await _assert_section_type_exists(session, changes["section_type_id"])
     # Kod cakismasi ON KONTROLU — POST'takiyle AYNI Turkce mesaj (karar
     # 2026-07-30, `update_site` ile birebir). Onceden bu dal
     # `uq_sections_site_code` -> IntegrityError'a dusuyor ve genel "Veri

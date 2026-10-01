@@ -19,7 +19,6 @@
         "pending_module": null,
         "value": "0.00"
       },
-      "budget_amount": "1000.00",
       "code": "BLM-C",
       "created_at": "<ts>",
       "depends_on_section_id": null,
@@ -39,7 +38,10 @@
         "pending_module": "site_diary",
         "value": null
       },
-      "section_type": "structural",
+      "section_type": {
+        "id": "<yeni:section_type.id>",
+        "name": "Kaba İnşaat"
+      },
       "site_id": "<site>",
       "slug": "c-blok",
       "sort_order": 0,

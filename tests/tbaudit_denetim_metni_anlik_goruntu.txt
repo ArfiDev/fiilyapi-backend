@@ -223,6 +223,7 @@ sale_updated(project_name='<project_name#0>', unit_label='<unit_label#1>', custo
 section_created(site_name='<site_name#0>', name='<name#1>') = 'Yeni bölüm oluşturuldu: <site_name#0> · <name#1>'
 section_deleted(site_name='<site_name#0>', name='<name#1>') = 'Bölüm silindi: <site_name#0> · <name#1>'
 section_published(site_name='<site_name#0>', name='<name#1>') = 'Bölüm taslaktan yayına alındı: <site_name#0> · <name#1>'
+section_type_created(name='<name#0>') = 'Bölüm tipi eklendi: <name#0>'
 section_updated(site_name='<site_name#0>', name='<name#1>') = 'Bölüm güncellendi: <site_name#0> · <name#1>'
 site_created(name='<name#0>') = 'Yeni şantiye oluşturuldu: <name#0>'
 site_deleted(project_name='<project_name#0>', name='<name#1>') = 'Şantiye silindi: <project_name#0> · <name#1>'

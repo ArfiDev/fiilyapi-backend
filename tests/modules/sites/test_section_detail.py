@@ -14,7 +14,7 @@ baska bir projenin bolumu dogrudan okunabilir. Bu dosya o zinciri ve
    BIREBIR AYNIDIR (`test_sites_idor.py` disiplininin GET ucuna tasinmasi).
 2. **Yer tutucular KALIR** (spec §6): `progress_pct` / `boq_item_count` /
    `budget` / `worker_count` detay govdesinde de `pending_module` tasir.
-   Yeni `budget_amount` kolonu bunlarin YERINE GECMEZ, yaninda durur.
+   BLF-B1: eski elle `budget_amount` yanittan KALKTI; bedel yalniz turev `budget`.
 3. **Yardimci sorumlu `manager_user_id` deseninin birebiridir**: FK verilirse ad
    anlik goruntusu govdedeki serbest metnin UZERINE yazilir ve IZINLI
    (`on_leave`) personel de atanabilir (kalici karar 5).
@@ -29,8 +29,9 @@ from app.core.access import AccessLevel, Scope
 from app.modules.audit.messages import section_updated
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.roles.models import Module, Role, RolePermission
-from app.modules.sites.models import Section, SectionStatus, SectionType, Site
+from app.modules.sites.models import Section, SectionStatus, Site
 from app.modules.users.models import UserProjectAccess
+from tests._section_types import seed_section_types
 
 SECTION_MISSING = "Bölüm bulunamadı"
 USER_MISSING = "Seçilen kullanıcı bulunamadı"
@@ -47,14 +48,13 @@ PLACEHOLDER_FIELDS = ("progress_pct", "boq_item_count", "budget", "worker_count"
 #: Bu dilimden sonra HÂLÂ bos kalan tek zarf (hakediş turevi, ayri is).
 STILL_EMPTY_FIELDS = ("progress_pct",)
 
-# T1'in actigi kolonlarin API karsiligi (spec §3 tablosu + §7 S2a `budget_amount`).
+# T1'in actigi kolonlarin API karsiligi (spec §3 tablosu; BLF-B1: `budget_amount` kalkti).
 NEW_SECTION_FIELDS = (
     "section_type",
     "description",
     "deputy_manager_user_id",
     "deputy_manager_name",
     "planned_worker_count",
-    "budget_amount",
     "is_draft",
 )
 
@@ -110,6 +110,7 @@ async def test_get_section_returns_every_new_column(
     client, db_session, user_factory, project_factory
 ):
     """T1'in actigi YEDI alanin tamami detay govdesinde doner."""
+    tipler = await seed_section_types(db_session)
     deputy = await user_factory(
         email=f"yrd-{uuid.uuid4().hex[:6]}@t.co",
         password="parola1234",
@@ -122,12 +123,11 @@ async def test_get_section_returns_every_new_column(
         "P6T2-GET",
         code="BLM-01",
         status=SectionStatus.on_hold,
-        section_type=SectionType.structural,
+        section_type_id=tipler["structural"].id,
         description="Kaba inşaat kapsamı",
         deputy_manager_user_id=deputy.id,
         deputy_manager_name="Yardımcı Sorumlu",
         planned_worker_count=42,
-        budget_amount=Decimal("1500000.00"),
         is_draft=True,
     )
     # Bu testler KOLON VARLIĞINI ölçer, kapsam maskesini değil; `site_chief`in
@@ -143,12 +143,12 @@ async def test_get_section_returns_every_new_column(
     assert body["code"] == "BLM-01"
     assert body["name"] == "Kaba İnşaat"
     assert body["status"] == "on_hold"
-    assert body["section_type"] == "structural"
+    assert body["section_type"] == {"id": str(tipler["structural"].id), "name": "Kaba İnşaat"}
     assert body["description"] == "Kaba inşaat kapsamı"
     assert body["deputy_manager_user_id"] == str(deputy.id)
     assert body["deputy_manager_name"] == "Yardımcı Sorumlu"
     assert body["planned_worker_count"] == 42
-    assert Decimal(body["budget_amount"]) == Decimal("1500000.00")
+    assert "budget_amount" not in body
     assert body["is_draft"] is True
 
 
@@ -163,8 +163,8 @@ async def test_get_section_keeps_placeholder_metrics(
     zarf SEKLI hâlâ alan alan cakilir, bosluk ise yalniz gercekten bos kalan
     alanda aranir.
 
-    Elle girilen `budget_amount` BOQ turevi `budget`in yerine GECMEZ, yaninda
-    durur — bu iddia AYNEN gecerlidir ve tahsis yokken turev `0.00`dir.
+    BLF-B1: eski elle `budget_amount` kolonu DOLU olsa bile yanitta YOKTUR ve turev
+    `budget`i etkilemez — tahsis yokken turev `0.00`dir.
     """
     _, section = await _tree(db_session, project_factory, "P6T2-PH", budget_amount=Decimal("10.00"))
     # Bu testler KOLON VARLIĞINI ölçer, kapsam maskesini değil; `site_chief`in
@@ -179,7 +179,7 @@ async def test_get_section_keeps_placeholder_metrics(
     for field in STILL_EMPTY_FIELDS:
         assert body[field]["available"] is False, field
         assert body[field]["pending_module"], field
-    assert Decimal(body["budget_amount"]) == Decimal("10.00")
+    assert "budget_amount" not in body
     assert body["budget"] == {"available": True, "value": "0.00", "pending_module": None}
 
 
@@ -200,7 +200,6 @@ async def test_get_section_nullable_columns_default_to_null(
     assert body["deputy_manager_user_id"] is None
     assert body["deputy_manager_name"] is None
     assert body["planned_worker_count"] is None
-    assert body["budget_amount"] is None
     assert body["is_draft"] is False
 
 
@@ -240,16 +239,16 @@ async def test_get_section_without_permission_returns_403(
 
 
 async def test_patch_writes_every_new_field(client, db_session, user_factory, project_factory):
+    tipler = await seed_section_types(db_session)
     _, section = await _tree(db_session, project_factory, "P6T2-PATCH")
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=True)
 
     resp = await client.patch(
         f"/sections/{section.id}",
         json={
-            "section_type": "mep",
+            "section_type_id": str(tipler["mep"].id),
             "description": "Mekanik ve elektrik",
             "planned_worker_count": 17,
-            "budget_amount": "250000.50",
             "is_draft": True,
         },
         headers=_auth(token),
@@ -257,10 +256,9 @@ async def test_patch_writes_every_new_field(client, db_session, user_factory, pr
 
     assert resp.status_code == 200, resp.text
     await db_session.refresh(section)
-    assert section.section_type is SectionType.mep
+    assert section.section_type_id == tipler["mep"].id
     assert section.description == "Mekanik ve elektrik"
     assert section.planned_worker_count == 17
-    assert section.budget_amount == Decimal("250000.50")
     assert section.is_draft is True
 
 
@@ -379,17 +377,12 @@ async def test_patch_negative_numbers_return_422(client, db_session, user_factor
     _, section = await _tree(db_session, project_factory, "P6T2-NEG")
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=True)
 
-    budget = await client.patch(
-        f"/sections/{section.id}", json={"budget_amount": "-1.00"}, headers=_auth(token)
-    )
     workers = await client.patch(
         f"/sections/{section.id}", json={"planned_worker_count": -1}, headers=_auth(token)
     )
 
-    assert budget.status_code == 422, budget.text
     assert workers.status_code == 422, workers.text
     await db_session.refresh(section)
-    assert section.budget_amount is None
     assert section.planned_worker_count is None
 
 
@@ -440,12 +433,13 @@ async def test_patch_new_fields_write_single_section_updated_audit_row(
 ):
     """Yeni alanlar MEVCUT denetim akisina girer: yeni `AuditAction` acilmaz,
     yeni metin uretilmez — bolum guncellemesi TEK satirdir."""
+    tipler = await seed_section_types(db_session)
     site, section = await _tree(db_session, project_factory, "P6T2-AUDIT")
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=True)
 
     resp = await client.patch(
         f"/sections/{section.id}",
-        json={"section_type": "finishing", "budget_amount": "999.00"},
+        json={"section_type_id": str(tipler["finishing"].id)},
         headers=_auth(token),
     )
 
@@ -508,7 +502,10 @@ def test_openapi_exposes_section_detail_endpoint_and_new_fields():
 
     for field in NEW_SECTION_FIELDS:
         assert field in detail, field
-        assert field in update, field
+        # BLF-B1: yanitta `section_type` ({id,name}), istekte `section_type_id`.
+        assert ("section_type_id" if field == "section_type" else field) in update, field
+    assert "budget_amount" not in detail
+    assert "budget_amount" not in update
     for field in PLACEHOLDER_FIELDS:
         assert field in detail, field
     # BOQ-bolum bagi ACILMAZ (kalici karar 1): atanacak is kalemleri govdeye girmez.

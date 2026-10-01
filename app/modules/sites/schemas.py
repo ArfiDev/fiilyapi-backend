@@ -3,13 +3,13 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 # B6/P1 yer tutucu sozlesmesi TEK yerde tanimlidir (spec §3): kopyalanmaz,
 # projects modulunden import edilir.
 from app.core.field_scope import Gorunurluk
 from app.modules.projects.schemas import CountPlaceholder, MetricPlaceholder
-from app.modules.sites.models import SectionStatus, SectionType, SiteStatus
+from app.modules.sites.models import SECTION_TYPE_NAME_MAX_LEN, SectionStatus, SiteStatus
 
 __all__ = [
     "CountPlaceholder",
@@ -21,6 +21,8 @@ __all__ = [
     "SectionMilestoneResponse",
     "SectionResponse",
     "SectionStatusCounts",
+    "SectionTypeCreate",
+    "SectionTypeRead",
     "SectionUpdate",
     "SiteCard",
     "SiteCounts",
@@ -83,6 +85,27 @@ class SectionMilestoneResponse(BaseModel):
     sort_order: int
 
 
+class SectionTypeRead(BaseModel):
+    """BLF-B1 — bolum tipi `{id, name}`. `sort_order` yanitta YOKTUR (liste sirasi
+    sunucudan gelir). Hem `GET /section-types` hem bolum yanitindaki `section_type`."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+
+
+class SectionTypeCreate(BaseModel):
+    """`POST /section-types` govdesi. Ad kirpilir; bos/yalniz-bosluk 422."""
+
+    name: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True, min_length=1, max_length=SECTION_TYPE_NAME_MAX_LEN
+        ),
+    ]
+
+
 class SectionResponse(BaseModel):
     """Spec §4.1. "gecikme riski" alani KASITLI olarak yok (spec §3.3): hesabin
     girdisi henuz uretilmedigi icin yer tutucu bile dondurulmez."""
@@ -114,12 +137,8 @@ class SectionResponse(BaseModel):
     # tip iki ucta AYRISAMAZ, cunku artik TEK tanim vardir — `SectionCreate`/
     # `SectionUpdate` icin zaten uygulanan kuralin ayni.
     #
-    # `budget_amount` ELLE GIRILEN kolondur ve yukaridaki `budget` (BOQ turevi)
-    # ile AYNI SEY DEGILDIR; biri digerinin yerine gecmez (bkz. `Section`
-    # docstring'i, P6 §7 S2a). Ikisi de yanittadir, hangisinin basilacagi
-    # ekranin karari.
+    # BLF-B1: `budget_amount` YANITTAN KALKTI — bedel TEK kaynak, yukaridaki turev `budget`.
     planned_worker_count: int | None
-    budget_amount: Annotated[Decimal | None, Gorunurluk.para]
     # --- P11 (spec §3): YALNIZ EKLEME. Bolum basan UC yuzey de (detay, liste,
     # santiye detayi) tek donusturucuden (`service.to_section`) gectigi icin bu
     # iki alan hepsinde ayni anda dogar. Varsayilan YOKTUR: alani doldurmayi
@@ -137,12 +156,8 @@ class SectionDetailResponse(SectionResponse):
     liste + detay + santiye detayinda dogdu; `progress_pct` yer tutucu KALDI
     (hakediş turevi, ayri is), `worker_count` T4'te zaten bagliydi.
 
-    `budget` (BOQ turevi) ile `budget_amount` (elle girilen gercek kolon) AYNI
-    SEY DEGILDIR ve biri digerinin yerine gecmez — bkz. `Section` docstring'i
-    (P6 §7 S2a). Bag ACILDI, ama `budget_amount` bu dilimde TUREVE CEVRILMEDI:
-    o bir URUN KARARIDIR (canli kayitlarda elle girilmis bedeller var) ve
-    yonetime raporlandi. Iki alan da yanittadir, hangisinin basilacagi ekranin
-    kararidir.
+    BLF-B1 (kullanici karari F-a): bolum bedeli YALNIZ turev `budget`tir;
+    `budget_amount` yanittan KALKTI (kolon ayri dilimde DROP edilir).
 
     Mockup'ta gorunup burada OLMAYAN her sey `Section` modelinde de yoktur
     (BOQ atamalari, taseron/makine, bagimlilik/milestone, belgeler): spec §6
@@ -150,13 +165,13 @@ class SectionDetailResponse(SectionResponse):
     """
 
     site_id: uuid.UUID
-    section_type: SectionType | None
+    section_type: SectionTypeRead | None
     description: str | None
     # `manager_user_id`/`manager_name` ikilisinin birebiri: ad FK'nin ANLIK
     # GORUNTUSUDUR, kullanici silinse (FK `SET NULL`) bile evrakta KALIR.
     deputy_manager_user_id: uuid.UUID | None
     deputy_manager_name: str | None
-    # `planned_worker_count`/`budget_amount` BURADA YENIDEN TANIMLANMAZ —
+    # `planned_worker_count` BURADA YENIDEN TANIMLANMAZ —
     # `SectionResponse`ten miras alinir (BLM-SAY). Iki yerde tanimlanan bir alan,
     # iki ucun tipini ayristirabilecek tek yerdi.
     is_draft: bool
@@ -437,8 +452,8 @@ class SectionCreate(BaseModel):
     """`Form - Bolum Ekle`in tam govdesi (P6 §5, T3).
 
     Yer tutucu `budget` alani BURADA DA YOKTUR (spec §2.2): o BOQ turevidir ve
-    girdi olarak alinmaz. Elle girilen `budget_amount` onun yerine GECMEZ, ayri
-    bir kolondur (bkz. `Section` docstring'i, §7 S2a).
+    girdi olarak alinmaz. BLF-B1: eski elle `budget_amount` alani da KALKTI; eski
+    istemci onu gonderirse Pydantic varsayilani (`extra="ignore"`) sessizce yok sayar.
 
     Mockup'ta gorunup burada OLMAYANLAR — spec §6, bu dilimde ARA COZUM
     YAZILMAZ: BOQ atamalari (Form 131-211), taseron/makine (88-98),
@@ -465,14 +480,14 @@ class SectionCreate(BaseModel):
     # --- P6 · T3 genislemesi (spec §3/§5). Tipler `SectionUpdate` ile BIREBIR
     # AYNIDIR (`ge=0` dahil): iki govde arasinda ayrisan bir kural, ayni alani
     # POST'ta kabul edip PATCH'te reddeden sessiz bir tutarsizlik olurdu.
-    section_type: SectionType | None = None
+    # BLF-B1: enum yerine sirket geneli tip kimligi; var olmayan id servis katmaninda 422.
+    section_type_id: uuid.UUID | None = None
     description: str | None = None
     # `manager_user_id` ile AYNI kural: FK verilirse servis `deputy_manager_name`i
     # `users.full_name` ile EZER; ad FK'nin turevidir.
     deputy_manager_user_id: uuid.UUID | None = None
     deputy_manager_name: str | None = Field(default=None, max_length=200)
     planned_worker_count: int | None = Field(default=None, ge=0)
-    budget_amount: Decimal | None = Field(default=None, ge=0)
     # Form 242 "Taslak Kaydet" / 243 "Bölümü Oluştur". Varsayilan YAYINDIR:
     # zorunluluklar yalniz burada `False` iken kosar (kalici karar 4).
     is_draft: bool = False
@@ -501,17 +516,17 @@ class SectionUpdate(BaseModel):
     # --- P6 · T2 genislemesi (spec §3/§5). HEPSI OPSIYONEL: "gonderilmedi" ile
     # "null yapildi" ayrimi `exclude_unset` ile korunur.
     #
-    # `budget_amount`/`planned_worker_count` icin `ge=0` BURADA durur: kural
+    # `planned_worker_count` icin `ge=0` BURADA durur: kural
     # Pydantic'te alan bazli 422 uretir; DB'deki `ck_sections_*` CHECK'leri
     # emniyet agi olarak KALIR ama kullaniciya anlasilir mesaj vermez.
-    section_type: SectionType | None = None
+    # BLF-B1: enum yerine sirket geneli tip kimligi; var olmayan id servis katmaninda 422.
+    section_type_id: uuid.UUID | None = None
     description: str | None = None
     # `manager_user_id` (yukarida) ile AYNI kural: FK verilirse servis
     # `deputy_manager_name`i `users.full_name` ile EZER; ad FK'nin turevidir.
     deputy_manager_user_id: uuid.UUID | None = None
     deputy_manager_name: str | None = Field(default=None, max_length=200)
     planned_worker_count: int | None = Field(default=None, ge=0)
-    budget_amount: Decimal | None = Field(default=None, ge=0)
     is_draft: bool | None = None
 
     # --- P11 genislemesi (spec §3) ---

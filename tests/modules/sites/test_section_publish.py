@@ -20,7 +20,6 @@ iki kurala uydugunu sabitler:
 
 import uuid
 from datetime import date
-from decimal import Decimal
 
 from sqlalchemy import func, select
 
@@ -28,21 +27,20 @@ from app.modules.audit.messages import section_published, section_updated
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.sites.guards import (
     DUPLICATE_SECTION_CODE,
-    SECTION_BUDGET_REQUIRED,
     SECTION_TYPE_REQUIRED,
 )
-from app.modules.sites.models import Section, SectionType, Site
+from app.modules.sites.models import Section, Site
 from app.modules.users.models import UserProjectAccess
+from tests._section_types import SEED_TYPE_IDS, seed_section_types
 
 WRITE_ROLE = "patron"  # sites=full
 
-# Yayin icin gereken BES alanin tamami (spec §5 `*` isaretleri).
+# Yayin icin gereken DORT alanin tamami (spec §5 `*` isaretleri; BLF-B1: bedel kalkti).
 PUBLISH_READY = {
-    "section_type": SectionType.mep,
+    "section_type_id": SEED_TYPE_IDS["mep"],
     "manager_name": "Ali Veli",
     "start_date": date(2026, 1, 1),
     "end_date": date(2026, 6, 1),
-    "budget_amount": Decimal("100000.00"),
 }
 
 
@@ -63,6 +61,8 @@ async def _site(session, project_factory, slug: str) -> Site:
     project = await project_factory(f"{slug}-{uuid.uuid4().hex[:6]}")
     site = Site(project_id=project.id, code=f"SNT-{uuid.uuid4().hex[:6]}", name="Şantiye")
     session.add(site)
+    # BLF-B1: `create_all` migration tohumu getirmez — 7 tip burada eklenir.
+    await seed_section_types(session)
     await session.flush()
     return site
 
@@ -133,7 +133,7 @@ async def test_publish_merges_existing_row_with_patch(
 ):
     """Eksik alani AYNI istekte gonderen kullanici haksiz yere reddedilmez."""
     site = await _site(db_session, project_factory, "P6T5-MERGE")
-    section = await _section(db_session, site, is_draft=True, section_type=SectionType.mep)
+    section = await _section(db_session, site, is_draft=True, section_type_id=SEED_TYPE_IDS["mep"])
     token = await _login(client, db_session, user_factory)
 
     resp = await client.patch(
@@ -143,7 +143,6 @@ async def test_publish_merges_existing_row_with_patch(
             "manager_name": "Ali Veli",
             "start_date": "2026-01-01",
             "end_date": "2026-06-01",
-            "budget_amount": "50000.00",
         },
         headers=_auth(token),
     )
@@ -151,16 +150,15 @@ async def test_publish_merges_existing_row_with_patch(
     assert resp.status_code == 200, resp.text
     row = await _reload(db_session, section)
     assert row.is_draft is False
-    assert row.budget_amount == Decimal("50000.00")
 
 
-async def test_publish_missing_only_budget_returns_its_own_message(
+async def test_publish_missing_only_type_returns_its_own_message(
     client, db_session, user_factory, project_factory
 ):
-    """Birlesik kayit gercekten OKUNUR: dort alan satirda dururken yalniz eksik
-    olan alanin mesaji doner."""
-    site = await _site(db_session, project_factory, "P6T5-BUDGET")
-    fields = {**PUBLISH_READY, "budget_amount": None}
+    """Birlesik kayit gercekten OKUNUR: diger alanlar satirda dururken yalniz eksik
+    olan alanin mesaji doner. (BLF-B1: eski `SECTION_BUDGET_REQUIRED` dali KALKTI.)"""
+    site = await _site(db_session, project_factory, "P6T5-TYPE")
+    fields = {**PUBLISH_READY, "section_type_id": None}
     section = await _section(db_session, site, is_draft=True, **fields)
     token = await _login(client, db_session, user_factory)
 
@@ -169,7 +167,7 @@ async def test_publish_missing_only_budget_returns_its_own_message(
     )
 
     assert resp.status_code == 422, resp.text
-    assert resp.json()["detail"] == SECTION_BUDGET_REQUIRED
+    assert resp.json()["detail"] == SECTION_TYPE_REQUIRED
 
 
 async def test_normal_patch_on_published_section_stays_relaxed(

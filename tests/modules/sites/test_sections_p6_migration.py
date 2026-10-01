@@ -25,7 +25,8 @@ import pytest
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.modules.sites.models import Section, SectionStatus, SectionType, Site
+from app.modules.sites.models import Section, SectionStatus, Site
+from tests._section_types import SEED_SECTION_TYPES, SEED_TYPE_IDS, seed_section_types
 
 BACKEND_DIR = Path(__file__).parents[3]
 # `python -m alembic`: yerelde `.venv/bin/python`, CI'da sistem Python'u. Sabit
@@ -149,14 +150,19 @@ def test_section_status_has_on_hold_in_form_order():
 
 
 def test_section_type_labels_match_spec():
-    assert [t.value for t in SectionType] == list(SECTION_TYPE_LABELS)
+    """BLF-B1: `SectionType` artik enum DEGIL (tablo); bu test eski PG enum etiketlerini
+    SABIT demetle tutar ve test tohumunun (`tests/_section_types.py`) ayni yedi anahtari
+    ayni sirayla tasidigini cakar."""
+    assert list(SEED_SECTION_TYPES) == list(SECTION_TYPE_LABELS)
 
 
 def test_only_is_draft_is_not_nullable_among_new_columns():
     """Taslak destegi (spec §3): `is_draft` disinda yeni kolonlarin HEPSI nullable.
     Tek bir `NOT NULL` yarim doldurulmus formun kaydini imkansiz kilardi."""
     columns = Section.__table__.columns
-    for name in NEW_SECTION_COLUMNS:
+    # BLF-B1: `section_type` kolonu `section_type_id` oldu (model); eski sema sabitleri
+    # (`NEW_SECTION_COLUMNS`) migration testleri icin DEGISMEDEN kalir.
+    for name in ("section_type_id" if n == "section_type" else n for n in NEW_SECTION_COLUMNS):
         if name == "is_draft":
             assert not columns[name].nullable
             assert "false" in str(columns[name].server_default.arg)
@@ -174,11 +180,12 @@ async def _make_site(db_session, project_factory, code: str) -> Site:
 
 async def test_section_persists_new_columns(db_session, project_factory):
     site = await _make_site(db_session, project_factory, "P-P6")
+    await seed_section_types(db_session)
     section = Section(
         site_id=site.id,
         name="Kaba Insaat",
         status=SectionStatus.on_hold,
-        section_type=SectionType.structural,
+        section_type_id=SEED_TYPE_IDS["structural"],
         description="Kalip, demir, beton isleri",
         deputy_manager_name="Ali Veli",
         planned_worker_count=42,
@@ -193,7 +200,7 @@ async def test_section_persists_new_columns(db_session, project_factory):
         await db_session.execute(select(Section).where(Section.id == section.id))
     ).scalar_one()
     assert loaded.status is SectionStatus.on_hold
-    assert loaded.section_type is SectionType.structural
+    assert loaded.section_type_id == SEED_TYPE_IDS["structural"]
     assert loaded.description == "Kalip, demir, beton isleri"
     assert loaded.deputy_manager_name == "Ali Veli"
     assert loaded.planned_worker_count == 42

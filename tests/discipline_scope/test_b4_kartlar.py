@@ -38,6 +38,7 @@ from app.modules.boq.progress import (
 )
 from app.modules.boq.schemas import quantize_money
 from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine
+from tests._section_types import SEED_TYPE_IDS
 from tests.discipline_scope._b4_dunya import DunyaB4
 
 D = Decimal
@@ -355,12 +356,9 @@ async def _u3_alanlari(client: AsyncClient, x: DunyaB4, baslik: dict) -> dict:
             "worker": sd["worker_count"],
             "section_count": sd["section_count"],
             "budget": sd["budget"],
-            "bolumler": [
-                (s["budget_amount"], s["worker_count"], s["planned_worker_count"])
-                for s in sd["sections"]
-            ],
+            "bolumler": [(s["worker_count"], s["planned_worker_count"]) for s in sd["sections"]],
         },
-        "bolum": (bd["budget_amount"], bd["worker_count"]),
+        "bolum": (bd["section_type"], bd["worker_count"]),
         "santiye_listesi": [(c["worker_count"], c["section_count"]) for c in sl["items"]],
         "santiye_kpi": sl["totals"],
     }
@@ -371,9 +369,12 @@ async def test_u3_mali_ve_sayaclar_kisitlida_degismez(
 ) -> None:
     x = dunya_b4
     adm = x.d.baslik["atamasiz"]
-    # Elle girilen tutarlar dolu olsun (null == null sahte-yeşil olmasın).
+    # BLF-B1: bölüm `budget_amount` kaldırıldı; `budget` zarfı kısıtlıda DİSİPLİNLİ süzülür (S5),
+    # kıyaslanamaz. Elle girilen, süzülmeyen bölüm alanı = `section_type` (bölüm detayında; dolu).
     r1 = await client.patch(
-        f"/sections/{x.d.s1.id}", headers=adm, json={"budget_amount": "12345.00"}
+        f"/sections/{x.d.s1.id}",
+        headers=adm,
+        json={"section_type_id": str(SEED_TYPE_IDS["structural"])},
     )
     assert r1.status_code == 200, r1.text
     r2 = await client.patch(f"/sites/{x.d.santiye.id}", headers=adm, json={"budget": "750000"})
@@ -381,7 +382,7 @@ async def test_u3_mali_ve_sayaclar_kisitlida_degismez(
     pm = await _u3_alanlari(client, x, x.d.baslik["pm_atamasiz"])
     assert pm["proje_detay"]["workers"]["count"] == 4  # sıfır DEĞİL (today sabit)
     assert pm["proje_detay"]["financial"]["value"] == "5.00"
-    assert pm["bolum"][0] == "12345.00"
+    assert pm["bolum"][0] == {"id": str(SEED_TYPE_IDS["structural"]), "name": "Kaba İnşaat"}
     for aktor in ("civil", "elek"):
         assert await _u3_alanlari(client, x, x.d.baslik[aktor]) == pm, aktor
 
@@ -486,8 +487,7 @@ async def test_yazma_yanitlari_kisitlida_suzulmus(
         json={
             "name": "Yeni Blok",
             "code": "BLM-Y",
-            "budget_amount": "1000",
-            "section_type": "structural",
+            "section_type_id": str(SEED_TYPE_IDS["structural"]),
             "manager_name": "Sorumlu",
             "start_date": "2026-06-01",
             "end_date": "2026-06-30",

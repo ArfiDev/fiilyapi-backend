@@ -27,7 +27,7 @@ from app.modules.projects.models import Project
 # `documents.models.core` DOGRUDAN alinir (paket `__init__`i `links`i de ceker).
 from app.modules.site_diary.models import SiteDiaryEntry, SiteDiaryLine
 from app.modules.site_planning.models import SitePlanGoal, SitePlanRow, SitePlanSprint
-from app.modules.sites.models import Section, SectionMilestone, Site
+from app.modules.sites.models import Section, SectionMilestone, SectionType, Site
 from app.modules.timesheet.models import TimesheetEntry
 from app.modules.units.models import Block
 from app.modules.users.models import User, UserStatus
@@ -266,6 +266,32 @@ async def get_assignable_user(session: AsyncSession, user_id: uuid.UUID) -> User
     """
     stmt = select(User).where(User.id == user_id, User.status.in_(_ASSIGNABLE_USER_STATUSES))
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+# --- Bolum tipleri (BLF-B1) ---
+
+
+async def list_section_types(session: AsyncSession) -> list[SectionType]:
+    """Sirket geneli bolum tipleri: `(sort_order, id)` — esitlikte de deterministik."""
+    stmt = select(SectionType).order_by(SectionType.sort_order, SectionType.id)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_section_type(session: AsyncSession, type_id: uuid.UUID) -> SectionType | None:
+    return await session.get(SectionType, type_id)
+
+
+async def get_section_type_by_key(session: AsyncSession, name_key: str) -> SectionType | None:
+    """Normalize anahtara gore tip (tekillik `uq_section_types_name_key`)."""
+    stmt = select(SectionType).where(SectionType.name_key == name_key)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def next_section_type_sort_order(session: AsyncSession) -> int:
+    """Mevcut en buyuk `sort_order` + 1 (bos tabloda 1). Yarista iki tip ayni
+    degeri alabilir; siralama `id` ile tamamlandigi icin zararsizdir."""
+    current = (await session.execute(select(func.max(SectionType.sort_order)))).scalar_one()
+    return (current or 0) + 1
 
 
 # --- Silme korkuluklari (spec §7.1) ---

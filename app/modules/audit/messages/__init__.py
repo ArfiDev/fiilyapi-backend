@@ -551,6 +551,9 @@ from app.modules.audit.messages.sites import (
     section_published as section_published,
 )
 from app.modules.audit.messages.sites import (
+    section_type_created as section_type_created,
+)
+from app.modules.audit.messages.sites import (
     section_updated as section_updated,
 )
 from app.modules.audit.messages.sites import (

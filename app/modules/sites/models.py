@@ -20,9 +20,11 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
+from sqlalchemy.orm import Mapped, backref, mapped_column, relationship, validates
 
 from app.core.db import Base
+from app.core.errors import SiteValidationError
+from app.core.labels import NAME_KEY_MAX_LEN, normalize_label
 from app.modules.projects.models import Project
 
 
@@ -51,18 +53,68 @@ class SectionStatus(str, enum.Enum):
     completed = "completed"
 
 
-class SectionType(str, enum.Enum):
-    """Bolum turu (`Form - Bolum Ekle` satir 70, spec §3). Etiketler:
-    Temel & Altyapi · Kaba Insaat · Ince Isler · Cephe & Cati · Mekanik-Elektrik ·
-    Peyzaj · Teslimat & Kabul. Nullable — taslak destegi (kalici karar 4)."""
+#: `section_types.name` uzunlugu — `SectionTypeCreate.name` `max_length`i ile AYNI sayi.
+SECTION_TYPE_NAME_MAX_LEN = 100
 
-    foundation_infra = "foundation_infra"
-    structural = "structural"
-    finishing = "finishing"
-    facade_roof = "facade_roof"
-    mep = "mep"
-    landscape = "landscape"
-    handover = "handover"
+#: Anahtar (normalize) kolonu `name`den GENISTIR: NFKC bazi kod noktalarinda metni UZATIR
+#: (KATALOG-UQ-2: en fazla 18 kat). 400 = `NAME_KEY_MAX_LEN`in (800) bu tabloya uygun yarisi;
+#: asan anahtar `_sync_key`de ACIK Turkce hatayla durur, DB `22001`e dusmez.
+SECTION_TYPE_KEY_MAX_LEN = 400
+
+SECTION_TYPE_KEY_TOO_LONG = (
+    "Bölüm tipi adı normalize edildikten sonra çok uzun (sınır: {max_len} karakter); "
+    "özel karakterler (üst simge, ligatür, tam genişlik vb.) normalizasyonda uzayabilir"
+)
+
+SECTION_TYPE_NAME_BLANK = "Bölüm tipi adı boş olamaz"
+
+assert SECTION_TYPE_KEY_MAX_LEN <= NAME_KEY_MAX_LEN
+
+
+class SectionType(Base):
+    """Bolum tipi — SIRKET GENELI genisletilebilir liste (BLF-B1, kullanici karari F-b).
+
+    Eskiden 7 sabit degerli PG enum'u (`section_type`) idi; artik tablo. Yedi eski
+    tip migration ile tohumlanir (testlerde `create_all` kurdugu icin tohum YOKTUR,
+    bkz. `tests/_section_types.py`). Silme/yeniden adlandirma ucu bu dilimde YOKTUR;
+    `sections.section_type_id` FK'si RESTRICT'tir.
+
+    Tekillik KATALOG-UQ deseniyle: `name_key` anahtarini UYGULAMA yazar
+    (`app.core.labels.normalize_label`, TEK kaynak; `_sync_key` her `name` atamasinda),
+    DB yalniz ESITLIGI zorlar (`uq_section_types_name_key`). `lower()` ifade indeksi
+    KULLANILMAZ: PG kucultmesi Python ile birebir degil (KATALOG-UQ K1).
+    """
+
+    __tablename__ = "section_types"
+    __table_args__ = (
+        UniqueConstraint("name_key", name="uq_section_types_name_key"),
+        CheckConstraint("length(btrim(name)) > 0", name="ck_section_types_name_nonblank"),
+        # Gorunmez karakterden olusan ad `btrim`i gecer ama anahtari bos kalir.
+        CheckConstraint("name_key <> ''", name="ck_section_types_name_key_nonblank"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(SECTION_TYPE_NAME_MAX_LEN), nullable=False)
+    #: `normalize_label(name)` — elle YAZILMAZ, `_sync_key` turetir.
+    name_key: Mapped[str] = mapped_column(String(SECTION_TYPE_KEY_MAX_LEN), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    @validates("name")
+    def _sync_key(self, _field: str, value: str) -> str:
+        """Ad her atandiginda (kurucu dahil) anahtar yeniden turer — bayat anahtar olamaz.
+        Toplu `update()` bu kancayi ATLAR; bu tabloda oyle bir yazar yoktur."""
+        key = normalize_label(value)
+        if not key:
+            raise SiteValidationError(SECTION_TYPE_NAME_BLANK)
+        if len(key) > SECTION_TYPE_KEY_MAX_LEN:
+            raise SiteValidationError(
+                SECTION_TYPE_KEY_TOO_LONG.format(max_len=SECTION_TYPE_KEY_MAX_LEN)
+            )
+        self.name_key = key
+        return value
 
 
 class Site(Base):
@@ -240,13 +292,11 @@ class Section(Base):
     """Bolum — santiyenin ic kirilimi (spec §2.2). ISTEGE BAGLI katmandir:
     santiye sifir bolumle gecerlidir, otomatik "Genel" bolumu ACILMAZ (spec §2.4).
 
-    BOLUM BEDELI — karar DEGISTI (P6 spec §7 S2a, kullanici onayi 2026-08-02):
-    eskiden `budget` sutunu bilincli olarak YOKTU, cunku bolum bedeli BOQ
-    kalemlerinin toplami sayiliyordu. Ama BOQ-bolum bagi ACILMADI (P6 kalici
-    karar 1), yani bugun turetilecek bir kaynak YOK — mockup'in zorunlu
-    "Bolum Bedeli" alani (Form 110) hicbir sekilde doldurulamazdi. Bu yuzden
-    ELLE girilen `budget_amount` acildi. Bag geldiginde bu kolon turev degere
-    cevrilecek; o gune kadar TEK kaynak budur.
+    BOLUM BEDELI — BLF-B1 (kullanici karari F-a, 2026-10-01): bedel YALNIZ turevdir
+    (`SectionResponse.budget`, BOQ tahsislerinden). `budget_amount` kolonu MODELDE
+    KALIR (nullable) ama ARTIK OKUNMAZ/YAZILMAZ; kolon ayri dilimde DROP edilir
+    (CLEAN-B2 kanonu: once model/okuma, sonra migration). Eski P6 §7 S2a "elle bedel"
+    karari bununla sona erdi.
     """
 
     __tablename__ = "sections"
@@ -333,9 +383,19 @@ class Section(Base):
     # nullable: taslak destegi, mockup'taki `*` yalniz UI ipucudur; zorunluluk
     # uygulama katmaninda ve YALNIZ taslak-disi POST'ta uygulanir.
     # ----------------------------------------------------------------- #
-    section_type: Mapped[SectionType | None] = mapped_column(
-        Enum(SectionType, name="section_type"), nullable=True
+    # BLF-B1: PG enum yerine sirket geneli `section_types` tablosuna FK. RESTRICT:
+    # kullanilan tip silinemez. Taslak destegi icin nullable.
+    section_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("section_types.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
     )
+    # lazy="joined": gerekce async ortamda senkron presenter'in tembel yuklemeye dusmemesi
+    # (`MissingGreenlet`). Tip bolum SELECT'iyle `LEFT OUTER JOIN` olarak gelir. N+1 yuzeyi
+    # yalniz bolum DETAYINDA ve tek satirdir (liste yaniti `section_type` tasimaz); olcum
+    # `test_section_detail_loads_type_in_same_select_without_extra_query`.
+    section_type: Mapped[SectionType | None] = relationship(lazy="joined")
     # Aciklama / Kapsam (Form 74-75): uzunluk siniri YOK, `Text`.
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Yardimci Sorumlu (Form 84): `manager_user_id` deseni — FK `SET NULL` +
@@ -349,7 +409,7 @@ class Section(Base):
     deputy_manager_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # Form 85 — `sites.planned_worker_count` deseni.
     planned_worker_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # Bolum Bedeli (Form 110) — elle girilir, bkz. sinif docstring'i.
+    # ESKI elle bedel — BLF-B1'den beri okunmaz/yazilmaz (DROP ayri dilimde).
     budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     # Taslak (Form 242 "Taslak Kaydet"). Mevcut satirlar `false` = yayinda sayilir.
     is_draft: Mapped[bool] = mapped_column(

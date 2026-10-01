@@ -28466,24 +28466,8 @@
         "type": "string"
       },
       "SectionCreate": {
-        "description": "`Form - Bolum Ekle`in tam govdesi (P6 §5, T3).\n\nYer tutucu `budget` alani BURADA DA YOKTUR (spec §2.2): o BOQ turevidir ve\ngirdi olarak alinmaz. Elle girilen `budget_amount` onun yerine GECMEZ, ayri\nbir kolondur (bkz. `Section` docstring'i, §7 S2a).\n\nMockup'ta gorunup burada OLMAYANLAR — spec §6, bu dilimde ARA COZUM\nYAZILMAZ: BOQ atamalari (Form 131-211), taseron/makine (88-98),\nbagimlilik/milestone/Gantt (115-123, 237), belgeler (214-233).\n\"Süre (Gün)\" (Form 109) `readonly` bir TUREVDIR, saklanmaz.",
+        "description": "`Form - Bolum Ekle`in tam govdesi (P6 §5, T3).\n\nYer tutucu `budget` alani BURADA DA YOKTUR (spec §2.2): o BOQ turevidir ve\ngirdi olarak alinmaz. BLF-B1: eski elle `budget_amount` alani da KALKTI; eski\nistemci onu gonderirse Pydantic varsayilani (`extra=\"ignore\"`) sessizce yok sayar.\n\nMockup'ta gorunup burada OLMAYANLAR — spec §6, bu dilimde ARA COZUM\nYAZILMAZ: BOQ atamalari (Form 131-211), taseron/makine (88-98),\nbagimlilik/milestone/Gantt (115-123, 237), belgeler (214-233).\n\"Süre (Gün)\" (Form 109) `readonly` bir TUREVDIR, saklanmaz.",
         "properties": {
-          "budget_amount": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget Amount"
-          },
           "code": {
             "anyOf": [
               {
@@ -28610,15 +28594,17 @@
             ],
             "title": "Planned Worker Count"
           },
-          "section_type": {
+          "section_type_id": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SectionType"
+                "format": "uuid",
+                "type": "string"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Section Type Id"
           },
           "sort_order": {
             "default": 0,
@@ -28650,25 +28636,13 @@
         "type": "object"
       },
       "SectionDetailResponse": {
-        "description": "P6 §5 — `GET /sections/{section_id}` govdesi: `sections`in TUM kolonlari.\n\n`SectionResponse`ten TUREYIR, YERINE GECMEZ: liste ucu (`SectionListResponse`)\ndar govdeyi tasimaya devam eder. 🔴 BLM-SAY'de dort yer tutucudan IKISI\nBAGLANDI (`boq_item_count` · `budget`) ve ikisi de MIRAS yoluyla ayni anda\nliste + detay + santiye detayinda dogdu; `progress_pct` yer tutucu KALDI\n(hakediş turevi, ayri is), `worker_count` T4'te zaten bagliydi.\n\n`budget` (BOQ turevi) ile `budget_amount` (elle girilen gercek kolon) AYNI\nSEY DEGILDIR ve biri digerinin yerine gecmez — bkz. `Section` docstring'i\n(P6 §7 S2a). Bag ACILDI, ama `budget_amount` bu dilimde TUREVE CEVRILMEDI:\no bir URUN KARARIDIR (canli kayitlarda elle girilmis bedeller var) ve\nyonetime raporlandi. Iki alan da yanittadir, hangisinin basilacagi ekranin\nkararidir.\n\nMockup'ta gorunup burada OLMAYAN her sey `Section` modelinde de yoktur\n(BOQ atamalari, taseron/makine, bagimlilik/milestone, belgeler): spec §6\nlistesi — bu dilimde ARA COZUM yazilmaz.",
+        "description": "P6 §5 — `GET /sections/{section_id}` govdesi: `sections`in TUM kolonlari.\n\n`SectionResponse`ten TUREYIR, YERINE GECMEZ: liste ucu (`SectionListResponse`)\ndar govdeyi tasimaya devam eder. 🔴 BLM-SAY'de dort yer tutucudan IKISI\nBAGLANDI (`boq_item_count` · `budget`) ve ikisi de MIRAS yoluyla ayni anda\nliste + detay + santiye detayinda dogdu; `progress_pct` yer tutucu KALDI\n(hakediş turevi, ayri is), `worker_count` T4'te zaten bagliydi.\n\nBLF-B1 (kullanici karari F-a): bolum bedeli YALNIZ turev `budget`tir;\n`budget_amount` yanittan KALKTI (kolon ayri dilimde DROP edilir).\n\nMockup'ta gorunup burada OLMAYAN her sey `Section` modelinde de yoktur\n(BOQ atamalari, taseron/makine, bagimlilik/milestone, belgeler): spec §6\nlistesi — bu dilimde ARA COZUM yazilmaz.",
         "properties": {
           "boq_item_count": {
             "$ref": "#/components/schemas/CountPlaceholder"
           },
           "budget": {
             "$ref": "#/components/schemas/MetricPlaceholder"
-          },
-          "budget_amount": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget Amount"
           },
           "code": {
             "anyOf": [
@@ -28804,7 +28778,7 @@
           "section_type": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SectionType"
+                "$ref": "#/components/schemas/SectionTypeRead"
               },
               {
                 "type": "null"
@@ -28869,7 +28843,6 @@
           "budget",
           "worker_count",
           "planned_worker_count",
-          "budget_amount",
           "depends_on_section_id",
           "milestones",
           "site_id",
@@ -29459,18 +29432,6 @@
           "budget": {
             "$ref": "#/components/schemas/MetricPlaceholder"
           },
-          "budget_amount": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget Amount"
-          },
           "code": {
             "anyOf": [
               {
@@ -29607,7 +29568,6 @@
           "budget",
           "worker_count",
           "planned_worker_count",
-          "budget_amount",
           "depends_on_section_id",
           "milestones"
         ],
@@ -29810,39 +29770,45 @@
         "title": "SectionStockRow",
         "type": "object"
       },
-      "SectionType": {
-        "description": "Bolum turu (`Form - Bolum Ekle` satir 70, spec §3). Etiketler:\nTemel & Altyapi · Kaba Insaat · Ince Isler · Cephe & Cati · Mekanik-Elektrik ·\nPeyzaj · Teslimat & Kabul. Nullable — taslak destegi (kalici karar 4).",
-        "enum": [
-          "foundation_infra",
-          "structural",
-          "finishing",
-          "facade_roof",
-          "mep",
-          "landscape",
-          "handover"
+      "SectionTypeCreate": {
+        "description": "`POST /section-types` govdesi. Ad kirpilir; bos/yalniz-bosluk 422.",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
         ],
-        "title": "SectionType",
-        "type": "string"
+        "title": "SectionTypeCreate",
+        "type": "object"
+      },
+      "SectionTypeRead": {
+        "description": "BLF-B1 — bolum tipi `{id, name}`. `sort_order` yanitta YOKTUR (liste sirasi\nsunucudan gelir). Hem `GET /section-types` hem bolum yanitindaki `section_type`.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "SectionTypeRead",
+        "type": "object"
       },
       "SectionUpdate": {
         "description": "`site_id` YOK — bolum baska santiyeye tasinamaz.",
         "properties": {
-          "budget_amount": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget Amount"
-          },
           "code": {
             "anyOf": [
               {
@@ -29989,15 +29955,17 @@
             ],
             "title": "Planned Worker Count"
           },
-          "section_type": {
+          "section_type_id": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SectionType"
+                "format": "uuid",
+                "type": "string"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Section Type Id"
           },
           "sort_order": {
             "anyOf": [
@@ -61522,6 +61490,92 @@
         "summary": "Transfer Sale Deed Endpoint",
         "tags": [
           "sales"
+        ]
+      }
+    },
+    "/section-types": {
+      "get": {
+        "operationId": "list_section_types_endpoint_section_types_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SectionTypeRead"
+                  },
+                  "title": "Response List Section Types Endpoint Section Types Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Section Types Endpoint",
+        "tags": [
+          "sites"
+        ]
+      },
+      "post": {
+        "operationId": "create_section_type_endpoint_section_types_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionTypeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionTypeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Section Type Endpoint",
+        "tags": [
+          "sites"
         ]
       }
     },
