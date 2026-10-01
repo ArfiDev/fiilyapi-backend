@@ -61,6 +61,13 @@ ekleme ucunun TEK denetim satırı. Referans
 yalnız bu iki sembolün satırları EKLENDİ (`diff` ile doğrulandı); sayaçlar 211→213 sembol,
 199→200 fonksiyon.
 
+## 🔴 REFERANSA EKLENEN SEMBOL (TKL-B4.1, 2026-10-02)
+
+`offer_settings_updated` — `PUT /offers/settings` denetim satırı. Referans
+`python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta **KAYIP 0**,
+yalnız bu fonksiyonun 2 çağrısı EKLENDİ (`diff` ile doğrulandı); sayaçlar 213→214 sembol,
+200→201 fonksiyon.
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok
@@ -230,9 +237,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 213, f"sembol sayısı 213 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 214, f"sembol sayısı 214 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 200, f"fonksiyon sayısı 200 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 201, f"fonksiyon sayısı 201 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

@@ -17263,6 +17263,117 @@
         "title": "NotificationPrefsUpdate",
         "type": "object"
       },
+      "OfferSettingsRead": {
+        "properties": {
+          "default_overhead_pct": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Default Overhead Pct",
+            "type": "string"
+          },
+          "default_payment_terms": {
+            "title": "Default Payment Terms",
+            "type": "string"
+          },
+          "default_profit_pct": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Default Profit Pct",
+            "type": "string"
+          },
+          "default_validity_days": {
+            "title": "Default Validity Days",
+            "type": "integer"
+          },
+          "default_vat_pct": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Default Vat Pct",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "default_overhead_pct",
+          "default_profit_pct",
+          "default_vat_pct",
+          "default_validity_days",
+          "default_payment_terms",
+          "updated_at"
+        ],
+        "title": "OfferSettingsRead",
+        "type": "object"
+      },
+      "OfferSettingsUpdate": {
+        "additionalProperties": false,
+        "description": "`PUT /offers/settings` — TAM degistirme (bes alanin hepsi zorunlu).",
+        "properties": {
+          "default_overhead_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,6}0*$)\\d{0,3}\\.\\d{0,2}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Default Overhead Pct"
+          },
+          "default_payment_terms": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Default Payment Terms",
+            "type": "string"
+          },
+          "default_profit_pct": {
+            "anyOf": [
+              {
+                "maximum": 999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,4}|(?=[\\d.]{1,7}0*$)\\d{0,4}\\.\\d{0,2}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Default Profit Pct"
+          },
+          "default_validity_days": {
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Default Validity Days",
+            "type": "integer"
+          },
+          "default_vat_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,6}0*$)\\d{0,3}\\.\\d{0,2}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Default Vat Pct"
+          }
+        },
+        "required": [
+          "default_overhead_pct",
+          "default_profit_pct",
+          "default_vat_pct",
+          "default_validity_days",
+          "default_payment_terms"
+        ],
+        "title": "OfferSettingsUpdate",
+        "type": "object"
+      },
       "OverdueKpi": {
         "description": "S59 \"Vadesi Geçen\" · ₺840K · \"3 taksit\".\n\nTutar taksitin TAMAMI değil KALANIDIR: kısmen tahsil edilmiş bir taksitin\nödenmiş kısmı borç değildir. `late_fee_amount` §8 S5 gereği yalnız GÖSTERİM\ntürevidir (tahakkuk YAZILMAZ).",
         "properties": {
@@ -55192,6 +55303,90 @@
         "summary": "List Modules Endpoint",
         "tags": [
           "roles"
+        ]
+      }
+    },
+    "/offers/settings": {
+      "get": {
+        "description": "Teklif varsayilanlari: GG / kar / KDV yuzdesi, gecerlilik gunu, odeme metni.",
+        "operationId": "get_offer_settings_endpoint_offers_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Offer Settings Endpoint",
+        "tags": [
+          "offers"
+        ]
+      },
+      "put": {
+        "description": "Varsayilanlari TAM degistirir. Yeni revizyonlar bu degerleri KOPYALAR; mevcut teklifler\ndegismez.",
+        "operationId": "update_offer_settings_endpoint_offers_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Offer Settings Endpoint",
+        "tags": [
+          "offers"
         ]
       }
     },

@@ -122,6 +122,8 @@ leave_request_rejected(full_name='<full_name#0>', type_name='<type_name#1>', sta
 leave_request_self_created(full_name='<full_name#0>', type_name='<type_name#1>', start=datetime.date(2026, 3, 3), end=datetime.date(2026, 4, 4)) = 'Self-servis izin talebi oluşturuldu: <full_name#0> · <type_name#1> · 2026-03-03 - 2026-04-04'
 leave_request_updated(full_name='<full_name#0>', type_name='<type_name#1>', start=datetime.date(2026, 3, 3), end=datetime.date(2026, 4, 4)) = 'İzin talebi güncellendi: <full_name#0> · <type_name#1> · 2026-03-03 - 2026-04-04'
 leave_request_withdrawn(full_name='<full_name#0>', type_name='<type_name#1>', start=datetime.date(2026, 3, 3), end=datetime.date(2026, 4, 4)) = 'İzin talebi geri çekildi: <full_name#0> · <type_name#1> · 2026-03-03 - 2026-04-04'
+offer_settings_updated(overhead_pct=Decimal('1000.55'), profit_pct=Decimal('1001.55'), vat_pct=Decimal('1002.55'), validity_days=103) = 'Teklif ayarları güncellendi: genel gider %1000.55 · kâr %1001.55 · KDV %1002.55 · geçerlilik 103 gün'
+offer_settings_updated(overhead_pct=Decimal('1000.55'), profit_pct=Decimal('1001.55'), vat_pct=Decimal('1002.55'), validity_days=0) = 'Teklif ayarları güncellendi: genel gider %1000.55 · kâr %1001.55 · KDV %1002.55 · geçerlilik 0 gün'
 password_reset(name='<name#0>') = 'Kullanıcı parolası sıfırlandı: <name#0>'
 payment_created(invoice_no='<invoice_no#0>', bank_name='<bank_name#1>', display_name='<display_name#2>') = 'Ödeme kaydı eklendi: <invoice_no#0> · <bank_name#1> · <display_name#2>'
 payment_created(invoice_no='<invoice_no#0>', bank_name='<bank_name#1>', display_name=None) = 'Ödeme kaydı eklendi: <invoice_no#0> · <bank_name#1>'

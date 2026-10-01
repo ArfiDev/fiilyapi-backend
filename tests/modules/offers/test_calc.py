@@ -1,0 +1,291 @@
+"""TKL-B4.1 — `offers/calc.py`: saf hesap (T31). Beklenenler ELLE hesaplanmis SABIT degerlerdir.
+
+Formul: B.F. = ROUND(c x (1+g) x (1+k)); tutar = ROUND(B.F. x q); maliyet = ROUND(c x q);
+GG = ROUND(c x (1+g) x q) - maliyet; kar = tutar - maliyet - GG.
+"""
+
+from __future__ import annotations
+
+import ast
+import dataclasses
+import random
+from decimal import Decimal as D
+from pathlib import Path
+
+import pytest
+
+from app.modules.offers import calc
+from app.modules.offers.calc import (
+    ItemInput,
+    ManualPriceWithoutCostError,
+    OfferCalcError,
+    calc_item,
+    calc_revision,
+    suggest_cost,
+)
+
+REV = {"overhead_pct": D("12"), "profit_pct": D("15")}
+
+
+def _item(c: str | None, q: str = "1", **kw) -> ItemInput:
+    return ItemInput(
+        quantity=D(q),
+        unit_mhr=kw.pop("unit_mhr", D("1")),
+        cost_unit_price=None if c is None else D(c),
+        **{k: (None if v is None else D(v)) for k, v in kw.items()},
+    )
+
+
+def _values(item: ItemInput, **rev) -> tuple:
+    r = calc_item(item, **{**REV, **rev})
+    assert r.customer and r.internal
+    return (
+        r.customer.unit_price,
+        r.customer.amount,
+        r.internal.cost,
+        r.internal.overhead,
+        r.internal.profit,
+    )
+
+
+# ------------------------------------------------------------------ kalem
+
+
+def test_tablo_c100_g12_k15_birim_fiyat_128_80() -> None:
+    assert _values(_item("100")) == (D("128.80"), D("128.80"), D("100.00"), D("12.00"), D("16.80"))
+
+
+def test_miktar_10_tutar_maliyet_gg_kar() -> None:
+    assert _values(_item("100", "10")) == (
+        D("128.80"),
+        D("1288.00"),
+        D("1000.00"),
+        D("120.00"),
+        D("168.00"),
+    )
+
+
+def test_maliyet_sifir_fiyatli_ve_hepsi_sifir() -> None:
+    r = calc_item(_item("0", "5"), **REV)
+    assert r.priced is True
+    assert r.customer is not None and r.internal is not None
+    assert (r.customer.unit_price, r.customer.amount) == (D("0.00"), D("0.00"))
+    assert (r.internal.cost, r.internal.overhead, r.internal.profit) == (D(0), D(0), D(0))
+
+
+@pytest.mark.parametrize(
+    ("profit_pct", "beklenen_bf"),
+    [
+        # 10 x 1.0005 = 10.005 -> HALF_UP 10.01 (banker's: 10.00)
+        ("0.05", D("10.01")),
+        # 10 x 1.0025 = 10.025 -> HALF_UP 10.03 (banker's: 10.02)
+        ("0.25", D("10.03")),
+    ],
+)
+def test_birim_fiyat_yarim_kurus_ROUND_HALF_UP(profit_pct: str, beklenen_bf: D) -> None:
+    bf, *_ = _values(_item("10", overhead_pct="0", profit_pct=profit_pct))
+    assert bf == beklenen_bf
+
+
+def test_tutar_ve_maliyet_yarim_kurus_yukari() -> None:
+    # B.F. 1.00 x 0.005 = 0.005 -> 0.01 ; maliyet 1.00 x 0.005 -> 0.01
+    bf, amount, cost, gg, kar = _values(_item("1", "0.005", overhead_pct="0", profit_pct="0"))
+    assert (bf, amount, cost, gg, kar) == (D("1.00"), D("0.01"), D("0.01"), D("0.00"), D("0.00"))
+
+
+def test_kalem_gg_ve_kar_revizyon_yuzdesini_EZER() -> None:
+    # 200 x 1.05 x 1.10 = 231.00 (revizyon 12/15 gecersiz)
+    bf, amount, cost, gg, kar = _values(_item("200", overhead_pct="5", profit_pct="10"))
+    assert (bf, amount, cost, gg, kar) == (
+        D("231.00"),
+        D("231.00"),
+        D("200.00"),
+        D("10.00"),
+        D("21.00"),
+    )
+
+
+def test_kalem_sadece_gg_ezer_kar_revizyondan_gelir() -> None:
+    # g=0 (kalem), k=15 (revizyon): 100 x 1 x 1.15
+    assert _values(_item("100", overhead_pct="0"))[0] == D("115.00")
+
+
+def test_kalem_sifir_yuzde_ezmesi_None_ile_karismaz() -> None:
+    """`0` bir DEGERDIR (ezer); `None` revizyona duser."""
+    assert _values(_item("100", overhead_pct="0", profit_pct="0"))[0] == D("100.00")
+    assert _values(_item("100", overhead_pct=None, profit_pct=None))[0] == D("128.80")
+
+
+def test_elle_birim_fiyat_turev_kar_yuzdesi() -> None:
+    r = calc_item(_item("100", "2", offer_unit_price="140"), **REV)
+    assert r.customer and r.internal
+    # 140 / (100 x 1.12) - 1 = 0.25
+    assert r.customer.unit_price == D("140")
+    assert r.customer.amount == D("280.00")
+    assert (r.internal.cost, r.internal.overhead, r.internal.profit) == (
+        D("200.00"),
+        D("24.00"),
+        D("56.00"),
+    )
+    assert r.internal.profit_pct == D("25.00")
+
+
+def test_elle_birim_fiyat_maliyet_sifirsa_turev_kar_yuzdesi_None() -> None:
+    r = calc_item(_item("0", "3", offer_unit_price="10"), **REV)
+    assert r.internal and r.customer
+    assert r.internal.profit_pct is None
+    assert r.customer.amount == D("30.00")
+    assert (r.internal.cost, r.internal.overhead, r.internal.profit) == (D(0), D(0), D("30.00"))
+
+
+def test_elle_birim_fiyat_ve_maliyet_YOKSA_hata_SO4() -> None:
+    with pytest.raises(ManualPriceWithoutCostError):
+        calc_item(_item(None, offer_unit_price="100"), **REV)
+    assert issubclass(ManualPriceWithoutCostError, OfferCalcError)
+    assert issubclass(OfferCalcError, ValueError)
+
+
+def test_maliyet_yok_kalem_fiyatsiz_ama_adam_saati_var() -> None:
+    r = calc_item(_item(None, "4", unit_mhr=D("2.5")), **REV)
+    assert r.priced is False
+    assert r.customer is None and r.internal is None
+    assert r.man_hours == D("10.0")
+
+
+def test_uygulanan_kar_yuzdesi_elle_fiyat_yokken_kalem_veya_revizyon_kari() -> None:
+    r = calc_item(_item("100", profit_pct="20"), **REV)
+    assert r.internal and r.internal.profit_pct == D("20")
+
+
+# --------------------------------------------------------------- revizyon
+
+
+def test_revizyon_toplamlari_ve_genel_kar_yuzdesi() -> None:
+    items = [_item("100"), _item("100", offer_unit_price="150"), _item(None, "2")]
+    r = calc_revision(items, vat_pct=D("20"), **REV)
+    # net 128.80 + 150.00 ; maliyet 200 ; GG 24 ; kar 16.80 + 38.00
+    assert r.customer.net == D("278.80")
+    assert r.customer.vat == D("55.76")
+    assert r.customer.gross == D("334.56")
+    assert (r.internal.cost, r.internal.overhead, r.internal.profit) == (
+        D("200.00"),
+        D("24.00"),
+        D("54.80"),
+    )
+    # 54.80 / 224 = 24.4642.. -> 24.46
+    assert r.internal.profit_pct == D("24.46")
+    assert r.unpriced_count == 1
+    assert [i.priced for i in r.items] == [True, True, False]
+
+
+def test_fiyatsiz_kalem_toplama_GIRMEZ() -> None:
+    only = calc_revision([_item("100")], vat_pct=D("20"), **REV)
+    with_unpriced = calc_revision([_item("100"), _item(None, "50")], vat_pct=D("20"), **REV)
+    assert only.customer == with_unpriced.customer
+    assert only.internal.cost == with_unpriced.internal.cost
+    assert with_unpriced.unpriced_count == 1
+
+
+def test_kdv_yarim_kurus_yukari() -> None:
+    # net 0.25, KDV %10 -> 0.025 -> 0.03 (banker's: 0.02)
+    r = calc_revision([_item("0.25", overhead_pct="0", profit_pct="0")], vat_pct=D("10"), **REV)
+    assert r.customer.net == D("0.25")
+    assert (r.customer.vat, r.customer.gross) == (D("0.03"), D("0.28"))
+
+
+def test_toplam_adam_saat_fiyatsiz_dahil() -> None:
+    items = [
+        _item("1", "2.5", unit_mhr=D("1.8")),
+        _item("1", "10", unit_mhr=D("0.25")),
+        _item(None, "1", unit_mhr=D("3.0")),
+    ]
+    r = calc_revision(items, vat_pct=D("20"), **REV)
+    assert r.internal.man_hours == D("10.00")  # 4.5 + 2.5 + 3.0
+
+
+def test_bos_revizyon_sifir_ve_kar_yuzdesi_None() -> None:
+    r = calc_revision([], vat_pct=D("20"), **REV)
+    assert (r.customer.net, r.customer.vat, r.customer.gross) == (D(0), D(0), D(0))
+    assert r.internal.profit_pct is None and r.unpriced_count == 0
+
+
+def test_tum_maliyetler_sifirsa_genel_kar_yuzdesi_None() -> None:
+    r = calc_revision([_item("0")], vat_pct=D("20"), **REV)
+    assert r.internal.profit_pct is None
+
+
+def test_DEGISMEZ_maliyet_GG_kar_tutari_toplar_500_rastgele_kalem() -> None:
+    rng = random.Random(20261002)
+    items: list[ItemInput] = []
+    for _ in range(500):
+        c = None if rng.random() < 0.1 else D(rng.randint(0, 2_000_000)) / 100
+        manual = None
+        if c is not None and rng.random() < 0.3:
+            manual = D(rng.randint(0, 3_000_000)) / 100
+        items.append(
+            ItemInput(
+                quantity=D(rng.randint(1, 5_000_000)) / 1000,
+                unit_mhr=D(rng.randint(1, 100_000)) / 10_000,
+                cost_unit_price=c,
+                overhead_pct=None if rng.random() < 0.5 else D(rng.randint(0, 10_000)) / 100,
+                profit_pct=None if rng.random() < 0.5 else D(rng.randint(0, 99_999)) / 100,
+                offer_unit_price=manual,
+            )
+        )
+    rev = calc_revision(items, overhead_pct=D("12.37"), profit_pct=D("15.55"), vat_pct=D("18.5"))
+
+    fiyatli = 0
+    for r in rev.items:
+        if not r.priced:
+            continue
+        fiyatli += 1
+        assert r.customer and r.internal
+        assert r.internal.cost + r.internal.overhead + r.internal.profit == r.customer.amount
+        assert r.customer.amount == r.customer.amount.quantize(D("0.01"))
+    assert fiyatli > 400
+    assert rev.customer.net == sum((r.customer.amount for r in rev.items if r.customer), D(0))
+    assert rev.internal.cost + rev.internal.overhead + rev.internal.profit == rev.customer.net
+    assert rev.customer.gross == rev.customer.net + rev.customer.vat
+    assert rev.unpriced_count == 500 - fiyatli
+
+
+# ------------------------------------------------------------ suggest_cost
+
+
+@pytest.mark.parametrize(
+    ("son", "ref", "beklenen"),
+    [
+        (D("5"), D("10"), D("5")),  # son fiyat kazanir
+        (None, D("10"), D("10")),  # son yok -> referans
+        (None, None, None),  # ikisi de yok -> bos
+        (D("0"), D("10"), D("0")),  # sifir da gecerli bir son fiyattir
+    ],
+)
+def test_suggest_cost_son_ref_bos(son, ref, beklenen) -> None:
+    assert suggest_cost(son, ref) == beklenen
+
+
+# --------------------------------------------------------------- yapisal
+
+
+def test_musteri_ve_ic_alt_yapilari_AYRIK_alanlar_tasir() -> None:
+    musteri = {f.name for f in dataclasses.fields(calc.CustomerLine)} | {
+        f.name for f in dataclasses.fields(calc.CustomerTotals)
+    }
+    ic = {f.name for f in dataclasses.fields(calc.InternalLine)} | {
+        f.name for f in dataclasses.fields(calc.InternalTotals)
+    }
+    assert musteri == {"unit_price", "amount", "net", "vat", "gross"}
+    assert not musteri & ic
+    assert {"cost", "overhead", "profit", "profit_pct", "man_hours"} <= ic
+
+
+def test_calc_modulu_yalniz_stdlib_import_eder() -> None:
+    kaynak = Path(calc.__file__).read_text(encoding="utf-8")
+    kokler: set[str] = set()
+    for node in ast.walk(ast.parse(kaynak)):
+        if isinstance(node, ast.Import):
+            kokler |= {a.name.split(".")[0] for a in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            kokler.add(node.module.split(".")[0])
+    assert kokler <= {"__future__", "collections", "dataclasses", "decimal"}, kokler

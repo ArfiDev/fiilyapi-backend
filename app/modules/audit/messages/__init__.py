@@ -233,6 +233,9 @@ from app.modules.audit.messages.core import (
     employer_created as employer_created,
 )
 from app.modules.audit.messages.core import (
+    offer_settings_updated as offer_settings_updated,
+)
+from app.modules.audit.messages.core import (
     password_reset as password_reset,
 )
 from app.modules.audit.messages.core import (
