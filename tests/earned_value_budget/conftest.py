@@ -25,8 +25,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
+from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.earned_value.engine import ContractorType
-from app.modules.earned_value.models import EvCatalogItem, EvDiscipline
 from app.modules.projects.models import Project
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import User, UserProjectAccess

@@ -118,8 +118,9 @@ async def test_kapsamda_baseline_koku_yoksa_rapor_yok_500_degil(
 ) -> None:
     """Atandığı disiplinin bu şantiyenin aktif baseline'ında kökü yok → budanmış orman BOŞ;
     motor boş ağaç kabul etmez (ValueError): 500 değil, "baseline yok" yanıtları."""
+    from app.modules.catalog.models import EvDiscipline
     from app.modules.earned_value.engine import ContractorType
-    from app.modules.earned_value.models import EvDiscipline, UserDiscipline
+    from app.modules.earned_value.models import UserDiscipline
     from app.modules.users.models import UserProjectAccess
     from tests._disiplin_dunyasi import SIFRE, _giris, _kimlik
 

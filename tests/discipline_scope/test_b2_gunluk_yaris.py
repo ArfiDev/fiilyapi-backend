@@ -33,9 +33,9 @@ from sqlalchemy import text
 import app.main  # noqa: F401 — EV disiplin sağlayıcısını porta kaydeder
 from app.core.discipline_scope import DisciplineScope, visible_item_set
 from app.modules.boq.models import BoqItem
+from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value.engine import ContractorType
 from app.modules.earned_value.models import (
-    EvDiscipline,
     EvGroupDiscipline,
     EvRevision,
     RevisionStatus,

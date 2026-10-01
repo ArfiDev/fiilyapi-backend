@@ -41,9 +41,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
+from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.contracts.models import EmployerContractGroup, EmployerContractItem
 from app.modules.earned_value.engine import ContractorType
-from app.modules.earned_value.models import EvCatalogItem, EvDiscipline, UserDiscipline
+from app.modules.earned_value.models import UserDiscipline
 from app.modules.inventory.models import (
     StockCategory,
     StockEntry,

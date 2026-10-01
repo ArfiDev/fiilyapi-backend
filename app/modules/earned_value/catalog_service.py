@@ -26,13 +26,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.errors import ConflictError, DuplicateError, NotFoundError, RelatedRecordsExistError
+from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.earned_value import guards
+from app.modules.earned_value.contractor_bridge import to_engine_ct
 from app.modules.earned_value.labels import normalize_label
 from app.modules.earned_value.models import (
     RATE_PRECISION,
     EvBaselineLeaf,
-    EvCatalogItem,
-    EvDiscipline,
     EvDistribution,
     EvGroupDiscipline,
     EvItemSettings,
@@ -417,7 +417,7 @@ def to_read(row: CatalogItemRow) -> CatalogItemRead:
         name=item.name,
         uom=item.uom,
         standard_unit_mhr=item.standard_unit_mhr,
-        default_contractor_type=item.default_contractor_type,
+        default_contractor_type=to_engine_ct(item.default_contractor_type),
         description=item.description,
         standard_updated_at=item.standard_updated_at,
         used_by_site_count=row.used_by_site_count,

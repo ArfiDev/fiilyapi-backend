@@ -35,8 +35,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import EarnedValueValidationError
+from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value.labels import NAME_KEY_MAX_LEN, UOM_KEY_MAX_LEN, normalize_label
-from app.modules.earned_value.models import EvDiscipline
 
 UQ = "uq_ev_catalog_items_disc_name_key_uom_key"
 

@@ -44,10 +44,11 @@ from sqlalchemy.ext.asyncio import (
 from app.core.config import settings
 from app.core.db import Base
 from app.modules.boq.models import BoqGroup
+from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value import budget_service as svc
 from app.modules.earned_value.access import SiteContext
 from app.modules.earned_value.engine import ContractorType
-from app.modules.earned_value.models import EvDiscipline, EvGroupDiscipline, EvRevision
+from app.modules.earned_value.models import EvGroupDiscipline, EvRevision
 from app.modules.projects.models import Project
 from app.modules.roles.models import Role
 from app.modules.sites.models import Site

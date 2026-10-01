@@ -16,14 +16,9 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.boq.models import BoqGroup, BoqItem
+from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.earned_value import catalog_service, guards
-from app.modules.earned_value.models import (
-    EvCatalogItem,
-    EvDiscipline,
-    EvItemSettings,
-    EvRevision,
-    RevisionStatus,
-)
+from app.modules.earned_value.models import EvItemSettings, EvRevision, RevisionStatus
 from app.modules.earned_value.schemas_catalog import CatalogActual, CatalogActualSite
 from app.modules.sites.models import Site
 

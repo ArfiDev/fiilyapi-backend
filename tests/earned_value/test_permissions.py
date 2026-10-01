@@ -16,7 +16,7 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
-from app.modules.earned_value.models import EvDiscipline
+from app.modules.catalog.models import EvDiscipline
 from app.modules.sites.models import Site
 
 from .conftest import (

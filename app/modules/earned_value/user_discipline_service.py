@@ -24,8 +24,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.discipline_ref import DisciplineRef
 from app.core.errors import NotFoundError
+from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value import guards
-from app.modules.earned_value.models import EvDiscipline, UserDiscipline
+from app.modules.earned_value.models import UserDiscipline
 from app.modules.users import repository as users_repository
 from app.modules.users.models import User
 

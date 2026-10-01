@@ -25,12 +25,13 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.discipline_scope import DisciplineScope
 from app.modules.boq.models import BoqItem, BoqItemSectionAllocation
+from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value import access, diary_adapter
 from app.modules.earned_value import budget_ops as ops
 from app.modules.earned_value import budget_service as svc
 from app.modules.earned_value.access import SiteContext
 from app.modules.earned_value.engine import ContractorType
-from app.modules.earned_value.models import EvDayCell, EvDayCode, EvDayRow, EvDiscipline
+from app.modules.earned_value.models import EvDayCell, EvDayCode, EvDayRow
 from app.modules.personnel.models import Personnel
 from app.modules.projects.models import Project
 from app.modules.site_diary.models import WorkerSource
