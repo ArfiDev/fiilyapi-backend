@@ -31528,7 +31528,7 @@
         "type": "object"
       },
       "SiteDiaryEntryCreate": {
-        "description": "`POST /sites/{site_id}/diary` gövdesi.\n\n`lines[]` YOKTUR (bilinçli): satır iskeleti şantiyenin BOQ pozlarından\nOTOMATİK üretilir — GK'de satır ekle/sil yoktur, liste BOQ'dan gelir.\nMiktar girişi `PUT …/lines` ile yapılır (T3).\n\n`worker_counts[]` de YOKTUR: işçi kırılımının yazma semantiği T3'ündür.\n\n`status` YOKTUR: kayıt her zaman `draft` doğar, `submit` ucu (T4) gönderir.\n\n`entry_date` DIŞINDA her alan isteğe bağlıdır — taslak yarım doldurulabilir,\nzorunluluk kuralları `submit` katmanındadır (model docstring'i).",
+        "description": "`POST /sites/{site_id}/diary` gövdesi.\n\nSatır iskeleti OTOMATİK üretilir (`skeleton.skeleton_keys`, kural A; başlığın\n`section_id`si iskeleti süzer). `lines[]` (GKS-B1) isteğe bağlıdır: verilirse miktarlar\nAYNI işlemde iskeletle birleşir; verilmezse miktar girişi `PUT …/lines` ile yapılır (T3).\n\n`worker_counts[]` de YOKTUR: işçi kırılımının yazma semantiği T3'ündür.\n\n`status` YOKTUR: kayıt her zaman `draft` doğar, `submit` ucu (T4) gönderir.\n\n`entry_date` DIŞINDA her alan isteğe bağlıdır — taslak yarım doldurulabilir,\nzorunluluk kuralları `submit` katmanındadır (model docstring'i).",
         "properties": {
           "chief_note": {
             "anyOf": [
@@ -31561,6 +31561,20 @@
               }
             ],
             "title": "Incident Note"
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SiteDiaryLineInput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lines"
           },
           "ppe_checked": {
             "default": false,
@@ -32539,6 +32553,225 @@
           }
         },
         "title": "SiteDiaryLinesSave",
+        "type": "object"
+      },
+      "SiteDiarySkeleton": {
+        "description": "`GET /sites/{site_id}/diary/skeleton` — kaydetmeden önizleme (GKS-B1).",
+        "properties": {
+          "entry_date": {
+            "format": "date",
+            "title": "Entry Date",
+            "type": "string"
+          },
+          "existing_entry_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Existing Entry Id"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/SiteDiarySkeletonLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "lines_total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Lines Total",
+            "type": "string"
+          },
+          "lock_report_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Report Date"
+          },
+          "locked": {
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "section_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Id"
+          },
+          "section_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Name"
+          }
+        },
+        "required": [
+          "entry_date",
+          "section_id",
+          "section_name",
+          "existing_entry_id",
+          "locked",
+          "lock_report_date",
+          "lines",
+          "lines_total"
+        ],
+        "title": "SiteDiarySkeleton",
+        "type": "object"
+      },
+      "SiteDiarySkeletonLine": {
+        "description": "GKS-B1 — `SiteDiaryLineRead`in KİMLİKSİZ ikizi (kaydedilmemiş iskelet satırı).\n\nAlan adları ve anlamları `SiteDiaryLineRead` ile AYNIDIR (yalnız `id` yok); değerler\ndetay ucuyla AYNI hesaptan gelir (`read.line_fields`), `quantity` 0'dır. Alan kümesi\neşitliği bekçilidir (`tests/site_diary/test_gks_b1_onizleme_post_bekcisi.py`).",
+        "properties": {
+          "boq_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boq Item Id"
+          },
+          "code": {
+            "maxLength": 50,
+            "title": "Code",
+            "type": "string"
+          },
+          "cumulative_quantity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cumulative Quantity",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "leaf_cumulative_quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leaf Cumulative Quantity"
+          },
+          "line_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Line Amount",
+            "type": "string"
+          },
+          "overrun_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overrun Reason"
+          },
+          "planned_quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Quantity"
+          },
+          "quantity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Quantity",
+            "type": "string"
+          },
+          "remaining_quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Quantity"
+          },
+          "section_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Id"
+          },
+          "section_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Name"
+          },
+          "unit": {
+            "maxLength": 50,
+            "title": "Unit",
+            "type": "string"
+          },
+          "unit_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Unit Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "boq_item_id",
+          "code",
+          "description",
+          "unit",
+          "unit_price",
+          "quantity",
+          "cumulative_quantity",
+          "line_amount",
+          "section_name"
+        ],
+        "title": "SiteDiarySkeletonLine",
         "type": "object"
       },
       "SiteDiarySummary": {
@@ -63036,7 +63269,7 @@
         ]
       },
       "post": {
-        "description": "Satır iskeleti şantiyenin BOQ pozlarından OTOMATİK üretilir; gövdede satır YOK.\n\nAynı şantiye + aynı gün için ikinci kayıt 409'dur (UQ ön kontrolü, net mesaj).\nYanıt `read.build_detail`den gelir — `get_detail` çağrılsaydı kapsam sorgusu\nistek başına İKİ KEZ koşardı.",
+        "description": "Satır iskeleti OTOMATİK üretilir (kural A, `skeleton.skeleton_keys`): başlıkta `section_id`\nvarsa yalnız o bölüme tahsisli kalemler, yoksa her kalem (tamamen tahsisli kalemde Bölümsüz\nYOK — G4). Gövdede isteğe bağlı `lines[]` (GKS-B1) iskeletle AYNI işlemde birleşir.\n\nAynı şantiye + aynı gün için ikinci kayıt 409'dur (UQ ön kontrolü, net mesaj).\nYanıt `read.build_detail`den gelir — `get_detail` çağrılsaydı kapsam sorgusu\nistek başına İKİ KEZ koşardı.",
         "operationId": "create_site_diary_entry_endpoint_sites__site_id__diary_post",
         "parameters": [
           {
@@ -63094,6 +63327,88 @@
           }
         ],
         "summary": "Create Site Diary Entry Endpoint",
+        "tags": [
+          "site-diary"
+        ]
+      }
+    },
+    "/sites/{site_id}/diary/skeleton": {
+      "get": {
+        "description": "GKS-B1 — yeni günlük için KAYDEDİLMEMİŞ satır iskeleti (önizleme).\n\n`POST /sites/{id}/diary`in kuracağı iskeletle AYNI saf fonksiyondan gelir (kural A:\n`section_id` verilirse yalnız o bölüme tahsisli kalemler, planlı = pay; verilmezse her\nkalem görünür, tamamen tahsisli kalemde Bölümsüz satır YOKTUR). Kapı `site_diary`\ngörüntülemedir (BOQ izni gerekmez); kısıtlı kullanıcıya yalnız görünür kalemler gelir.\nO tarihte günlük ZATEN varsa 409 DEĞİL, `existing_entry_id` döner.",
+        "operationId": "get_site_diary_skeleton_endpoint_sites__site_id__diary_skeleton_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entry_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Entry Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "section_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Section Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteDiarySkeleton"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Site Diary Skeleton Endpoint",
         "tags": [
           "site-diary"
         ]

@@ -15,6 +15,7 @@ Kapsam DIŞI: `diary-suggestion` (T5).
 """
 
 import uuid
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -36,6 +37,7 @@ from app.modules.site_diary import (
     router_suggestion,
     router_transitions,
     service,
+    skeleton_read,
     summary,
 )
 from app.modules.site_diary.schemas import (
@@ -44,6 +46,7 @@ from app.modules.site_diary.schemas import (
     SiteDiaryEntryListResponse,
     SiteDiaryEntryUpdate,
     SiteDiaryLinesSave,
+    SiteDiarySkeleton,
     SiteDiarySummary,
 )
 from app.modules.users.models import User
@@ -119,6 +122,30 @@ async def get_site_diary_summary_endpoint(
     return await summary.get_summary(session, user, site_id, year=year, month=month, scope=scope)
 
 
+@router.get(
+    "/sites/{site_id}/diary/skeleton",
+    response_model=SiteDiarySkeleton,
+    dependencies=[_VIEW],
+)
+async def get_site_diary_skeleton_endpoint(
+    site_id: uuid.UUID,
+    entry_date: Annotated[date, Query()],
+    user: Annotated[User, Depends(get_current_user)],
+    session: DbSession,
+    scope: DisciplineScoped,
+    section_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> SiteDiarySkeleton:
+    """GKS-B1 — yeni günlük için KAYDEDİLMEMİŞ satır iskeleti (önizleme).
+
+    `POST /sites/{id}/diary`in kuracağı iskeletle AYNI saf fonksiyondan gelir (kural A:
+    `section_id` verilirse yalnız o bölüme tahsisli kalemler, planlı = pay; verilmezse her
+    kalem görünür, tamamen tahsisli kalemde Bölümsüz satır YOKTUR). Kapı `site_diary`
+    görüntülemedir (BOQ izni gerekmez); kısıtlı kullanıcıya yalnız görünür kalemler gelir.
+    O tarihte günlük ZATEN varsa 409 DEĞİL, `existing_entry_id` döner.
+    """
+    return await skeleton_read.get_skeleton(session, user, site_id, entry_date, section_id, scope)
+
+
 @router.get("/diary/{entry_id}", response_model=SiteDiaryEntryDetail, dependencies=[_VIEW])
 async def get_site_diary_entry_endpoint(
     entry_id: uuid.UUID,
@@ -146,7 +173,9 @@ async def create_site_diary_entry_endpoint(
     session: DbSession,
     scope: DisciplineScoped,
 ) -> SiteDiaryEntryDetail:
-    """Satır iskeleti şantiyenin BOQ pozlarından OTOMATİK üretilir; gövdede satır YOK.
+    """Satır iskeleti OTOMATİK üretilir (kural A, `skeleton.skeleton_keys`): başlıkta `section_id`
+    varsa yalnız o bölüme tahsisli kalemler, yoksa her kalem (tamamen tahsisli kalemde Bölümsüz
+    YOK — G4). Gövdede isteğe bağlı `lines[]` (GKS-B1) iskeletle AYNI işlemde birleşir.
 
     Aynı şantiye + aynı gün için ikinci kayıt 409'dur (UQ ön kontrolü, net mesaj).
     Yanıt `read.build_detail`den gelir — `get_detail` çağrılsaydı kapsam sorgusu
@@ -154,7 +183,7 @@ async def create_site_diary_entry_endpoint(
     """
     # DSC-B2 (S5): kısıtlı kullanıcı günlük OLUŞTURABİLİR — iskelet TÜM kalemler için açılır,
     # yanıt ve audit satır sayısı süzülür (görünür satır sayısı).
-    context = await service.create(session, user, site_id, data)
+    context = await service.create(session, user, site_id, data, scope)
     await record_audit(
         session,
         action=AuditAction.create,

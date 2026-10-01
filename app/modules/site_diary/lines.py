@@ -45,7 +45,7 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.discipline_scope import DisciplineScope, visible_item_set
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, visible_item_set
 from app.core.errors import ConflictError, DuplicateError, SiteValidationError
 from app.modules.boq.models import BoqItem
 from app.modules.site_diary import guards, repository
@@ -289,6 +289,47 @@ async def apply_lines_scoped(
     entry.lines = [*gizli, *new_lines]
     await session.flush()
     return 0
+
+
+async def merge_lines(
+    session: AsyncSession,
+    entry: SiteDiaryEntry,
+    inputs: list[SiteDiaryLineInput],
+    scope: DisciplineScope = UNRESTRICTED,
+) -> None:
+    """GKS-B1 — `POST /diary` gövdesindeki `lines[]`: iskeletle BİRLEŞTİRİR (silme YOK).
+
+    `apply_lines`in DEĞİŞTİRME semantiğinden BİLİNÇLİ FARK: günlük henüz yazılmamıştır ve
+    iskelet satırları sunucunun kurduğu başlangıç kümesidir; gövde yalnız doldurulanları
+    gönderirse iskelet BOŞALMAMALI. Gövde miktarı/gerekçesi iskelet satırının üzerine yazar,
+    iskelette olmayan geçerli satırı ekler, hiçbir iskelet satırını silmez.
+
+    Doğrulamalar `apply_lines`inkiyle AYNI `_resolve`tur (poz sahipliği, bölüm sahipliği,
+    tahsissiz bölüm 422); iskelet anahtarları "mevcut" sayılır. Kısıtlı kullanıcıda gövdedeki
+    görünmeyen kalem, olmayanla AYNI 422'dir. **Önce TÜM doğrulama, sonra bellekte uygulama:**
+    `entry` çağıran tarafından henüz session'a EKLENMEMİŞTİR — patlayan istek günlük bırakmaz.
+
+    STALE_CLIENT kontrolü BİLİNÇLİ OLARAK YOKTUR (`apply_lines`teki gibi sürüm anahtarı aranmaz):
+    yeni kayıtta kaybolacak veri yoktur (silme yok, üzerine yazılan yalnız sunucunun kurduğu
+    sıfır-miktarlı iskelet satırıdır). Anahtarsız (`section_id` verilmemiş) gövde satırı
+    Bölümsüz satır olarak eklenir/eşleşir. GKS-F1 istemcisi anahtarı gönderecektir.
+    """
+    if scope.is_restricted:
+        gorunur = await visible_item_set(session, scope, [i.boq_item_id for i in inputs])
+        _assert_body_visible(inputs, gorunur or set())
+    existing = {key: line for line in entry.lines if (key := line_key(line)) is not None}
+    resolved = await _resolve(session, entry, inputs, set(existing))
+
+    # --- Buradan itibaren yazma; dogrulama YOK (yukaridaki sira kisiti). ---
+    merged = list(entry.lines)
+    for plan in resolved:
+        line = existing.get(plan.key)
+        if line is None:
+            merged.append(_new_line(plan))
+        else:
+            line.quantity = plan.quantity
+            line.overrun_reason = plan.overrun_reason
+    entry.lines = merged
 
 
 #: İşçi satırının kimliği: (firma satırı mı, firma | meslek, kaynak). Etiket ilk

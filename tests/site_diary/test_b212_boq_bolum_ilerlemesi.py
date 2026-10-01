@@ -59,6 +59,14 @@ async def _gonderilmis_gun(
     assert gonder.status_code == 200, gonder.text
 
 
+def _bolumsuz_satir(item) -> dict:
+    """Bölümsüz satırı AÇIKÇA yollar (`section_id: null`). GKS-B1/G4: kalem tamamen tahsisli
+    olduğundan POST iskeleti artık Bölümsüz satır AÇMAZ; anahtarsız (B2 öncesi imzalı) PUT
+    bölümlü iskelet satırı varken 409 `STALE_CLIENT` alır. Test, Bölümsüz satırın
+    bölüm yüzdesine düşme kuralını ölçer — iskelet biçimini değil."""
+    return {"boq_item_id": str(item.id), "quantity": "20", "section_id": None}
+
+
 async def _yuzdeler(session: AsyncSession, a: Section, b: Section):
     tekil = (
         await physical_for_section(session, a.id, scope=UNRESTRICTED),
@@ -92,9 +100,7 @@ async def test_b_ESKI_bolumsuz_satir_BASLIK_bolumune_duser(
 ) -> None:
     site, _, items = santiye
     a, b = iki_bolum
-    await _gonderilmis_gun(
-        client, admin_headers, site.id, b, {"boq_item_id": str(items[0].id), "quantity": "20"}
-    )
+    await _gonderilmis_gun(client, admin_headers, site.id, b, _bolumsuz_satir(items[0]))
 
     tekil, toplu = await _yuzdeler(seeded_db, a, b)
 
@@ -107,9 +113,7 @@ async def test_c_baslik_ve_satir_bolumsuz_hicbir_bolume_girmez_santiyeye_girer(
 ) -> None:
     site, _, items = santiye
     a, b = iki_bolum
-    await _gonderilmis_gun(
-        client, admin_headers, site.id, None, {"boq_item_id": str(items[0].id), "quantity": "20"}
-    )
+    await _gonderilmis_gun(client, admin_headers, site.id, None, _bolumsuz_satir(items[0]))
 
     tekil, _ = await _yuzdeler(seeded_db, a, b)
 

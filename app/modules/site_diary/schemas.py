@@ -30,6 +30,8 @@ __all__ = [
     "SiteDiaryLineInput",
     "SiteDiaryLineRead",
     "SiteDiaryLinesSave",
+    "SiteDiarySkeleton",
+    "SiteDiarySkeletonLine",
     "SiteDiarySummary",
     "SiteDiarySummaryItem",
     "SiteDiaryWorkerCountInput",
@@ -162,9 +164,9 @@ class SiteDiaryWorkerCountInput(BaseModel):
 class SiteDiaryEntryCreate(BaseModel):
     """`POST /sites/{site_id}/diary` gövdesi.
 
-    `lines[]` YOKTUR (bilinçli): satır iskeleti şantiyenin BOQ pozlarından
-    OTOMATİK üretilir — GK'de satır ekle/sil yoktur, liste BOQ'dan gelir.
-    Miktar girişi `PUT …/lines` ile yapılır (T3).
+    Satır iskeleti OTOMATİK üretilir (`skeleton.skeleton_keys`, kural A; başlığın
+    `section_id`si iskeleti süzer). `lines[]` (GKS-B1) isteğe bağlıdır: verilirse miktarlar
+    AYNI işlemde iskeletle birleşir; verilmezse miktar girişi `PUT …/lines` ile yapılır (T3).
 
     `worker_counts[]` de YOKTUR: işçi kırılımının yazma semantiği T3'ündür.
 
@@ -204,6 +206,11 @@ class SiteDiaryEntryCreate(BaseModel):
     ppe_checked: bool = False
     has_incident: bool = False
     incident_note: str | None = None
+    lines: list[SiteDiaryLineInput] | None = None
+    """GKS-B1 — İSTEĞE BAĞLI miktar satırları (önizlemeden gelen ekran). Gönderilmezse (ya da
+    `null`) iskelet + 0 (bugünkü davranış). Verilirse iskeletle BİRLEŞİR (silme YOK): gövde
+    miktarı iskelet satırının üzerine yazar, iskelette olmayan geçerli satırı ekler. Satır
+    doğrulaması `PUT …/lines` ile aynıdır ve günlük yazılmadan ÖNCE koşar (kısmi yazma yok)."""
 
     @model_validator(mode="before")
     @classmethod
@@ -333,6 +340,44 @@ class SiteDiaryLineRead(BaseModel):
     """PLN-B2.1 — `planned_quantity − leaf_cumulative_quantity`; NEGATİF = aşım."""
     section_name: str | None
     """DET-1.B — satırın bölümünün ANLIK adı; `None` = "Bölümsüz"."""
+
+
+class SiteDiarySkeletonLine(BaseModel):
+    """GKS-B1 — `SiteDiaryLineRead`in KİMLİKSİZ ikizi (kaydedilmemiş iskelet satırı).
+
+    Alan adları ve anlamları `SiteDiaryLineRead` ile AYNIDIR (yalnız `id` yok); değerler
+    detay ucuyla AYNI hesaptan gelir (`read.line_fields`), `quantity` 0'dır. Alan kümesi
+    eşitliği bekçilidir (`tests/site_diary/test_gks_b1_onizleme_post_bekcisi.py`)."""
+
+    boq_item_id: uuid.UUID | None
+    code: str = Field(max_length=50)
+    description: str
+    unit: str = Field(max_length=50)
+    unit_price: Decimal
+    quantity: Decimal
+    cumulative_quantity: Decimal
+    line_amount: Decimal
+    section_id: uuid.UUID | None = None
+    overrun_reason: str | None = None
+    leaf_cumulative_quantity: Decimal | None = None
+    planned_quantity: Decimal | None = None
+    remaining_quantity: Decimal | None = None
+    section_name: str | None
+
+
+class SiteDiarySkeleton(BaseModel):
+    """`GET /sites/{site_id}/diary/skeleton` — kaydetmeden önizleme (GKS-B1)."""
+
+    entry_date: date
+    section_id: uuid.UUID | None
+    section_name: str | None
+    existing_entry_id: uuid.UUID | None
+    """O tarihte bu şantiyede günlük ZATEN varsa kimliği (409 DEĞİL): istemci detaya yönlenir.
+    İskelet yine aynı kuralla döner."""
+    locked: bool
+    lock_report_date: date | None
+    lines: list[SiteDiarySkeletonLine]
+    lines_total: Decimal
 
 
 class SiteDiaryWorkerCountRead(BaseModel):
