@@ -29770,6 +29770,24 @@
         "title": "SectionStockRow",
         "type": "object"
       },
+      "SectionTypeConflict": {
+        "description": "`POST /section-types` 409 govdesi: `existing` = ayni adli MEVCUT tip (yaristaki\nkazanan dahil). Yalniz OpenAPI sozlesmesi icindir — govdeyi handler uretir.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "existing": {
+            "$ref": "#/components/schemas/SectionTypeRead"
+          }
+        },
+        "required": [
+          "detail",
+          "existing"
+        ],
+        "title": "SectionTypeConflict",
+        "type": "object"
+      },
       "SectionTypeCreate": {
         "description": "`POST /section-types` govdesi. Ad kirpilir; bos/yalniz-bosluk 422.",
         "properties": {
@@ -61556,6 +61574,16 @@
           },
           "404": {
             "description": "Kayıt bulunamadı"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionTypeConflict"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "content": {

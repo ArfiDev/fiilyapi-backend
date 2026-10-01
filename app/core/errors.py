@@ -1,3 +1,6 @@
+import uuid
+
+
 class DomainError(Exception):
     """Alan kuralı ihlali. Router katmanı bunu uygun HTTP koduna çevirir."""
 
@@ -56,6 +59,19 @@ class DuplicateError(DomainError):
     kullanıcıya alanına özel Türkçe mesaj verilebilsin. IntegrityError → 409 handler'ı
     yarış durumu emniyet ağı olarak KALIR.
     """
+
+
+class SectionTypeTakenError(DuplicateError):
+    """Bolum tipi adi zaten var (BLF-B1) — 409 + `existing {id, name}`.
+
+    `DaysLockedError` deseni: duz `DuplicateError` govdesi yalniz `detail` tasir, istemci
+    adi metinden ayiklamak zorunda kalirdi. Mevcut satirin kimligi yapisal alanla gider.
+    """
+
+    def __init__(self, message: str, *, existing_id: uuid.UUID, existing_name: str) -> None:
+        super().__init__(message)
+        self.existing_id = existing_id
+        self.existing_name = existing_name
 
 
 class UnitValidationError(DomainError):

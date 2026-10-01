@@ -26,6 +26,7 @@ from app.core.errors import (
     ProjectTypeMismatchError,
     ProjectValidationError,
     RelatedRecordsExistError,
+    SectionTypeTakenError,
     SiteValidationError,
     TreasuryValidationError,
     UnitValidationError,
@@ -119,6 +120,17 @@ async def _inventory_validation_handler(
 ) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": str(exc)}
+    )
+
+
+async def _section_type_taken_handler(request: Request, exc: SectionTypeTakenError) -> JSONResponse:
+    """409 + `existing {id, name}` — istemci mevcut tipi metinden ayiklamaz (BLF-B1)."""
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={
+            "detail": str(exc),
+            "existing": {"id": str(exc.existing_id), "name": exc.existing_name},
+        },
     )
 
 
@@ -292,6 +304,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(DiarySubmitBlockedError, _diary_submit_blocked_handler)
     app.add_exception_handler(DaysLockedError, _days_locked_handler)
     app.add_exception_handler(InventoryValidationError, _inventory_validation_handler)
+    app.add_exception_handler(SectionTypeTakenError, _section_type_taken_handler)
     app.add_exception_handler(DuplicateError, _duplicate_error_handler)
     app.add_exception_handler(RelatedRecordsExistError, _related_records_exist_handler)
     app.add_exception_handler(ConflictError, _conflict_error_handler)

@@ -23,7 +23,7 @@ from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
-from app.modules.sites.schemas import SectionTypeCreate, SectionTypeRead
+from app.modules.sites.schemas import SectionTypeConflict, SectionTypeCreate, SectionTypeRead
 from app.modules.sites.service import section_types as service
 from app.modules.users.models import User
 
@@ -49,6 +49,7 @@ async def list_section_types_endpoint(session: DbSession) -> list[SectionTypeRea
     "/section-types",
     response_model=SectionTypeRead,
     status_code=status.HTTP_201_CREATED,
+    responses={status.HTTP_409_CONFLICT: {"model": SectionTypeConflict}},
     dependencies=[_FULL],
 )
 async def create_section_type_endpoint(

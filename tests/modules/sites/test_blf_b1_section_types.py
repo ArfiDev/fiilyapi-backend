@@ -156,9 +156,32 @@ async def test_post_same_name_other_spelling_is_409_naming_existing(
     resp = await client.post("/section-types", json={"name": variant}, headers=_auth(token))
 
     assert resp.status_code == 409, resp.text
-    assert resp.json() == {"detail": TAKEN_PREFIX + "İnce İşler"}
+    body = resp.json()
+    assert body["detail"] == TAKEN_PREFIX + "İnce İşler"
+    assert body["existing"]["name"] == "İnce İşler"
     count = (await client.get("/section-types", headers=_auth(token))).json()
     assert len(count) == 7
+
+
+async def test_post_conflict_body_carries_existing_id_and_stored_name(
+    client, db_session, user_factory, tipler
+):
+    """409 govdesi: `detail` mevcut metin, `existing` = DB'deki tipin id'si ve MEVCUT yazimi
+    (gonderilen "ince işler" degil)."""
+    token = await _login(client, db_session, user_factory, WRITE_ROLE)
+    stored = (
+        await db_session.execute(select(SectionType).where(SectionType.name == "İnce İşler"))
+    ).scalar_one()
+
+    resp = await client.post("/section-types", json={"name": "ince işler"}, headers=_auth(token))
+
+    assert resp.status_code == 409, resp.text
+    body = resp.json()
+    assert set(body) == {"detail", "existing"}
+    assert body["detail"] == TAKEN_PREFIX + "İnce İşler"
+    assert set(body["existing"]) == {"id", "name"}
+    assert body["existing"]["id"] == str(stored.id)
+    assert body["existing"]["name"] == "İnce İşler"
 
 
 async def test_post_race_integrity_error_is_same_409(
@@ -182,10 +205,36 @@ async def test_post_race_integrity_error_is_same_409(
     resp = await client.post("/section-types", json={"name": "peyzaj"}, headers=_auth(token))
 
     assert resp.status_code == 409, resp.text
-    assert resp.json() == {"detail": TAKEN_PREFIX + "Peyzaj"}
+    assert resp.json() == {
+        "detail": TAKEN_PREFIX + "Peyzaj",
+        "existing": {"id": str(tipler["landscape"].id), "name": "Peyzaj"},
+    }
     assert calls["n"] == 2
     listed = (await client.get("/section-types", headers=_auth(token))).json()
     assert len(listed) == 7  # oturum savepoint sonrasi saglam, tekrar yazilmadi
+
+
+async def test_post_created_201_body_has_no_existing_key(client, db_session, user_factory, tipler):
+    token = await _login(client, db_session, user_factory, WRITE_ROLE)
+
+    resp = await client.post("/section-types", json={"name": "Yeni Tip"}, headers=_auth(token))
+
+    assert resp.status_code == 201, resp.text
+    assert set(resp.json()) == {"id", "name"}
+    assert "existing" not in resp.json()
+
+
+def test_openapi_post_409_references_conflict_schema_with_existing():
+    from app.main import app
+
+    spec = app.openapi()
+    response_409 = spec["paths"]["/section-types"]["post"]["responses"]["409"]
+    ref = response_409["content"]["application/json"]["schema"]["$ref"]
+    assert ref == "#/components/schemas/SectionTypeConflict"
+    conflict = spec["components"]["schemas"]["SectionTypeConflict"]
+    assert {"detail", "existing"} <= set(conflict["properties"])
+    assert conflict["properties"]["existing"]["$ref"] == "#/components/schemas/SectionTypeRead"
+    assert {"detail", "existing"} <= set(conflict["required"])
 
 
 @pytest.mark.parametrize("name", ["", "   ", "\t\n"])

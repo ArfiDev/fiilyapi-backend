@@ -10,7 +10,7 @@ UQ'ya carpan taraf SAVEPOINT icinde yakalanir, kazanan satir yeniden okunur ve A
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import DuplicateError
+from app.core.errors import SectionTypeTakenError
 from app.core.labels import normalize_label
 from app.modules.sites import guards, repository
 from app.modules.sites.models import SectionType
@@ -24,7 +24,11 @@ async def list_section_types(session: AsyncSession) -> list[SectionType]:
 async def _assert_name_free(session: AsyncSession, name: str) -> None:
     taken = await repository.get_section_type_by_key(session, normalize_label(name))
     if taken is not None:
-        raise DuplicateError(guards.SECTION_TYPE_TAKEN_AS.format(name=taken.name))
+        raise SectionTypeTakenError(
+            guards.SECTION_TYPE_TAKEN_AS.format(name=taken.name),
+            existing_id=taken.id,
+            existing_name=taken.name,
+        )
 
 
 async def create_section_type(session: AsyncSession, data: SectionTypeCreate) -> SectionType:

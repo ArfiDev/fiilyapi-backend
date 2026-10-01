@@ -95,6 +95,14 @@ class SectionTypeRead(BaseModel):
     name: str
 
 
+class SectionTypeConflict(BaseModel):
+    """`POST /section-types` 409 govdesi: `existing` = ayni adli MEVCUT tip (yaristaki
+    kazanan dahil). Yalniz OpenAPI sozlesmesi icindir — govdeyi handler uretir."""
+
+    detail: str
+    existing: SectionTypeRead
+
+
 class SectionTypeCreate(BaseModel):
     """`POST /section-types` govdesi. Ad kirpilir; bos/yalniz-bosluk 422."""
 

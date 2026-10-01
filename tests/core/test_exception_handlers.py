@@ -44,6 +44,40 @@ async def test_domain_error_returns_400_with_message(handler_client):
     assert response.json() == {"detail": "Alan kuralı ihlal edildi"}
 
 
+async def test_section_type_taken_error_conflict_body_has_existing_not_duplicate_handler():
+    """Alt sinif `DuplicateError` handler'ina DUSMEZ: govdede `existing` olmali."""
+    import uuid
+
+    from app.core.errors import DuplicateError, SectionTypeTakenError
+
+    existing_id = uuid.uuid4()
+    app = FastAPI()
+    register_exception_handlers(app)
+
+    @app.get("/tip")
+    async def tip():
+        raise SectionTypeTakenError(
+            "Bu bölüm tipi zaten var: Peyzaj", existing_id=existing_id, existing_name="Peyzaj"
+        )
+
+    @app.get("/duz")
+    async def duz():
+        raise DuplicateError("düz tekrar")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        taken = await c.get("/tip")
+        plain = await c.get("/duz")
+
+    assert taken.status_code == 409
+    assert taken.json() == {
+        "detail": "Bu bölüm tipi zaten var: Peyzaj",
+        "existing": {"id": str(existing_id), "name": "Peyzaj"},
+    }
+    assert plain.status_code == 409
+    assert plain.json() == {"detail": "düz tekrar"}  # düz DuplicateError `existing` taşımaz
+
+
 async def test_integrity_error_maps_to_409():
     from sqlalchemy.exc import IntegrityError
 
