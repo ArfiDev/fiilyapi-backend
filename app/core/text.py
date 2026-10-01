@@ -13,3 +13,11 @@ sınırıdır ve şemanın onunla birebir kalması gerekir.
 """
 
 FREE_TEXT_MAX_LENGTH = 2000
+
+
+def like_contains_pattern(q: str) -> str:
+    """`ILIKE '%q%'` kalibi; ters bolu, `%` ve `_` KACIRILIR (kullanici metni joker olmaz).
+    Cagiran `escape` olarak TEK ters bolu verir. Katalog listeleri (cekirdek + EV) tek kopyayi
+    paylasir."""
+    escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"

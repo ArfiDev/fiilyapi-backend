@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.audit.models import AuditLog
 from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.catalog.models import EvCatalogItem, EvDiscipline
+from app.modules.catalog.service import next_poz_no
 from app.modules.earned_value.engine import ContractorType
 from app.modules.projects.models import Project
 from app.modules.sites.models import Site
@@ -214,6 +215,7 @@ def katalog_fabrikasi(seeded_db: AsyncSession):
         description: str | None = None,
     ) -> EvCatalogItem:
         row = EvCatalogItem(
+            poz_no=await next_poz_no(seeded_db, discipline),
             discipline_id=discipline.id,
             name=name,
             uom=uom,

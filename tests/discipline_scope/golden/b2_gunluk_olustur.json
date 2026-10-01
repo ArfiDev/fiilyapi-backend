@@ -530,6 +530,9 @@
         "id": "<katalog:1>",
         "name": "Beton",
         "name_key": "beton",
+        "poz_no": "KAB-0001",
+        "price_updated_at": null,
+        "ref_price": null,
         "standard_unit_mhr": "1.8000",
         "standard_updated_at": "<ts>",
         "uom": "m³",
@@ -544,6 +547,9 @@
         "id": "<katalog:2>",
         "name": "Tuğla",
         "name_key": "tuğla",
+        "poz_no": "DUV-0001",
+        "price_updated_at": null,
+        "ref_price": null,
         "standard_unit_mhr": "0.5500",
         "standard_updated_at": "<ts>",
         "uom": "m2",
@@ -616,6 +622,7 @@
         "default_contractor_type": "subcon",
         "id": "<DUV>",
         "name": "Elektrik",
+        "poz_counter": 1,
         "sort_order": 2,
         "updated_at": "<ts>"
       },
@@ -626,6 +633,7 @@
         "default_contractor_type": "own",
         "id": "<KAB>",
         "name": "Civil",
+        "poz_counter": 1,
         "sort_order": 1,
         "updated_at": "<ts>"
       }

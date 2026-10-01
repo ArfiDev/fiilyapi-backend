@@ -10,3 +10,12 @@ CATALOG_KEY_TOO_LONG = (
     "{field} normalize edildikten sonra çok uzun (sınır: {max_len} karakter); "
     "özel karakterler (üst simge, ligatür, tam genişlik vb.) normalizasyonda uzayabilir"
 )
+
+DISCIPLINE_MISSING = "Disiplin bulunamadı"
+DISCIPLINE_CODE_TAKEN = "Bu disiplin kodu zaten kayıtlı"
+CATALOG_ITEM_MISSING = "Katalog iş tipi bulunamadı"
+#: EV-BORC-5: ad alanına özel — normalize eşleşmede VAR OLAN kaydın yazımı gösterilir.
+CATALOG_ITEM_TAKEN_AS = (
+    "Ad: bu disiplinde aynı ad ve birimle bir iş tipi zaten var — «{name}» ({uom}). "
+    "Büyük/küçük harf, İ/I ve boşluk farkı ayrı iş tipi sayılmaz"
+)

@@ -91,6 +91,7 @@ from app.modules.approvals.router import router as approvals_router
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.boq.router import router as boq_router
+from app.modules.catalog.router import router as catalog_router
 from app.modules.company.router import router as company_router
 from app.modules.contracts.router import router as contracts_router
 from app.modules.customers.router import router as customers_router
@@ -159,6 +160,7 @@ ROUTERS: tuple[APIRouter, ...] = (
     audit_router,
     auth_router,
     boq_router,
+    catalog_router,
     company_router,
     contracts_router,
     customers_router,

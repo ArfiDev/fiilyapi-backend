@@ -39,6 +39,20 @@ ile tazelendi; farkta **KAYIP 0**, yalnız bu fonksiyonun dört çağrısı EKLE
 `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta
 **KAYIP 0**, yalnız bu fonksiyonun 1 çağrısı EKLENDİ (`diff` ile doğrulandı).
 
+## 🔴 REFERANSA EKLENEN SEMBOLLER (TKL-B2.2, 2026-10-01)
+
+`work_item_created`, `work_item_updated` — çekirdek `/catalog/items` uçları için eklendi.
+Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta
+**KAYIP 0**, yalnız bu iki fonksiyonun birer çağrısı EKLENDİ (`diff` ile doğrulandı).
+
+## 🔴 REFERANSA EKLENEN SEMBOLLER (TKL-B2.3, 2026-10-01)
+
+`work_item_price_updated` (+ ozel yardimcisi `_price_text`) — `ref_price` DEGISEN kalem
+guncellemesinin denetim metni (`eski → yeni` fiyat). Referans
+`python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta **KAYIP 0**,
+yalniz bu iki sembolun cagrilari EKLENDI (`diff` ile dogrulandi; `work_item_updated` metni
+DEGISMEDI).
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok
@@ -208,9 +222,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 207, f"sembol sayısı 207 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 211, f"sembol sayısı 211 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 195, f"fonksiyon sayısı 195 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 199, f"fonksiyon sayısı 199 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

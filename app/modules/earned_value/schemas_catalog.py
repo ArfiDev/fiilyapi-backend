@@ -185,6 +185,7 @@ class CatalogActual(BaseModel):
 
 class CatalogItemRead(BaseModel):
     id: uuid.UUID
+    poz_no: str  # TKL-B2: SUNUCU uretir (`MIM-0001`); istemci gonderemez, salt okunur
     discipline: DisciplineRef
     name: str
     uom: str
