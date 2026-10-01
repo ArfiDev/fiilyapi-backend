@@ -221,6 +221,9 @@ from app.modules.audit.messages.core import (
     LOGIN_DETAIL as LOGIN_DETAIL,
 )
 from app.modules.audit.messages.core import (
+    _price_text as _price_text,
+)
+from app.modules.audit.messages.core import (
     employer_created as employer_created,
 )
 from app.modules.audit.messages.core import (
@@ -255,6 +258,15 @@ from app.modules.audit.messages.core import (
 )
 from app.modules.audit.messages.core import (
     user_updated as user_updated,
+)
+from app.modules.audit.messages.core import (
+    work_item_created as work_item_created,
+)
+from app.modules.audit.messages.core import (
+    work_item_price_updated as work_item_price_updated,
+)
+from app.modules.audit.messages.core import (
+    work_item_updated as work_item_updated,
 )
 from app.modules.audit.messages.documents import (
     _document_scope as _document_scope,

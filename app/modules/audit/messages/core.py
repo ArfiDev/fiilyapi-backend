@@ -5,6 +5,8 @@ burada toplandi (`auth` 1 · `company` 3 · `projects` 6 · `users` 11 · `roles
 21 satir).
 """
 
+from decimal import Decimal
+
 from app.core.access import AccessLevel
 
 LOGIN_DETAIL = "Sisteme giriş yapıldı"
@@ -75,3 +77,26 @@ def project_created(name: str) -> str:
 
 def project_updated(name: str) -> str:
     return f"Proje güncellendi: {name}"
+
+
+def work_item_created(poz_no: str, name: str, uom: str) -> str:
+    return f"İş kalemi kataloğuna kalem eklendi: {poz_no} · {name} ({uom})"
+
+
+def work_item_updated(poz_no: str, name: str, uom: str) -> str:
+    return f"İş kalemi kataloğu kalemi güncellendi: {poz_no} · {name} ({uom})"
+
+
+def _price_text(price: Decimal | None) -> str:
+    """Repodaki para bicimi (`{x:,.2f} TL`, bkz. hakedis silme mesajlari); yok → `—`."""
+    return "—" if price is None else f"{price:,.2f} TL"
+
+
+def work_item_price_updated(
+    poz_no: str, name: str, uom: str, old_price: Decimal | None, new_price: Decimal | None
+) -> str:
+    """`ref_price` DEGISEN guncelleme: `work_item_updated` metni + `eski → yeni` fiyat."""
+    return (
+        f"{work_item_updated(poz_no, name, uom)} · "
+        f"referans fiyat {_price_text(old_price)} → {_price_text(new_price)}"
+    )

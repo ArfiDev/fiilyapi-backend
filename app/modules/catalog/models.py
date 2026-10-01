@@ -90,6 +90,7 @@ class EvDiscipline(Base):
     __table_args__ = (
         UniqueConstraint("code", name="uq_ev_disciplines_code"),
         CheckConstraint("color ~ '^#[0-9A-Fa-f]{6}$'", name="ck_ev_disciplines_color_hex"),
+        CheckConstraint("poz_counter >= 0", name="ck_ev_disciplines_poz_counter_nonneg"),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
@@ -100,6 +101,10 @@ class EvDiscipline(Base):
         _contractor_enum(), nullable=False
     )
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    #: TKL-B2: poz numarasi sayaci — bu disiplinde VERILEN SON sira (monoton; numara asla
+    #: yeniden kullanilmaz). Yalniz kilitli disiplin satirinda (`SELECT … FOR UPDATE`)
+    #: `catalog.service.next_poz_no` arttirir; elle yazilmaz.
+    poz_counter: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
 
@@ -132,6 +137,8 @@ class EvCatalogItem(Base):
             name="uq_ev_catalog_items_disc_name_key_uom_key",
         ),
         CheckConstraint("standard_unit_mhr > 0", name="ck_ev_catalog_items_rate_positive"),
+        UniqueConstraint("poz_no", name="uq_ev_catalog_items_poz_no"),
+        CheckConstraint("ref_price >= 0", name="ck_ev_catalog_items_ref_price_nonneg"),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
@@ -151,6 +158,19 @@ class EvCatalogItem(Base):
         _contractor_enum(), nullable=False
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: TKL-B2 (T21-T24): poz no = disiplin KODU + "-" + EN AZ 4 hane (`MIM-0001`; 9999 ustu
+    #: `MIM-10000`), SIRKET GENELINDE TEKIL. SUNUCU uretir (istemci gonderemez): yeni kalem /
+    #: disiplin degisimi → yeni disiplinin sayacindan (`poz_counter`, kilitli satir, monoton,
+    #: max+1 YASAK); disiplin KODU degisirse o disiplinin TUM kalemleri yeni onekle yeniden
+    #: yazilir (sayi korunur, sayac degismez, ayni islem). DEGISMEZ: her kalemin `poz_no`
+    #: oneki = kendi disiplininin GUNCEL `code`u + "-". Hepsi `catalog.service`te.
+    poz_no: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: TKL-B2: referans fiyat (KDV haric TL birim fiyat); `price_updated_at` YALNIZ bu alan
+    #: DEGISTIGINDE (ilk atama dahil) guncellenir — servis katmani yazar.
+    ref_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    price_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     standard_updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

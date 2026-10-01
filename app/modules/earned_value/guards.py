@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-DISCIPLINE_MISSING = "Disiplin bulunamadı"
-DISCIPLINE_CODE_TAKEN = "Bu disiplin kodu zaten kayıtlı"
+# TKL-B2: katalog/disiplin ortak metinleri cekirdekte (`catalog.guards`); EV buradan yeniden
+# ihrac eder — metinler BIREBIR, `guards.X` kullanan EV kodu/testleri degismez.
+from app.modules.catalog.guards import CATALOG_ITEM_MISSING as CATALOG_ITEM_MISSING
+from app.modules.catalog.guards import CATALOG_ITEM_TAKEN_AS as CATALOG_ITEM_TAKEN_AS
+from app.modules.catalog.guards import DISCIPLINE_CODE_TAKEN as DISCIPLINE_CODE_TAKEN
+from app.modules.catalog.guards import DISCIPLINE_MISSING as DISCIPLINE_MISSING
+
 DISCIPLINE_IN_USE = "Disiplin kullanımda (BOQ grubu eşlemesi, katalog ya da baseline); silinemez"
 DISCIPLINE_ASSIGNED_TO_USERS = "Disiplin kullanıcılara atanmış; önce atamalar kaldırılmalı"
-CATALOG_ITEM_MISSING = "Katalog iş tipi bulunamadı"
-#: EV-BORC-5: ad alanına özel — normalize eşleşmede VAR OLAN kaydın yazımı gösterilir.
-CATALOG_ITEM_TAKEN_AS = (
-    "Ad: bu disiplinde aynı ad ve birimle bir iş tipi zaten var — «{name}» ({uom}). "
-    "Büyük/küçük harf, İ/I ve boşluk farkı ayrı iş tipi sayılmaz"
-)
 CATALOG_NO_ACTUAL = "Bu iş tipi için tamamlanmış şantiye gerçekleşeni yok"
 
 HOLIDAY_RANGE_INVALID = "Tatil bitişi başlangıçtan önce olamaz"

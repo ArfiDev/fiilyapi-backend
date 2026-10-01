@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
 from app.modules.catalog.models import EvCatalogItem, EvDiscipline
+from app.modules.catalog.service import next_poz_no
 from app.modules.earned_value.engine import ContractorType
 from app.modules.projects.models import Project
 from app.modules.sites.models import Section, Site
@@ -163,6 +164,7 @@ async def katalog(seeded_db: AsyncSession, disiplinler) -> dict:
     kab, duv = disiplinler
     rows = {
         "beton": EvCatalogItem(
+            poz_no=await next_poz_no(seeded_db, kab),
             discipline_id=kab.id,
             name="Beton",
             uom="m³",
@@ -170,6 +172,7 @@ async def katalog(seeded_db: AsyncSession, disiplinler) -> dict:
             default_contractor_type=ContractorType.OWN,
         ),
         "tugla": EvCatalogItem(
+            poz_no=await next_poz_no(seeded_db, duv),
             discipline_id=duv.id,
             name="Tuğla",
             uom="m2",
@@ -177,6 +180,7 @@ async def katalog(seeded_db: AsyncSession, disiplinler) -> dict:
             default_contractor_type=ContractorType.SUBCON,
         ),
         "tugla2": EvCatalogItem(
+            poz_no=await next_poz_no(seeded_db, kab),
             discipline_id=kab.id,
             name="TUĞLA",
             uom="m2",

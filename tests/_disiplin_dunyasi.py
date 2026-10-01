@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
 from app.modules.catalog.models import EvCatalogItem, EvDiscipline
+from app.modules.catalog.service import next_poz_no
 from app.modules.contracts.models import EmployerContractGroup, EmployerContractItem
 from app.modules.earned_value.engine import ContractorType
 from app.modules.earned_value.models import UserDiscipline
@@ -259,6 +260,7 @@ async def _disiplinler(session: AsyncSession) -> tuple[EvDiscipline, EvDisciplin
         [
             EvCatalogItem(
                 id=_kimlik(21, 1),
+                poz_no=await next_poz_no(session, kab),
                 discipline_id=kab.id,
                 name="Beton",
                 uom="m³",
@@ -267,6 +269,7 @@ async def _disiplinler(session: AsyncSession) -> tuple[EvDiscipline, EvDisciplin
             ),
             EvCatalogItem(
                 id=_kimlik(21, 2),
+                poz_no=await next_poz_no(session, duv),
                 discipline_id=duv.id,
                 name="Tuğla",
                 uom="m2",

@@ -3651,6 +3651,10 @@
             "title": "Name",
             "type": "string"
           },
+          "poz_no": {
+            "title": "Poz No",
+            "type": "string"
+          },
           "standard_unit_mhr": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Standard Unit Mhr",
@@ -3672,6 +3676,7 @@
         },
         "required": [
           "id",
+          "poz_no",
           "discipline",
           "name",
           "uom",
@@ -43544,6 +43549,371 @@
         "title": "WindowsBody",
         "type": "object"
       },
+      "WorkDisciplineListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkDisciplineRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "WorkDisciplineListResponse",
+        "type": "object"
+      },
+      "WorkDisciplineRead": {
+        "description": "Disiplin listesi satiri (secici). `poz_counter` DONMEZ (ic sayac).",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "color": {
+            "title": "Color",
+            "type": "string"
+          },
+          "default_contractor_type": {
+            "enum": [
+              "own",
+              "subcon"
+            ],
+            "title": "Default Contractor Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "color",
+          "default_contractor_type",
+          "sort_order"
+        ],
+        "title": "WorkDisciplineRead",
+        "type": "object"
+      },
+      "WorkItemCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "default_contractor_type": {
+            "enum": [
+              "own",
+              "subcon"
+            ],
+            "title": "Default Contractor Type",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "discipline_id": {
+            "format": "uuid",
+            "title": "Discipline Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "ref_price": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Price"
+          },
+          "standard_unit_mhr": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,13}0*$)\\d{0,8}\\.\\d{0,4}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Standard Unit Mhr"
+          },
+          "uom": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Uom",
+            "type": "string"
+          }
+        },
+        "required": [
+          "discipline_id",
+          "name",
+          "uom",
+          "standard_unit_mhr",
+          "default_contractor_type"
+        ],
+        "title": "WorkItemCreate",
+        "type": "object"
+      },
+      "WorkItemListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkItemRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "WorkItemListResponse",
+        "type": "object"
+      },
+      "WorkItemRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "default_contractor_type": {
+            "enum": [
+              "own",
+              "subcon"
+            ],
+            "title": "Default Contractor Type",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "discipline": {
+            "$ref": "#/components/schemas/DisciplineRef"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "poz_no": {
+            "title": "Poz No",
+            "type": "string"
+          },
+          "price_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Updated At"
+          },
+          "ref_price": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Price"
+          },
+          "standard_unit_mhr": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Standard Unit Mhr",
+            "type": "string"
+          },
+          "standard_updated_at": {
+            "format": "date-time",
+            "title": "Standard Updated At",
+            "type": "string"
+          },
+          "uom": {
+            "title": "Uom",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "poz_no",
+          "discipline",
+          "name",
+          "uom",
+          "description",
+          "standard_unit_mhr",
+          "default_contractor_type",
+          "ref_price",
+          "price_updated_at",
+          "standard_updated_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkItemRead",
+        "type": "object"
+      },
+      "WorkItemUpdate": {
+        "additionalProperties": false,
+        "description": "Kismi guncelleme. `description` ve `ref_price` `null` = temizle; digerleri 422.",
+        "properties": {
+          "default_contractor_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "own",
+                  "subcon"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Contractor Type"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "discipline_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "ref_price": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Price"
+          },
+          "standard_unit_mhr": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,13}0*$)\\d{0,8}\\.\\d{0,4}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Standard Unit Mhr"
+          },
+          "uom": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uom"
+          }
+        },
+        "title": "WorkItemUpdate",
+        "type": "object"
+      },
       "WorkLogCreate": {
         "description": "`POST /equipment/work-logs` — M3 kaydı.\n\n🔴 **K11:** `hours` gövdede VARDIR ama YALNIZ aralıksız kayıt içindir\n(M3:283 arıza satırı saat basar, aralık basmaz). `start_time`+`end_time`\nverilmişken `hours` göndermek **422**'dir — sunucu hesabının üzerine\nyazılamaz. Kural `service._resolve_hours`ta tek yerdedir (modül docstring'i).\n\n`site_id` KAYDIN KENDİ şantiyesidir (K9), ekipmanın bugünkü ataması değil:\nmakine taşındığında geçmiş aylar geriye dönük başka projeye yazılmasın.",
         "properties": {
@@ -46237,6 +46607,234 @@
         "summary": "Cash Flow Statement Endpoint",
         "tags": [
           "accounting"
+        ]
+      }
+    },
+    "/catalog/disciplines": {
+      "get": {
+        "description": "Disiplin seçici listesi (salt okunur; CRUD EV'de kalır) — `sort_order`, `code` sırası.",
+        "operationId": "list_work_disciplines_endpoint_catalog_disciplines_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkDisciplineListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Work Disciplines Endpoint",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/catalog/items": {
+      "get": {
+        "description": "İş kalemi kataloğu — poz no sırasıyla. `q` ad veya poz no içinde arar.",
+        "operationId": "list_work_items_endpoint_catalog_items_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "discipline_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Discipline Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Work Items Endpoint",
+        "tags": [
+          "catalog"
+        ]
+      },
+      "post": {
+        "description": "Kalem ekler; poz no sunucuda otomatik üretilir (gövdede gönderilemez).",
+        "operationId": "create_work_item_endpoint_catalog_items_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkItemCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Work Item Endpoint",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/catalog/items/{item_id}": {
+      "patch": {
+        "description": "Kısmi güncelleme; geçmeyen alan dokunulmaz, `description`/`ref_price` `null` = temizle.\n\nDenetim satırı YALNIZ bir alan FİİLEN değiştiyse yazılır (boş `{}` PATCH ya da aynı\ndeğerlerle PATCH satır yazmaz; 200 + mevcut kayıt döner). `ref_price` değiştiyse metne\n`eski → yeni` fiyat girer.",
+        "operationId": "update_work_item_endpoint_catalog_items__item_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkItemUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Work Item Endpoint",
+        "tags": [
+          "catalog"
         ]
       }
     },

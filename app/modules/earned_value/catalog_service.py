@@ -25,11 +25,12 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
-from app.core.errors import ConflictError, DuplicateError, NotFoundError, RelatedRecordsExistError
+from app.core.errors import ConflictError, RelatedRecordsExistError
+from app.core.text import like_contains_pattern
+from app.modules.catalog import service as core
 from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.earned_value import guards
 from app.modules.earned_value.contractor_bridge import to_engine_ct
-from app.modules.earned_value.labels import normalize_label
 from app.modules.earned_value.models import (
     RATE_PRECISION,
     EvBaselineLeaf,
@@ -82,25 +83,11 @@ async def list_disciplines(
     return list((await session.execute(stmt)).scalars())
 
 
-async def get_discipline(session: AsyncSession, discipline_id: uuid.UUID) -> EvDiscipline:
-    discipline = await session.get(EvDiscipline, discipline_id)
-    if discipline is None:
-        raise NotFoundError(guards.DISCIPLINE_MISSING)
-    return discipline
-
-
-async def _assert_code_free(
-    session: AsyncSession, code: str, exclude_id: uuid.UUID | None = None
-) -> None:
-    stmt = select(EvDiscipline.id).where(EvDiscipline.code == code)
-    if exclude_id is not None:
-        stmt = stmt.where(EvDiscipline.id != exclude_id)
-    if (await session.execute(stmt.limit(1))).first() is not None:
-        raise DuplicateError(guards.DISCIPLINE_CODE_TAKEN)
+get_discipline = core.get_discipline
 
 
 async def create_discipline(session: AsyncSession, data: DisciplineCreate) -> EvDiscipline:
-    await _assert_code_free(session, data.code)
+    await core.assert_code_free(session, data.code)
     discipline = EvDiscipline(**data.model_dump())
     session.add(discipline)
     await session.flush()
@@ -110,14 +97,8 @@ async def create_discipline(session: AsyncSession, data: DisciplineCreate) -> Ev
 async def update_discipline(
     session: AsyncSession, discipline_id: uuid.UUID, data: DisciplineUpdate
 ) -> EvDiscipline:
-    discipline = await get_discipline(session, discipline_id)
-    changes = data.model_dump(exclude_unset=True)
-    if "code" in changes and changes["code"] != discipline.code:
-        await _assert_code_free(session, changes["code"], exclude_id=discipline.id)
-    for field, value in changes.items():
-        setattr(discipline, field, value)
-    await session.flush()
-    return discipline
+    """Kod degisimi (kilit + tekillik + kalemleri yeniden numaralama) cekirdekte (TKL-B2)."""
+    return await core.update_discipline(session, discipline_id, data.model_dump(exclude_unset=True))
 
 
 @dataclass(frozen=True)
@@ -271,11 +252,6 @@ async def _used_by_site_counts(
     return {item_id: count for item_id, count in (await session.execute(stmt)).all()}
 
 
-def _like_pattern(q: str) -> str:
-    escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return f"%{escaped}%"
-
-
 async def _rows(
     session: AsyncSession, pairs: list[tuple[EvCatalogItem, EvDiscipline]]
 ) -> list[CatalogItemRow]:
@@ -310,7 +286,7 @@ async def list_catalog(
     if discipline_id is not None:
         stmt = stmt.where(EvCatalogItem.discipline_id == discipline_id)
     if q is not None and q.strip():
-        stmt = stmt.where(EvCatalogItem.name.ilike(_like_pattern(q.strip()), escape="\\"))
+        stmt = stmt.where(EvCatalogItem.name.ilike(like_contains_pattern(q.strip()), escape="\\"))
     stmt = stmt.order_by(EvDiscipline.sort_order, EvDiscipline.code, EvCatalogItem.name)
     pairs = [(item, discipline) for item, discipline in (await session.execute(stmt)).all()]
     return await _rows(session, pairs)
@@ -321,66 +297,18 @@ async def _catalog_row(session: AsyncSession, item: EvCatalogItem) -> CatalogIte
     return (await _rows(session, [(item, discipline)]))[0]
 
 
-async def get_catalog_item(session: AsyncSession, item_id: uuid.UUID) -> EvCatalogItem:
-    item = await session.get(EvCatalogItem, item_id)
-    if item is None:
-        raise NotFoundError(guards.CATALOG_ITEM_MISSING)
-    return item
-
-
-async def _assert_item_free(
-    session: AsyncSession,
-    discipline_id: uuid.UUID,
-    name: str,
-    uom: str,
-    exclude_id: uuid.UUID | None = None,
-) -> None:
-    """Tekillik ONERI ESLESMESIYLE AYNI kuralla (`labels.normalize_label`: büyük/küçük harf,
-    Türkçe İ/I, üst simge, boşluk) — EV-BORC-5. KATALOG-UQ'dan beri anahtar kolonlarda
-    saklidir (`EvCatalogItem._sync_key`) ve DB `uq_ev_catalog_items_disc_name_key_uom_key`
-    ile zorlar; bu SELECT yalniz alana ozel Turkce 409 metni icindir."""
-    stmt = select(EvCatalogItem.name, EvCatalogItem.uom).where(
-        EvCatalogItem.discipline_id == discipline_id,
-        EvCatalogItem.name_key == normalize_label(name),
-        EvCatalogItem.uom_key == normalize_label(uom),
-    )
-    if exclude_id is not None:
-        stmt = stmt.where(EvCatalogItem.id != exclude_id)
-    taken = (await session.execute(stmt.limit(1))).first()
-    if taken is not None:
-        raise DuplicateError(guards.CATALOG_ITEM_TAKEN_AS.format(name=taken.name, uom=taken.uom))
+get_catalog_item = core.get_item
 
 
 async def create_catalog_item(session: AsyncSession, data: CatalogItemCreate) -> CatalogItemRow:
-    # Govde ici varlik referansi: disiplin yoksa 404 (repo kanonu).
-    await get_discipline(session, data.discipline_id)
-    await _assert_item_free(session, data.discipline_id, data.name, data.uom)
-    item = EvCatalogItem(**data.model_dump(), standard_updated_at=datetime.now(UTC))
-    session.add(item)
-    await session.flush()
+    item = await core.create_item(session, data.model_dump())
     return await _catalog_row(session, item)
 
 
 async def update_catalog_item(
     session: AsyncSession, item_id: uuid.UUID, data: CatalogItemUpdate
 ) -> CatalogItemRow:
-    item = await get_catalog_item(session, item_id)
-    changes = data.model_dump(exclude_unset=True)
-    if "discipline_id" in changes:
-        await get_discipline(session, changes["discipline_id"])
-    key = (
-        changes.get("discipline_id", item.discipline_id),
-        changes.get("name", item.name),
-        changes.get("uom", item.uom),
-    )
-    if key != (item.discipline_id, item.name, item.uom):
-        await _assert_item_free(session, *key, exclude_id=item.id)
-    new_rate = changes.get("standard_unit_mhr")
-    if new_rate is not None and new_rate != item.standard_unit_mhr:
-        item.standard_updated_at = datetime.now(UTC)
-    for field, value in changes.items():
-        setattr(item, field, value)
-    await session.flush()
+    item = await core.update_item(session, item_id, data.model_dump(exclude_unset=True))
     return await _catalog_row(session, item)
 
 
@@ -413,6 +341,7 @@ def to_read(row: CatalogItemRow) -> CatalogItemRead:
     item = row.item
     return CatalogItemRead(
         id=item.id,
+        poz_no=item.poz_no,
         discipline=DisciplineRef.model_validate(row.discipline),
         name=item.name,
         uom=item.uom,

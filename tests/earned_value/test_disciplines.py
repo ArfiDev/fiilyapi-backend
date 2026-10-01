@@ -166,9 +166,11 @@ async def _use_group(session, site, rev, disc) -> None:
 
 async def _use_catalog(session, site, rev, disc) -> None:
     from app.modules.catalog.models import EvCatalogItem
+    from app.modules.catalog.service import next_poz_no
 
     session.add(
         EvCatalogItem(
+            poz_no=await next_poz_no(session, disc),
             discipline_id=disc.id,
             name="Beton",
             uom="m³",
