@@ -40,7 +40,11 @@ __all__ = [
 
 
 def valid_until(revision: OfferRevision) -> date:
-    return revision.offer_date + timedelta(days=revision.validity_days)
+    """Gecerlilik sonu. Sema `offer_date`i sinirlar; yine de tasarsa `date.max`a kenetlenir."""
+    try:
+        return revision.offer_date + timedelta(days=revision.validity_days)
+    except OverflowError:
+        return date.max
 
 
 def item_input(item: OfferItem) -> calc.ItemInput:

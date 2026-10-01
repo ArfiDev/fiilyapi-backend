@@ -54,7 +54,27 @@ async def detay(client, admin, offer_id: str) -> dict:
     return resp.json()
 
 
-async def gecis(client, admin, offer_id: str, eylem: str, rev_no: int = 0, **govde) -> object:
+async def kalemli_yap(client, admin, offer_id: str, rev_no: int = 0) -> None:
+    """Revizyonda hic kalem yoksa tek (fiyatsiz) kalem ekler: bos teklif gonderilemez (TKL-B4.3).
+    `katalog` fikstürü yukluyse (autouse) ilk katalog kalemi kullanilir."""
+    resp = await client.get(rev_url(offer_id, rev_no), headers=admin)
+    if resp.status_code != 200:
+        return  # revizyon yok: gecis kendi 404'unu versin
+    rev = resp.json()
+    if rev["status"] != "draft" or tum_kalemler(rev):
+        return  # taslak degil: gecis kendi 409'unu versin
+    katalog = (await client.get("/catalog/items", headers=admin)).json()["items"]
+    g = rev["groups"][0] if rev["groups"] else await grup(client, admin, offer_id, rev_no)
+    await kalem(client, admin, offer_id, g["id"], katalog[0]["id"], rev_no, cost_unit_price=None)
+
+
+async def gecis(
+    client, admin, offer_id: str, eylem: str, rev_no: int = 0, *, dolu: bool = True, **govde
+) -> object:
+    """Gecis cagrisi. `send` icin revizyon kalemsizse once bir kalem eklenir (`dolu=False`: ekleme
+    YAPMA — bos gonderim kuralini sinayan testler icin)."""
+    if eylem == "send" and dolu:
+        await kalemli_yap(client, admin, offer_id, rev_no)
     return await client.post(
         rev_url(offer_id, rev_no) + f"/{eylem}", json=govde or None, headers=admin
     )

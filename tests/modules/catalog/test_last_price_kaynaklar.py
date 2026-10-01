@@ -32,8 +32,8 @@ from .._boq import _auth, _login_with_access, _set_permission
 pytestmark = pytest.mark.asyncio
 
 URL = "/catalog/items"
-#: Port kaydi beklenen kaynak kumesi — TEK YERDE (TKL B4'te "TKL", SA B7'de "SA" eklenir).
-BEKLENEN_KAYNAKLAR = {"SZL", "HK"}
+#: Port kaydi beklenen kaynak kumesi — TEK YERDE (SA B7'de "SA" eklenir).
+BEKLENEN_KAYNAKLAR = {"SZL", "HK", "TKL"}
 T0 = datetime(2026, 3, 1, 9, 0, tzinfo=UTC)
 
 

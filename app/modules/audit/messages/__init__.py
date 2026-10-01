@@ -233,9 +233,6 @@ from app.modules.audit.messages.core import (
     employer_created as employer_created,
 )
 from app.modules.audit.messages.core import (
-    offer_settings_updated as offer_settings_updated,
-)
-from app.modules.audit.messages.core import (
     password_reset as password_reset,
 )
 from app.modules.audit.messages.core import (
@@ -362,10 +359,25 @@ from app.modules.audit.messages.offers import (
     offer_created as offer_created,
 )
 from app.modules.audit.messages.offers import (
+    offer_date_changed as offer_date_changed,
+)
+from app.modules.audit.messages.offers import (
     offer_deleted as offer_deleted,
 )
 from app.modules.audit.messages.offers import (
+    offer_delivery_changed as offer_delivery_changed,
+)
+from app.modules.audit.messages.offers import (
+    offer_escalation_changed as offer_escalation_changed,
+)
+from app.modules.audit.messages.offers import (
+    offer_group_deleted as offer_group_deleted,
+)
+from app.modules.audit.messages.offers import (
     offer_items_bulk_created as offer_items_bulk_created,
+)
+from app.modules.audit.messages.offers import (
+    offer_notes_changed as offer_notes_changed,
 )
 from app.modules.audit.messages.offers import (
     offer_revision_created as offer_revision_created,

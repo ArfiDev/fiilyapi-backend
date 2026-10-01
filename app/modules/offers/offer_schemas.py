@@ -64,6 +64,10 @@ ScopeSummary = Annotated[str, StringConstraints(max_length=FREE_TEXT_MAX_LENGTH)
 PaymentTerms = Annotated[str, StringConstraints(max_length=PAYMENT_TERMS_MAX_LEN)]
 Notes = Annotated[str, StringConstraints(max_length=FREE_TEXT_MAX_LENGTH)]
 ValidityDays = Annotated[int, Field(ge=1, le=MAX_VALIDITY_DAYS)]
+#: Teklif tarihi araligi: `valid_until` (tarih + gecerlilik gunu) `date.max`i asip 500 vermesin.
+MIN_OFFER_DATE = date(2000, 1, 1)
+MAX_OFFER_DATE = date(2999, 12, 31)
+OfferDate = Annotated[date, Field(ge=MIN_OFFER_DATE, le=MAX_OFFER_DATE)]
 DeliveryDays = Annotated[int, Field(ge=0, le=36500)]
 SortOrder = Annotated[int, Field(ge=0, le=1_000_000)]
 
@@ -86,7 +90,7 @@ class OfferCreate(BaseModel):
     employer_id: uuid.UUID
     title: Title
     scope_summary: ScopeSummary | None = None
-    offer_date: date | None = None
+    offer_date: OfferDate | None = None
     validity_days: ValidityDays | None = None
     overhead_pct: Pct | None = None
     profit_pct: ProfitPct | None = None
@@ -119,7 +123,7 @@ class OfferRevisionUpdate(BaseModel):
 
     model_config = _STRICT
 
-    offer_date: date | None = None
+    offer_date: OfferDate | None = None
     validity_days: ValidityDays | None = None
     overhead_pct: Pct | None = None
     profit_pct: ProfitPct | None = None

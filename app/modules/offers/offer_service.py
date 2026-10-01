@@ -38,6 +38,7 @@ from app.modules.offers.offer_schemas import (
     OfferUpdate,
 )
 from app.modules.offers.service import get_settings
+from app.modules.offers.settings_audit import snapshot_conditions
 from app.modules.projects.models import Employer
 from app.modules.users.models import User
 
@@ -48,6 +49,7 @@ NEW_REVISION_NOT_ALLOWED = (
 )
 INDEX_REQUIRED = "Fiyat farkı «TÜİK endeksli» iken endeks türü zorunludur"
 INDEX_NOT_ALLOWED = "Sabit fiyatta endeks türü girilemez"
+NO_ITEMS_TO_SEND = "Teklifte kalem yok"
 IMMUTABLE_NOTE = "Künye yalnız son revizyon taslak iken değiştirilebilir"
 
 _STATUS_LABEL = {
@@ -169,20 +171,28 @@ async def create_offer(session: AsyncSession, user: User, data: OfferCreate) -> 
 
 async def update_offer(
     session: AsyncSession, user: User, offer_id: uuid.UUID, data: OfferUpdate
-) -> Offer:
-    """Kunye (isveren, is adi, kapsam ozeti) — yalniz SON revizyon `draft` iken (SO-3)."""
+) -> tuple[Offer, bool]:
+    """Kunye (isveren, is adi, kapsam ozeti) — yalniz SON revizyon `draft` iken (SO-3).
+    `(teklif, degisti_mi)` doner: hicbir alan fiilen degismediyse yazilmaz, denetim satiri da
+    yazilmaz (R2a)."""
     offer, _revision = await locking.lock_draft_revision(session, offer_id)
     changes = data.model_dump(exclude_unset=True)
+    employer = None
     if "employer_id" in changes:
         employer = await _get_employer(session, changes["employer_id"])
+    changed = False
+    if employer is not None and employer.id != offer.employer_id:
         offer.employer_id = employer.id
         offer.employer_name = employer.name
+        changed = True
     for field in ("title", "scope_summary"):
-        if field in changes:
+        if field in changes and changes[field] != getattr(offer, field):
             setattr(offer, field, changes[field])
-    offer.updated_at = _now()
-    await session.flush()
-    return offer
+            changed = True
+    if changed:
+        offer.updated_at = _now()
+        await session.flush()
+    return offer, changed
 
 
 # -------------------------------------------------------------------------- kosullar
@@ -194,8 +204,11 @@ async def update_revision(
     offer_id: uuid.UUID,
     rev_no: int,
     data: OfferRevisionUpdate,
-) -> tuple[Offer, OfferRevision]:
+) -> tuple[Offer, OfferRevision, dict[str, Any]]:
+    """Kosullar. `(teklif, revizyon, ESKI kosullar)` doner (denetim `eski → yeni` farki icin);
+    hicbir alan fiilen degismediyse yazilmaz."""
     offer, revision = await locking.lock_draft_revision(session, offer_id, rev_no)
+    before = snapshot_conditions(revision)
     changes = data.model_dump(exclude_unset=True)
     if (
         changes.get("price_escalation") == OfferPriceEscalation.fixed
@@ -205,12 +218,16 @@ async def update_revision(
     escalation = changes.get("price_escalation", revision.price_escalation)
     index_type = changes.get("price_index_type", revision.price_index_type)
     check_escalation(escalation, index_type)
-    for field, value in changes.items():
+    effective = {field: value for field, value in changes.items() if before[field] != value}
+    if not effective:
+        return offer, revision, before
+    for field, value in effective.items():
         setattr(revision, field, value)
     locking.touch_revision(revision)
     offer.updated_at = _now()
     await session.flush()
-    return offer, revision
+    await session.refresh(revision)  # yanit GET ile ayni bicim (DB'nin Numeric olcegi) — R3
+    return offer, revision, before
 
 
 # ----------------------------------------------------------------------------- sil
@@ -323,6 +340,14 @@ async def transition(
         raise ConflictError(
             f"Revizyon {_STATUS_LABEL[revision.status]} durumda; bu işlem yapılamaz"
         )
+    if action is OfferAction.send:
+        # Kalemsiz teklif gonderilmez (SO-9); kontrol teklif satiri kilidi ALTINDA. Fiyatsiz
+        # kalemli revizyon gonderilebilir.
+        has_items = await session.scalar(
+            select(OfferItem.id).where(OfferItem.revision_id == revision.id).limit(1)
+        )
+        if has_items is None:
+            raise OfferValidationError(NO_ITEMS_TO_SEND)
     now = _now()
     revision.status = target
     if action is OfferAction.send:

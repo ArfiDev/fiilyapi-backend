@@ -4,6 +4,7 @@ Kalem/grup TEKIL duzenlemeleri bilincli olarak denetim satiri YAZMAZ (gurultu); 
 yapisal olaylar (olustur, kunye, kosul, sil, yeni revizyon, durum gecisi, toplu kalem) yazar.
 """
 
+from datetime import date
 from decimal import Decimal
 
 #: Odeme kosulu serbest metindir; denetim satirinda bu uzunlukta kisaltilir.
@@ -21,8 +22,14 @@ def offer_updated(offer_no: str, title: str, employer_name: str) -> str:
     return f"Teklif künyesi güncellendi: {offer_no} · {title} ({employer_name})"
 
 
-def offer_conditions_updated(offer_no: str, rev_no: int) -> str:
-    return f"Teklif koşulları güncellendi: {offer_no} Rev.{rev_no}"
+def offer_conditions_updated(offer_no: str, rev_no: int, parts: list[str]) -> str:
+    """`PATCH …/revisions/{rev_no}`: yalniz DEGISEN alanlar, `eski → yeni`."""
+    return f"Teklif koşulları güncellendi: {offer_no} Rev.{rev_no} · {' · '.join(parts)}"
+
+
+def offer_group_deleted(offer_no: str, rev_no: int, name: str, item_count: int) -> str:
+    """Icinde kalem olan grubun silinmesi TEK satir (bos grup satir YAZMAZ)."""
+    return f"Teklif grubu silindi: {offer_no} Rev.{rev_no} · {name} · {item_count} kalem"
 
 
 def offer_deleted(offer_no: str, title: str) -> str:
@@ -46,7 +53,9 @@ def offer_items_bulk_created(offer_no: str, rev_no: int, poz_nos: list[str]) -> 
     return f"Teklife {len(poz_nos)} kalem eklendi: {offer_no} Rev.{rev_no} · {shown}{tail}"
 
 
-def _short_terms(text: str) -> str:
+def _short_terms(text: str | None) -> str:
+    if text is None:
+        return "boş"
     return text if len(text) <= OFFER_TERMS_SHOWN else f"{text[:OFFER_TERMS_SHOWN]}…"
 
 
@@ -58,8 +67,27 @@ def offer_setting_days_changed(old: int, new: int) -> str:
     return f"geçerlilik {old} → {new} gün"
 
 
-def offer_setting_terms_changed(old: str, new: str) -> str:
+def offer_setting_terms_changed(old: str | None, new: str | None) -> str:
     return f"ödeme koşulu «{_short_terms(old)}» → «{_short_terms(new)}»"
+
+
+def offer_date_changed(old: date, new: date) -> str:
+    return f"teklif tarihi {old.isoformat()} → {new.isoformat()}"
+
+
+def offer_delivery_changed(old: int | None, new: int | None) -> str:
+    shown_old = "boş" if old is None else old
+    shown_new = "boş" if new is None else new
+    return f"teslim süresi {shown_old} → {shown_new} gün"
+
+
+def offer_escalation_changed(old: str, new: str) -> str:
+    """`old`/`new`: `sabit` ya da `TÜİK endeksli (<endeks turu>)`."""
+    return f"fiyat farkı {old} → {new}"
+
+
+def offer_notes_changed(old: str | None, new: str | None) -> str:
+    return f"notlar «{_short_terms(old)}» → «{_short_terms(new)}»"
 
 
 def offer_settings_changed(parts: list[str]) -> str:

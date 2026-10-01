@@ -34,7 +34,13 @@ from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
-from app.modules.offers import item_service, offer_queries, offer_service, service
+from app.modules.offers import (
+    item_service,
+    last_price_provider,
+    offer_queries,
+    offer_service,
+    service,
+)
 from app.modules.offers.models import OfferRevisionStatus
 from app.modules.offers.offer_read_schemas import (
     OfferDetailRead,
@@ -58,8 +64,10 @@ from app.modules.offers.offer_schemas import (
 from app.modules.offers.offer_service import OfferAction
 from app.modules.offers.offer_views import read_item
 from app.modules.offers.schemas import OfferSettingsRead, OfferSettingsUpdate
-from app.modules.offers.settings_audit import settings_audit_detail
+from app.modules.offers.settings_audit import conditions_audit_detail, settings_audit_detail
 from app.modules.users.models import User
+
+last_price_provider.register()
 
 # 🔴 KAPSAM MASKESI — IKI PARCA DA GEREKLI (bkz. `catalog/router.py`); cifti
 #    `tests/core/test_kapsam_baglantisi.py` cakar.
@@ -170,14 +178,15 @@ async def update_offer_endpoint(
     request: Request, offer_id: _OfferId, data: OfferUpdate, user: _User, session: DbSession
 ) -> OfferDetailRead:
     """Kunye (isveren, is adi, kapsam ozeti) — yalniz son revizyon taslak iken."""
-    offer = await offer_service.update_offer(session, user, offer_id, data)
-    await record_audit(
-        session,
-        action=AuditAction.update,
-        detail=messages.offer_updated(offer.offer_no, offer.title, offer.employer_name),
-        actor_user_id=user.id,
-        ip_address=client_ip(request),
-    )
+    offer, changed = await offer_service.update_offer(session, user, offer_id, data)
+    if changed:  # hicbir alan degismediyse denetim satiri YAZILMAZ
+        await record_audit(
+            session,
+            action=AuditAction.update,
+            detail=messages.offer_updated(offer.offer_no, offer.title, offer.employer_name),
+            actor_user_id=user.id,
+            ip_address=client_ip(request),
+        )
     return await offer_queries.build_offer_detail(session, offer)
 
 
@@ -246,14 +255,18 @@ async def update_revision_endpoint(
     session: DbSession,
 ) -> OfferRevisionRead:
     """Kosullar (tarih, gecerlilik, GG/kar/KDV %, odeme, fiyat farki) — son revizyon taslak."""
-    offer, revision = await offer_service.update_revision(session, user, offer_id, rev_no, data)
-    await record_audit(
-        session,
-        action=AuditAction.update,
-        detail=messages.offer_conditions_updated(offer.offer_no, revision.rev_no),
-        actor_user_id=user.id,
-        ip_address=client_ip(request),
+    offer, revision, before = await offer_service.update_revision(
+        session, user, offer_id, rev_no, data
     )
+    detail = conditions_audit_detail(offer.offer_no, before, revision)
+    if detail is not None:  # hicbir kosul fiilen degismediyse denetim satiri YAZILMAZ
+        await record_audit(
+            session,
+            action=AuditAction.update,
+            detail=detail,
+            actor_user_id=user.id,
+            ip_address=client_ip(request),
+        )
     return await offer_queries.read_revision(session, offer, revision)
 
 
@@ -368,10 +381,26 @@ async def update_group_endpoint(
     _REV + "/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_WRITE
 )
 async def delete_group_endpoint(
-    offer_id: _OfferId, rev_no: _RevNo, group_id: _GroupId, session: DbSession
+    request: Request,
+    offer_id: _OfferId,
+    rev_no: _RevNo,
+    group_id: _GroupId,
+    user: _User,
+    session: DbSession,
 ) -> None:
     """Grubu icindeki kalemlerle birlikte siler (yalniz taslak)."""
-    await item_service.delete_group(session, offer_id, rev_no, group_id)
+    # Icinde kalem olan grubun silinmesi TEK denetim satiri yazar; bos grup yazmaz (R2c).
+    offer, revision, name, item_count = await item_service.delete_group(
+        session, offer_id, rev_no, group_id
+    )
+    if item_count > 0:
+        await record_audit(
+            session,
+            action=AuditAction.delete,
+            detail=messages.offer_group_deleted(offer.offer_no, revision.rev_no, name, item_count),
+            actor_user_id=user.id,
+            ip_address=client_ip(request),
+        )
 
 
 # ------------------------------------------------------------------------ kalem

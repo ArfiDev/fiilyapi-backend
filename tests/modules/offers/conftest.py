@@ -40,9 +40,10 @@ async def isveren(seeded_db) -> Employer:
     return employer
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 async def katalog(seeded_db) -> list[EvCatalogItem]:
-    """Uc kalem: Beton (ref 100), Kalip (ref YOK), Demir (ref 50)."""
+    """Uc kalem: Beton (ref 100), Kalip (ref YOK), Demir (ref 50). AUTOUSE: `gecis(send)` bos
+    revizyona kalem ekleyebilsin (TKL-B4.3 bos gonderim kurali)."""
     disiplin = EvDiscipline(
         code="OFR", name="Teklif", color="#2563eb", default_contractor_type=ContractorType.OWN
     )

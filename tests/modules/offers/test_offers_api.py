@@ -708,7 +708,7 @@ async def test_denetim_satirlari_olustur_kunye_sil_revizyon_gecis_kosul(
     ]
     assert await _audit_details(db_session, AuditAction.update) == [
         f"Teklif künyesi güncellendi: {no} · Yeni ad (Akın İnşaat A.Ş.)",
-        f"Teklif koşulları güncellendi: {no} Rev.0",
+        f"Teklif koşulları güncellendi: {no} Rev.0 · notlar «boş» → «x»",
         f"Teklif gönderildi: {no} Rev.0",
         f"Teklif vazgeçildi: {no} Rev.1",
     ]

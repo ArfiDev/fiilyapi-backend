@@ -56,6 +56,10 @@ from tests.earned_value_budget.test_budget_concurrency import (
 pytestmark = pytest.mark.asyncio
 
 
+#: `_ortam`in zemine yazdigi kalem sayisi (bos revizyon gonderilemez, TKL-B4.3).
+TOHUM_KALEM = 1
+
+
 @dataclass(frozen=True, slots=True)
 class _Ortam:
     database: str
@@ -108,6 +112,17 @@ async def _ortam(*, gonderilmis: bool):
                 s, user, OfferCreate(employer_id=employer.id, title="Yarış teklifi")
             )
             grup = await item_service.create_group(s, offer.id, 0, OfferGroupCreate(name="G"))
+            # Bos revizyon gonderilemez (TKL-B4.3): zemine TEK tohum kalem (`TOHUM_KALEM`).
+            await item_service.add_items(
+                s,
+                offer.id,
+                0,
+                [
+                    OfferItemCreate(
+                        catalog_item_id=kalem.id, group_id=grup.id, quantity=Decimal("1")
+                    )
+                ],
+            )
             if gonderilmis:
                 await offer_service.transition(s, user, offer.id, 0, OfferAction.send)
             await s.commit()
@@ -249,7 +264,7 @@ async def test_TKLB42_b_eszamanli_send_ve_kalem_ekleme_kalem_gonderilmise_YAZILA
         assert "FROM offers" in bekleyen and "FOR UPDATE" in bekleyen, bekleyen
         assert isinstance(hata, ConflictError), f"kalem 409 olmaliydi: {hata!r}"
         assert await _revizyonlar(ortam) == [(0, "sent")]
-        assert await _kalem_sayisi(ortam) == 0  # gonderilmis revizyonda kalem YOK
+        assert await _kalem_sayisi(ortam) == TOHUM_KALEM  # gonderilmis revizyona kalem YAZILMADI
 
 
 async def test_TKLB42_b_KONTROL_kilitsiz_kalem_gonderilmis_revizyona_yazilir(
@@ -272,4 +287,6 @@ async def test_TKLB42_b_KONTROL_kilitsiz_kalem_gonderilmis_revizyona_yazilir(
         assert bekleyen.startswith("UPDATE offer_revisions"), bekleyen
         assert hata is None, f"kilitsiz kalem reddedildi?: {hata!r}"
         assert await _revizyonlar(ortam) == [(0, "sent")]
-        assert await _kalem_sayisi(ortam) == 1  # DEGISMEZ IHLALI: gonderilmis revizyonda kalem
+        assert (
+            await _kalem_sayisi(ortam) == TOHUM_KALEM + 1
+        )  # DEGISMEZ IHLALI: gonderilmis revizyonda kalem

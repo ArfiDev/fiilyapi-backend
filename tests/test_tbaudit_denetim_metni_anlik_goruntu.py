@@ -83,6 +83,23 @@ satırının `eski → yeni` metni (E8; yalnız DEĞİŞEN alanlar). Farkta **KA
 222→228 sembol, 208→213 fonksiyon. `offer_settings_updated` (B4.1) KORUNDU ama artık ÇAĞRILMIYOR
 (silinirse bu referanstaki satırları KAYBOLUR — bilinçli bir sonraki turun işi).
 
+## 🔴 REFERANSTAN KALDIRILAN SEMBOL (TKL-B4.3, 2026-10-02)
+
+`offer_settings_updated` — yayınlanmadan kaldırıldı, TKL-B4.3 (B4.2'den beri çağrılmıyordu).
+Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile bilinçli tazelendi;
+diffte YALNIZ bu fonksiyonun satırları silindi, başka KAYIP 0; sayaçlar 228→227 sembol,
+213→212 fonksiyon.
+
+## 🔴 REFERANSA EKLENEN / DEĞİŞEN SEMBOLLER (TKL-B4.4, 2026-10-02)
+
+Eklenen: `offer_date_changed`, `offer_delivery_changed`, `offer_escalation_changed`,
+`offer_notes_changed` (koşul PATCH'i `eski → yeni`), `offer_group_deleted` (dolu grup silme).
+Değişen: `offer_conditions_updated` imzası `(offer_no, rev_no)` → `(offer_no, rev_no, parts)`
+(yayınlanmamış B4.2 metni; ESKİ iki çağrı satırı silindi, yerine `parts`'lı üç çağrı geldi —
+gerekçe: koşul denetimi artık değişen alanları yazar) ve `_short_terms` /
+`offer_setting_terms_changed` artık `None` kabul eder (`boş`; mevcut `str` çağrı satırları
+AYNEN korundu). Başka KAYIP 0; sayaçlar 227→232 sembol, 212→217 fonksiyon.
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok
@@ -252,9 +269,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 228, f"sembol sayısı 228 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 232, f"sembol sayısı 232 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 213, f"fonksiyon sayısı 213 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 217, f"fonksiyon sayısı 217 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

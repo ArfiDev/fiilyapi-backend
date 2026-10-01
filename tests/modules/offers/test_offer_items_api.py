@@ -71,10 +71,10 @@ async def test_grup_baska_revizyonda_422(client, admin, isveren, t, katalog) -> 
     resp = await client.post(rev_url(oid) + "/items", json=govde, headers=admin)
     assert resp.status_code == 422, resp.text
     assert "Grup bu revizyona ait değil" in resp.json()["detail"]
-    govde["group_id"] = str(uuid.uuid4())  # hic olmayan grup da ayni 422
+    govde["group_id"] = str(uuid.uuid4())  # hic olmayan grup: govde-ici referans kanonu → 404
     assert (
         await client.post(rev_url(oid) + "/items", json=govde, headers=admin)
-    ).status_code == 422
+    ).status_code == 404
 
 
 @pytest.mark.parametrize("quantity", ["0", "-1", "1000000000.001"])
@@ -182,7 +182,7 @@ async def test_toplu_hep_ya_hic_katalog_yok_hicbiri_yazilmaz(
     assert not [d for d in await _audit_details(db_session, AuditAction.create) if "kalem" in d]
 
 
-async def test_toplu_hep_ya_hic_grup_yanlis_422_kalem_sirasi_mesajda(
+async def test_toplu_hep_ya_hic_bilinmeyen_grup_404_kalem_sirasi_mesajda(
     client, admin, t, katalog, db_session
 ) -> None:
     oid, gid = t
@@ -193,7 +193,7 @@ async def test_toplu_hep_ya_hic_grup_yanlis_422_kalem_sirasi_mesajda(
         ]
     }
     resp = await client.post(rev_url(oid) + "/items/bulk", json=govde, headers=admin)
-    assert resp.status_code == 422, resp.text
+    assert resp.status_code == 404, resp.text  # hicbir revizyonda olmayan grup (TKL-B4.4 R4)
     assert resp.json()["detail"].startswith("Kalem 2:")
     assert await _kalem_sayisi(db_session) == 0
 

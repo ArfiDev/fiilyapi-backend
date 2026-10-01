@@ -108,13 +108,19 @@ async def update_group(
 
 async def delete_group(
     session: AsyncSession, offer_id: uuid.UUID, rev_no: int, group_id: uuid.UUID
-) -> None:
-    """Grubu ICINDEKI KALEMLERLE birlikte siler (bilesik FK `ON DELETE CASCADE`)."""
-    _offer, revision = await locking.lock_draft_revision(session, offer_id, rev_no)
+) -> tuple[Offer, OfferRevision, str, int]:
+    """Grubu ICINDEKI KALEMLERLE birlikte siler (bilesik FK `ON DELETE CASCADE`). Doner:
+    `(teklif, revizyon, grup adi, silinen kalem adedi)` (denetim satiri icin)."""
+    offer, revision = await locking.lock_draft_revision(session, offer_id, rev_no)
     group = await _get_group(session, revision.id, group_id)
+    name = group.name
+    item_count = await session.scalar(
+        select(func.count()).select_from(OfferItem).where(OfferItem.group_id == group.id)
+    )
     await session.delete(group)
     locking.touch_revision(revision)
     await session.flush()
+    return offer, revision, name, item_count or 0
 
 
 # ---------------------------------------------------------------------------- kalem
@@ -144,6 +150,21 @@ async def _group_ids_in_revision(
     )
 
 
+async def _groups_anywhere(session: AsyncSession, group_ids: set[uuid.UUID]) -> set[uuid.UUID]:
+    """Grup HERHANGI bir revizyonda var mi (govde-ici referans: yok → 404, baskasinda → 422)."""
+    if not group_ids:
+        return set()
+    return set(await session.scalars(select(OfferGroup.id).where(OfferGroup.id.in_(group_ids))))
+
+
+def _foreign_group_error(
+    group_id: uuid.UUID, anywhere: set[uuid.UUID], prefix: str = ""
+) -> NotFoundError | OfferValidationError:
+    if group_id not in anywhere:
+        return NotFoundError(f"{prefix}{GROUP_MISSING}")
+    return OfferValidationError(f"{prefix}{GROUP_NOT_IN_REVISION}")
+
+
 async def _next_item_orders(session: AsyncSession, revision_id: uuid.UUID) -> dict[uuid.UUID, int]:
     rows = await session.execute(
         select(OfferItem.group_id, func.max(OfferItem.sort_order))
@@ -169,10 +190,11 @@ async def add_items(
     # 1) dogrula (yazmadan ONCE): gruplar — TEK sorgu
     wanted_groups = {body.group_id for body in bodies}
     known_groups = await _group_ids_in_revision(session, revision.id, wanted_groups)
+    anywhere = await _groups_anywhere(session, wanted_groups - known_groups)
     for index, body in enumerate(bodies):
         if body.group_id not in known_groups:
             prefix = f"{label(index)}: " if bulk else ""
-            raise OfferValidationError(f"{prefix}{GROUP_NOT_IN_REVISION}")
+            raise _foreign_group_error(body.group_id, anywhere, prefix)
 
     # 2) katalog — TEK sorgu
     catalog_ids = {body.catalog_item_id for body in bodies}
@@ -226,7 +248,21 @@ async def add_items(
     session.add_all(items)
     locking.touch_revision(revision)
     await session.flush()
-    return offer, revision, items
+    return offer, revision, await _reload_items(session, items)
+
+
+async def _reload_items(session: AsyncSession, items: Sequence[OfferItem]) -> list[OfferItem]:
+    """Yazilan kalemleri DB'den TAZE okur (sira korunur): yazma yaniti, okuma yolunun gorecegi
+    Numeric olcekli degerlerle AYNI bicimde olsun (`"1"` degil `"1.00"`) — R3."""
+    fresh = {
+        row.id: row
+        for row in await session.scalars(
+            select(OfferItem)
+            .where(OfferItem.id.in_([i.id for i in items]))
+            .execution_options(populate_existing=True)
+        )
+    }
+    return [fresh[i.id] for i in items]
 
 
 async def update_item(
@@ -242,7 +278,7 @@ async def update_item(
     group_id = changes.get("group_id")
     if group_id is not None and group_id != item.group_id:
         if group_id not in await _group_ids_in_revision(session, revision.id, {group_id}):
-            raise OfferValidationError(GROUP_NOT_IN_REVISION)
+            raise _foreign_group_error(group_id, await _groups_anywhere(session, {group_id}))
     merged = dataclasses.replace(
         item_input(item), **{k: v for k, v in changes.items() if k in _CALC_FIELDS}
     )
@@ -251,6 +287,7 @@ async def update_item(
         setattr(item, field, value)
     locking.touch_revision(revision)
     await session.flush()
+    await session.refresh(item)  # yanit GET ile ayni bicim (DB'nin Numeric olcegi) — R3
     return offer, revision, item
 
 

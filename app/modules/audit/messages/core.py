@@ -100,16 +100,3 @@ def work_item_price_updated(
         f"{work_item_updated(poz_no, name, uom)} · "
         f"referans fiyat {_price_text(old_price)} → {_price_text(new_price)}"
     )
-
-
-def offer_settings_updated(
-    overhead_pct: Decimal,
-    profit_pct: Decimal,
-    vat_pct: Decimal,
-    validity_days: int,
-) -> str:
-    """Teklif varsayilanlari (TKL-B4.1). Odeme metni serbest metindir, denetim satirina girmez."""
-    return (
-        f"Teklif ayarları güncellendi: genel gider %{overhead_pct} · kâr %{profit_pct} · "
-        f"KDV %{vat_pct} · geçerlilik {validity_days} gün"
-    )
