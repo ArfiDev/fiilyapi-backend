@@ -18,6 +18,51 @@ def offer_created(offer_no: str, title: str, employer_name: str) -> str:
     return f"Teklif oluşturuldu: {offer_no} · {title} ({employer_name})"
 
 
+def offer_created_from_template(
+    offer_no: str, title: str, employer_name: str, template_name: str
+) -> str:
+    """B5.1: sablondan olusturma (`offer_created` metni DEGISMEDI; kaynak eki ayri mesaj)."""
+    return f"Teklif şablondan oluşturuldu: {offer_no} · {title} ({employer_name}) · {template_name}"
+
+
+def offer_created_from_copy(
+    offer_no: str, title: str, employer_name: str, source_offer_no: str, source_rev_no: int
+) -> str:
+    """B5.1 / SO-8: mevcut tekliften kopya."""
+    return (
+        f"Teklif kopyadan oluşturuldu: {offer_no} · {title} ({employer_name}) · "
+        f"{source_offer_no} Rev.{source_rev_no}"
+    )
+
+
+def offer_template_created(name: str) -> str:
+    return f"Teklif şablonu oluşturuldu: {name}"
+
+
+def offer_template_updated(name: str) -> str:
+    return f"Teklif şablonu güncellendi: {name}"
+
+
+def offer_template_content_replaced(name: str, group_count: int, item_count: int) -> str:
+    return f"Teklif şablonu içeriği güncellendi: {name} · {group_count} grup · {item_count} kalem"
+
+
+def offer_template_default_set(name: str) -> str:
+    return f"Varsayılan teklif şablonu değişti: {name}"
+
+
+def offer_template_deleted(name: str) -> str:
+    return f"Teklif şablonu silindi: {name}"
+
+
+def offer_template_from_offer(name: str, offer_no: str, rev_no: int) -> str:
+    return f"Tekliften şablon oluşturuldu: {name} ← {offer_no} Rev.{rev_no}"
+
+
+def offer_template_copied(name: str, source_name: str) -> str:
+    return f"Teklif şablonu kopyalandı: {name} ← {source_name}"
+
+
 def offer_updated(offer_no: str, title: str, employer_name: str) -> str:
     return f"Teklif künyesi güncellendi: {offer_no} · {title} ({employer_name})"
 

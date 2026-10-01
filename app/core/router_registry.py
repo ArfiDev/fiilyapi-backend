@@ -91,6 +91,7 @@ from app.modules.approvals.router import router as approvals_router
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.boq.router import router as boq_router
+from app.modules.catalog.export_router import router as catalog_export_router
 from app.modules.catalog.router import router as catalog_router
 from app.modules.company.router import router as company_router
 from app.modules.contracts.router import router as contracts_router
@@ -111,7 +112,9 @@ from app.modules.equipment.rental_router import router as equipment_rental_route
 from app.modules.equipment.router import router as equipment_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.invoicing.router import router as invoicing_router
+from app.modules.offers.export_router import router as offers_export_router
 from app.modules.offers.router import router as offers_router
+from app.modules.offers.template_router import router as offer_templates_router
 from app.modules.payroll.router import router as payroll_router
 from app.modules.personnel.document_type_router import router as personnel_document_type_router
 from app.modules.personnel.router import router as personnel_router
@@ -162,6 +165,7 @@ ROUTERS: tuple[APIRouter, ...] = (
     auth_router,
     boq_router,
     catalog_router,
+    catalog_export_router,
     company_router,
     contracts_router,
     customers_router,
@@ -181,7 +185,10 @@ ROUTERS: tuple[APIRouter, ...] = (
     equipment_router,
     inventory_router,
     invoicing_router,
+    # 🔴 SIRA ZORUNLU: `/offers/templates` (literal), `/offers/{offer_id}`den ONCE.
+    offer_templates_router,
     offers_router,
+    offers_export_router,
     payroll_router,
     # 🔴 SIRA ZORUNLU (3): `/personnel/document-types`, `/personnel/{personnel_id}`
     # ile AYNI şekli ve AYNI metodu (GET) taşır.

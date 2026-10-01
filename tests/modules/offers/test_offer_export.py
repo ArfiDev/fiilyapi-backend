@@ -1,0 +1,350 @@
+"""TKL-B5.2 — teklif revizyonu Excel ciktisi: isveren / ic gorunum, SIZINTI BEKCISI.
+
+Beklenen degerler API yanitindan (ve elle hesaplanmis sabitlerden) okunur; Excel uretim
+fonksiyonundan turetilmez. Sizinti bekcisi tum hucreleri tarar (basliklar + degerler).
+"""
+
+from __future__ import annotations
+
+import re
+import uuid
+from io import BytesIO
+
+import openpyxl
+import pytest
+
+from app.core.access import AccessLevel, Scope
+from app.modules.offers.export import (
+    EMPLOYER_HEADERS,
+    INTERNAL_HEADERS,
+    ExportView,
+    build_offer_workbook,
+)
+from app.modules.offers.models import Offer
+from app.modules.offers.offer_read_schemas import OfferRevisionRead
+
+from .._boq import _auth, _login_with_access, _set_permission
+from ._offers import D, grup, kalem, rev_url, revizyon, teklif
+
+#: Isveren ciktisinda HICBIR etiket/baslik hucresinde gecmemesi gereken kelimeler (kucuk harf).
+YASAK_KELIMELER = ("maliyet", "genel gider", "kâr", "adam-saat", "referans", "son fiyat")
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _export_url(offer_id: str, rev_no: int = 0) -> str:
+    return rev_url(offer_id, rev_no) + "/export"
+
+
+@pytest.fixture
+async def dolu(client, admin, isveren, katalog) -> dict:
+    """Iki gruplu Rev.0: [Beton 10 (maliyet 100), Demir 4 (maliyet 50, elle B.F. 80)] +
+    [Kalip 2 (maliyetsiz → fiyatsiz)]. Taslak; kosullar dolu."""
+    o = await teklif(client, admin, isveren, scope_summary="Kaba inşaat işleri")
+    g1 = await grup(client, admin, o["id"], name="Kaba")
+    g2 = await grup(client, admin, o["id"], name="İnce")
+    await kalem(
+        client, admin, o["id"], g1["id"], katalog[0].id, quantity="10", cost_unit_price="100"
+    )
+    await kalem(
+        client,
+        admin,
+        o["id"],
+        g1["id"],
+        katalog[2].id,
+        quantity="4",
+        cost_unit_price="50",
+        offer_unit_price="80",
+    )
+    await kalem(client, admin, o["id"], g2["id"], katalog[1].id, quantity="2")
+    resp = await client.patch(
+        rev_url(o["id"]),
+        json={"payment_terms": "Peşin ödeme", "delivery_days": 90, "notes": "Nakliye dahil"},
+        headers=admin,
+    )
+    assert resp.status_code == 200, resp.text
+    return {"offer_id": o["id"], "offer_no": o["offer_no"]}
+
+
+async def _indir(client, headers, offer_id: str, view: str | None = None, rev_no: int = 0):
+    yol = _export_url(offer_id, rev_no) + (f"?view={view}" if view else "")
+    return await client.get(yol, headers=headers)
+
+
+def _kitap(resp) -> openpyxl.Workbook:
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith(XLSX)
+    return openpyxl.load_workbook(BytesIO(resp.content))
+
+
+def _hucreler(kitap: openpyxl.Workbook) -> list:
+    return [c for satir in kitap.active.iter_rows() for c in satir if c.value is not None]
+
+
+def _satirlar(kitap: openpyxl.Workbook) -> list[tuple]:
+    return [tuple(c.value for c in satir) for satir in kitap.active.iter_rows()]
+
+
+def _tablo(kitap: openpyxl.Workbook, basliklar: tuple[str, ...]) -> list[tuple]:
+    """Baslik satirindan sonraki satirlar (genislik = baslik sayisi)."""
+    satirlar = _satirlar(kitap)
+    bas = next(i for i, s in enumerate(satirlar) if s[: len(basliklar)] == basliklar)
+    return [s[: len(basliklar)] for s in satirlar[bas + 1 :]]
+
+
+def _kalemler(rev: dict) -> list[dict]:
+    return [k for g in rev["groups"] for k in g["items"]]
+
+
+def _ic_degerler(rev: dict) -> set[str]:
+    """Isverene GIZLI olmasi gereken sayisal degerlerin METIN temsilleri (API yanitindan)."""
+    degerler: set[str] = set()
+    for k in _kalemler(rev):
+        for ad in ("cost", "overhead", "profit", "profit_pct", "man_hours"):
+            if k["internal"][ad] is not None:
+                degerler.add(k["internal"][ad])
+        if k["cost_unit_price"] is not None:
+            degerler.add(k["cost_unit_price"])
+    for v in rev["totals"]["internal"].values():
+        if v is not None:
+            degerler.add(v)
+    return degerler
+
+
+def _musteri_degerler(rev: dict) -> set[str]:
+    degerler = {k["quantity"] for k in _kalemler(rev) if k["quantity"] is not None}
+    for k in _kalemler(rev):
+        if k["customer"]:
+            degerler |= {k["customer"]["unit_price"], k["customer"]["amount"]}
+    degerler |= {v for v in rev["totals"]["customer"].values() if v is not None}
+    return degerler
+
+
+# --------------------------------------------------------------- SIZINTI BEKCISI
+
+
+async def test_isveren_xlsx_ic_degerleri_ve_ic_basliklari_HICBIR_hucrede_icermez(
+    client, admin, dolu
+) -> None:
+    rev = await revizyon(client, admin, dolu["offer_id"])
+    ic = _ic_degerler(rev)
+    # on kosul: test verisi icin ic ve musteri degerleri CAKISMIYOR (aksi hâlde bekci anlamsiz)
+    assert ic and not (ic & _musteri_degerler(rev)), ic & _musteri_degerler(rev)
+
+    kitap = _kitap(await _indir(client, admin, dolu["offer_id"], "employer"))
+    hucreler = _hucreler(kitap)
+    assert len(hucreler) > 30
+    for hucre in hucreler:
+        deger = str(hucre.value)
+        assert deger not in ic, f"{hucre.coordinate}: ic deger SIZDI: {deger}"
+        kucuk = deger.lower()
+        for yasak in YASAK_KELIMELER:
+            assert yasak not in kucuk, f"{hucre.coordinate}: yasak kelime {yasak!r}: {deger}"
+        assert "GG" not in deger, f"{hucre.coordinate}: {deger}"
+    # (b) varsayilan gorunum = isveren: ayni dosya
+    varsayilan = _kitap(await _indir(client, admin, dolu["offer_id"]))
+    assert _satirlar(varsayilan) == _satirlar(kitap)
+
+
+async def test_ic_xlsx_ayni_degerleri_ICERIR_pozitif_kontrol(client, admin, dolu) -> None:
+    rev = await revizyon(client, admin, dolu["offer_id"])
+    ic = _ic_degerler(rev)
+    kitap = _kitap(await _indir(client, admin, dolu["offer_id"], "internal"))
+    metinler = {str(h.value) for h in _hucreler(kitap)}
+    assert ic <= metinler, ic - metinler
+    # ic etiketler de var
+    for etiket in ("Adam-saat", "Maliyet", "GG", "Kâr", "İÇ TOPLAMLAR", "Fiyatsız Kalem Sayısı"):
+        assert etiket in metinler, etiket
+
+
+# --------------------------------------------------------------- icerik
+
+
+async def test_basliklar_ve_sira_sabit(client, admin, dolu) -> None:
+    emp = _kitap(await _indir(client, admin, dolu["offer_id"], "employer"))
+    ic = _kitap(await _indir(client, admin, dolu["offer_id"], "internal"))
+    assert EMPLOYER_HEADERS == (
+        "Poz No",
+        "İş Kalemi Tarifi",
+        "Birim",
+        "Miktar",
+        "Teklif B.F.",
+        "Tutar",
+    )
+    assert INTERNAL_HEADERS[6:] == (
+        "Adam-saat",
+        "Maliyet B.F.",
+        "GG %",
+        "Kâr %",
+        "Maliyet",
+        "GG",
+        "Kâr",
+    )
+    assert any(s[: len(EMPLOYER_HEADERS)] == EMPLOYER_HEADERS for s in _satirlar(emp))
+    assert any(s[: len(INTERNAL_HEADERS)] == INTERNAL_HEADERS for s in _satirlar(ic))
+    assert not any(s[: len(INTERNAL_HEADERS)] == INTERNAL_HEADERS for s in _satirlar(emp))
+
+
+async def test_kunye_toplamlar_ve_kosullar(client, admin, dolu) -> None:
+    rev = await revizyon(client, admin, dolu["offer_id"])
+    kitap = _kitap(await _indir(client, admin, dolu["offer_id"]))
+    satirlar = _satirlar(kitap)
+    kunye = {s[0]: s[1] for s in satirlar if s[0] and s[1] is not None}
+    assert kunye["Teklif No"] == f"{dolu['offer_no']} Rev.0"
+    assert kunye["İşveren"] == "Akın İnşaat A.Ş."
+    assert kunye["Kapsam"] == "Kaba inşaat işleri"
+    assert re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", kunye["Tarih"])
+    assert re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", kunye["Geçerlilik Bitişi"])
+    t = rev["totals"]["customer"]
+    toplam = {s[0]: s[5] for s in satirlar if s[0] in ("NET (KDV Hariç)", "GENEL TOPLAM")}
+    assert toplam == {"NET (KDV Hariç)": t["net"], "GENEL TOPLAM": t["gross"]}
+    kdv = next(s for s in satirlar if s[0] and s[0].startswith("KDV (%"))
+    assert kdv[0] == "KDV (%20)" and kdv[5] == t["vat"]
+    assert kunye["Ödeme Koşulu"] == "Peşin ödeme"
+    assert kunye["Teslim Süresi"] == "90 gün"
+    assert kunye["Fiyat Farkı"] == "Endeksli (ÜFE)" or kunye["Fiyat Farkı"] == "Sabit fiyat"
+    assert kunye["Notlar"] == "Nakliye dahil"
+    # sabit sayilar (elle): net 1288.00 + 320.00 = 1608.00
+    assert D(t["net"]) == D("1608.00")
+
+
+async def test_tutarlar_API_ile_birebir_ve_her_hucre_str(client, admin, dolu) -> None:
+    rev = await revizyon(client, admin, dolu["offer_id"])
+    for gorunum in ("employer", "internal"):
+        kitap = _kitap(await _indir(client, admin, dolu["offer_id"], gorunum))
+        for hucre in _hucreler(kitap):
+            assert isinstance(hucre.value, str), f"{hucre.coordinate}: {type(hucre.value)}"
+            assert hucre.data_type == "s"
+    kitap = _kitap(await _indir(client, admin, dolu["offer_id"], "internal"))
+    satirlar = {s[0]: s for s in _tablo(kitap, INTERNAL_HEADERS) if s[0] and s[2]}
+    for k in _kalemler(rev):
+        satir = satirlar[k["poz_no"]]
+        assert satir[3] == k["quantity"]
+        assert satir[4] == (k["customer"]["unit_price"] if k["customer"] else None)
+        assert satir[5] == (k["customer"]["amount"] if k["customer"] else None)
+        assert satir[6] == k["internal"]["man_hours"]
+        assert satir[7] == k["cost_unit_price"]
+        assert (satir[10], satir[11], satir[12]) == (
+            k["internal"]["cost"],
+            k["internal"]["overhead"],
+            k["internal"]["profit"],
+        )
+
+
+async def test_grup_ara_toplamlari_ve_fiyatsiz_kalem_bos_hucre(client, admin, dolu) -> None:
+    rev = await revizyon(client, admin, dolu["offer_id"])
+    g1, g2 = rev["groups"]
+    kitap = _kitap(await _indir(client, admin, dolu["offer_id"], "employer"))
+    ara = [s for s in _tablo(kitap, EMPLOYER_HEADERS) if s[0] == "Ara Toplam"]
+    assert [s[5] for s in ara] == ["1608.00", "0.00"]  # ikinci grup yalniz fiyatsiz kalem
+    fiyatsiz = next(k for k in g2["items"])
+    assert fiyatsiz["priced"] is False
+    satir = next(s for s in _tablo(kitap, EMPLOYER_HEADERS) if s[0] == fiyatsiz["poz_no"])
+    assert satir[3] == fiyatsiz["quantity"] and satir[4] is None and satir[5] is None
+    assert sum(D(k["customer"]["amount"]) for k in g1["items"]) == D(ara[0][5])
+    # ic gorunum: ara toplam maliyet/GG/kar da dolu; fiyatsiz grup adam-saat DOLU
+    ic = _kitap(await _indir(client, admin, dolu["offer_id"], "internal"))
+    ara_ic = [s for s in _tablo(ic, INTERNAL_HEADERS) if s[0] == "Ara Toplam"]
+    assert ara_ic[0][10] == "1200.00"  # 1000 + 200 (maliyet), elle
+    assert ara_ic[1][6] == fiyatsiz["internal"]["man_hours"]
+
+
+async def test_miktari_girilmemis_fiyatsiz_kalem_CALISMAZ_degil_BOS_basar(
+    client, admin, dolu
+) -> None:
+    """B5.1 `quantity`yi NULL yapabilir: `priced=False` + `quantity=None` + `customer=None`."""
+    rev = OfferRevisionRead.model_validate(await revizyon(client, admin, dolu["offer_id"]))
+    g2 = rev.groups[1]
+    bos = g2.items[0].model_copy(update={"quantity": None, "customer": None, "priced": False})
+    grup2 = g2.model_copy(update={"items": [bos]})
+    rev = rev.model_copy(update={"groups": [rev.groups[0], grup2]})
+    offer = Offer(offer_no="TKL-2026-0001", employer_name="X", title="Y", scope_summary=None)
+    for gorunum in ExportView:
+        kitap = openpyxl.load_workbook(build_offer_workbook(offer, rev, gorunum))
+        basliklar = EMPLOYER_HEADERS if gorunum is ExportView.employer else INTERNAL_HEADERS
+        satir = next(s for s in _tablo(kitap, basliklar) if s[0] == bos.poz_no)
+        assert satir[3:6] == (None, None, None)
+        assert "None" not in {str(h.value) for h in _hucreler(kitap)}
+
+
+# --------------------------------------------------------------- dosya adi
+
+
+async def test_dosya_adi(client, admin, dolu) -> None:
+    emp = await _indir(client, admin, dolu["offer_id"], "employer")
+    ic = await _indir(client, admin, dolu["offer_id"], "internal")
+    assert re.fullmatch(r"TKL-\d{4}-\d{4}", dolu["offer_no"])
+    assert f"{dolu['offer_no']}-Rev0-isveren.xlsx" in emp.headers["content-disposition"]
+    assert f"{dolu['offer_no']}-Rev0-ic.xlsx" in ic.headers["content-disposition"]
+    assert emp.headers["content-disposition"].startswith("attachment;")
+
+
+# --------------------------------------------------------------- hatalar / izin
+
+
+async def test_olmayan_teklif_ve_revizyon_404_gecersiz_view_422(client, admin, dolu) -> None:
+    assert (await _indir(client, admin, str(uuid.uuid4()))).status_code == 404
+    assert (await _indir(client, admin, dolu["offer_id"], rev_no=7)).status_code == 404
+    assert (await _indir(client, admin, dolu["offer_id"], "baska")).status_code == 422
+
+
+async def test_kimliksiz_401(client, dolu) -> None:
+    assert (await client.get(_export_url(dolu["offer_id"]))).status_code == 401
+
+
+@pytest.mark.parametrize("role_key", ["site_chief", "field_engineer"])
+async def test_contracts_yok_roller_403(client, db_session, user_factory, dolu, role_key) -> None:
+    token = await _login_with_access(
+        client, db_session, user_factory, role_key, f"{role_key}.{uuid.uuid4().hex[:6]}@tkl.co"
+    )
+    for gorunum in ("employer", "internal"):
+        resp = await _indir(client, _auth(token), dolu["offer_id"], gorunum)
+        assert resp.status_code == 403, gorunum
+
+
+async def test_muhasebe_contracts_view_200_ve_tam_deger(
+    client, admin, db_session, user_factory, dolu
+) -> None:
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.all)
+    token = await _login_with_access(
+        client, db_session, user_factory, "accounting", f"acc.{uuid.uuid4().hex[:6]}@tkl.co"
+    )
+    kitap = _kitap(await _indir(client, _auth(token), dolu["offer_id"], "internal"))
+    assert "1608.00" in {str(h.value) for h in _hucreler(kitap)}
+
+
+# --------------------------------------------------------------- maske
+
+
+async def test_limited_kapsamda_para_hucreleri_BOS_digerleri_gorunur(
+    client, admin, db_session, user_factory, dolu
+) -> None:
+    rev = await revizyon(client, admin, dolu["offer_id"])
+    para = (
+        {k["customer"]["amount"] for k in _kalemler(rev) if k["customer"]}
+        | {k["customer"]["unit_price"] for k in _kalemler(rev) if k["customer"]}
+        | {v for v in rev["totals"]["customer"].values()}
+        | _ic_degerler(rev)
+        - {k["internal"]["man_hours"] for k in _kalemler(rev)}
+        - {rev["totals"]["internal"]["man_hours"]}
+    )
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.limited)
+    token = await _login_with_access(
+        client, db_session, user_factory, "accounting", f"lim.{uuid.uuid4().hex[:6]}@tkl.co"
+    )
+    for gorunum in ("employer", "internal"):
+        kitap = _kitap(await _indir(client, _auth(token), dolu["offer_id"], gorunum))
+        metinler = {str(h.value) for h in _hucreler(kitap)}
+        assert not (para & metinler), (gorunum, para & metinler)
+        # miktar, poz, tarif, kosullar GORUNUR
+        assert {k["quantity"] for k in _kalemler(rev)} <= metinler
+        assert {k["poz_no"] for k in _kalemler(rev)} <= metinler
+        assert "Peşin ödeme" in metinler
+        satirlar = _satirlar(kitap)
+        genel = next(s for s in satirlar if s[0] == "GENEL TOPLAM")
+        assert genel[5] is None
+        ara = next(s for s in satirlar if s[0] == "Ara Toplam")
+        assert ara[5] is None  # kismi/maskeli toplam yazilmaz
+    ic = _kitap(await _indir(client, _auth(token), dolu["offer_id"], "internal"))
+    assert {k["internal"]["man_hours"] for k in _kalemler(rev)} <= {
+        str(h.value) for h in _hucreler(ic)
+    }

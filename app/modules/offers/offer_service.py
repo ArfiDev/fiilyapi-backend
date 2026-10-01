@@ -12,8 +12,10 @@ Gecisler YALNIZ en son revizyonda.
 
 from __future__ import annotations
 
+import dataclasses
 import enum
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,16 +24,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError, OfferValidationError
 from app.core.timezone import today
-from app.modules.offers import locking, numbering
+from app.modules.offers import locking, numbering, offer_seed, template_service
 from app.modules.offers.models import (
     Offer,
-    OfferGroup,
     OfferItem,
     OfferPriceEscalation,
     OfferRevision,
     OfferRevisionStatus,
 )
 from app.modules.offers.offer_schemas import (
+    OfferCopySource,
     OfferCreate,
     OfferLoseRequest,
     OfferRevisionUpdate,
@@ -50,6 +52,7 @@ NEW_REVISION_NOT_ALLOWED = (
 INDEX_REQUIRED = "Fiyat farkı «TÜİK endeksli» iken endeks türü zorunludur"
 INDEX_NOT_ALLOWED = "Sabit fiyatta endeks türü girilemez"
 NO_ITEMS_TO_SEND = "Teklifte kalem yok"
+UNQUANTIFIED_ITEMS = "Miktarı girilmemiş kalem var"
 IMMUTABLE_NOTE = "Künye yalnız son revizyon taslak iken değiştirilebilir"
 
 _STATUS_LABEL = {
@@ -118,20 +121,134 @@ async def _get_employer(session: AsyncSession, employer_id: uuid.UUID) -> Employ
 # --------------------------------------------------------------------------- olustur
 
 
+@dataclass(frozen=True, slots=True)
+class OfferOrigin:
+    """Teklifin kaynagi (denetim metni icin): bos | sablon | kopya."""
+
+    template_name: str | None = None
+    source_offer_no: str | None = None
+    source_rev_no: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _Defaults:
+    """Kosul varsayilanlari (govde alani YOKSA kullanilir): ayar | sablon+ayar | kaynak revizyon."""
+
+    validity_days: int
+    overhead_pct: Any
+    profit_pct: Any
+    vat_pct: Any
+    payment_terms: str | None
+    delivery_days: int | None
+    price_escalation: OfferPriceEscalation
+    price_index_type: Any
+    notes: str | None
+
+
+async def _lock_copy_source(
+    session: AsyncSession, source: OfferCopySource
+) -> tuple[Offer, OfferRevision]:
+    """Kopya kaynagi: teklif satiri `FOR SHARE` (kaynak kopya sirasinda degismez/silinmez;
+    eszamanli kopyalar birbirini BEKLETMEZ). Kaynak yoksa 404."""
+    offer = await session.scalar(
+        select(Offer)
+        .where(Offer.id == source.offer_id)
+        .with_for_update(read=True)
+        .execution_options(populate_existing=True)
+    )
+    if offer is None:
+        raise NotFoundError(locking.OFFER_MISSING)
+    revision = await session.scalar(
+        select(OfferRevision)
+        .where(OfferRevision.offer_id == offer.id, OfferRevision.rev_no == source.rev_no)
+        .execution_options(populate_existing=True)
+    )
+    if revision is None:
+        raise NotFoundError(locking.REVISION_MISSING)
+    return offer, revision
+
+
 async def create_offer(session: AsyncSession, user: User, data: OfferCreate) -> Offer:
-    """Teklif + Rev.0 taslak. Kosullar govdede yoksa `offer_settings`ten KOPYALANIR."""
-    employer = await _get_employer(session, data.employer_id)
-    check_escalation(data.price_escalation, data.price_index_type)
+    offer, _origin = await create_offer_with_origin(session, user, data)
+    return offer
+
+
+async def create_offer_with_origin(
+    session: AsyncSession, user: User, data: OfferCreate
+) -> tuple[Offer, OfferOrigin]:
+    """Teklif + Rev.0 taslak. Kosullar govdede yoksa `offer_settings`ten KOPYALANIR.
+
+    Kaynak (en fazla biri): `template_id` → sablonun gruplari + kalemleri, MIKTAR BOS, oranlar
+    govde ?? sablon ?? ayar (B5.1); `copy_from` → kaynak revizyonun kosullari + oranlari +
+    kalemleri birebir, kunye govde ?? kaynak (SO-8). Kaynak teklif/revizyon/sablon DEGISMEZ.
+    """
     settings = await get_settings(session)
     given = data.model_fields_set
+    template = None
+    source_offer = source_rev = None
+    defaults = _Defaults(
+        validity_days=settings.default_validity_days,
+        overhead_pct=settings.default_overhead_pct,
+        profit_pct=settings.default_profit_pct,
+        vat_pct=settings.default_vat_pct,
+        payment_terms=settings.default_payment_terms,
+        delivery_days=None,
+        price_escalation=OfferPriceEscalation.fixed,
+        price_index_type=None,
+        notes=None,
+    )
+    if data.template_id is not None:
+        template = await template_service.lock_template_shared(session, data.template_id)
+        defaults = dataclasses.replace(
+            defaults,
+            overhead_pct=(
+                template.overhead_pct
+                if template.overhead_pct is not None
+                else defaults.overhead_pct
+            ),
+            profit_pct=(
+                template.profit_pct if template.profit_pct is not None else defaults.profit_pct
+            ),
+        )
+    if data.copy_from is not None:
+        source_offer, source_rev = await _lock_copy_source(session, data.copy_from)
+        defaults = _Defaults(
+            validity_days=source_rev.validity_days,
+            overhead_pct=source_rev.overhead_pct,
+            profit_pct=source_rev.profit_pct,
+            vat_pct=source_rev.vat_pct,
+            payment_terms=source_rev.payment_terms,
+            delivery_days=source_rev.delivery_days,
+            price_escalation=source_rev.price_escalation,
+            price_index_type=source_rev.price_index_type,
+            notes=source_rev.notes,
+        )
+
+    employer_id = data.employer_id
+    if employer_id is None and source_offer is not None:
+        employer_id = source_offer.employer_id
+    employer = await _get_employer(session, employer_id)  # type: ignore[arg-type]
+    if "price_escalation" in given:
+        escalation, index_type = data.price_escalation, data.price_index_type
+    else:
+        escalation = defaults.price_escalation
+        index_type = (
+            data.price_index_type if "price_index_type" in given else defaults.price_index_type
+        )
+    check_escalation(escalation, index_type)
 
     offer = Offer(
         offer_no=await numbering.next_offer_no(session, year=numbering.current_offer_year()),
         employer_id=employer.id,
         employer_name=employer.name,
-        title=data.title,
-        scope_summary=data.scope_summary,
+        title=data.title if data.title is not None else source_offer.title,  # type: ignore[union-attr]
+        scope_summary=(
+            data.scope_summary
+            if source_offer is None or "scope_summary" in given
+            else source_offer.scope_summary
+        ),
         prepared_by_user_id=user.id,
+        template_id=template.id if template is not None else None,
     )
     session.add(offer)
     await session.flush()
@@ -140,30 +257,44 @@ async def create_offer(session: AsyncSession, user: User, data: OfferCreate) -> 
         value = getattr(data, name)
         return default if value is None else value
 
-    session.add(
-        OfferRevision(
-            offer_id=offer.id,
-            rev_no=0,
-            status=OfferRevisionStatus.draft,
-            offer_date=pick("offer_date", today()),
-            validity_days=pick("validity_days", settings.default_validity_days),
-            overhead_pct=pick("overhead_pct", settings.default_overhead_pct),
-            profit_pct=pick("profit_pct", settings.default_profit_pct),
-            vat_pct=pick("vat_pct", settings.default_vat_pct),
-            payment_terms=(
-                data.payment_terms if "payment_terms" in given else settings.default_payment_terms
-            ),
-            delivery_days=data.delivery_days,
-            price_escalation=data.price_escalation,
-            price_index_type=data.price_index_type,
-            notes=data.notes,
-            created_at=_now(),
-            updated_at=_now(),
-            created_by_user_id=user.id,
-        )
+    def explicit(name: str, default: Any) -> Any:
+        return getattr(data, name) if name in given else default
+
+    revision = OfferRevision(
+        offer_id=offer.id,
+        rev_no=0,
+        status=OfferRevisionStatus.draft,
+        offer_date=pick("offer_date", today()),
+        validity_days=pick("validity_days", defaults.validity_days),
+        overhead_pct=pick("overhead_pct", defaults.overhead_pct),
+        profit_pct=pick("profit_pct", defaults.profit_pct),
+        vat_pct=pick("vat_pct", defaults.vat_pct),
+        payment_terms=explicit("payment_terms", defaults.payment_terms),
+        delivery_days=explicit("delivery_days", defaults.delivery_days),
+        price_escalation=escalation,
+        price_index_type=index_type,
+        notes=explicit("notes", defaults.notes),
+        created_at=_now(),
+        updated_at=_now(),
+        created_by_user_id=user.id,
     )
+    session.add(revision)
     await session.flush()
-    return offer
+
+    if template is not None:
+        await offer_seed.seed_from_template(
+            session, template_id=template.id, target_revision_id=revision.id
+        )
+    if source_rev is not None and source_offer is not None:
+        await offer_seed.copy_content(
+            session, source_revision_id=source_rev.id, target_revision_id=revision.id
+        )
+    origin = OfferOrigin(
+        template_name=template.name if template is not None else None,
+        source_offer_no=source_offer.offer_no if source_offer is not None else None,
+        source_rev_no=source_rev.rev_no if source_rev is not None else None,
+    )
+    return offer, origin
 
 
 # ---------------------------------------------------------------------------- kunye
@@ -281,42 +412,9 @@ async def create_revision(
     session.add(revision)
     await session.flush()
 
-    group_map: dict[uuid.UUID, uuid.UUID] = {}
-    for group in await session.scalars(
-        select(OfferGroup).where(OfferGroup.revision_id == previous.id)
-    ):
-        new_id = uuid.uuid4()
-        group_map[group.id] = new_id
-        session.add(
-            OfferGroup(
-                id=new_id,
-                revision_id=revision.id,
-                name=group.name,
-                sort_order=group.sort_order,
-            )
-        )
-    await session.flush()
-
-    for item in await session.scalars(
-        select(OfferItem).where(OfferItem.revision_id == previous.id)
-    ):
-        session.add(
-            OfferItem(
-                revision_id=revision.id,
-                group_id=group_map[item.group_id],
-                sort_order=item.sort_order,
-                catalog_item_id=item.catalog_item_id,
-                poz_no=item.poz_no,
-                description=item.description,
-                unit=item.unit,
-                quantity=item.quantity,
-                unit_mhr=item.unit_mhr,
-                cost_unit_price=item.cost_unit_price,
-                overhead_pct=item.overhead_pct,
-                profit_pct=item.profit_pct,
-                offer_unit_price=item.offer_unit_price,
-            )
-        )
+    await offer_seed.copy_content(
+        session, source_revision_id=previous.id, target_revision_id=revision.id
+    )
     offer.updated_at = _now()
     await session.flush()
     return offer, revision
@@ -348,6 +446,14 @@ async def transition(
         )
         if has_items is None:
             raise OfferValidationError(NO_ITEMS_TO_SEND)
+        # SO-21: miktari girilmemis kalem varken gonderilmez (taslakta serbest); ayni kilit ALTINDA.
+        unquantified = await session.scalar(
+            select(OfferItem.id)
+            .where(OfferItem.revision_id == revision.id, OfferItem.quantity.is_(None))
+            .limit(1)
+        )
+        if unquantified is not None:
+            raise OfferValidationError(UNQUANTIFIED_ITEMS)
     now = _now()
     revision.status = target
     if action is OfferAction.send:

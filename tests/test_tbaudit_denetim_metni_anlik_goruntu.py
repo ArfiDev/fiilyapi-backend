@@ -100,6 +100,16 @@ gerekçe: koşul denetimi artık değişen alanları yazar) ve `_short_terms` /
 `offer_setting_terms_changed` artık `None` kabul eder (`boş`; mevcut `str` çağrı satırları
 AYNEN korundu). Başka KAYIP 0; sayaçlar 227→232 sembol, 212→217 fonksiyon.
 
+## 🔴 REFERANSA EKLENEN SEMBOLLER (TKL-B5.1, 2026-10-02)
+
+Eklenen (9): `offer_created_from_template`, `offer_created_from_copy`, `offer_template_created`,
+`offer_template_updated`, `offer_template_content_replaced`, `offer_template_default_set`,
+`offer_template_deleted`, `offer_template_from_offer`, `offer_template_copied` — şablon uçları ve
+şablondan/kopyadan teklif oluşturma. `offer_created` metni DEĞİŞMEDİ (kaynak eki AYRI mesajlar).
+Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta
+**KAYIP 0** (`git diff`: yalnız 13 `+` satırı, `-` satırı yok); sayaçlar 232→241 sembol,
+217→226 fonksiyon.
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok
@@ -269,9 +279,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 232, f"sembol sayısı 232 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 241, f"sembol sayısı 241 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 217, f"fonksiyon sayısı 217 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 226, f"fonksiyon sayısı 226 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

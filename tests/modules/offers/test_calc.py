@@ -354,8 +354,15 @@ def test_E3_ust_duzey_sonuclar_ic_alan_TASIMAZ_musteri_yapisinda_ic_kavram_adi_y
     assert not [a for a in musteri if any(k in a for k in _IC_KAVRAMLAR)], musteri
     kalem_ust = _alanlar(calc.ItemResult)
     revizyon_ust = _alanlar(calc.RevisionResult)
-    assert kalem_ust == {"priced", "customer", "internal"}
-    assert revizyon_ust == {"items", "customer", "internal", "unpriced_count"}
+    # B5.1 (SO-21): `quantified` ve `unquantified_count` YAPISAL alanlardir (para/ic deger degil).
+    assert kalem_ust == {"priced", "customer", "internal", "quantified"}
+    assert revizyon_ust == {
+        "items",
+        "customer",
+        "internal",
+        "unpriced_count",
+        "unquantified_count",
+    }
     assert not (kalem_ust | revizyon_ust) & ic, "ic alan ust duzeye SIZDI"
     assert not [a for a in kalem_ust | revizyon_ust if any(k in a for k in _IC_KAVRAMLAR)]
 

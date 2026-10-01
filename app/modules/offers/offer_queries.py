@@ -239,6 +239,7 @@ async def build_offer_detail(session: AsyncSession, offer: Offer) -> OfferDetail
                 net=result.customer.net,
                 gross=result.customer.gross,
                 unpriced_count=result.unpriced_count,
+                unquantified_count=result.unquantified_count,
             )
         )
     last = revisions[-1]
@@ -254,6 +255,7 @@ async def build_offer_detail(session: AsyncSession, offer: Offer) -> OfferDetail
         prepared_by_name=(
             names.get(offer.prepared_by_user_id) if offer.prepared_by_user_id is not None else None
         ),
+        template_id=offer.template_id,
         status=last.status,
         latest_rev_no=last.rev_no,
         created_at=offer.created_at,
@@ -374,6 +376,7 @@ async def list_offers(
                 net=result.customer.net,
                 gross=result.customer.gross,
                 unpriced_count=result.unpriced_count,
+                unquantified_count=result.unquantified_count,
                 created_at=offer.created_at,
             )
             for offer, rev, result in page

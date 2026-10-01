@@ -81,14 +81,36 @@ def _reject_null(value: object) -> object:
 # --------------------------------------------------------------------- teklif
 
 
-class OfferCreate(BaseModel):
-    """`POST /offers`. Kosul alanlari verilmezse `offer_settings`ten KOPYALANIR; `price_escalation`
-    varsayilani `fixed` (SO-5); `offer_date` varsayilani bugun (Istanbul)."""
+class OfferCopySource(BaseModel):
+    """`copy_from` (SO-8): kopyalanacak teklif + revizyon."""
 
     model_config = _STRICT
 
-    employer_id: uuid.UUID
-    title: Title
+    offer_id: uuid.UUID
+    rev_no: Annotated[int, Field(ge=0, le=100_000)]
+
+
+COPY_AND_TEMPLATE_EXCLUSIVE = "template_id ve copy_from birlikte verilemez"
+EMPLOYER_REQUIRED = "employer_id: İşveren zorunludur"
+TITLE_REQUIRED = "title: İş adı zorunludur"
+
+
+class OfferCreate(BaseModel):
+    """`POST /offers`. Kosul alanlari verilmezse `offer_settings`ten KOPYALANIR; `price_escalation`
+    varsayilani `fixed` (SO-5); `offer_date` varsayilani bugun (Istanbul).
+
+    Uc kaynak (en fazla BIRI): bos (varsayilan) | `template_id` (sablondan: gruplar + katalog
+    kalemleri, MIKTAR BOS) | `copy_from` (SO-8: mevcut tekliften yeni teklif; kaynagin
+    kosullari + kalemleri kopyalanir, govdede verilen kosul/kunye ALANLARI kaynagi ezer).
+    `employer_id`/`title` yalniz `copy_from` ile birlikte opsiyoneldir (kaynaktan alinir).
+    """
+
+    model_config = _STRICT
+
+    employer_id: uuid.UUID | None = None
+    title: Title | None = None
+    template_id: uuid.UUID | None = None
+    copy_from: OfferCopySource | None = None
     scope_summary: ScopeSummary | None = None
     offer_date: OfferDate | None = None
     validity_days: ValidityDays | None = None
@@ -101,6 +123,17 @@ class OfferCreate(BaseModel):
     price_escalation: OfferPriceEscalation = OfferPriceEscalation.fixed
     price_index_type: PriceIndexType | None = None
     notes: Notes | None = None
+
+    @model_validator(mode="after")
+    def _source_rules(self) -> OfferCreate:
+        if self.template_id is not None and self.copy_from is not None:
+            raise ValueError(COPY_AND_TEMPLATE_EXCLUSIVE)
+        if self.copy_from is None:
+            if self.employer_id is None:
+                raise ValueError(EMPLOYER_REQUIRED)
+            if self.title is None:
+                raise ValueError(TITLE_REQUIRED)
+        return self
 
 
 class OfferUpdate(BaseModel):
@@ -193,7 +226,8 @@ class OfferItemCreate(BaseModel):
 
     catalog_item_id: uuid.UUID
     group_id: uuid.UUID
-    quantity: Quantity
+    #: Gonderilmezse (ya da `null`) NULL = "miktar girilmedi" (SO-21).
+    quantity: Quantity | None = None
     cost_unit_price: UnitPrice | None = None
     overhead_pct: Pct | None = None
     profit_pct: ProfitPct | None = None

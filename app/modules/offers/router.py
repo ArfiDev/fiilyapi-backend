@@ -159,12 +159,28 @@ async def list_offers_endpoint(
 async def create_offer_endpoint(
     request: Request, data: OfferCreate, user: _User, session: DbSession
 ) -> OfferDetailRead:
-    """Teklif + Rev.0 taslak. Kosullar gonderilmezse `offer_settings`ten kopyalanir."""
-    offer = await offer_service.create_offer(session, user, data)
+    """Teklif + Rev.0 taslak. Kosullar gonderilmezse `offer_settings`ten kopyalanir. Kaynak
+    (en fazla biri): `template_id` (sablondan, miktar bos) | `copy_from` (SO-8, mevcut tekliften).
+    Gonderilmezse bos teklif — varsayilan sablon KENDILIGINDEN kullanilmaz."""
+    offer, origin = await offer_service.create_offer_with_origin(session, user, data)
+    if origin.template_name is not None:
+        detail = messages.offer_created_from_template(
+            offer.offer_no, offer.title, offer.employer_name, origin.template_name
+        )
+    elif origin.source_offer_no is not None and origin.source_rev_no is not None:
+        detail = messages.offer_created_from_copy(
+            offer.offer_no,
+            offer.title,
+            offer.employer_name,
+            origin.source_offer_no,
+            origin.source_rev_no,
+        )
+    else:
+        detail = messages.offer_created(offer.offer_no, offer.title, offer.employer_name)
     await record_audit(
         session,
         action=AuditAction.create,
-        detail=messages.offer_created(offer.offer_no, offer.title, offer.employer_name),
+        detail=detail,
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )
