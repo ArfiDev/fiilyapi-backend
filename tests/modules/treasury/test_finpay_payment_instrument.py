@@ -832,5 +832,7 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # GKS-B1: `GET /sites/{site_id}/diary/skeleton` = +1 yol / +1 operasyon (289→290 · 414→415).
     # TKL-B2: `GET`/`POST /catalog/items` · `PATCH /catalog/items/{item_id}` ·
     # `GET /catalog/disciplines` = +3 yol / +4 operasyon (290→293 · 415→419).
-    assert len(yollar) == 293
-    assert operasyonlar == 419
+    # TKL-B3: `POST /projects/{project_id}/contract/items/bulk` = +1 yol / +1 operasyon
+    # (293→294 · 419→420).
+    assert len(yollar) == 294
+    assert operasyonlar == 420

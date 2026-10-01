@@ -22,7 +22,13 @@ from app.core.slug import parse_ref
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
-from app.modules.contracts import distribution, service, subcontractors, subcontracts
+from app.modules.contracts import (
+    distribution,
+    last_price_provider,
+    service,
+    subcontractors,
+    subcontracts,
+)
 from app.modules.contracts.models import ContractStatus
 from app.modules.contracts.schemas import (
     ContractDistributionResponse,
@@ -35,6 +41,8 @@ from app.modules.contracts.schemas import (
     EmployerContractGroupUpdate,
     EmployerContractItemCreate,
     EmployerContractItemResponse,
+    EmployerContractItemsBulkCreate,
+    EmployerContractItemsBulkResponse,
     EmployerContractItemsResponse,
     EmployerContractItemUpdate,
     SubcontractorContractCreate,
@@ -63,6 +71,9 @@ router = APIRouter(
     route_class=kapsam_rotasi("contracts", kapsamdan_oku),
     dependencies=[kapsam_kapisi("contracts")],
 )
+
+# TKL-B3.2: son fiyat portuna kayit (import yan etkisi; bekci testi uygulama acilisinda ister).
+last_price_provider.register()
 
 _VIEW = require_permission("contracts", AccessLevel.view)
 _FULL = require_permission("contracts", AccessLevel.full)
@@ -270,6 +281,38 @@ async def create_employer_contract_item_endpoint(
     # Yeni oluşturulan kaleme henüz hiçbir BOQ satırı bağlı OLAMAZ — dağıtım
     # sıfırdır, ek sorgu atmaya gerek yok.
     return service.to_item_response(item, Decimal("0"))
+
+
+@router.post(
+    "/projects/{project_id}/contract/items/bulk",
+    response_model=EmployerContractItemsBulkResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_FULL],
+)
+async def create_employer_contract_items_bulk_endpoint(
+    request: Request,
+    project_id: uuid.UUID,
+    data: EmployerContractItemsBulkCreate,
+    user: Annotated[User, Depends(get_current_user)],
+    session: DbSession,
+) -> EmployerContractItemsBulkResponse:
+    """TKL-B3.1: çoklu katalog seçicisi için toplu poz ekleme (tek işlem, hep-ya-hiç).
+
+    Kapı tekil `+ Poz Ekle` ucuyla AYNIDIR; denetim günlüğüne TEK satır yazılır.
+    """
+    items, project = await service.create_employer_items_bulk(session, user, project_id, data)
+    await record_audit(
+        session,
+        action=AuditAction.create,
+        detail=messages.employer_contract_items_bulk_created(
+            project.name, [item.code for item in items]
+        ),
+        actor_user_id=user.id,
+        ip_address=client_ip(request),
+    )
+    return EmployerContractItemsBulkResponse(
+        items=[service.to_item_response(item, Decimal("0")) for item in items]
+    )
 
 
 @router.patch(

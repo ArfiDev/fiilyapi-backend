@@ -31,6 +31,7 @@ from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.catalog.models import RATE_PRECISION
 
 __all__ = [
+    "LastPriceRead",
     "WorkDisciplineListResponse",
     "WorkDisciplineRead",
     "WorkItemCreate",
@@ -101,6 +102,27 @@ class WorkItemUpdate(BaseModel):
     )(_reject_null)
 
 
+class LastPriceRead(BaseModel):
+    """Kalemin son gorulen birim fiyati (TKL-B3.2; port: `app/core/last_price.py`).
+
+    `source` kasitli olarak `str`: kaynak kumesi buyur (TKL B4, SA B7); `Literal` olsaydi yeni
+    kaynak eklendiginde sema 500 verir ve OpenAPI enumu her turda degisirdi. Bilinen degerler
+    `SZL` (sozlesme), `HK` (isveren hakedisi); istemci bilmedigi kaynagi ham metin gosterir.
+    `doc_no` insan etiketi (SZL: proje kodu, HK: `HK-<proje kodu>-<sira>`), `doc_id` belge
+    baglantisi icin (SZL: proje id, HK: hakedis id).
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    # Iceride de `para`: maske ust alani zaten bosaltir; etiket para-alani bekcisinin ic modeli
+    # de acik siniflandirmasi icin gerekir (savunma derinligi).
+    price: Annotated[Decimal, Gorunurluk.para]
+    at: datetime
+    source: str
+    doc_no: str
+    doc_id: uuid.UUID | None
+
+
 class WorkItemRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -118,6 +140,9 @@ class WorkItemRead(BaseModel):
     ref_price: Annotated[Decimal | None, Gorunurluk.para]
     # `ref_price` ile ayni gizlilik: fiyatin NE ZAMAN degistigi de fiyat bilgisidir.
     price_updated_at: Annotated[datetime | None, Gorunurluk.para]
+    # Son fiyat: TAMAMI para (fiyat + tarih + kaynak) → `limited` rol hicbirini gormez;
+    # `price_updated_at` ile ayni gerekce. Kaynaksiz kalemde `null`.
+    last_price: Annotated[LastPriceRead | None, Gorunurluk.para] = None
     standard_updated_at: datetime
     created_at: datetime
     updated_at: datetime

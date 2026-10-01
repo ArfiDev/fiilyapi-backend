@@ -128,6 +128,9 @@ from app.modules.audit.messages.approvals import (
     approval_step_rewound as approval_step_rewound,
 )
 from app.modules.audit.messages.contracts import (
+    BULK_AUDIT_CODES_SHOWN as BULK_AUDIT_CODES_SHOWN,
+)
+from app.modules.audit.messages.contracts import (
     boq_group_created as boq_group_created,
 )
 from app.modules.audit.messages.contracts import (
@@ -168,6 +171,9 @@ from app.modules.audit.messages.contracts import (
 )
 from app.modules.audit.messages.contracts import (
     employer_contract_item_updated as employer_contract_item_updated,
+)
+from app.modules.audit.messages.contracts import (
+    employer_contract_items_bulk_created as employer_contract_items_bulk_created,
 )
 from app.modules.audit.messages.contracts import (
     subcontract_created as subcontract_created,

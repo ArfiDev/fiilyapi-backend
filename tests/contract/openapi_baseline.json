@@ -7555,6 +7555,18 @@
       },
       "EmployerContractItemCreate": {
         "properties": {
+          "catalog_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Item Id"
+          },
           "code": {
             "maxLength": 50,
             "minLength": 1,
@@ -7625,6 +7637,18 @@
       "EmployerContractItemResponse": {
         "description": "`POZ` tablo satırı. `distributed_quantity`/`remaining_quantity` türevdir,\nservis `boq_items.contract_item_id` bağlarından hesaplar (spec §3.3, §6.2).",
         "properties": {
+          "catalog_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Item Id"
+          },
           "code": {
             "title": "Code",
             "type": "string"
@@ -7709,6 +7733,7 @@
           "quantity",
           "unit_price",
           "sort_order",
+          "catalog_item_id",
           "distributed_quantity",
           "remaining_quantity"
         ],
@@ -7815,6 +7840,42 @@
           }
         },
         "title": "EmployerContractItemUpdate",
+        "type": "object"
+      },
+      "EmployerContractItemsBulkCreate": {
+        "description": "`POST /projects/{id}/contract/items/bulk` govdesi (hep-ya-hic).",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EmployerContractItemCreate"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EmployerContractItemsBulkCreate",
+        "type": "object"
+      },
+      "EmployerContractItemsBulkResponse": {
+        "description": "Toplu ekleme yanıtı (BaseModel sarmalayıcı: kapsam maskesi modele uygulanır).",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EmployerContractItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EmployerContractItemsBulkResponse",
         "type": "object"
       },
       "EmployerContractItemsResponse": {
@@ -15701,6 +15762,50 @@
           "is_within_tolerance"
         ],
         "title": "LandShareValueBalance",
+        "type": "object"
+      },
+      "LastPriceRead": {
+        "description": "Kalemin son gorulen birim fiyati (TKL-B3.2; port: `app/core/last_price.py`).\n\n`source` kasitli olarak `str`: kaynak kumesi buyur (TKL B4, SA B7); `Literal` olsaydi yeni\nkaynak eklendiginde sema 500 verir ve OpenAPI enumu her turda degisirdi. Bilinen degerler\n`SZL` (sozlesme), `HK` (isveren hakedisi); istemci bilmedigi kaynagi ham metin gosterir.\n`doc_no` insan etiketi (SZL: proje kodu, HK: `HK-<proje kodu>-<sira>`), `doc_id` belge\nbaglantisi icin (SZL: proje id, HK: hakedis id).",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "doc_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Id"
+          },
+          "doc_no": {
+            "title": "Doc No",
+            "type": "string"
+          },
+          "price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "price",
+          "at",
+          "source",
+          "doc_no",
+          "doc_id"
+        ],
+        "title": "LastPriceRead",
         "type": "object"
       },
       "LeafDiffOut": {
@@ -43739,6 +43844,16 @@
             "title": "Id",
             "type": "string"
           },
+          "last_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastPriceRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -58367,6 +58482,71 @@
           }
         ],
         "summary": "Create Employer Contract Item Endpoint",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/projects/{project_id}/contract/items/bulk": {
+      "post": {
+        "description": "TKL-B3.1: çoklu katalog seçicisi için toplu poz ekleme (tek işlem, hep-ya-hiç).\n\nKapı tekil `+ Poz Ekle` ucuyla AYNIDIR; denetim günlüğüne TEK satır yazılır.",
+        "operationId": "create_employer_contract_items_bulk_endpoint_projects__project_id__contract_items_bulk_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmployerContractItemsBulkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployerContractItemsBulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Employer Contract Items Bulk Endpoint",
         "tags": [
           "contracts"
         ]

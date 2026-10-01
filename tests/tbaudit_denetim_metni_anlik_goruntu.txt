@@ -4,6 +4,7 @@ APPROVAL_ON_BEHALF_MARK = 'admin vekâleten'
 APPROVAL_ROLE_LABELS = {'site_chief': 'Şantiye Şefi', 'project_manager': 'Proje Müdürü', 'accounting': 'Muhasebe', 'patron': 'Patron', 'procurement': 'Satınalma'}
 APPROVAL_THRESHOLD_UPDATED = 'Onay eşiği güncellendi'
 BILINMIYOR = 'Bilinmiyor'
+BULK_AUDIT_CODES_SHOWN = 10
 COMPANY_LOGO_REMOVED = 'Şirket logosu kaldırıldı'
 COMPANY_LOGO_UPDATED = 'Şirket logosu güncellendi'
 COMPANY_UPDATED = 'Şirket bilgileri güncellendi'
@@ -88,6 +89,8 @@ employer_contract_item_created(project_name='<project_name#0>', code='<code#1>',
 employer_contract_item_deleted(project_name='<project_name#0>', code='<code#1>', description='<description#2>') = 'Sözleşme poz kalemi silindi: <project_name#0> · <code#1> — <description#2>'
 employer_contract_item_updated(project_name='<project_name#0>', code='<code#1>', description='<description#2>', refreshed_boq_count=103) = 'Sözleşme poz kalemi güncellendi: <project_name#0> · <code#1> — <description#2> · 103 BOQ satırı tazelendi'
 employer_contract_item_updated(project_name='<project_name#0>', code='<code#1>', description='<description#2>', refreshed_boq_count=0) = 'Sözleşme poz kalemi güncellendi: <project_name#0> · <code#1> — <description#2>'
+employer_contract_items_bulk_created(project_name='<project_name#0>', codes=['<codes#1a>', '<codes#1b>']) = 'Sözleşmeye 2 poz eklendi: <project_name#0> · <codes#1a>, <codes#1b>'
+employer_contract_items_bulk_created(project_name='<project_name#0>', codes=[]) = 'Sözleşmeye 0 poz eklendi: <project_name#0> · '
 employer_created(name='<name#0>') = 'Yeni işveren oluşturuldu: <name#0>'
 financial_instrument_created(serial_no='<serial_no#0>', drawer_name='<drawer_name#1>') = 'Çek/senet kaydı oluşturuldu: <serial_no#0> · <drawer_name#1>'
 financial_instrument_deleted(serial_no='<serial_no#0>', drawer_name='<drawer_name#1>') = 'Çek/senet kaydı silindi: <serial_no#0> · <drawer_name#1>'

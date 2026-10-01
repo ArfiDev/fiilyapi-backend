@@ -85,6 +85,13 @@ class EmployerContractItem(Base):
         UniqueConstraint("project_id", "code", name="uq_employer_contract_items_project_code"),
         CheckConstraint("quantity > 0", name="ck_employer_contract_items_quantity_positive"),
         CheckConstraint("unit_price >= 0", name="ck_employer_contract_items_unit_price_nonneg"),
+        # TKL-B3.1: son fiyat saglayicisi `DISTINCT ON (catalog_item_id)` okur; bagsiz
+        # (cogunluk) satirlar indekse girmez (`boq/models.py` kismi indeks emsali).
+        Index(
+            "ix_employer_contract_items_catalog_item_id",
+            "catalog_item_id",
+            postgresql_where=text("catalog_item_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -107,6 +114,17 @@ class EmployerContractItem(Base):
     quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # TKL-B3.1: katalog iz bagi. SABIT (yalniz olusturmada verilir), kopya degerler
+    # (kod/aciklama/birim/fiyat) kalemde yasar — bag yalniz "hangi katalog pozundan" der.
+    # `MIRRORED_ITEM_FIELDS`e GIRMEZ (BOQ/taseron/hakedis kopyasi etkilenmez).
+    catalog_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("ev_catalog_items.id", ondelete="SET NULL"), nullable=True
+    )
+    # TKL-B3.1: `unit_price` DEGER olarak her degistiginde ilerler (son fiyat sagligi icin);
+    # API'de DONMEZ.
+    price_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

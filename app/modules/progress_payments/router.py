@@ -25,7 +25,7 @@ from app.modules.approvals.models import ApprovalDocumentType
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
-from app.modules.progress_payments import service, summary, transitions
+from app.modules.progress_payments import last_price_provider, service, summary, transitions
 from app.modules.progress_payments.models import ProgressPaymentStatus
 from app.modules.progress_payments.schemas import (
     ProgressPaymentCreate,
@@ -46,6 +46,9 @@ router = APIRouter(
     responses=COMMON_ERROR_RESPONSES,
     dependencies=[RequireUnrestricted],
 )
+
+# TKL-B3.2: son fiyat portuna kayit (import yan etkisi; bekci testi uygulama acilisinda ister).
+last_price_provider.register()
 
 _VIEW = require_permission("progress_payments", AccessLevel.view)
 _DRAFT = require_permission("progress_payments", AccessLevel.draft)
