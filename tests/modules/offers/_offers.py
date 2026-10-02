@@ -96,3 +96,32 @@ async def durum_yap(client, admin, offer_id: str, durum: str, rev_no: int = 0) -
 
 def tum_kalemler(rev: dict) -> list[dict]:
     return [k for g in rev["groups"] for k in g["items"]]
+
+
+# ----------------------------------------------------------------- sablon (TKL-B5.1)
+
+TPL = "/offers/templates"
+
+
+async def sablon(client, admin, name: str = "Villa Kaba", **over) -> dict:
+    resp = await client.post(TPL, json={"name": name, **over}, headers=admin)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def sablon_icerik(client, admin, template_id: str, gruplar: list[tuple[str, list]]) -> dict:
+    """`gruplar`: `[(grup adi, [katalog_id, ...]), ...]` — PUT content ile tam degistirir."""
+    govde = {
+        "groups": [
+            {"name": ad, "items": [{"catalog_item_id": str(k)} for k in kalemler]}
+            for ad, kalemler in gruplar
+        ]
+    }
+    resp = await client.put(f"{TPL}/{template_id}/content", json=govde, headers=admin)
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def sablon_kalemleri(detay_: dict) -> list[list[str]]:
+    """Sablon detayindaki gruplarin poz no listeleri (sirayla)."""
+    return [[i["poz_no"] for i in g["items"]] for g in detay_["groups"]]

@@ -82,6 +82,21 @@ _GOVDELI_MASKESIZ_UCLAR: dict[tuple[str, str], str] = {
         "damgası değil, gerçekten okunan bir iddia kümesidir. "
         "İDDİANIN ÖLÇÜMÜ: `tests/modules/units/` altındaki export davranış bekçileri."
     ),
+    ("GET", "/offers/{offer_id}/revisions/{rev_no}/export"): (
+        "TKL-B5.2 teklif revizyonu xlsx indirme (isveren / ic). Uc maskeyi ELLE uygular "
+        "(`kapsamla_maskele(revision, 'contracts')`), cunku sarmalayici `Response` govdesinin "
+        "icine bakamaz; zarf kitaba girmeden ONCE maskelenir, `limited` rolde para hucreleri "
+        "BOS kalir (iki gorunumde de). Isveren sayfasi ayrica `internal` alt nesnesini HIC "
+        "okumaz. IDDIANIN OLCUMU: `tests/modules/offers/test_offer_export.py` (sizinti "
+        "bekcisi + `limited` testi)."
+    ),
+    ("GET", "/catalog/items/export"): (
+        "TKL-B5.2 fiyatli katalog xlsx indirme. Uc maskeyi ELLE uygular "
+        "(`kapsamla_maskele(WorkItemListResponse, 'contracts')`): `limited` rolde Referans "
+        "Fiyat / Fiyat Guncelleme / Son Fiyat / Kaynak / Belge / Tarih BOS kalir; disiplin "
+        "kapsami `list_items`e `DisciplineScoped` ile gecer. IDDIANIN OLCUMU: "
+        "`tests/modules/catalog/test_catalog_export.py`."
+    ),
     ("GET", "/projects/{project_id}/units/import/template"): (
         "Ünite içe aktarma ŞABLONU. Maskelenmez çünkü MASKELENECEK VERİ YOKTUR: "
         "`units/template.py::build_template_workbook` proje verisi ALMAZ, yalnız "

@@ -123,6 +123,7 @@ def build_totals(result: calc.RevisionResult) -> OfferTotalsRead:
             man_hours=result.internal.man_hours,
         ),
         unpriced_count=result.unpriced_count,
+        unquantified_count=result.unquantified_count,
     )
 
 

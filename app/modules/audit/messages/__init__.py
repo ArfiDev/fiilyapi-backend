@@ -359,6 +359,12 @@ from app.modules.audit.messages.offers import (
     offer_created as offer_created,
 )
 from app.modules.audit.messages.offers import (
+    offer_created_from_copy as offer_created_from_copy,
+)
+from app.modules.audit.messages.offers import (
+    offer_created_from_template as offer_created_from_template,
+)
+from app.modules.audit.messages.offers import (
     offer_date_changed as offer_date_changed,
 )
 from app.modules.audit.messages.offers import (
@@ -396,6 +402,27 @@ from app.modules.audit.messages.offers import (
 )
 from app.modules.audit.messages.offers import (
     offer_status_changed as offer_status_changed,
+)
+from app.modules.audit.messages.offers import (
+    offer_template_content_replaced as offer_template_content_replaced,
+)
+from app.modules.audit.messages.offers import (
+    offer_template_copied as offer_template_copied,
+)
+from app.modules.audit.messages.offers import (
+    offer_template_created as offer_template_created,
+)
+from app.modules.audit.messages.offers import (
+    offer_template_default_set as offer_template_default_set,
+)
+from app.modules.audit.messages.offers import (
+    offer_template_deleted as offer_template_deleted,
+)
+from app.modules.audit.messages.offers import (
+    offer_template_from_offer as offer_template_from_offer,
+)
+from app.modules.audit.messages.offers import (
+    offer_template_updated as offer_template_updated,
 )
 from app.modules.audit.messages.offers import (
     offer_updated as offer_updated,

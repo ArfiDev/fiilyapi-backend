@@ -10469,6 +10469,14 @@
         "title": "ExpiredReservation",
         "type": "object"
       },
+      "ExportView": {
+        "enum": [
+          "employer",
+          "internal"
+        ],
+        "title": "ExportView",
+        "type": "string"
+      },
       "FillOut": {
         "properties": {
           "ambiguous": {
@@ -17263,10 +17271,43 @@
         "title": "NotificationPrefsUpdate",
         "type": "object"
       },
+      "OfferCopySource": {
+        "additionalProperties": false,
+        "description": "`copy_from` (SO-8): kopyalanacak teklif + revizyon.",
+        "properties": {
+          "offer_id": {
+            "format": "uuid",
+            "title": "Offer Id",
+            "type": "string"
+          },
+          "rev_no": {
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Rev No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "offer_id",
+          "rev_no"
+        ],
+        "title": "OfferCopySource",
+        "type": "object"
+      },
       "OfferCreate": {
         "additionalProperties": false,
-        "description": "`POST /offers`. Kosul alanlari verilmezse `offer_settings`ten KOPYALANIR; `price_escalation`\nvarsayilani `fixed` (SO-5); `offer_date` varsayilani bugun (Istanbul).",
+        "description": "`POST /offers`. Kosul alanlari verilmezse `offer_settings`ten KOPYALANIR; `price_escalation`\nvarsayilani `fixed` (SO-5); `offer_date` varsayilani bugun (Istanbul).\n\nUc kaynak (en fazla BIRI): bos (varsayilan) | `template_id` (sablondan: gruplar + katalog\nkalemleri, MIKTAR BOS) | `copy_from` (SO-8: mevcut tekliften yeni teklif; kaynagin\nkosullari + kalemleri kopyalanir, govdede verilen kosul/kunye ALANLARI kaynagi ezer).\n`employer_id`/`title` yalniz `copy_from` ile birlikte opsiyoneldir (kaynaktan alinir).",
         "properties": {
+          "copy_from": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OfferCopySource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "delivery_days": {
             "anyOf": [
               {
@@ -17281,9 +17322,16 @@
             "title": "Delivery Days"
           },
           "employer_id": {
-            "format": "uuid",
-            "title": "Employer Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer Id"
           },
           "notes": {
             "anyOf": [
@@ -17381,11 +17429,30 @@
             ],
             "title": "Scope Summary"
           },
+          "template_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
+          },
           "title": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Title",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           },
           "validity_days": {
             "anyOf": [
@@ -17418,10 +17485,6 @@
             "title": "Vat Pct"
           }
         },
-        "required": [
-          "employer_id",
-          "title"
-        ],
         "title": "OfferCreate",
         "type": "object"
       },
@@ -17552,6 +17615,18 @@
           "status": {
             "$ref": "#/components/schemas/OfferRevisionStatus"
           },
+          "template_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -17571,6 +17646,7 @@
           "scope_summary",
           "prepared_by_user_id",
           "prepared_by_name",
+          "template_id",
           "status",
           "latest_rev_no",
           "created_at",
@@ -17915,6 +17991,9 @@
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,11}|(?=[\\d.]{1,15}0*$)\\d{0,11}\\.\\d{0,3}0*$)",
                 "type": "string"
+              },
+              {
+                "type": "null"
               }
             ],
             "title": "Quantity"
@@ -17952,8 +18031,7 @@
         },
         "required": [
           "catalog_item_id",
-          "group_id",
-          "quantity"
+          "group_id"
         ],
         "title": "OfferItemCreate",
         "type": "object"
@@ -18009,9 +18087,16 @@
             "title": "Cost"
           },
           "man_hours": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Man Hours",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Man Hours"
           },
           "overhead": {
             "anyOf": [
@@ -18449,6 +18534,10 @@
             "title": "Unpriced Count",
             "type": "integer"
           },
+          "unquantified_count": {
+            "title": "Unquantified Count",
+            "type": "integer"
+          },
           "valid_until": {
             "format": "date",
             "title": "Valid Until",
@@ -18469,6 +18558,7 @@
           "net",
           "gross",
           "unpriced_count",
+          "unquantified_count",
           "created_at"
         ],
         "title": "OfferListItem",
@@ -18910,6 +19000,10 @@
             "title": "Unpriced Count",
             "type": "integer"
           },
+          "unquantified_count": {
+            "title": "Unquantified Count",
+            "type": "integer"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -18972,7 +19066,8 @@
           "winning_amount",
           "net",
           "gross",
-          "unpriced_count"
+          "unpriced_count",
+          "unquantified_count"
         ],
         "title": "OfferRevisionSummaryRead",
         "type": "object"
@@ -19270,12 +19365,17 @@
           "unpriced_count": {
             "title": "Unpriced Count",
             "type": "integer"
+          },
+          "unquantified_count": {
+            "title": "Unquantified Count",
+            "type": "integer"
           }
         },
         "required": [
           "customer",
           "internal",
-          "unpriced_count"
+          "unpriced_count",
+          "unquantified_count"
         ],
         "title": "OfferTotalsRead",
         "type": "object"
@@ -40647,6 +40747,542 @@
         "title": "SupplierUpdate",
         "type": "object"
       },
+      "TemplateContentReplace": {
+        "additionalProperties": false,
+        "description": "`PUT /offers/templates/{id}/content` — TUM gruplar + kalemler TAM degistirilir. Gruplar ve\nkalemler govdedeki SIRAYLA siralanir (`sort_order` = dizin).",
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateGroupInput"
+            },
+            "maxItems": 100,
+            "title": "Groups",
+            "type": "array"
+          }
+        },
+        "required": [
+          "groups"
+        ],
+        "title": "TemplateContentReplace",
+        "type": "object"
+      },
+      "TemplateCopy": {
+        "additionalProperties": false,
+        "description": "`POST /offers/templates/{id}/copy` — ad verilmezse `<ad> (kopya)`.",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "TemplateCopy",
+        "type": "object"
+      },
+      "TemplateCreate": {
+        "additionalProperties": false,
+        "description": "`POST /offers/templates` — BOS sablon (icerik `PUT …/content` ile).",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "overhead_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,6}0*$)\\d{0,3}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overhead Pct"
+          },
+          "profit_pct": {
+            "anyOf": [
+              {
+                "maximum": 999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,4}|(?=[\\d.]{1,7}0*$)\\d{0,4}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Pct"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TemplateCreate",
+        "type": "object"
+      },
+      "TemplateDetailRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "group_count": {
+            "title": "Group Count",
+            "type": "integer"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateGroupRead"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "item_count": {
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "overhead_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overhead Pct"
+          },
+          "profit_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Pct"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "usage_count": {
+            "title": "Usage Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "overhead_pct",
+          "profit_pct",
+          "is_default",
+          "group_count",
+          "item_count",
+          "usage_count",
+          "updated_at",
+          "created_at",
+          "groups"
+        ],
+        "title": "TemplateDetailRead",
+        "type": "object"
+      },
+      "TemplateFromOffer": {
+        "additionalProperties": false,
+        "description": "`POST /offers/templates/from-offer` — tekliften sablon (fiyat/miktar KOPYALANMAZ).",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "offer_id": {
+            "format": "uuid",
+            "title": "Offer Id",
+            "type": "string"
+          },
+          "rev_no": {
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Rev No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "offer_id",
+          "rev_no",
+          "name"
+        ],
+        "title": "TemplateFromOffer",
+        "type": "object"
+      },
+      "TemplateGroupInput": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateItemInput"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TemplateGroupInput",
+        "type": "object"
+      },
+      "TemplateGroupRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateItemRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sort_order",
+          "items"
+        ],
+        "title": "TemplateGroupRead",
+        "type": "object"
+      },
+      "TemplateItemInput": {
+        "additionalProperties": false,
+        "properties": {
+          "catalog_item_id": {
+            "format": "uuid",
+            "title": "Catalog Item Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "catalog_item_id"
+        ],
+        "title": "TemplateItemInput",
+        "type": "object"
+      },
+      "TemplateItemRead": {
+        "properties": {
+          "catalog_item_id": {
+            "format": "uuid",
+            "title": "Catalog Item Id",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "poz_no": {
+            "title": "Poz No",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sort_order",
+          "catalog_item_id",
+          "poz_no",
+          "description",
+          "unit"
+        ],
+        "title": "TemplateItemRead",
+        "type": "object"
+      },
+      "TemplateListItem": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "group_count": {
+            "title": "Group Count",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "item_count": {
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "overhead_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overhead Pct"
+          },
+          "profit_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Pct"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "usage_count": {
+            "title": "Usage Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "overhead_pct",
+          "profit_pct",
+          "is_default",
+          "group_count",
+          "item_count",
+          "usage_count",
+          "updated_at"
+        ],
+        "title": "TemplateListItem",
+        "type": "object"
+      },
+      "TemplateListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateListItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "TemplateListResponse",
+        "type": "object"
+      },
+      "TemplateUpdate": {
+        "additionalProperties": false,
+        "description": "`PATCH /offers/templates/{id}`. `null` = oran/aciklama temizle (ad ve `is_default` NOT NULL:\nacik `null` → 422). `is_default: true` = varsayilan yap (eskisi AYNI islemde duser).",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_default": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Default"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "overhead_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,6}0*$)\\d{0,3}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overhead Pct"
+          },
+          "profit_pct": {
+            "anyOf": [
+              {
+                "maximum": 999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,4}|(?=[\\d.]{1,7}0*$)\\d{0,4}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Pct"
+          }
+        },
+        "title": "TemplateUpdate",
+        "type": "object"
+      },
       "TimelineMilestone": {
         "description": "Kilometre tasi satiri (P11 spec §3): YALNIZ ad + tarih.\n\nDurum alani YOKTUR (§6 S2): \"Tamamlandi\" gorunumu `milestone_date < today`\nTUREVIDIR ve istemci `today` damgasiyla hesaplar.",
         "properties": {
@@ -48945,6 +49581,81 @@
           }
         ],
         "summary": "Create Work Item Endpoint",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/catalog/items/export": {
+      "get": {
+        "description": "Fiyatli katalog xlsx — liste ucuyla AYNI suzgecler (`q`, `discipline_id`) ve kapsam.",
+        "operationId": "export_catalog_endpoint_catalog_items_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "discipline_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Discipline Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "Excel dosyasi"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Catalog Endpoint",
         "tags": [
           "catalog"
         ]
@@ -57409,7 +58120,7 @@
         ]
       },
       "post": {
-        "description": "Teklif + Rev.0 taslak. Kosullar gonderilmezse `offer_settings`ten kopyalanir.",
+        "description": "Teklif + Rev.0 taslak. Kosullar gonderilmezse `offer_settings`ten kopyalanir. Kaynak\n(en fazla biri): `template_id` (sablondan, miktar bos) | `copy_from` (SO-8, mevcut tekliften).\nGonderilmezse bos teklif — varsayilan sablon KENDILIGINDEN kullanilmaz.",
         "operationId": "create_offer_endpoint_offers_post",
         "requestBody": {
           "content": {
@@ -57539,6 +58250,498 @@
           }
         ],
         "summary": "Update Offer Settings Endpoint",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/templates": {
+      "get": {
+        "description": "Sablonlar: varsayilan once, sonra ada gore; kullanim sayisi + son guncelleme.",
+        "operationId": "list_templates_endpoint_offers_templates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Templates Endpoint",
+        "tags": [
+          "offers"
+        ]
+      },
+      "post": {
+        "description": "BOS sablon (icerik `PUT {id}/content`).",
+        "operationId": "create_template_endpoint_offers_templates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Template Endpoint",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/templates/from-offer": {
+      "post": {
+        "description": "Tekliften sablon: gruplar + kalemlerin katalog baglari + revizyon GG/kar %'si.\nFiyat ve miktar KOPYALANMAZ.",
+        "operationId": "create_template_from_offer_endpoint_offers_templates_from_offer_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateFromOffer"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Template From Offer Endpoint",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/templates/{template_id}": {
+      "delete": {
+        "description": "Sil; bagli teklifler korunur (`template_id` NULL olur).",
+        "operationId": "delete_template_endpoint_offers_templates__template_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Template Endpoint",
+        "tags": [
+          "offers"
+        ]
+      },
+      "get": {
+        "operationId": "get_template_endpoint_offers_templates__template_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Template Endpoint",
+        "tags": [
+          "offers"
+        ]
+      },
+      "patch": {
+        "description": "Ad / aciklama / GG-kar % (`null` = temizle) / `is_default` (true = varsayilan yap).",
+        "operationId": "update_template_endpoint_offers_templates__template_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Template Endpoint",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/templates/{template_id}/content": {
+      "put": {
+        "description": "TUM gruplar + kalemler TAM degistirilir (govdedeki sira = sablon sirasi). Tek uc:\nekran gruplari/kalemleri surukleyip tek kaydeder; ince taneli ekle/cikar/sirala uclari\ngerekmez (KISS).",
+        "operationId": "replace_template_content_endpoint_offers_templates__template_id__content_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateContentReplace"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Replace Template Content Endpoint",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/templates/{template_id}/copy": {
+      "post": {
+        "description": "Sablondan sablon kopyasi (varsayilan DEGIL).",
+        "operationId": "copy_template_endpoint_offers_templates__template_id__copy_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TemplateCopy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Copy Template Endpoint",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/templates/{template_id}/default": {
+      "post": {
+        "description": "Varsayilan yap; eski varsayilan AYNI islemde duser (tek varsayilan).",
+        "operationId": "set_default_template_endpoint_offers_templates__template_id__default_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Default Template Endpoint",
         "tags": [
           "offers"
         ]
@@ -57898,6 +59101,79 @@
           }
         ],
         "summary": "Update Revision Endpoint",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
+    "/offers/{offer_id}/revisions/{rev_no}/export": {
+      "get": {
+        "description": "Revizyonu xlsx olarak indirir. Veri teklif okuma yolundandir (ikinci hesap yok).",
+        "operationId": "export_revision_endpoint_offers__offer_id__revisions__rev_no__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "offer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Offer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rev_no",
+            "required": true,
+            "schema": {
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Rev No",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`employer` (varsayilan): isveren ciktisi; `internal`: ic cikti.",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ExportView",
+              "default": "employer",
+              "description": "`employer` (varsayilan): isveren ciktisi; `internal`: ic cikti."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "Excel dosyasi"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Revision Endpoint",
         "tags": [
           "offers"
         ]

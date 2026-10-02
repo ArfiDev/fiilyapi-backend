@@ -1,7 +1,8 @@
 """Teklif Hazirlama modeli (TKL-B4.1, TKL-PLAN §2.3a, T31-T37).
 
 Alti tablo: `offer_settings` (tekil), `offer_counters`, `offers` (kunye), `offer_revisions`,
-`offer_groups`, `offer_items`.
+`offer_groups`, `offer_items` + (B5.1) sablon: `offer_templates`, `offer_template_groups`,
+`offer_template_items`.
 
 PARA BIRIMI YALNIZ TL (T36): hicbir tabloda para birimi kolonu YOKTUR ve acilmaz. Tum tutarlar
 KDV haric TL `Numeric(18,2)`.
@@ -169,6 +170,7 @@ class Offer(Base):
     __table_args__ = (
         UniqueConstraint("offer_no", name="uq_offers_offer_no"),
         Index("ix_offers_employer_id", "employer_id"),
+        Index("ix_offers_template_id", "template_id"),
         CheckConstraint("btrim(title) <> ''", name="ck_offers_title_not_blank"),
     )
 
@@ -182,6 +184,11 @@ class Offer(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     scope_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     prepared_by_user_id: Mapped[uuid.UUID | None] = _user_fk()
+    #: Sablondan olusturulduysa sablon (B5.1); sablon silinince NULL. Sablon "kullanim sayisi"
+    #: bu bagdan TUREVDIR (ayri sayac yok).
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("offer_templates.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
 
@@ -315,6 +322,7 @@ class OfferGroup(Base):
 class OfferItem(Base):
     """Teklif kalemi. `poz_no`/`description`/`unit` katalogdan KOPYADIR (sunucu doldurur).
 
+    `quantity` NULL = miktar girilmedi (SO-21; sablondan teklif: toplamlara girmez).
     `cost_unit_price` NULL = maliyet girilmemis (fiyatsiz kalem, toplamlara girmez);
     `overhead_pct`/`profit_pct` NULL = revizyon yuzdesi gecerli; `offer_unit_price` NULL = elle
     teklif B.F. yok (hesaplanir). Hesap `offers/calc.py`dedir; bu tablo yalniz girdiyi saklar.
@@ -331,7 +339,10 @@ class OfferItem(Base):
         Index("ix_offer_items_revision_id", "revision_id"),
         Index("ix_offer_items_group_id", "group_id"),
         Index("ix_offer_items_catalog_item_id", "catalog_item_id"),
-        CheckConstraint("quantity > 0", name="ck_offer_items_quantity_positive"),
+        # SO-21: NULL = "miktar girilmedi" (sablondan teklif); dolu ise > 0.
+        CheckConstraint(
+            "quantity IS NULL OR quantity > 0", name="ck_offer_items_quantity_null_or_positive"
+        ),
         CheckConstraint("unit_mhr > 0", name="ck_offer_items_unit_mhr_positive"),
         CheckConstraint(
             "cost_unit_price IS NULL OR cost_unit_price >= 0", name="ck_offer_items_cost_nonneg"
@@ -369,9 +380,98 @@ class OfferItem(Base):
     poz_no: Mapped[str] = mapped_column(String(32), nullable=False)
     description: Mapped[str] = mapped_column(String(200), nullable=False)
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
+    #: NULL = miktar girilmedi (SO-21): toplamlara girmez, gonderimde engellenir.
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3), nullable=True)
     unit_mhr: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
     cost_unit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     overhead_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     profit_pct: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
     offer_unit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+
+
+class OfferTemplate(Base):
+    """Teklif sablonu (B5.1, T12): ad + aciklama + GG/kar + gruplar/kalemler (katalog bagi).
+
+    FIYAT ve MIKTAR SAKLANMAZ. `is_default` kismi tekil indeksle TEK satirda dogru olabilir
+    (`uq_offer_templates_single_default`); yeni varsayilan eskisini AYNI islemde dusurur.
+    """
+
+    __tablename__ = "offer_templates"
+    __table_args__ = (
+        CheckConstraint("btrim(name) <> ''", name="ck_offer_templates_name_not_blank"),
+        CheckConstraint(
+            "overhead_pct IS NULL OR (overhead_pct >= 0 AND overhead_pct <= 100)",
+            name="ck_offer_templates_overhead_range",
+        ),
+        CheckConstraint(
+            "profit_pct IS NULL OR (profit_pct >= 0 AND profit_pct <= 999.99)",
+            name="ck_offer_templates_profit_range",
+        ),
+        Index(
+            "uq_offer_templates_single_default",
+            "is_default",
+            unique=True,
+            postgresql_where=text("is_default"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: NULL = sablonda oran yok → teklifte ayar degeri.
+    overhead_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    profit_pct: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = _updated_at()
+    created_by_user_id: Mapped[uuid.UUID | None] = _user_fk()
+    updated_by_user_id: Mapped[uuid.UUID | None] = _user_fk()
+
+
+class OfferTemplateGroup(Base):
+    __tablename__ = "offer_template_groups"
+    __table_args__ = (
+        UniqueConstraint("id", "template_id", name="uq_offer_template_groups_id_template"),
+        Index("ix_offer_template_groups_template_id", "template_id"),
+        CheckConstraint("btrim(name) <> ''", name="ck_offer_template_groups_name_not_blank"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    template_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("offer_templates.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+
+
+class OfferTemplateItem(Base):
+    """Sablon kalemi: yalniz katalog bagi + sira (kopya alanlar/fiyat/miktar YOK)."""
+
+    __tablename__ = "offer_template_items"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["group_id", "template_id"],
+            ["offer_template_groups.id", "offer_template_groups.template_id"],
+            ondelete="CASCADE",
+            name="fk_offer_template_items_group_template",
+        ),
+        Index("ix_offer_template_items_template_id", "template_id"),
+        Index("ix_offer_template_items_group_id", "group_id"),
+        Index("ix_offer_template_items_catalog_item_id", "catalog_item_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    template_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("offer_templates.id", ondelete="CASCADE"), nullable=False
+    )
+    group_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    catalog_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("ev_catalog_items.id", ondelete="RESTRICT"), nullable=False
+    )

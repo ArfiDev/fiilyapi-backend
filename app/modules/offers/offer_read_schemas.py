@@ -49,7 +49,8 @@ class OfferItemInternalRead(BaseModel):
     profit: Annotated[Decimal | None, _Para]
     #: Elle B.F. varsa TUREV kar %; yoksa uygulanan kar % (paradan turedigi icin `para`).
     profit_pct: Annotated[Decimal | None, _Para]
-    man_hours: Annotated[Decimal, _Id]
+    #: `None` = miktar girilmedi (SO-21): adam-saat bilinmiyor.
+    man_hours: Annotated[Decimal | None, _Id]
 
 
 class OfferItemRead(BaseModel):
@@ -113,6 +114,8 @@ class OfferTotalsRead(BaseModel):
     customer: OfferCustomerTotalsRead
     internal: OfferInternalTotalsRead
     unpriced_count: int
+    #: Miktari girilmemis kalem sayisi (SO-21); `unpriced_count`tan bagimsiz.
+    unquantified_count: int
 
 
 class OfferRevisionRead(BaseModel):
@@ -168,6 +171,7 @@ class OfferRevisionSummaryRead(BaseModel):
     net: Annotated[Decimal | None, _Para]
     gross: Annotated[Decimal | None, _Para]
     unpriced_count: int
+    unquantified_count: int
 
 
 class OfferHistoryEventRead(BaseModel):
@@ -191,6 +195,8 @@ class OfferDetailRead(BaseModel):
     prepared_by_user_id: uuid.UUID | None
     #: Hazirlayanin adi; kullanici silinmisse `None`.
     prepared_by_name: str | None
+    #: Sablondan olusturulduysa sablon kimligi (sablon silinmisse `None`).
+    template_id: uuid.UUID | None
     #: Teklifin durumu = SON revizyonun durumu.
     status: OfferRevisionStatus
     latest_rev_no: int
@@ -214,6 +220,7 @@ class OfferListItem(BaseModel):
     net: Annotated[Decimal | None, _Para]
     gross: Annotated[Decimal | None, _Para]
     unpriced_count: int
+    unquantified_count: int
     created_at: datetime
 
 

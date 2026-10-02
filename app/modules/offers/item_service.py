@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import last_price
 from app.core.errors import NotFoundError, OfferValidationError
+from app.core.last_price import LastPrice
 from app.modules.catalog.models import EvCatalogItem
 from app.modules.offers import calc, locking
 from app.modules.offers.models import Offer, OfferGroup, OfferItem, OfferRevision
@@ -46,6 +47,13 @@ _CALC_FIELDS = frozenset(f.name for f in dataclasses.fields(calc.ItemInput))
 
 def _cent(value: Decimal) -> Decimal:
     return value.quantize(_CENT, rounding=ROUND_HALF_UP)
+
+
+def suggested_cost(last: LastPrice | None, entry: EvCatalogItem) -> Decimal | None:
+    """SO-6 / T32 maliyet onerisi: son fiyat → referans fiyat → bos (kurusa yuvarlanir). Kalem
+    ekleme ve sablondan teklif AYNI kurali kullanir."""
+    suggested = calc.suggest_cost(last.price if last is not None else None, entry.ref_price)
+    return None if suggested is None else _cent(suggested)
 
 
 # ---------------------------------------------------------------------------- grup
@@ -218,9 +226,7 @@ async def add_items(
         if "cost_unit_price" in body.model_fields_set:
             cost = body.cost_unit_price
         else:
-            last = latest.get(body.catalog_item_id)
-            suggested = calc.suggest_cost(last.price if last is not None else None, entry.ref_price)
-            cost = None if suggested is None else _cent(suggested)
+            cost = suggested_cost(latest.get(body.catalog_item_id), entry)
         if body.sort_order is not None:
             sort_order = body.sort_order
         else:
