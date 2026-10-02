@@ -43,6 +43,7 @@ from app.modules.offers import (
 )
 from app.modules.offers.models import OfferRevisionStatus
 from app.modules.offers.offer_read_schemas import (
+    ConversionState,
     OfferDetailRead,
     OfferGroupBasicRead,
     OfferItemRead,
@@ -127,6 +128,7 @@ async def update_offer_settings_endpoint(
 async def list_offers_endpoint(
     session: DbSession,
     status_filter: Annotated[OfferRevisionStatus | None, Query(alias="status")] = None,
+    conversion: Annotated[ConversionState | None, Query()] = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
     employer_id: Annotated[uuid.UUID | None, Query()] = None,
     offer_date_from: Annotated[date | None, Query()] = None,
@@ -137,10 +139,12 @@ async def list_offers_endpoint(
     """Teklif listesi (son revizyonun durumu/tutari). `q`: no / is adi / isveren;
     `offer_date_from`/`offer_date_to`: son revizyonun teklif tarihi (dahil-dahil). Zarfta durum
     basina adet + KDV haric toplam, suresi gecmis adedi ve kazanma orani (`status`
-    filtresinden bagimsiz)."""
+    filtresinden bagimsiz). `conversion`: `won_not_converted` (son revizyon kazanildi, proje
+    yok) | `converted` (proje var); `status` gibi yalniz listeyi daraltir, ozeti degil."""
     return await offer_queries.list_offers(
         session,
         status=status_filter,
+        conversion=conversion,
         q=q,
         employer_id=employer_id,
         offer_date_from=offer_date_from,

@@ -31,10 +31,19 @@ _Para = Gorunurluk.para
 _Ops = Gorunurluk.operasyonel
 _Id = Gorunurluk.kimlik
 
-HistoryKind = Literal["opened", "sent", "won", "lost", "withdrawn"]
+HistoryKind = Literal["opened", "sent", "won", "lost", "withdrawn", "converted"]
 #: Donusturme durumu (T14): `converted` = projeye donusturuldu; `won_not_converted` = son revizyon
 #: kazanildi ama henuz donusturulmedi ("bekleyen is"); `None` = ikisi de degil.
 ConversionState = Literal["converted", "won_not_converted"]
+
+
+class OfferProjectRef(BaseModel):
+    """Donusturmeyle olusan projenin kisa kunyesi (kimlik; para degil). `slug` NULLABLE olabilir."""
+
+    id: uuid.UUID
+    code: str
+    name: str
+    slug: str | None
 
 
 class OfferItemCustomerRead(BaseModel):
@@ -207,6 +216,11 @@ class OfferDetailRead(BaseModel):
     conversion_state: ConversionState | None
     #: Donusturulmusse olusan proje (TKL-B6).
     project_id: uuid.UUID | None
+    #: Donusturulmusse olusan proje kunyesi; degilse `None` (BD-1).
+    project: OfferProjectRef | None
+    #: Donusturme zamani / donusturenin adi (kullanici silinmisse `None`); donusmediyse `None`.
+    converted_at: datetime | None
+    converted_by_name: str | None
     latest_rev_no: int
     created_at: datetime
     updated_at: datetime
@@ -227,6 +241,11 @@ class OfferListItem(BaseModel):
     status: OfferRevisionStatus
     conversion_state: ConversionState | None
     project_id: uuid.UUID | None
+    #: Donusturulmusse olusan proje kunyesi; degilse `None` (BD-1).
+    project: OfferProjectRef | None
+    #: Donusturme zamani / donusturenin adi (kullanici silinmisse `None`); donusmediyse `None`.
+    converted_at: datetime | None
+    converted_by_name: str | None
     net: Annotated[Decimal | None, _Para]
     gross: Annotated[Decimal | None, _Para]
     unpriced_count: int

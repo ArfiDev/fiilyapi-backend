@@ -13,6 +13,7 @@ from __future__ import annotations
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -32,12 +33,14 @@ from app.modules.offers.models import (
     OfferRevisionStatus,
 )
 from app.modules.offers.offer_read_schemas import (
+    ConversionState,
     HistoryKind,
     OfferDetailRead,
     OfferHistoryEventRead,
     OfferListItem,
     OfferListResponse,
     OfferListSummaryRead,
+    OfferProjectRef,
     OfferRevisionRead,
     OfferRevisionSummaryRead,
     OfferStatusSummaryRead,
@@ -48,6 +51,7 @@ from app.modules.offers.offer_views import (
     revision_result,
     valid_until,
 )
+from app.modules.projects.models import Project
 from app.modules.users.models import User
 
 __all__ = [
@@ -71,7 +75,14 @@ _NEWEST_FIRST = (
 )
 
 #: Gecmis olaylarinda ayni anda olusan olaylarin sirasi (acilis once).
-_KIND_RANK: dict[str, int] = {"opened": 0, "sent": 1, "won": 2, "lost": 2, "withdrawn": 2}
+_KIND_RANK: dict[str, int] = {
+    "opened": 0,
+    "sent": 1,
+    "won": 2,
+    "lost": 2,
+    "withdrawn": 2,
+    "converted": 3,
+}
 
 
 def _item_input_columns() -> tuple:
@@ -146,8 +157,42 @@ async def get_revision_read(
 # ------------------------------------------------------------------------ teklif detayi
 
 
+@dataclass(frozen=True)
+class _Conversion:
+    project: OfferProjectRef
+    converted_at: datetime | None
+    converted_by_name: str | None
+
+
+async def _conversions(
+    session: AsyncSession, offers: Sequence[Offer]
+) -> dict[uuid.UUID, _Conversion]:
+    """Donusturulmus tekliflerin proje kunyesi + donusturen adi — TEK sorgu (N+1 yok; donusen
+    teklif yoksa sorgu yok). Kullanici silinmisse (FK SET NULL) ad `None`."""
+    converted = {o.id: o for o in offers if o.project_id is not None}
+    if not converted:
+        return {}
+    rows = await session.execute(
+        select(Offer.id, Project.id, Project.code, Project.name, Project.slug, User.full_name)
+        .join(Project, Project.id == Offer.project_id)
+        .outerjoin(User, User.id == Offer.converted_by_user_id)
+        .where(Offer.id.in_(converted))
+    )
+    return {
+        offer_id: _Conversion(
+            OfferProjectRef(id=pid, code=code, name=name, slug=slug),
+            converted[offer_id].converted_at,
+            user_name,
+        )
+        for offer_id, pid, code, name, slug, user_name in rows
+    }
+
+
 def _history(
-    revisions: Sequence[OfferRevision], names: dict[uuid.UUID, str]
+    revisions: Sequence[OfferRevision],
+    names: dict[uuid.UUID, str],
+    offer: Offer,
+    conversion: _Conversion | None,
 ) -> list[OfferHistoryEventRead]:
     events: list[OfferHistoryEventRead] = []
     for rev in revisions:
@@ -168,6 +213,18 @@ def _history(
             )
             for kind, at, user_id in stamps
             if at is not None
+        )
+    if conversion is not None and conversion.converted_at is not None:
+        # Donusturulen revizyon = donusturme anindaki (kazanilmis) son revizyon.
+        won = [r.rev_no for r in revisions if r.status == OfferRevisionStatus.won]
+        events.append(
+            OfferHistoryEventRead(
+                at=conversion.converted_at,
+                kind="converted",
+                rev_no=max(won) if won else revisions[-1].rev_no,
+                user_id=offer.converted_by_user_id,
+                user_name=conversion.converted_by_name,
+            )
         )
     return sorted(events, key=lambda e: (e.at, e.rev_no, _KIND_RANK[e.kind]))
 
@@ -245,6 +302,7 @@ async def build_offer_detail(session: AsyncSession, offer: Offer) -> OfferDetail
         )
     last = revisions[-1]
     names = await _user_names(session, offer, revisions)
+    conversion = (await _conversions(session, [offer])).get(offer.id)
     return OfferDetailRead(
         id=offer.id,
         offer_no=offer.offer_no,
@@ -260,11 +318,14 @@ async def build_offer_detail(session: AsyncSession, offer: Offer) -> OfferDetail
         status=last.status,
         conversion_state=conversion_state(offer, last),
         project_id=offer.project_id,
+        project=conversion.project if conversion else None,
+        converted_at=conversion.converted_at if conversion else None,
+        converted_by_name=conversion.converted_by_name if conversion else None,
         latest_rev_no=last.rev_no,
         created_at=offer.created_at,
         updated_at=offer.updated_at,
         revisions=summaries,
-        history=_history(revisions, names),
+        history=_history(revisions, names, offer, conversion),
     )
 
 
@@ -316,10 +377,21 @@ def _win_rate(won: int, lost: int) -> Decimal | None:
     return (Decimal(won) * _HUNDRED / Decimal(decided)).quantize(_PCT_CENT, rounding=ROUND_HALF_UP)
 
 
+def _conversion_matches(
+    conversion: ConversionState | None, offer: Offer, rev: OfferRevision
+) -> bool:
+    if conversion is None:
+        return True
+    if conversion == "converted":
+        return offer.project_id is not None
+    return rev.status == OfferRevisionStatus.won and offer.project_id is None
+
+
 async def list_offers(
     session: AsyncSession,
     *,
     status: OfferRevisionStatus | None,
+    conversion: ConversionState | None,
     q: str | None,
     employer_id: uuid.UUID | None,
     offer_date_from: date | None,
@@ -365,8 +437,15 @@ async def list_offers(
         ],
         win_rate=_win_rate(counts[OfferRevisionStatus.won], counts[OfferRevisionStatus.lost]),
     )
-    shown = [e for e in entries if status is None or e[1].status == status]
+    # `status` gibi `conversion` da yalniz LISTEYI daraltir; kartlar (ozet) dagilimi gosterir
+    # (SO-12): "kazanilip donusturulmemis" karti, `converted` secilince bile gercek adedi tasir.
+    shown = [
+        e
+        for e in entries
+        if (status is None or e[1].status == status) and _conversion_matches(conversion, *e[:2])
+    ]
     page = shown[offset : offset + limit]
+    conversions = await _conversions(session, [offer for offer, _rev, _result in page])
     return OfferListResponse(
         items=[
             OfferListItem(
@@ -382,6 +461,9 @@ async def list_offers(
                 status=rev.status,
                 conversion_state=conversion_state(offer, rev),
                 project_id=offer.project_id,
+                project=(c.project if (c := conversions.get(offer.id)) else None),
+                converted_at=c.converted_at if c else None,
+                converted_by_name=c.converted_by_name if c else None,
                 net=result.customer.net,
                 gross=result.customer.gross,
                 unpriced_count=result.unpriced_count,
