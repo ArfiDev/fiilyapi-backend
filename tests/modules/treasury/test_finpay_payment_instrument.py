@@ -839,5 +839,7 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # = +13 yol / +19 operasyon (295→308 · 422→441).
     # TKL-B5: teklif şablonları (/offers/templates…) + teklif ve katalog Excel çıktıları
     # = +8 yol / +11 operasyon (308→316 · 441→452).
-    assert len(yollar) == 316
-    assert operasyonlar == 452
+    # TKL-B6: `POST /offers/{offer_id}/convert` + `POST …/earned-value/budget/fill-from-contract`
+    # = +2 yol / +2 operasyon (316→318 · 452→454).
+    assert len(yollar) == 318
+    assert operasyonlar == 454

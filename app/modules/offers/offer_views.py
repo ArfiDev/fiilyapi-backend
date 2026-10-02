@@ -18,6 +18,7 @@ from app.modules.offers.models import (
     OfferRevisionStatus,
 )
 from app.modules.offers.offer_read_schemas import (
+    ConversionState,
     OfferCustomerTotalsRead,
     OfferGroupRead,
     OfferInternalTotalsRead,
@@ -29,6 +30,7 @@ from app.modules.offers.offer_read_schemas import (
 )
 
 __all__ = [
+    "conversion_state",
     "build_item_read",
     "build_revision_read",
     "build_totals",
@@ -37,6 +39,15 @@ __all__ = [
     "revision_result",
     "valid_until",
 ]
+
+
+def conversion_state(offer: Offer, last_revision: OfferRevision) -> ConversionState | None:
+    """T14: dönüştürülmüşse `converted`; değilse son revizyon `won` ise `won_not_converted`."""
+    if offer.project_id is not None:
+        return "converted"
+    if last_revision.status == OfferRevisionStatus.won:
+        return "won_not_converted"
+    return None
 
 
 def valid_until(revision: OfferRevision) -> date:

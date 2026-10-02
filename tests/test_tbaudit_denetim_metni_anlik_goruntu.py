@@ -110,6 +110,13 @@ Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelend
 **KAYIP 0** (`git diff`: yalnız 13 `+` satırı, `-` satırı yok); sayaçlar 232→241 sembol,
 217→226 fonksiyon.
 
+## 🔴 REFERANSA EKLENEN SEMBOL (TKL-B6.2, 2026-10-02)
+
+`offer_converted` — `POST /offers/{id}/convert` teklif→proje dönüştürme satırı (SO-41; mevcut
+`project_created` satırı AYRI yazılır, metni DEĞİŞMEDİ). Referans
+`python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta **KAYIP 0**
+(`git diff`: yalnız 3 `+` satırı, `-` satırı yok); sayaçlar 241→242 sembol, 226→227 fonksiyon.
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok
@@ -279,9 +286,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 241, f"sembol sayısı 241 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 242, f"sembol sayısı 242 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 226, f"fonksiyon sayısı 226 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 227, f"fonksiyon sayısı 227 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

@@ -138,3 +138,11 @@ def offer_notes_changed(old: str | None, new: str | None) -> str:
 def offer_settings_changed(parts: list[str]) -> str:
     """`PUT /offers/settings`: yalniz DEGISEN alanlar, `eski → yeni`."""
     return f"Teklif ayarları güncellendi: {' · '.join(parts)}"
+
+
+def offer_converted(
+    offer_no: str, project_code: str, item_count: int, site_code: str | None
+) -> str:
+    """TKL-B6.2: teklifin projeye donusturulmesi (SO-41); `project_created` satiri AYRI yazilir."""
+    site = f", şantiye {site_code}" if site_code is not None else ""
+    return f"Teklif projeye dönüştürüldü: {offer_no} → {project_code} ({item_count} kalem{site})"

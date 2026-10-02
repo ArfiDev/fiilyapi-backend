@@ -32,6 +32,9 @@ _Ops = Gorunurluk.operasyonel
 _Id = Gorunurluk.kimlik
 
 HistoryKind = Literal["opened", "sent", "won", "lost", "withdrawn"]
+#: Donusturme durumu (T14): `converted` = projeye donusturuldu; `won_not_converted` = son revizyon
+#: kazanildi ama henuz donusturulmedi ("bekleyen is"); `None` = ikisi de degil.
+ConversionState = Literal["converted", "won_not_converted"]
 
 
 class OfferItemCustomerRead(BaseModel):
@@ -199,6 +202,9 @@ class OfferDetailRead(BaseModel):
     template_id: uuid.UUID | None
     #: Teklifin durumu = SON revizyonun durumu.
     status: OfferRevisionStatus
+    conversion_state: ConversionState | None
+    #: Donusturulmusse olusan proje (TKL-B6).
+    project_id: uuid.UUID | None
     latest_rev_no: int
     created_at: datetime
     updated_at: datetime
@@ -217,6 +223,8 @@ class OfferListItem(BaseModel):
     offer_date: date
     valid_until: date
     status: OfferRevisionStatus
+    conversion_state: ConversionState | None
+    project_id: uuid.UUID | None
     net: Annotated[Decimal | None, _Para]
     gross: Annotated[Decimal | None, _Para]
     unpriced_count: int
@@ -239,6 +247,8 @@ class OfferListSummaryRead(BaseModel):
     #: Suresi GECMIS gonderilmis teklif adedi: son revizyon `sent` ve `valid_until` < bugun
     #: (Istanbul gunu; `valid_until` = bugun → suresi gecmemis).
     expired_count: int
+    #: Kazanilmis ama projeye DONUSTURULMEMIS teklif adedi (son revizyon `won`, `project_id` bos).
+    won_not_converted_count: int
     #: Kazanma orani % = kazanilan / (kazanilan + kaybedilen) x 100; payda 0 ise `None`.
     win_rate: Annotated[Decimal | None, _Id]
 

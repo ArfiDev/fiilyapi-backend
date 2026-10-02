@@ -356,6 +356,9 @@ from app.modules.audit.messages.offers import (
     offer_conditions_updated as offer_conditions_updated,
 )
 from app.modules.audit.messages.offers import (
+    offer_converted as offer_converted,
+)
+from app.modules.audit.messages.offers import (
     offer_created as offer_created,
 )
 from app.modules.audit.messages.offers import (
