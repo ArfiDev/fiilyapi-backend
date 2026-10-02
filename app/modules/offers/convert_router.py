@@ -53,10 +53,15 @@ _PERMISSIONS = [
     response_model=ConvertResponse,
     dependencies=_PERMISSIONS,
     responses={
-        409: {"description": "Zaten dönüştürüldü / kazanılmamış / proje kodu kullanılıyor"},
+        409: {
+            "model": ConvertValidationErrorOut,
+            "description": "Zaten dönüştürüldü / kazanılmamış (yalnız `detail`) / proje kodu "
+            'kullanılıyor (`detail` + `errors[0].loc == ["project", "code"]`)',
+        },
         422: {
             "model": ConvertValidationErrorOut,
-            "description": "Doğrulama hatası; servis doğrulamasında `errors[].loc` yapısaldır",
+            "description": "İş kuralı 422'si: `detail` str + `errors`; gövde şekli 422'si: "
+            "standart `detail` listesi",
         },
     },
 )

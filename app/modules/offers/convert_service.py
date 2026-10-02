@@ -71,6 +71,8 @@ ALREADY_CONVERTED = "Teklif zaten dönüştürüldü"
 NOT_WON = "Yalnız son revizyonu kazanılmış (won) olan teklif projeye dönüştürülebilir"
 #: Elle verilen proje kodu baska projede var (409; yazmadan ONCE, hicbir sey yazilmaz).
 PROJECT_CODE_TAKEN = "Bu proje kodu zaten kullanılıyor"
+DATES_REVERSED_MESSAGE = "Bitiş tarihi başlangıçtan önce olamaz"
+SITE_NAME_WITHOUT_SITE_MESSAGE = "yalnız open_site açıkken verilebilir"
 AMOUNT_TOO_LARGE_MESSAGE = "Kalem toplamı sözleşme bedeli sınırını aşıyor"
 AMOUNT_TOO_LARGE = f"contract.amount: {AMOUNT_TOO_LARGE_MESSAGE}"
 #: Santiyesiz donusturmede elle disiplin eslemesi saklanmaz (SO-32) → yanitta uyari.
@@ -139,11 +141,36 @@ def _path(loc: tuple[str | int, ...]) -> str:
     return out
 
 
+def _normalize_disciplines(body: ConvertRequest) -> tuple[dict[str, uuid.UUID], list[_Issue]]:
+    """`group_disciplines` anahtarlari grup adlariyla AYNI normalize (strip; SO-52).
+
+    Normalize sonrasi ayni anahtara inen FARKLI esleme = hata (`loc` normalize anahtar). Ilk
+    esleme korunur; cakisma `errors`ta raporlanir (yazma zaten reddedilir).
+    """
+    out: dict[str, uuid.UUID] = {}
+    issues: list[_Issue] = []
+    for raw, discipline_id in body.group_disciplines.items():
+        key = raw.strip()
+        if out.setdefault(key, discipline_id) != discipline_id:
+            issues.append(
+                _Issue(
+                    ("group_disciplines", key),
+                    f"«{key}» için birden çok eşleme var",
+                    label="group_disciplines",
+                )
+            )
+    return out, issues
+
+
 def _static_errors(
     body: ConvertRequest, revision: OfferRevision, offer_items: dict[uuid.UUID, OfferItem]
 ) -> list[_Issue]:
     """Yazmadan ONCE, DB'ye sormadan bulunabilen TUM govde hatalari (toplu mesaj icin)."""
     errors: list[_Issue] = []
+    if body.project.end_date < body.project.start_date:
+        errors.append(_Issue(("project", "end_date"), DATES_REVERSED_MESSAGE))
+    if body.site_name is not None and not body.open_site:
+        errors.append(_Issue(("site_name",), SITE_NAME_WITHOUT_SITE_MESSAGE))
     group_names: set[str] = set()
     codes: set[str] = set()
     for g_index, group in enumerate(body.groups):
@@ -164,7 +191,9 @@ def _static_errors(
                 errors.append(_Issue(loc, "Kalem teklifin son revizyonunda bulunamadı"))
             elif source.catalog_item_id != item.catalog_item_id:
                 errors.append(_Issue(loc, "Teklif kaleminin katalog bağı gövdedekiyle uyuşmuyor"))
-    for name in body.group_disciplines:
+    disciplines, conflicts = _normalize_disciplines(body)
+    errors.extend(conflicts)
+    for name in disciplines:
         if name not in group_names:
             errors.append(
                 _Issue(
@@ -223,7 +252,7 @@ async def _load_catalog(
 
 
 async def _assert_disciplines_exist(session: AsyncSession, body: ConvertRequest) -> None:
-    ids = set(body.group_disciplines.values())
+    ids = set(_normalize_disciplines(body)[0].values())
     if not ids:
         return
     found = set(await session.scalars(select(EvDiscipline.id).where(EvDiscipline.id.in_(ids))))
@@ -349,7 +378,10 @@ async def convert_offer(
     # Eszamanli ayni kodla yazanlari DB UQ'su yakalar (jenerik 409; tum islem geri alinir).
     code = body.project.code
     if code is not None and await project_repository.project_code_exists(session, code):
-        raise ConflictError(PROJECT_CODE_TAKEN)
+        raise ConflictError(
+            PROJECT_CODE_TAKEN,
+            [{"loc": ["project", "code"], "message": PROJECT_CODE_TAKEN}],
+        )
 
     project = await project_service.create_project(session, _project_input(body, offer, revision))
     seeded = await seed_service.seed_contract(session, project, _seed_inputs(body))
@@ -361,7 +393,7 @@ async def convert_offer(
     group_ids = {s.group.name: s.group.id for s in seeded.groups}
     group_names = {group_id: name for name, group_id in group_ids.items()}
     warnings: list[ConvertWarning] = []
-    mapping = {group_ids[name]: disc for name, disc in body.group_disciplines.items()}
+    mapping = {group_ids[name]: disc for name, disc in _normalize_disciplines(body)[0].items()}
     if site is None and mapping:
         mapping = {}
         warnings.append(

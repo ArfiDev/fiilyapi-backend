@@ -328,7 +328,15 @@ class ConflictError(DomainError):
     dışındayken yazılamaması (`INVALID_STATUS_TRANSITION`), onaylanmış/ödenmiş
     kaydın silinememesi (`PAYMENT_NOT_DELETABLE`) gibi. `RelatedRecordsExistError`
     (bağlı alt kayıt) semantiğine de UYMADIĞI için P7 ile birlikte açılır.
+
+    İsteğe bağlı `errors` (TKL-B6.9 R5): `OfferValidationError.errors` ile AYNI biçim
+    (`{"loc": [...], "message": str}`); doluysa 409 gövdesine EKLENİR, `detail` AYNEN kalır;
+    boşsa gövde bugünkü gibidir (yalnız `detail`).
     """
+
+    def __init__(self, message: str = "", errors: list[dict[str, object]] | None = None) -> None:
+        super().__init__(message)
+        self.errors: list[dict[str, object]] = list(errors) if errors else []
 
 
 class EarnedValueValidationError(DomainError):

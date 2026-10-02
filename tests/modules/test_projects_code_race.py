@@ -75,3 +75,58 @@ async def test_BD5_KONTROL_kilitsiz_ikinci_olusturma_UQ_cokusu(
         assert isinstance(hata, IntegrityError), f"kilitsiz de temiz gecti: {hata!r}"
         assert "ix_projects_code" in str(hata.orig) or "projects_code_key" in str(hata.orig)
         assert len(await _kodlar(ortam)) == 1
+
+
+async def test_R2_elle_uyumlu_kod_otomatikle_serilesir_ardisik_kod() -> None:
+    """TKL-B6.9 R2: A ELLE `PRJ-{yil}-001` verir (commit etmeden bekler); B otomatik uretir. Elle
+    yol da yil kilidini aldigindan B KILITTE bekler, A commit edince `002` alir (UQ cokusu yok)."""
+    yil = today().year
+
+    async def elle(session: AsyncSession) -> None:
+        await project_service.create_project(
+            session,
+            ProjectCreate(
+                code=f"PRJ-{yil}-001", name="Elle", project_type="taahhut", is_draft=True
+            ),
+        )
+
+    async def oto(session: AsyncSession) -> None:
+        await project_service.create_project(session, _taslak("Oto"))
+
+    async with _ortam(gonderilmis=False) as ortam:
+        bekleyen, hata = await _yaris(ortam, elle, oto)
+
+        assert "pg_advisory_xact_lock" in bekleyen, bekleyen
+        assert hata is None, f"otomatik uretim temiz gecmeliydi: {hata!r}"
+        assert await _kodlar(ortam) == [f"PRJ-{yil}-001", f"PRJ-{yil}-002"]
+
+
+async def test_R2_KONTROL_elle_yolda_kilit_kapaliyken_UQ_cokusu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """POZITIF KONTROL: kilit KAPALI → otomatik uretim elle satiri (commit'siz) gormez, ayni
+    `001`i yazar; commit sonrasi IntegrityError. Ustteki bekcinin kilidi olctugunun kanitidir."""
+    yil = today().year
+
+    async def _kilitsiz(session: AsyncSession, year: int) -> None:
+        return None
+
+    monkeypatch.setattr(project_service, "_lock_project_code_sequence", _kilitsiz)
+
+    async def elle(session: AsyncSession) -> None:
+        await project_service.create_project(
+            session,
+            ProjectCreate(
+                code=f"PRJ-{yil}-001", name="Elle", project_type="taahhut", is_draft=True
+            ),
+        )
+
+    async def oto(session: AsyncSession) -> None:
+        await project_service.create_project(session, _taslak("Oto"))
+
+    async with _ortam(gonderilmis=False) as ortam:
+        bekleyen, hata = await _yaris(ortam, elle, oto)
+
+        assert bekleyen.startswith("INSERT INTO projects"), bekleyen
+        assert isinstance(hata, IntegrityError), f"kilitsiz de temiz gecti: {hata!r}"
+        assert len(await _kodlar(ortam)) == 1

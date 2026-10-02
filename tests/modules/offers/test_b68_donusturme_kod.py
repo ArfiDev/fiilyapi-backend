@@ -22,7 +22,7 @@ from app.modules.offers.models import Offer
 from app.modules.projects.models import Project, ProjectType
 
 from ._convert import Kazanilmis, govde, kazanilmis_teklif, url
-from ._offers import URL
+from ._offers import URL, detay, durum_yap, gecis, grup, kalem, revizyon, teklif, tum_kalemler
 
 pytestmark = pytest.mark.usefixtures("tohum_kancasi")
 
@@ -86,7 +86,11 @@ async def test_cakisan_kod_409_ozel_metin_hicbir_sey_yazilmadi(
 
     assert resp.status_code == 409, resp.text
     # DB UQ'su "Veri butunlugu hatasi" derdi: ozel metin = KONTROL servis katmaninda
-    assert resp.json() == {"detail": PROJECT_CODE_TAKEN}
+    # R5: alan vurgusu — `errors` 422'deki biciminin AYNISI; `detail` metni DEGISMEZ
+    assert resp.json() == {
+        "detail": PROJECT_CODE_TAKEN,
+        "errors": [{"loc": ["project", "code"], "message": PROJECT_CODE_TAKEN}],
+    }
     assert PROJECT_CODE_TAKEN == "Bu proje kodu zaten kullanılıyor"
     assert await db_session.scalar(select(func.count()).select_from(Project)) == 1  # yalniz mevcut
     assert await db_session.scalar(select(func.count()).select_from(EmployerContractItem)) == 0
@@ -251,3 +255,108 @@ async def test_diger_teklif_422_govdesi_errors_tasimaz(client, admin, isveren) -
 
     assert resp.status_code == 422, resp.text
     assert resp.json() == {"detail": "Fiyat farkı «TÜİK endeksli» iken endeks türü zorunludur"}
+
+
+# --------------------------------------------------------------------------- TKL-B6.9 (R1/R3/R4)
+
+
+async def _otomatik_kod(client, admin, isveren, katalog) -> str:
+    kz_ = await kazanilmis_teklif(client, admin, isveren, katalog)
+    resp = await client.post(url(kz_.offer_id), json=govde(kz_), headers=admin)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["project_code"]
+
+
+async def test_R1_uzun_uyumlu_kod_sayaci_zehirlemez(client, admin, isveren, katalog, kz) -> None:
+    """`PRJ-YYYY-` + 41 dokuz (toplam 50, kabul edilen elle kod) sayaca GIRMEZ: sonraki otomatik
+    kod `001` olur (yoksa 51 karakter → 422 olurdu)."""
+    zehir = f"PRJ-{today().year}-" + "9" * 41
+    assert len(zehir) == 50
+    ilk = await client.post(url(kz.offer_id), json=_kodlu(kz, zehir), headers=admin)
+    assert ilk.status_code == 200, ilk.text
+
+    assert await _otomatik_kod(client, admin, isveren, katalog) == f"PRJ-{today().year}-001"
+
+
+async def test_R4b_unicode_rakamli_ek_sayaca_girmez(client, admin, isveren, katalog, kz) -> None:
+    """Unicode rakam (`²` ust simge → `isdigit()` True ama `int()` patlar; `٠٠٧` Arapca-Hint
+    rakami → `int()` 7 verir) sayaca GIRMEZ: otomatik uretim 200 ve `001`."""
+    yil = today().year
+    for ek in ("²", "٠٠٧"):
+        kz_ = await kazanilmis_teklif(client, admin, isveren, katalog)
+        r = await client.post(url(kz_.offer_id), json=_kodlu(kz_, f"PRJ-{yil}-{ek}"), headers=admin)
+        assert r.status_code == 200, r.text
+
+    assert await _otomatik_kod(client, admin, isveren, katalog) == f"PRJ-{yil}-001"
+
+
+async def test_R4a_rev1_kazanilmis_teklifte_converted_olayi_rev_1(
+    client, admin, isveren, katalog
+) -> None:
+    """Rev.0 gonderilip kaybedildi → Rev.1 acildi, kazanildi, donusturuldu: `converted` olayinin
+    `rev_no`su 1 (ilk revizyonun degil KAZANAN revizyonun numarasi)."""
+    o = await teklif(client, admin, isveren, title="Rev1 kazandi")
+    g0 = await grup(client, admin, o["id"], name="Kaba")
+    await kalem(
+        client, admin, o["id"], g0["id"], katalog[0].id, quantity="10", cost_unit_price="100"
+    )
+    await gecis(client, admin, o["id"], "send")
+    await gecis(client, admin, o["id"], "lose")
+    assert (await client.post(f"{URL}/{o['id']}/revisions", headers=admin)).status_code == 201
+    await durum_yap(client, admin, o["id"], "won", rev_no=1)
+    (tek,) = tum_kalemler(await revizyon(client, admin, o["id"], 1))
+    # govde() uc poz adi ister; Rev.1'deki TEK kalem uc satirda (farkli kodlarla) kullanilir.
+    kz_ = Kazanilmis(o["id"], o["offer_no"], {"Beton": tek, "Kalıp": tek, "Demir": tek})
+    g = govde(kz_)
+
+    resp = await client.post(url(o["id"]), json=g, headers=admin)
+
+    assert resp.status_code == 200, resp.text
+    d = await detay(client, admin, o["id"])
+    assert d["latest_rev_no"] == 1
+    assert (d["history"][-1]["kind"], d["history"][-1]["rev_no"]) == ("converted", 1)
+
+
+async def test_R3_ters_tarih_servis_422i_errors_ile(client, admin, kz) -> None:
+    g = govde(kz)
+    g["project"]["start_date"], g["project"]["end_date"] = "2027-01-02", "2027-01-01"
+
+    cevap = await _422(client, admin, kz, g)
+
+    assert cevap["detail"] == "project.end_date: Bitiş tarihi başlangıçtan önce olamaz"
+    assert cevap["errors"] == [
+        {"loc": ["project", "end_date"], "message": "Bitiş tarihi başlangıçtan önce olamaz"}
+    ]
+
+
+async def test_R3_site_name_open_site_olmadan_servis_422i(client, admin, kz) -> None:
+    g = govde(kz, site_name="X")
+
+    cevap = await _422(client, admin, kz, g)
+
+    assert cevap["detail"] == "site_name: yalnız open_site açıkken verilebilir"
+    assert cevap["errors"] == [
+        {"loc": ["site_name"], "message": "yalnız open_site açıkken verilebilir"}
+    ]
+
+
+async def test_R3_normalize_cakisan_esleme_loc_normalize_anahtar(client, admin, kz) -> None:
+    g = govde(kz, open_site=True)
+    g["group_disciplines"] = {"Kaba": str(uuid.uuid4()), " Kaba ": str(uuid.uuid4())}
+
+    cevap = await _422(client, admin, kz, g)
+
+    assert cevap["detail"] == "group_disciplines: «Kaba» için birden çok eşleme var"
+    assert cevap["errors"] == [
+        {"loc": ["group_disciplines", "Kaba"], "message": "«Kaba» için birden çok eşleme var"}
+    ]
+
+
+async def test_R3_gövde_sekli_422si_standart_liste_bicimi_kalir(client, admin, kz) -> None:
+    g = govde(kz)
+    g["project"].pop("city")
+
+    resp = await client.post(url(kz.offer_id), json=g, headers=admin)
+
+    assert resp.status_code == 422
+    assert isinstance(resp.json()["detail"], list) and "errors" not in resp.json()
