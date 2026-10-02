@@ -258,6 +258,26 @@ class FillOut(BaseModel):
     ambiguous: list[AmbiguousItemOut]
 
 
+class ContractWarningOut(BaseModel):
+    """Yapisal uyari: istemci `code`a bakar (`mixed_discipline_group` → `boq_group_id`)."""
+
+    code: str
+    message: str
+    boq_group_id: uuid.UUID | None = None
+
+
+class FillFromContractOut(BaseModel):
+    """ "Sozlesmeden doldur" sonucu (TKL-B6.4). Sayilar yalniz BU cagrinin yazdiklaridir."""
+
+    filled_item_count: int
+    filled_leaf_count: int
+    linked_item_count: int
+    mapped_group_count: int
+    #: Baglı olup yuva da katalog standardi da olmadigi icin orani dolmayan kalem sayisi.
+    unrated_item_count: int
+    warnings: list[ContractWarningOut]
+
+
 # ------------------------------------------------------------------ onizleme
 
 

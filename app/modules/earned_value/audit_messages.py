@@ -67,6 +67,10 @@ def filled_from_catalog(project_name: str, site_name: str, filled: int) -> str:
     return f"Bütçe katalogdan dolduruldu: {_where(project_name, site_name)} · {filled} satır"
 
 
+def filled_from_contract(project_name: str, site_name: str, filled: int) -> str:
+    return f"Bütçe sözleşmeden dolduruldu: {_where(project_name, site_name)} · {filled} satır"
+
+
 def distributions_saved(project_name: str, site_name: str, count: int) -> str:
     return f"Bütçe dağılım tipleri kaydedildi: {_where(project_name, site_name)} · {count} disiplin"
 

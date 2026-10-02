@@ -29,6 +29,7 @@ from app.modules.earned_value import budget_ops as ops
 from app.modules.earned_value import budget_present as present
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import budget_service as svc
+from app.modules.earned_value import contract_rates
 from app.modules.earned_value.access import (
     APPROVE,
     VIEW,
@@ -43,7 +44,9 @@ from app.modules.earned_value.schemas_budget import (
     AmbiguousItemOut,
     BudgetView,
     CandidateOut,
+    ContractWarningOut,
     DistributionsBody,
+    FillFromContractOut,
     FillOut,
     FreezeBody,
     GroupDisciplinesBody,
@@ -314,6 +317,40 @@ async def fill_budget_from_catalog(
                 candidates=[_candidate(c) for c in cands],
             )
             for item, cands in result.ambiguous
+        ],
+    )
+
+
+@router.post(
+    f"{_BASE}/fill-from-contract",
+    response_model=FillFromContractOut,
+    dependencies=[WRITE, RequireUnrestricted],
+)
+async def fill_budget_from_contract(
+    request: Request, site_id: uuid.UUID, ctx: _Writable, user: _User, session: _Db
+) -> FillFromContractOut:
+    """ "Sözleşmeden doldur" (TKL-B6.4): oran yuvası → katalog standardı; boşları doldurur."""
+    result = await contract_rates.apply_contract_to_draft(session, ctx, user)
+    if result.filled_leaf_count:
+        await _audit(
+            session,
+            request,
+            user,
+            msg.filled_from_contract(ctx.project.name, ctx.site.name, result.filled_leaf_count),
+        )
+    return FillFromContractOut(
+        filled_item_count=result.filled_item_count,
+        filled_leaf_count=result.filled_leaf_count,
+        linked_item_count=result.linked_item_count,
+        mapped_group_count=result.mapped_group_count,
+        unrated_item_count=result.unrated_item_count,
+        warnings=[
+            ContractWarningOut(
+                code=contract_rates.CODE_MIXED_GROUP,
+                message=contract_rates.MSG_MIXED_GROUP,
+                boq_group_id=group.boq_group_id,
+            )
+            for group in result.mixed_groups
         ],
     )
 
