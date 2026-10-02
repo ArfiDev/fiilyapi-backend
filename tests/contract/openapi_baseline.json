@@ -28642,7 +28642,8 @@
         "enum": [
           "catalog",
           "history",
-          "manual"
+          "manual",
+          "offer"
         ],
         "title": "RateSource",
         "type": "string"
