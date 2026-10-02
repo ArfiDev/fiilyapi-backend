@@ -31,6 +31,7 @@ from app.modules.earned_value import models as earned_value_models  # noqa: F401
 from app.modules.equipment import models as equipment_models  # noqa: F401
 from app.modules.inventory import models as inventory_models  # noqa: F401
 from app.modules.invoicing import models as invoicing_models  # noqa: F401
+from app.modules.offers import models as offers_models  # noqa: F401
 from app.modules.payroll import models as payroll_models  # noqa: F401
 from app.modules.personnel import models as personnel_models  # noqa: F401
 from app.modules.posting import models as posting_models  # noqa: F401

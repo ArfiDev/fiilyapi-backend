@@ -300,6 +300,17 @@ class ApprovalValidationError(DomainError):
     """
 
 
+class OfferValidationError(DomainError):
+    """Teklif gövde/iş kuralı ihlali (TKL-B4.2) — 422.
+
+    `EquipmentValidationError` deseninin aynısı: DB `CHECK` ile zorlanabilse bile (elle B.F.
+    ⇒ maliyet dolu, `tuik` ⇒ endeks türü dolu) kullanıcıya Türkçe mesaj veremeyen ve KISMİ
+    PATCH'te yalnız DB'deki kayıtla BİRLEŞTİRİLMİŞ değerler üzerinde anlamlı kurallar tek
+    yazma yolunda servis korkuluğuyla tutulur. 409 DEĞİL: engel kaydın DURUMU değil
+    İÇERİĞİDİR (durum engeli `ConflictError`dır).
+    """
+
+
 class ConflictError(DomainError):
     """Durum makinesi / iş kuralı çakışması — 409 (P7 hakediş spec §7, §9.2, §9.7).
 

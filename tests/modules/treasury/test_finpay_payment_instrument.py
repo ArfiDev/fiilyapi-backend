@@ -834,5 +834,8 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # `GET /catalog/disciplines` = +3 yol / +4 operasyon (290→293 · 415→419).
     # TKL-B3: `POST /projects/{project_id}/contract/items/bulk` = +1 yol / +1 operasyon
     # (293→294 · 419→420).
-    assert len(yollar) == 294
-    assert operasyonlar == 420
+    # TKL-B4.1: `GET`/`PUT /offers/settings` = +1 yol / +2 operasyon (294→295 · 420→422).
+    # TKL-B4.2: teklif uçları (`/offers`, revizyonlar, geçişler, gruplar, kalemler)
+    # = +13 yol / +19 operasyon (295→308 · 422→441).
+    assert len(yollar) == 308
+    assert operasyonlar == 441
