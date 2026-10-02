@@ -112,6 +112,7 @@ from app.modules.equipment.rental_router import router as equipment_rental_route
 from app.modules.equipment.router import router as equipment_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.invoicing.router import router as invoicing_router
+from app.modules.offers.convert_router import router as offers_convert_router
 from app.modules.offers.export_router import router as offers_export_router
 from app.modules.offers.router import router as offers_router
 from app.modules.offers.template_router import router as offer_templates_router
@@ -189,6 +190,7 @@ ROUTERS: tuple[APIRouter, ...] = (
     offer_templates_router,
     offers_router,
     offers_export_router,
+    offers_convert_router,
     payroll_router,
     # 🔴 SIRA ZORUNLU (3): `/personnel/document-types`, `/personnel/{personnel_id}`
     # ile AYNI şekli ve AYNI metodu (GET) taşır.

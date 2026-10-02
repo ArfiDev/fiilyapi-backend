@@ -143,7 +143,9 @@ async def test_F2_yazimlar_updated_at_ilerletir_okuma_ilerletmez(
     t6 = await ilerledi(t5)  # toplu ekleme
     await client.delete(rev_url(oid) + f"/items/{k['id']}", headers=admin)
     t7 = await ilerledi(t6)  # kalem silme
-    await client.delete(rev_url(oid) + f"/groups/{g['id']}", headers=admin)
+    g2 = await grup(client, admin, oid, name="Boş")  # TKL-B4.5: kalemli grup silinemez → bos grup
+    t7 = await ilerledi(t7)
+    await client.delete(rev_url(oid) + f"/groups/{g2['id']}", headers=admin)
     t8 = await ilerledi(t7)  # grup silme
     await gecis(client, admin, oid, "send")
     await ilerledi(t8)  # gecis

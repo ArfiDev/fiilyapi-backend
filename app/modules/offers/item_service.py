@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import last_price
-from app.core.errors import NotFoundError, OfferValidationError
+from app.core.errors import NotFoundError, OfferValidationError, RelatedRecordsExistError
 from app.core.last_price import LastPrice
 from app.modules.catalog.models import EvCatalogItem
 from app.modules.offers import calc, locking
@@ -37,6 +37,7 @@ from app.modules.offers.offer_views import item_input
 CATALOG_ITEM_MISSING = "Katalog iş tipi bulunamadı"
 GROUP_MISSING = "Teklif grubu bulunamadı"
 ITEM_MISSING = "Teklif kalemi bulunamadı"
+GROUP_HAS_ITEMS = "Grupta kalem var; önce kalemleri silin"
 GROUP_NOT_IN_REVISION = "Grup bu revizyona ait değil"
 
 _CENT = Decimal("0.01")
@@ -116,19 +117,20 @@ async def update_group(
 
 async def delete_group(
     session: AsyncSession, offer_id: uuid.UUID, rev_no: int, group_id: uuid.UUID
-) -> tuple[Offer, OfferRevision, str, int]:
-    """Grubu ICINDEKI KALEMLERLE birlikte siler (bilesik FK `ON DELETE CASCADE`). Doner:
-    `(teklif, revizyon, grup adi, silinen kalem adedi)` (denetim satiri icin)."""
-    offer, revision = await locking.lock_draft_revision(session, offer_id, rev_no)
+) -> None:
+    """Yalniz BOS grubu siler. Kalem varsa 409 (TKL-B4.5): zincirleme silme iki sekmede/
+    kullanicida onaysiz veri kaybiydi. Sayim teklif KILIDI altindadir: es zamanli kalem ekleme
+    ya once biter (silme 409) ya sonra gelir (kalem ekleme: grup yok → 404)."""
+    _offer, revision = await locking.lock_draft_revision(session, offer_id, rev_no)
     group = await _get_group(session, revision.id, group_id)
-    name = group.name
     item_count = await session.scalar(
         select(func.count()).select_from(OfferItem).where(OfferItem.group_id == group.id)
     )
+    if item_count:
+        raise RelatedRecordsExistError(GROUP_HAS_ITEMS)
     await session.delete(group)
     locking.touch_revision(revision)
     await session.flush()
-    return offer, revision, name, item_count or 0
 
 
 # ---------------------------------------------------------------------------- kalem

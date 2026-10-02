@@ -35,10 +35,10 @@ from sqlalchemy.ext.asyncio import (
 
 import app.main  # noqa: F401  (tum modeller metadata'ya girsin)
 from app.core.db import Base
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import ConflictError, NotFoundError, RelatedRecordsExistError
 from app.modules.catalog.models import ContractorType, EvCatalogItem, EvDiscipline
 from app.modules.offers import item_service, locking, offer_service
-from app.modules.offers.models import Offer, OfferItem, OfferRevision
+from app.modules.offers.models import Offer, OfferGroup, OfferItem, OfferRevision
 from app.modules.offers.offer_schemas import OfferCreate, OfferGroupCreate, OfferItemCreate
 from app.modules.offers.offer_service import OfferAction
 from app.modules.projects.models import Employer
@@ -168,7 +168,13 @@ async def _yaris(
     assert task is not None
     try:
         await asyncio.wait_for(task, _BEKLEME_SINIRI)
-    except (IntegrityError, ConflictError, NotFoundError, TimeoutError) as exc:
+    except (
+        IntegrityError,
+        ConflictError,
+        NotFoundError,
+        RelatedRecordsExistError,
+        TimeoutError,
+    ) as exc:
         return bekleyen, exc
     return bekleyen, None
 
@@ -290,3 +296,90 @@ async def test_TKLB42_b_KONTROL_kilitsiz_kalem_gonderilmis_revizyona_yazilir(
         assert (
             await _kalem_sayisi(ortam) == TOHUM_KALEM + 1
         )  # DEGISMEZ IHLALI: gonderilmis revizyonda kalem
+
+
+# ------------------------------------------- (c) grup silme + kalem ekleme (TKL-B4.5)
+
+
+async def _bos_grup(ortam: _Ortam) -> uuid.UUID:
+    async with ortam.Session() as s:
+        grup = await item_service.create_group(s, ortam.offer_id, 0, OfferGroupCreate(name="Boş"))
+        await s.commit()
+        return grup.id
+
+
+async def _grup_ve_kalem_sayisi(ortam: _Ortam, group_id: uuid.UUID) -> tuple[int, int]:
+    async with ortam.Session() as s:
+        gruplar = await s.scalar(
+            select(func.count()).select_from(OfferGroup).where(OfferGroup.id == group_id)
+        )
+        kalemler = await s.scalar(
+            select(func.count()).select_from(OfferItem).where(OfferItem.group_id == group_id)
+        )
+        return gruplar or 0, kalemler or 0
+
+
+async def _kalem_ekle_ve_grup_sil(ortam: _Ortam, group_id: uuid.UUID):
+    """Oturum 1 bos gruba kalem ekler (commit etmez); oturum 2 AYNI grubu silmeye calisir."""
+
+    async def _birinci(session: AsyncSession) -> None:
+        govde = OfferItemCreate(
+            catalog_item_id=ortam.catalog_id, group_id=group_id, quantity=Decimal("1")
+        )
+        await item_service.add_items(session, ortam.offer_id, 0, [govde])
+
+    async def _ikinci(session: AsyncSession) -> None:
+        await item_service.delete_group(session, ortam.offer_id, 0, group_id)
+
+    return await _yaris(ortam, _birinci, _ikinci)
+
+
+async def test_TKLB45_c_kalem_ekleme_once_biterse_grup_silme_409_kalem_DURUR() -> None:
+    async with _ortam(gonderilmis=False) as ortam:
+        grup_id = await _bos_grup(ortam)
+        bekleyen, hata = await _kalem_ekle_ve_grup_sil(ortam, grup_id)
+
+        assert "FROM offers" in bekleyen and "FOR UPDATE" in bekleyen, bekleyen
+        assert isinstance(hata, RelatedRecordsExistError), f"silme 409 olmaliydi: {hata!r}"
+        assert await _grup_ve_kalem_sayisi(ortam, grup_id) == (1, 1)
+
+
+async def test_TKLB45_c_KONTROL_kilitsiz_grup_silme_BAYAT_sifir_okur_kalem_sessizce_gider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """POZITIF KONTROL: kilit KAPALI → silme commit edilmemis kalemi gormez (sayim 0), grubu siler;
+    kalem eklemenin commit'inden sonra bilesik FK CASCADE kalemi SESSIZCE yok eder (onaysiz veri
+    kaybi). Bu kirmizi, ustteki bekcinin kilidi gercekten olctugunun kanitidir."""
+
+    async def _kilitsiz(session: AsyncSession, offer_id: uuid.UUID) -> Offer:
+        offer = await session.get(Offer, offer_id)
+        assert offer is not None
+        return offer
+
+    monkeypatch.setattr(locking, "lock_offer", _kilitsiz)
+    async with _ortam(gonderilmis=False) as ortam:
+        grup_id = await _bos_grup(ortam)
+        _bekleyen, hata = await _kalem_ekle_ve_grup_sil(ortam, grup_id)
+
+        assert hata is None, f"kilitsiz silme reddedildi?: {hata!r}"
+        assert await _grup_ve_kalem_sayisi(ortam, grup_id) == (0, 0)  # kalem SESSIZCE gitti
+
+
+async def test_TKLB45_c_grup_silme_once_biterse_kalem_ekleme_404() -> None:
+    async with _ortam(gonderilmis=False) as ortam:
+        grup_id = await _bos_grup(ortam)
+
+        async def _birinci(session: AsyncSession) -> None:
+            await item_service.delete_group(session, ortam.offer_id, 0, grup_id)
+
+        async def _ikinci(session: AsyncSession) -> None:
+            govde = OfferItemCreate(
+                catalog_item_id=ortam.catalog_id, group_id=grup_id, quantity=Decimal("1")
+            )
+            await item_service.add_items(session, ortam.offer_id, 0, [govde])
+
+        bekleyen, hata = await _yaris(ortam, _birinci, _ikinci)
+
+        assert "FROM offers" in bekleyen and "FOR UPDATE" in bekleyen, bekleyen
+        assert isinstance(hata, NotFoundError), f"kalem ekleme 404 olmaliydi: {hata!r}"
+        assert await _grup_ve_kalem_sayisi(ortam, grup_id) == (0, 0)

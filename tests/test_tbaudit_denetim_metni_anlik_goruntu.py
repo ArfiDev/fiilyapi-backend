@@ -110,6 +110,21 @@ Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelend
 **KAYIP 0** (`git diff`: yalnız 13 `+` satırı, `-` satırı yok); sayaçlar 232→241 sembol,
 217→226 fonksiyon.
 
+## 🔴 REFERANSA EKLENEN SEMBOL (TKL-B6.2, 2026-10-02)
+
+`offer_converted` — `POST /offers/{id}/convert` teklif→proje dönüştürme satırı (SO-41; mevcut
+`project_created` satırı AYRI yazılır, metni DEĞİŞMEDİ). Referans
+`python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta **KAYIP 0**
+(`git diff`: yalnız 3 `+` satırı, `-` satırı yok); sayaçlar 241→242 sembol, 226→227 fonksiyon.
+
+## 🔴 REFERANSTAN KALDIRILAN SEMBOL (TKL-B4.5, 2026-10-02)
+
+`offer_group_deleted` — yayınlanmadan kaldırıldı: kalemli teklif grubu artık silinemez (409),
+boş grup silme denetim satırı yazmaz; fonksiyonun çağrılacağı yol OLUŞAMAZ. Referans
+`python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile bilinçli tazelendi; diffte
+YALNIZ bu fonksiyonun satırları silindi, başka KAYIP 0; sayaçlar 242→241 sembol, 227→226
+fonksiyon.
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok

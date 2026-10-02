@@ -29,6 +29,7 @@ from app.modules.earned_value import budget_ops as ops
 from app.modules.earned_value import budget_present as present
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import budget_service as svc
+from app.modules.earned_value import contract_rates
 from app.modules.earned_value.access import (
     APPROVE,
     VIEW,
@@ -43,7 +44,9 @@ from app.modules.earned_value.schemas_budget import (
     AmbiguousItemOut,
     BudgetView,
     CandidateOut,
+    ContractWarningOut,
     DistributionsBody,
+    FillFromContractOut,
     FillOut,
     FreezeBody,
     GroupDisciplinesBody,
@@ -315,6 +318,60 @@ async def fill_budget_from_catalog(
             )
             for item, cands in result.ambiguous
         ],
+    )
+
+
+@router.post(
+    f"{_BASE}/fill-from-contract",
+    response_model=FillFromContractOut,
+    dependencies=[WRITE, RequireUnrestricted],
+)
+async def fill_budget_from_contract(
+    request: Request, site_id: uuid.UUID, ctx: _Writable, user: _User, session: _Db
+) -> FillFromContractOut:
+    """ "Sözleşmeden doldur" (TKL-B6.4): oran yuvası → katalog standardı; boşları doldurur."""
+    start, end = ctx.project.start_date, ctx.project.end_date
+    window = (start, end) if start is not None and end is not None else None
+    result = await contract_rates.apply_contract_to_draft(session, ctx, user, window=window)
+    if result.wrote_anything:
+        await _audit(
+            session,
+            request,
+            user,
+            msg.filled_from_contract(
+                ctx.project.name,
+                ctx.site.name,
+                result.filled_leaf_count,
+                linked=result.linked_item_count,
+                mapped=result.mapped_group_count,
+                windows=result.window_count,
+                draft_opened=result.draft_opened,
+            ),
+        )
+    return FillFromContractOut(
+        filled_item_count=result.filled_item_count,
+        filled_leaf_count=result.filled_leaf_count,
+        linked_item_count=result.linked_item_count,
+        mapped_group_count=result.mapped_group_count,
+        unrated_item_count=result.unrated_item_count,
+        warnings=[
+            ContractWarningOut(
+                code=contract_rates.CODE_MIXED_GROUP,
+                message=contract_rates.MSG_MIXED_GROUP,
+                boq_group_id=group.boq_group_id,
+            )
+            for group in result.mixed_groups
+        ]
+        + (
+            [
+                ContractWarningOut(
+                    code=contract_rates.CODE_NO_PROJECT_DATES,
+                    message=contract_rates.MSG_NO_PROJECT_DATES,
+                )
+            ]
+            if result.no_window_dates
+            else []
+        ),
     )
 
 

@@ -5413,6 +5413,37 @@
         "title": "ContractSummary",
         "type": "object"
       },
+      "ContractWarningOut": {
+        "description": "Yapisal uyari: istemci `code`a bakar (`mixed_discipline_group` → `boq_group_id`).",
+        "properties": {
+          "boq_group_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boq Group Id"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ContractWarningOut",
+        "type": "object"
+      },
       "ContractingCard": {
         "description": "Taahhut karti — sozlesme bedeli/isveren ustte gercek, gerisi bos durum.",
         "properties": {
@@ -5459,6 +5490,461 @@
         ],
         "title": "ContractorType",
         "type": "string"
+      },
+      "ConvertContract": {
+        "additionalProperties": false,
+        "description": "Isveren sozlesmesi. `amount` verilmezse sunucu Σ kalem tutarini yazar (KDV HARIC, kurus).",
+        "properties": {
+          "advance_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,6}0*$)\\d{0,3}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advance Pct"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "base_index_value": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,9}|(?=[\\d.]{1,13}0*$)\\d{0,9}\\.\\d{0,3}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Index Value"
+          },
+          "contract_no": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Contract No",
+            "type": "string"
+          },
+          "has_price_escalation": {
+            "title": "Has Price Escalation",
+            "type": "boolean"
+          },
+          "index_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PriceIndexType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "late_penalty_daily": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Late Penalty Daily"
+          },
+          "retainage_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,6}0*$)\\d{0,3}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retainage Pct"
+          },
+          "signature_date": {
+            "format": "date",
+            "title": "Signature Date",
+            "type": "string"
+          },
+          "vat_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,6}0*$)\\d{0,3}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Pct"
+          }
+        },
+        "required": [
+          "contract_no",
+          "signature_date",
+          "has_price_escalation"
+        ],
+        "title": "ConvertContract",
+        "type": "object"
+      },
+      "ConvertGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ConvertItem"
+            },
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "items"
+        ],
+        "title": "ConvertGroup",
+        "type": "object"
+      },
+      "ConvertItem": {
+        "additionalProperties": false,
+        "properties": {
+          "catalog_item_id": {
+            "format": "uuid",
+            "title": "Catalog Item Id",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "offer_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Item Id"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1000000000.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,11}|(?=[\\d.]{1,15}0*$)\\d{0,11}\\.\\d{0,3}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "unit": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,13}|(?=[\\d.]{1,16}0*$)\\d{0,13}\\.\\d{0,2}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Unit Price"
+          }
+        },
+        "required": [
+          "catalog_item_id",
+          "code",
+          "description",
+          "unit",
+          "quantity",
+          "unit_price"
+        ],
+        "title": "ConvertItem",
+        "type": "object"
+      },
+      "ConvertProject": {
+        "additionalProperties": false,
+        "description": "Yeni projenin cekirdegi. Tip her zaman `taahhut`, taslak DEGIL (SO-37).",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "city": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "City",
+            "type": "string"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "parcel": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parcel"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "city",
+          "start_date",
+          "end_date"
+        ],
+        "title": "ConvertProject",
+        "type": "object"
+      },
+      "ConvertRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "$ref": "#/components/schemas/ConvertContract"
+          },
+          "group_disciplines": {
+            "additionalProperties": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Group Disciplines",
+            "type": "object"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ConvertGroup"
+            },
+            "minItems": 1,
+            "title": "Groups",
+            "type": "array"
+          },
+          "open_site": {
+            "default": false,
+            "title": "Open Site",
+            "type": "boolean"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ConvertProject"
+          },
+          "site_name": {
+            "anyOf": [
+              {
+                "maxLength": 150,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Name"
+          }
+        },
+        "required": [
+          "project",
+          "contract",
+          "groups"
+        ],
+        "title": "ConvertRequest",
+        "type": "object"
+      },
+      "ConvertResponse": {
+        "description": "PARASIZ yanit: yeni proje + (varsa) santiye kimlikleri, sayac ve uyarilar.",
+        "properties": {
+          "contract_item_count": {
+            "title": "Contract Item Count",
+            "type": "integer"
+          },
+          "project_code": {
+            "title": "Project Code",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Slug"
+          },
+          "site_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Id"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ConvertWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "project_id",
+          "project_slug",
+          "project_code",
+          "site_id",
+          "contract_item_count",
+          "warnings"
+        ],
+        "title": "ConvertResponse",
+        "type": "object"
+      },
+      "ConvertWarning": {
+        "description": "Yapisal `code` (istemci metne bakmaz) + Turkce metin; gruba ozgu ise grubun ADI.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ConvertWarning",
+        "type": "object"
       },
       "CountPlaceholder": {
         "description": "Sayac alaninin zarfi (\"48 isci\", \"3 hissedar\" gibi).\n\n⚠️ Eski baslik *\"veri kaynagi henuz YAZILMAMIS sayac alani\"* diyordu;\n2026-08-22 denetimi bunu OLCEREK curuttu ve P-YT4 (2026-08-23) burada da\nduzeltti: `pending_module` \"modul yok\" DEMEZ, \"veri hangi modulun\nMULKIYETINDE\" der (`projects/cards.py::_metric` kanonu). Bos kalmanin\ngercek sebebi her CAGRI YERINDE yazilidir.\n\n`MetricPlaceholder`in P10 T3'te kazandigi \"dolu zarf `pending_module`\nTASIMAZ\" kurali BURAYA UYGULANMAZ: puantaj sayaci (`_worker_count`)\n`available=True` + `pending_module=\"timesheet\"` doner ve bu BILINCLI bir\nemsaldir — ayni serit uzerindeki diger sayaclar hâlâ yer tutucudur, ekran\nseridin kaynagini oradan okur. Kirmak, canli taahhut kartini bozardi.",
@@ -10476,6 +10962,48 @@
         ],
         "title": "ExportView",
         "type": "string"
+      },
+      "FillFromContractOut": {
+        "description": "\"Sozlesmeden doldur\" sonucu (TKL-B6.4). Sayilar yalniz BU cagrinin yazdiklaridir.",
+        "properties": {
+          "filled_item_count": {
+            "title": "Filled Item Count",
+            "type": "integer"
+          },
+          "filled_leaf_count": {
+            "title": "Filled Leaf Count",
+            "type": "integer"
+          },
+          "linked_item_count": {
+            "title": "Linked Item Count",
+            "type": "integer"
+          },
+          "mapped_group_count": {
+            "title": "Mapped Group Count",
+            "type": "integer"
+          },
+          "unrated_item_count": {
+            "title": "Unrated Item Count",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ContractWarningOut"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "filled_item_count",
+          "filled_leaf_count",
+          "linked_item_count",
+          "mapped_group_count",
+          "unrated_item_count",
+          "warnings"
+        ],
+        "title": "FillFromContractOut",
+        "type": "object"
       },
       "FillOut": {
         "properties": {
@@ -17537,6 +18065,21 @@
       },
       "OfferDetailRead": {
         "properties": {
+          "conversion_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "converted",
+                  "won_not_converted"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversion State"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -17594,6 +18137,18 @@
             ],
             "title": "Prepared By User Id"
           },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
           "revisions": {
             "items": {
               "$ref": "#/components/schemas/OfferRevisionSummaryRead"
@@ -17648,6 +18203,8 @@
           "prepared_by_name",
           "template_id",
           "status",
+          "conversion_state",
+          "project_id",
           "latest_rev_no",
           "created_at",
           "updated_at",
@@ -18456,6 +19013,21 @@
       },
       "OfferListItem": {
         "properties": {
+          "conversion_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "converted",
+                  "won_not_converted"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversion State"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -18508,6 +19080,18 @@
             "title": "Offer No",
             "type": "string"
           },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
           "rev_no": {
             "title": "Rev No",
             "type": "integer"
@@ -18555,6 +19139,8 @@
           "offer_date",
           "valid_until",
           "status",
+          "conversion_state",
+          "project_id",
           "net",
           "gross",
           "unpriced_count",
@@ -18624,11 +19210,16 @@
               }
             ],
             "title": "Win Rate"
+          },
+          "won_not_converted_count": {
+            "title": "Won Not Converted Count",
+            "type": "integer"
           }
         },
         "required": [
           "by_status",
           "expired_count",
+          "won_not_converted_count",
           "win_rate"
         ],
         "title": "OfferListSummaryRead",
@@ -28642,7 +29233,8 @@
         "enum": [
           "catalog",
           "history",
-          "manual"
+          "manual",
+          "offer"
         ],
         "title": "RateSource",
         "type": "string"
@@ -40751,6 +41343,12 @@
         "additionalProperties": false,
         "description": "`PUT /offers/templates/{id}/content` — TUM gruplar + kalemler TAM degistirilir. Gruplar ve\nkalemler govdedeki SIRAYLA siralanir (`sort_order` = dizin).",
         "properties": {
+          "expected_updated_at": {
+            "description": "Şablonun okunan `updated_at` değeri (iyimser kilit; uyuşmazsa 409).",
+            "format": "date-time",
+            "title": "Expected Updated At",
+            "type": "string"
+          },
           "groups": {
             "items": {
               "$ref": "#/components/schemas/TemplateGroupInput"
@@ -40761,7 +41359,8 @@
           }
         },
         "required": [
-          "groups"
+          "groups",
+          "expected_updated_at"
         ],
         "title": "TemplateContentReplace",
         "type": "object"
@@ -41221,6 +41820,12 @@
             ],
             "title": "Description"
           },
+          "expected_updated_at": {
+            "description": "Şablonun okunan `updated_at` değeri (iyimser kilit; uyuşmazsa 409).",
+            "format": "date-time",
+            "title": "Expected Updated At",
+            "type": "string"
+          },
           "is_default": {
             "anyOf": [
               {
@@ -41280,6 +41885,9 @@
             "title": "Profit Pct"
           }
         },
+        "required": [
+          "expected_updated_at"
+        ],
         "title": "TemplateUpdate",
         "type": "object"
       },
@@ -58911,6 +59519,71 @@
         ]
       }
     },
+    "/offers/{offer_id}/convert": {
+      "post": {
+        "description": "Kazanilan (son revizyonu `won`) teklifi projeye donusturur; ikinci cagri 409.",
+        "operationId": "convert_offer_endpoint_offers__offer_id__convert_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "offer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Offer Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConvertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConvertResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Convert Offer Endpoint",
+        "tags": [
+          "offers"
+        ]
+      }
+    },
     "/offers/{offer_id}/revisions": {
       "post": {
         "description": "Yeni revizyon (onceki revizyonun kopyasi) — yalniz son revizyon gonderilmis/kaybedilmis.",
@@ -59256,7 +59929,7 @@
     },
     "/offers/{offer_id}/revisions/{rev_no}/groups/{group_id}": {
       "delete": {
-        "description": "Grubu icindeki kalemlerle birlikte siler (yalniz taslak).",
+        "description": "Bos grubu siler (yalniz taslak); icinde kalem varsa 409 (TKL-B4.5). Denetim satiri YOK.",
         "operationId": "delete_group_endpoint_offers__offer_id__revisions__rev_no__groups__group_id__delete",
         "parameters": [
           {
@@ -69273,6 +69946,61 @@
           }
         ],
         "summary": "Fill Budget From Catalog",
+        "tags": [
+          "earned-value"
+        ]
+      }
+    },
+    "/sites/{site_id}/earned-value/budget/fill-from-contract": {
+      "post": {
+        "description": "\"Sözleşmeden doldur\" (TKL-B6.4): oran yuvası → katalog standardı; boşları doldurur.",
+        "operationId": "fill_budget_from_contract_sites__site_id__earned_value_budget_fill_from_contract_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FillFromContractOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Fill Budget From Contract",
         "tags": [
           "earned-value"
         ]

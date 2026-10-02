@@ -31,8 +31,11 @@ from ._offers import (
     sablon,
     sablon_icerik,
     sablon_kalemleri,
+    sablon_ua,
     teklif,
 )
+
+_UA = "2026-01-01T00:00:00Z"  # izin testlerinde govde gecerli olsun (kilit denenmez)
 
 # --------------------------------------------------------------- rota sirasi (BEKCI)
 
@@ -117,7 +120,10 @@ async def test_icerik_degistir_sirayla_kalir_ve_tekrar_degistirince_eskisi_gider
 async def test_icerik_bilinmeyen_katalog_404_hicbir_sey_degismez(client, admin, katalog) -> None:
     s = await sablon(client, admin)
     await sablon_icerik(client, admin, s["id"], [("Kaba", [katalog[0].id])])
-    govde = {"groups": [{"name": "Y", "items": [{"catalog_item_id": str(uuid.uuid4())}]}]}
+    govde = {
+        "groups": [{"name": "Y", "items": [{"catalog_item_id": str(uuid.uuid4())}]}],
+        "expected_updated_at": await sablon_ua(client, admin, s["id"]),
+    }
     resp = await client.put(f"{TPL}/{s['id']}/content", json=govde, headers=admin)
     assert resp.status_code == 404, resp.text
     assert sablon_kalemleri((await client.get(f"{TPL}/{s['id']}", headers=admin)).json()) == [
@@ -127,12 +133,14 @@ async def test_icerik_bilinmeyen_katalog_404_hicbir_sey_degismez(client, admin, 
 
 async def test_icerik_bos_grup_adi_422_ve_fiyat_miktar_alani_422(client, admin, katalog) -> None:
     s = await sablon(client, admin)
+    ua = await sablon_ua(client, admin, s["id"])
     for govde in (
-        {"groups": [{"name": " ", "items": []}]},
+        {"groups": [{"name": " ", "items": []}], "expected_updated_at": ua},
         {
             "groups": [
                 {"name": "G", "items": [{"catalog_item_id": str(katalog[0].id), "quantity": "1"}]}
-            ]
+            ],
+            "expected_updated_at": ua,
         },
     ):
         resp = await client.put(f"{TPL}/{s['id']}/content", json=govde, headers=admin)
@@ -143,7 +151,13 @@ async def test_patch_alanlar_ve_null_temizler(client, admin, db_session) -> None
     s = await sablon(client, admin, "A", description="x", overhead_pct="10", profit_pct="20")
     resp = await client.patch(
         f"{TPL}/{s['id']}",
-        json={"name": "B", "description": None, "profit_pct": None, "overhead_pct": "11"},
+        json={
+            "name": "B",
+            "description": None,
+            "profit_pct": None,
+            "overhead_pct": "11",
+            "expected_updated_at": s["updated_at"],
+        },
         headers=admin,
     )
     assert resp.status_code == 200, resp.text
@@ -157,7 +171,9 @@ async def test_patch_alanlar_ve_null_temizler(client, admin, db_session) -> None
 
 async def test_patch_ad_null_veya_is_default_null_422(client, admin) -> None:
     s = await sablon(client, admin)
+    ua = s["updated_at"]
     for govde in ({"name": None}, {"is_default": None}, {"name": ""}):
+        govde = {**govde, "expected_updated_at": ua}
         resp = await client.patch(f"{TPL}/{s['id']}", json=govde, headers=admin)
         assert resp.status_code == 422, (govde, resp.text)
 
@@ -165,7 +181,9 @@ async def test_patch_ad_null_veya_is_default_null_422(client, admin) -> None:
 async def test_patch_degisiklik_yoksa_denetim_satiri_YAZILMAZ(client, admin, db_session) -> None:
     s = await sablon(client, admin, "A", overhead_pct="10")
     resp = await client.patch(
-        f"{TPL}/{s['id']}", json={"name": "A", "overhead_pct": "10.00"}, headers=admin
+        f"{TPL}/{s['id']}",
+        json={"name": "A", "overhead_pct": "10.00", "expected_updated_at": s["updated_at"]},
+        headers=admin,
     )
     assert resp.status_code == 200
     assert await _audit_details(db_session, AuditAction.update) == []
@@ -234,10 +252,18 @@ async def test_patch_is_default_true_da_eskisini_dusurur_false_kaldirir(client, 
     a = await sablon(client, admin, "A")
     b = await sablon(client, admin, "B")
     await client.post(f"{TPL}/{a['id']}/default", headers=admin)
-    r = await client.patch(f"{TPL}/{b['id']}", json={"is_default": True}, headers=admin)
+    r = await client.patch(
+        f"{TPL}/{b['id']}",
+        json={"is_default": True, "expected_updated_at": b["updated_at"]},
+        headers=admin,
+    )
     assert r.status_code == 200 and r.json()["is_default"] is True
     assert await _varsayilanlar(client, admin) == ["B"]
-    r = await client.patch(f"{TPL}/{b['id']}", json={"is_default": False}, headers=admin)
+    r = await client.patch(
+        f"{TPL}/{b['id']}",
+        json={"is_default": False, "expected_updated_at": r.json()["updated_at"]},
+        headers=admin,
+    )
     assert r.json()["is_default"] is False
     assert await _varsayilanlar(client, admin) == []
 
@@ -425,8 +451,8 @@ def _tum_uclar(sablon_id: str) -> list[tuple[str, str, dict | None]]:
         ("GET", TPL, None),
         ("GET", f"{TPL}/{sablon_id}", None),
         ("POST", TPL, {"name": "Yeni"}),
-        ("PATCH", f"{TPL}/{sablon_id}", {"name": "Değişti"}),
-        ("PUT", f"{TPL}/{sablon_id}/content", {"groups": []}),
+        ("PATCH", f"{TPL}/{sablon_id}", {"name": "Değişti", "expected_updated_at": _UA}),
+        ("PUT", f"{TPL}/{sablon_id}/content", {"groups": [], "expected_updated_at": _UA}),
         ("POST", f"{TPL}/{sablon_id}/default", None),
         ("POST", f"{TPL}/{sablon_id}/copy", None),
         ("DELETE", f"{TPL}/{sablon_id}", None),

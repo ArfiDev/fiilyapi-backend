@@ -356,6 +356,9 @@ from app.modules.audit.messages.offers import (
     offer_conditions_updated as offer_conditions_updated,
 )
 from app.modules.audit.messages.offers import (
+    offer_converted as offer_converted,
+)
+from app.modules.audit.messages.offers import (
     offer_created as offer_created,
 )
 from app.modules.audit.messages.offers import (
@@ -375,9 +378,6 @@ from app.modules.audit.messages.offers import (
 )
 from app.modules.audit.messages.offers import (
     offer_escalation_changed as offer_escalation_changed,
-)
-from app.modules.audit.messages.offers import (
-    offer_group_deleted as offer_group_deleted,
 )
 from app.modules.audit.messages.offers import (
     offer_items_bulk_created as offer_items_bulk_created,

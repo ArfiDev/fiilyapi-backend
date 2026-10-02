@@ -109,13 +109,21 @@ async def sablon(client, admin, name: str = "Villa Kaba", **over) -> dict:
     return resp.json()
 
 
+async def sablon_ua(client, admin, template_id: str) -> str:
+    """Sablonun GUNCEL `updated_at` metni (iyimser kilit `expected_updated_at`i icin)."""
+    resp = await client.get(f"{TPL}/{template_id}", headers=admin)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["updated_at"]
+
+
 async def sablon_icerik(client, admin, template_id: str, gruplar: list[tuple[str, list]]) -> dict:
     """`gruplar`: `[(grup adi, [katalog_id, ...]), ...]` — PUT content ile tam degistirir."""
     govde = {
         "groups": [
             {"name": ad, "items": [{"catalog_item_id": str(k)} for k in kalemler]}
             for ad, kalemler in gruplar
-        ]
+        ],
+        "expected_updated_at": await sablon_ua(client, admin, template_id),
     }
     resp = await client.put(f"{TPL}/{template_id}/content", json=govde, headers=admin)
     assert resp.status_code == 200, resp.text

@@ -91,3 +91,16 @@ def son_fiyat():
     last_price.register_provider("SZL", sahte)
     yield sahte
     last_price.restore(foto)
+
+
+@pytest.fixture
+def tohum_kancasi():
+    """TKL-B6.2: port SAHTE kancayla degistirilir (EV adaptoru kosuya karismaz); sonunda geri
+    yuklenir (yoksa sonra kosan testler EV kaydini kaybeder)."""
+    from app.core import contract_seed
+
+    from ._convert import kanca_kur
+
+    sahte, foto = kanca_kur()
+    yield sahte
+    contract_seed.restore(foto)

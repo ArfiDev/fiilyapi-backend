@@ -11,7 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from app.core.field_scope import Gorunurluk
 from app.core.text import FREE_TEXT_MAX_LENGTH
@@ -32,6 +32,11 @@ TemplateName = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=TEMPLATE_NAME_MAX)
 ]
 TemplateDescription = Annotated[str, StringConstraints(max_length=FREE_TEXT_MAX_LENGTH)]
+#: İyimser kilit (TKL-B5.4): istemci okuduğu `updated_at` metnini AYNEN geri yollar; tz'siz → 422.
+ExpectedUpdatedAt = Annotated[
+    AwareDatetime,
+    Field(description="Şablonun okunan `updated_at` değeri (iyimser kilit; uyuşmazsa 409)."),
+]
 
 
 class TemplateCreate(BaseModel):
@@ -56,6 +61,7 @@ class TemplateUpdate(BaseModel):
     overhead_pct: Pct | None = None
     profit_pct: ProfitPct | None = None
     is_default: bool | None = None
+    expected_updated_at: ExpectedUpdatedAt
 
     @field_validator("name", "is_default", mode="before")
     @classmethod
@@ -85,6 +91,7 @@ class TemplateContentReplace(BaseModel):
     model_config = _STRICT
 
     groups: list[TemplateGroupInput] = Field(max_length=TEMPLATE_GROUPS_MAX)
+    expected_updated_at: ExpectedUpdatedAt
 
     @field_validator("groups")
     @classmethod

@@ -79,6 +79,9 @@ class RateSource(str, enum.Enum):
     CATALOG = "catalog"
     HISTORY = "history"
     MANUAL = "manual"
+    #: Teklif→proje donusturmede teklifteki adam-saat (TKL-B6; `ev_rate_source` migration
+    #: `f2a6c8e0b4d7`).
+    OFFER = "offer"
 
 
 class RevisionStatus(str, enum.Enum):
@@ -337,6 +340,34 @@ class EvItemSettings(Base):
     )
     catalog_item_id: Mapped[uuid.UUID | None] = _fk(
         "ev_catalog_items.id", "SET NULL", nullable=True, index=False
+    )
+
+
+class EvContractItemRate(Base):
+    """Sozlesme kaleminin adam-saat orani yuvasi (TKL-B6) — teklif→proje donusturmede yazilir,
+    "sozlesmeden doldur" okur. Kalem silinince gider (CASCADE). Katalog bagi BURADA TUTULMAZ:
+    `employer_contract_items.catalog_item_id` cekirdekte ve sabittir (turev kopya ayrisirdi).
+    EV tablosu → cekirdek FK serbesttir (§2.7)."""
+
+    __tablename__ = "ev_contract_item_rates"
+    __table_args__ = (
+        CheckConstraint("unit_mhr > 0", name="ck_ev_contract_item_rates_unit_mhr_positive"),
+    )
+
+    contract_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "employer_contract_items.id",
+            ondelete="CASCADE",
+            name="fk_ev_cir_contract_item_id_employer_contract_items",
+        ),
+        primary_key=True,
+    )
+    unit_mhr: Mapped[Decimal] = mapped_column(Numeric(*RATE_PRECISION), nullable=False)
+    source: Mapped[RateSource] = mapped_column(_rate_source_enum(), nullable=False)
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
 

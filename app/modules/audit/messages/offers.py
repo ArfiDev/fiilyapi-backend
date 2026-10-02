@@ -72,11 +72,6 @@ def offer_conditions_updated(offer_no: str, rev_no: int, parts: list[str]) -> st
     return f"Teklif koşulları güncellendi: {offer_no} Rev.{rev_no} · {' · '.join(parts)}"
 
 
-def offer_group_deleted(offer_no: str, rev_no: int, name: str, item_count: int) -> str:
-    """Icinde kalem olan grubun silinmesi TEK satir (bos grup satir YAZMAZ)."""
-    return f"Teklif grubu silindi: {offer_no} Rev.{rev_no} · {name} · {item_count} kalem"
-
-
 def offer_deleted(offer_no: str, title: str) -> str:
     return f"Teklif silindi: {offer_no} · {title}"
 
@@ -138,3 +133,11 @@ def offer_notes_changed(old: str | None, new: str | None) -> str:
 def offer_settings_changed(parts: list[str]) -> str:
     """`PUT /offers/settings`: yalniz DEGISEN alanlar, `eski → yeni`."""
     return f"Teklif ayarları güncellendi: {' · '.join(parts)}"
+
+
+def offer_converted(
+    offer_no: str, project_code: str, item_count: int, site_code: str | None
+) -> str:
+    """TKL-B6.2: teklifin projeye donusturulmesi (SO-41); `project_created` satiri AYRI yazilir."""
+    site = f", şantiye {site_code}" if site_code is not None else ""
+    return f"Teklif projeye dönüştürüldü: {offer_no} → {project_code} ({item_count} kalem{site})"

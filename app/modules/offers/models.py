@@ -171,7 +171,11 @@ class Offer(Base):
         UniqueConstraint("offer_no", name="uq_offers_offer_no"),
         Index("ix_offers_employer_id", "employer_id"),
         Index("ix_offers_template_id", "template_id"),
+        UniqueConstraint("project_id", name="uq_offers_project_id"),
         CheckConstraint("btrim(title) <> ''", name="ck_offers_title_not_blank"),
+        CheckConstraint(
+            "(project_id IS NULL) = (converted_at IS NULL)", name="ck_offers_conversion_pair"
+        ),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
@@ -189,6 +193,14 @@ class Offer(Base):
     template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("offer_templates.id", ondelete="SET NULL"), nullable=True
     )
+    #: Donusturme izi (TKL-B6): teklifin dogurdugu proje (bir proje TEK tekliften; RESTRICT —
+    #: donusturulmus projenin silinmesi engellenir). `project_id` ve `converted_at` ya ikisi
+    #: dolu ya ikisi NULL (CHECK). Donusturulen revizyon TUREVDIR (`won` son durum → son revizyon).
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=True
+    )
+    converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    converted_by_user_id: Mapped[uuid.UUID | None] = _user_fk()
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
 

@@ -44,6 +44,7 @@ from app.modules.offers.offer_read_schemas import (
 )
 from app.modules.offers.offer_views import (
     build_revision_read,
+    conversion_state,
     revision_result,
     valid_until,
 )
@@ -257,6 +258,8 @@ async def build_offer_detail(session: AsyncSession, offer: Offer) -> OfferDetail
         ),
         template_id=offer.template_id,
         status=last.status,
+        conversion_state=conversion_state(offer, last),
+        project_id=offer.project_id,
         latest_rev_no=last.rev_no,
         created_at=offer.created_at,
         updated_at=offer.updated_at,
@@ -350,8 +353,12 @@ async def list_offers(
         for _offer, rev, _result in entries
         if rev.status == OfferRevisionStatus.sent and valid_until(rev) < current_day
     )
+    won_not_converted = sum(
+        1 for offer, rev, _result in entries if conversion_state(offer, rev) == "won_not_converted"
+    )
     summary = OfferListSummaryRead(
         expired_count=expired,
+        won_not_converted_count=won_not_converted,
         by_status=[
             OfferStatusSummaryRead(status=s, count=counts[s], net=nets[s])
             for s in OfferRevisionStatus
@@ -373,6 +380,8 @@ async def list_offers(
                 offer_date=rev.offer_date,
                 valid_until=valid_until(rev),
                 status=rev.status,
+                conversion_state=conversion_state(offer, rev),
+                project_id=offer.project_id,
                 net=result.customer.net,
                 gross=result.customer.gross,
                 unpriced_count=result.unpriced_count,

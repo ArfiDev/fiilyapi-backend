@@ -30,7 +30,12 @@ from app.core.permissions import require_any_permission
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
-from app.modules.earned_value import audit_messages, catalog_service, discipline_adapter
+from app.modules.earned_value import (
+    audit_messages,
+    catalog_service,
+    contract_adapter,
+    discipline_adapter,
+)
 from app.modules.earned_value.access import ADMIN, CATALOG, PERMISSION_MODULE, VIEW
 from app.modules.earned_value.schemas_catalog import (
     CatalogItemCreate,
@@ -44,6 +49,9 @@ from app.modules.users.models import User
 
 # Disiplin kapsami portuna kayit (DSC-B0) — import yan etkisi; `day_router` emsali.
 discipline_adapter.register()
+# Sozlesme tohumu portuna kayit (TKL-B6.3) — import yan etkisi; dusurulurse donusturme
+# adam-saati sessizce kaybeder (bekci: tests/earned_value_budget/test_tkl_b6_adapter.py).
+contract_adapter.register()
 
 router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES)
 

@@ -251,6 +251,7 @@ U6_ROTALARI: frozenset[Rota] = frozenset(
         ("PATCH", "/earned-value/disciplines/{discipline_id}"),
         ("PUT", "/sites/{site_id}/earned-value/budget/distributions"),
         ("POST", "/sites/{site_id}/earned-value/budget/fill-from-catalog"),
+        ("POST", "/sites/{site_id}/earned-value/budget/fill-from-contract"),
         ("POST", "/sites/{site_id}/earned-value/budget/freeze"),
         ("PUT", "/sites/{site_id}/earned-value/budget/group-disciplines"),
         ("POST", "/sites/{site_id}/earned-value/budget/revisions"),

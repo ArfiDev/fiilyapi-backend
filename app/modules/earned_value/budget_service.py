@@ -317,7 +317,11 @@ async def patch_leaves(
     scope: DisciplineScope = UNRESTRICTED,
 ) -> int:
     """Tekil ya da toplu yaprak yazmasi (oran, kaynak, own/subcon ve dogrudan ezmeleri).
-    Kisitlida gorunmeyen yaprak → olmayanla ayni 422 `LEAF_MISSING` (Ü7)."""
+    Kisitlida gorunmeyen yaprak → olmayanla ayni 422 `LEAF_MISSING` (Ü7).
+    SO-44: `rate_source='offer'` YALNIZ sistem (donusturme) yazar → burada 422; mevcut `offer`
+    kaynakli yaprak baska alanla PATCH'lenince kaynak alan govdede olmadigi icin KORUNUR."""
+    if any(ch.fields.get("rate_source") is RateSource.OFFER for ch in changes):
+        raise EarnedValueValidationError(guards.RATE_SOURCE_OFFER_SYSTEM_ONLY)
     state = await load_state(session, ctx, scope=scope)
     live: set[LeafKey] = {(lf.item_id, lf.section_id) for *_, lf in state.tree.leaves()}
     for ch in changes:
