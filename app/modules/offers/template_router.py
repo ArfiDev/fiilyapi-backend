@@ -2,11 +2,11 @@
 
 | uc | kapi |
 |----|------|
-| okumalar (liste, detay) | `contracts:view` |
+| okumalar (liste, detay) | `contracts:view` + kisitsiz (TKL-B4.6, R5/SO-19) |
 | TUM yazmalar | `contracts:full` + kisitsiz |
 
-(B4 `router.py` ile ayni gecici T25 deseni ve ayni kapsam cifti; okumada `RequireUnrestricted`
-YOK — R5 karari bekliyor.)
+(B4 `router.py` ile ayni gecici T25 deseni ve ayni kapsam cifti; R5 kullanici onayiyla
+`RequireUnrestricted` router duzeyinde — disiplin atanmis kullanici sablonlari da goremez.)
 
 🔴 ROTA SIRASI: `/offers/templates` LITERALDIR ve `/offers/{offer_id}` (UUID) ile CAKISIR
 (`GET /offers/templates` once dinamik yola dusse `offer_id` ayristirma hatasi → 422 verirdi).
@@ -50,7 +50,7 @@ router = APIRouter(
     tags=["offers"],
     responses=COMMON_ERROR_RESPONSES,
     route_class=kapsam_rotasi("contracts", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("contracts")],
+    dependencies=[kapsam_kapisi("contracts"), RequireUnrestricted],  # TKL-B4.6 (R5)
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)

@@ -455,9 +455,11 @@ async def test_contracts_view_okur_ama_YAZAMAZ(client, admin, db_session, user_f
         "rev_no": 0, "name": "x"}, headers=muhasebe)).status_code == 403  # fmt: skip
 
 
-async def test_kisitli_disiplinli_kullanici_okur_ama_yazamaz(
+async def test_kisitli_disiplinli_kullanici_sablonlari_HIC_goremez_R5(
     client, admin, db_session, user_factory
 ) -> None:
+    """TKL-B4.6 (R5/SO-19): disiplin atanmis kullanici sablon OKUMALARINDA da 403; ayni rolun
+    kisitsiz kullanicisi okur (POZITIF KONTROL)."""
     s = await sablon(client, admin)
     disiplin = EvDiscipline(
         code="KSB", name="Kisitli", color="#2563EB", default_contractor_type=ContractorType.OWN
@@ -475,8 +477,14 @@ async def test_kisitli_disiplinli_kullanici_okur_ama_yazamaz(
     kisitli = _auth(token)
     for yontem, yol, govde in _tum_uclar(s["id"]):
         resp = await client.request(yontem, yol, json=govde, headers=kisitli)
-        beklenen = 200 if yontem == "GET" else 403
-        assert resp.status_code == beklenen, f"{yontem} {yol}: {resp.status_code}"
+        assert resp.status_code == 403, f"{yontem} {yol}: {resp.status_code}"
+    serbest = _auth(
+        await _login_with_access(
+            client, db_session, user_factory, "project_manager", "pm.serbest.sablon@tkl.co"
+        )
+    )
+    for yol in (TPL, f"{TPL}/{s['id']}"):
+        assert (await client.get(yol, headers=serbest)).status_code == 200, yol
 
 
 # --------------------------------------------------------------- tavan (servis duzeyi, V3)

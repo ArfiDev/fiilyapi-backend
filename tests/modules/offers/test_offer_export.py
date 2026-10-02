@@ -381,6 +381,38 @@ async def test_muhasebe_contracts_view_200_ve_tam_deger(
     assert "1608.00" in {str(h.value) for h in _hucreler(kitap)}
 
 
+async def test_kisitli_disiplinli_kullanici_excel_indiremez_R5(
+    client, db_session, user_factory, dolu
+) -> None:
+    """TKL-B4.6 (R5/SO-19): disiplin atanmis kullanici teklif Excel'ini (iki gorunum) indiremez;
+    ayni rolun kisitsiz kullanicisi indirir (POZITIF KONTROL)."""
+    from sqlalchemy import select
+
+    from app.modules.catalog.models import ContractorType, EvDiscipline
+    from app.modules.earned_value.models import UserDiscipline
+    from app.modules.users.models import User
+
+    disiplin = EvDiscipline(
+        code="KSX", name="Kisitli", color="#2563EB", default_contractor_type=ContractorType.OWN
+    )
+    db_session.add(disiplin)
+    await db_session.flush()
+    eposta = f"pm.kisitli.{uuid.uuid4().hex[:6]}@tkl.co"
+    token = await _login_with_access(client, db_session, user_factory, "project_manager", eposta)
+    uid = (await db_session.execute(select(User.id).where(User.email == eposta))).scalar_one()
+    db_session.add(UserDiscipline(user_id=uid, discipline_id=disiplin.id))
+    await db_session.flush()
+    for gorunum in ("employer", "internal"):
+        resp = await _indir(client, _auth(token), dolu["offer_id"], gorunum)
+        assert resp.status_code == 403, gorunum
+    serbest = await _login_with_access(
+        client, db_session, user_factory, "project_manager", f"pm.s.{uuid.uuid4().hex[:6]}@tkl.co"
+    )
+    for gorunum in ("employer", "internal"):
+        resp = await _indir(client, _auth(serbest), dolu["offer_id"], gorunum)
+        assert resp.status_code == 200, gorunum
+
+
 # --------------------------------------------------------------- maske
 
 
