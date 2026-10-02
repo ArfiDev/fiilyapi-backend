@@ -5,10 +5,11 @@ KONTROL). Oturum 1 donusturur ve COMMIT ETMEDEN bekler; oturum 2 baslar, bekleme
 1 commit eder.
 
 KONTROL (kilitsiz): `lock_offer` duz okumaya cevrilirse ikinci oturum teklifi hala `project_id`
-BOS okur, projeyi kurmaya girisir ve `INSERT INTO projects`te (proje kodu UQ'su) BEKLER; birincinin
-commit'inden sonra `IntegrityError` alir (kullaniciya temiz 409 yerine UQ cokusu). Kilit olmasa
-`offers.project_id` UQ'su de koruma SAGLAMAZ (ayni satirin UPDATE'i) — bekleyen sorgunun `FOR
-UPDATE` olmasi bu yuzden asil kanittir.
+BOS okur ve ikinci bir proje kurar. TKL-B6.8b (BD-5) oncesi bu, proje kodu UQ'suna carpip
+`IntegrityError` verirdi; kod uretici artik kilitli oldugundan ikinci oturum kod kilidinde bekler,
+FARKLI kod alir ve IKI proje olusur (teklifin `project_id`si ikincisini gosterir, birincisi
+oksuz) — teklif kilidinin onledigi asil sessiz kayip. `offers.project_id` UQ'su de koruma
+SAGLAMAZ (ayni satirin UPDATE'i); ana testte bekleyen sorgunun `FOR UPDATE` olmasi asil kanittir.
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ import uuid
 
 import pytest
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError
@@ -95,12 +95,15 @@ async def test_TKLB62_iki_eszamanli_donusturme_biri_409_tek_proje() -> None:
             assert offer is not None and offer.project_id is not None
 
 
-async def test_TKLB62_KONTROL_kilitsiz_ikinci_donusturme_UQ_cokusu(
+async def test_TKLB62_KONTROL_kilitsiz_ikinci_donusturme_iki_proje_birincisi_oksuz(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """POZITIF KONTROL: kilit KAPALI → ikinci oturum teklifi hala donusturulmemis okur, proje
-    kurmaya girer ve proje kodu UQ'sunda bekler; commit sonrasi IntegrityError. Bu kirmizi, ustteki
-    bekcinin KILIDI gercekten olctugunun kanitidir."""
+    """POZITIF KONTROL: teklif kilidi KAPALI → ikinci oturum teklifi hala donusturulmemis okur ve
+    ikinci bir proje kurar. TKL-B6.8b (BD-5) sonrasi proje kodu uretici kilitli oldugundan ikinci
+    oturum artik proje kodu UQ'suna CARPIP reddedilmez: kod kilidinde (`pg_advisory_xact_lock`)
+    bekler, birincinin commit'inden sonra FARKLI bir kod alir ve ikisi de commit eder → IKI proje;
+    teklifin `project_id`si ikincisini gosterir, birincisi OKSUZ kalir. Bu, teklif kilidinin
+    onledigi asil sessiz kayiptir (eski iddia: UQ cokusu = jenerik 409; daha zayif kanit)."""
 
     async def _kilitsiz(session: AsyncSession, offer_id: uuid.UUID) -> Offer:
         offer = await session.get(Offer, offer_id)
@@ -113,6 +116,11 @@ async def test_TKLB62_KONTROL_kilitsiz_ikinci_donusturme_UQ_cokusu(
 
         bekleyen, hata = await _iki_donusturme(ortam, govde)
 
-        assert bekleyen.startswith("INSERT INTO projects"), bekleyen
-        assert isinstance(hata, IntegrityError), f"kilitsiz de temiz gecti: {hata!r}"
-        assert await _projeler(ortam) == 1
+        assert "pg_advisory_xact_lock" in bekleyen, bekleyen
+        assert hata is None, f"kilitsiz de ikinci donusturme temiz gecmeliydi (iki proje): {hata!r}"
+        assert await _projeler(ortam) == 2  # kayip: ayni tekliften IKI proje
+        async with ortam.Session() as s:
+            offer = await s.get(Offer, ortam.offer_id)
+            kodlar = sorted((await s.scalars(select(Project.code))).all())
+            ikinci = await s.scalar(select(Project.id).where(Project.code == kodlar[-1]))
+            assert offer is not None and offer.project_id == ikinci  # birincisi oksuz

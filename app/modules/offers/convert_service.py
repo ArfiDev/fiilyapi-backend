@@ -45,6 +45,7 @@ from app.modules.offers.models import (
     OfferRevision,
     OfferRevisionStatus,
 )
+from app.modules.projects import repository as project_repository
 from app.modules.projects import service as project_service
 from app.modules.projects.models import Project, ProjectType
 from app.modules.projects.schemas import (
@@ -60,6 +61,7 @@ __all__ = [
     "ALREADY_CONVERTED",
     "AMOUNT_TOO_LARGE",
     "NOT_WON",
+    "PROJECT_CODE_TAKEN",
     "WARN_DISCIPLINES_IGNORED",
     "ConvertResult",
     "convert_offer",
@@ -67,7 +69,10 @@ __all__ = [
 
 ALREADY_CONVERTED = "Teklif zaten dönüştürüldü"
 NOT_WON = "Yalnız son revizyonu kazanılmış (won) olan teklif projeye dönüştürülebilir"
-AMOUNT_TOO_LARGE = "contract.amount: Kalem toplamı sözleşme bedeli sınırını aşıyor"
+#: Elle verilen proje kodu baska projede var (409; yazmadan ONCE, hicbir sey yazilmaz).
+PROJECT_CODE_TAKEN = "Bu proje kodu zaten kullanılıyor"
+AMOUNT_TOO_LARGE_MESSAGE = "Kalem toplamı sözleşme bedeli sınırını aşıyor"
+AMOUNT_TOO_LARGE = f"contract.amount: {AMOUNT_TOO_LARGE_MESSAGE}"
 #: Santiyesiz donusturmede elle disiplin eslemesi saklanmaz (SO-32) → yanitta uyari.
 WARN_DISCIPLINES_IGNORED = "group_disciplines_ignored_without_site"
 
@@ -107,38 +112,70 @@ def _item_total(body: ConvertRequest) -> Decimal:
 # ------------------------------------------------------------------------- dogrulama
 
 
+@dataclass(frozen=True, slots=True)
+class _Issue:
+    """Tek govde hatasi: yapisal `loc` (FE satir vurgusu) + mesaj; `detail` metni `label: mesaj`.
+
+    `label` bos ise `loc`un nokta/koseli yolu (`groups[0].items[3].code`) kullanilir — mevcut
+    `detail` metni bu sayede AYNEN korunur (BD-4).
+    """
+
+    loc: tuple[str | int, ...]
+    message: str
+    label: str | None = None
+
+    @property
+    def detail(self) -> str:
+        return f"{self.label or _path(self.loc)}: {self.message}"
+
+    def as_error(self) -> dict[str, object]:
+        return {"loc": list(self.loc), "message": self.message}
+
+
+def _path(loc: tuple[str | int, ...]) -> str:
+    out = ""
+    for part in loc:
+        out += f"[{part}]" if isinstance(part, int) else (f".{part}" if out else part)
+    return out
+
+
 def _static_errors(
     body: ConvertRequest, revision: OfferRevision, offer_items: dict[uuid.UUID, OfferItem]
-) -> list[str]:
+) -> list[_Issue]:
     """Yazmadan ONCE, DB'ye sormadan bulunabilen TUM govde hatalari (toplu mesaj icin)."""
-    errors: list[str] = []
+    errors: list[_Issue] = []
     group_names: set[str] = set()
     codes: set[str] = set()
     for g_index, group in enumerate(body.groups):
         # SO-30: BOQ grubu ADLA acilir → ayni adli iki grup tek BOQ grubuna birlesirdi
         if group.name in group_names:
-            errors.append(f"groups[{g_index}].name: Aynı adlı grup var ({group.name})")
+            errors.append(_Issue(("groups", g_index, "name"), f"Aynı adlı grup var ({group.name})"))
         group_names.add(group.name)
         for i_index, item in enumerate(group.items):
-            where = f"groups[{g_index}].items[{i_index}]"
+            where = ("groups", g_index, "items", i_index)
             if item.code in codes:  # SO-29
-                errors.append(f"{where}.code: Kalem kodu tekrar ediyor ({item.code})")
+                errors.append(_Issue((*where, "code"), f"Kalem kodu tekrar ediyor ({item.code})"))
             codes.add(item.code)
             if item.offer_item_id is None:
                 continue
             source = offer_items.get(item.offer_item_id)
+            loc = (*where, "offer_item_id")
             if source is None:
-                errors.append(f"{where}.offer_item_id: Kalem teklifin son revizyonunda bulunamadı")
+                errors.append(_Issue(loc, "Kalem teklifin son revizyonunda bulunamadı"))
             elif source.catalog_item_id != item.catalog_item_id:
-                errors.append(
-                    f"{where}.offer_item_id: Teklif kaleminin katalog bağı gövdedekiyle uyuşmuyor"
-                )
+                errors.append(_Issue(loc, "Teklif kaleminin katalog bağı gövdedekiyle uyuşmuyor"))
     for name in body.group_disciplines:
         if name not in group_names:
-            errors.append(f"group_disciplines: «{name}» adlı grup gövdede yok")
+            errors.append(
+                _Issue(
+                    ("group_disciplines", name),
+                    f"«{name}» adlı grup gövdede yok",
+                    label="group_disciplines",
+                )
+            )
     errors.extend(_escalation_errors(body, revision))
     if _item_total(body) >= _AMOUNT_LIMIT and body.contract.amount is None:
-        errors.append(AMOUNT_TOO_LARGE)
+        errors.append(_Issue(("contract", "amount"), AMOUNT_TOO_LARGE_MESSAGE))
     return errors
 
 
@@ -151,23 +188,26 @@ def _resolve_index_type(body: ConvertRequest, revision: OfferRevision):
     return None
 
 
-def _escalation_errors(body: ConvertRequest, revision: OfferRevision) -> list[str]:
+def _escalation_errors(body: ConvertRequest, revision: OfferRevision) -> list[_Issue]:
     contract = body.contract
     if not contract.has_price_escalation:
-        extra = [
-            f"contract.{name}: Fiyat farkı kapalıyken verilemez"
+        return [
+            _Issue(("contract", name), "Fiyat farkı kapalıyken verilemez")
             for name, value in (
                 ("index_type", contract.index_type),
                 ("base_index_value", contract.base_index_value),
             )
             if value is not None
         ]
-        return extra
-    errors: list[str] = []
+    errors: list[_Issue] = []
     if _resolve_index_type(body, revision) is None:
-        errors.append("contract.index_type: Fiyat farkı açıkken endeks türü zorunludur")
+        errors.append(
+            _Issue(("contract", "index_type"), "Fiyat farkı açıkken endeks türü zorunludur")
+        )
     if contract.base_index_value is None:
-        errors.append("contract.base_index_value: Fiyat farkı açıkken baz endeks zorunludur")
+        errors.append(
+            _Issue(("contract", "base_index_value"), "Fiyat farkı açıkken baz endeks zorunludur")
+        )
     return errors
 
 
@@ -214,6 +254,7 @@ def _project_input(body: ConvertRequest, offer: Offer, revision: OfferRevision) 
             fields[name] = value
     project = body.project
     return ProjectCreate(
+        code=project.code,  # None = sunucu uretir (PRJ-YYYY-NNN, danisma kilidi altinda)
         name=project.name,
         project_type=ProjectType.taahhut,
         category=project.category,
@@ -298,10 +339,17 @@ async def convert_offer(
     offer_items = await _offer_items(session, revision)
     errors = _static_errors(body, revision, offer_items)
     if errors:
-        raise OfferValidationError("; ".join(errors))
+        raise OfferValidationError(
+            "; ".join(issue.detail for issue in errors), [issue.as_error() for issue in errors]
+        )
     catalog = await _load_catalog(session, body)
     await _assert_disciplines_exist(session, body)
     lines = _lines(body, catalog, offer_items)
+    # BD-2: elle verilen kod yazmadan ONCE denetlenir (yoksa DB UQ'su jenerik 409 verirdi).
+    # Eszamanli ayni kodla yazanlari DB UQ'su yakalar (jenerik 409; tum islem geri alinir).
+    code = body.project.code
+    if code is not None and await project_repository.project_code_exists(session, code):
+        raise ConflictError(PROJECT_CODE_TAKEN)
 
     project = await project_service.create_project(session, _project_input(body, offer, revision))
     seeded = await seed_service.seed_contract(session, project, _seed_inputs(body))

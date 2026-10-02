@@ -308,7 +308,15 @@ class OfferValidationError(DomainError):
     PATCH'te yalnız DB'deki kayıtla BİRLEŞTİRİLMİŞ değerler üzerinde anlamlı kurallar tek
     yazma yolunda servis korkuluğuyla tutulur. 409 DEĞİL: engel kaydın DURUMU değil
     İÇERİĞİDİR (durum engeli `ConflictError`dır).
+
+    İsteğe bağlı `errors` (TKL-B6.8b BD-4): alan konumlu YAPISAL hata listesi
+    (`{"loc": [...], "message": str}`). Doluysa 422 gövdesine `errors` olarak EKLENİR,
+    `detail` metni AYNEN kalır; boşsa gövde bugünkü gibidir (yalnız `detail`).
     """
+
+    def __init__(self, message: str = "", errors: list[dict[str, object]] | None = None) -> None:
+        super().__init__(message)
+        self.errors: list[dict[str, object]] = list(errors) if errors else []
 
 
 class ConflictError(DomainError):

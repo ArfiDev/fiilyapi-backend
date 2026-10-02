@@ -28,7 +28,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import (
     BaseModel,
@@ -51,6 +51,7 @@ __all__ = [
     "ConvertProject",
     "ConvertRequest",
     "ConvertResponse",
+    "ConvertValidationErrorOut",
     "ConvertWarning",
 ]
 
@@ -80,6 +81,10 @@ class ConvertProject(BaseModel):
 
     model_config = _STRICT
 
+    #: Elle proje kodu (mockup "Proje kodu*"). `None` = sunucu `PRJ-YYYY-NNN` uretir. Kural
+    #: `ProjectCreate.code` ile AYNI (serbest metin, 1–50; ek: bas/son bosluk kirpilir).
+    #: SABAH ONAYI adayi: PRJ-YYYY-NNN biciminde zorlama YOK (proje olusturma da zorlamaz).
+    code: _Code | None = None
     name: _Text
     city: _Short
     start_date: date
@@ -168,6 +173,22 @@ class ConvertRequest(BaseModel):
         if self.site_name is not None and not self.open_site:
             raise ValueError("site_name: yalnız open_site açıkken verilebilir")
         return self
+
+
+class ConvertFieldError(BaseModel):
+    """Servis dogrulama 422'sinin tek yapisal hatasi: gövde konumu + mesaj."""
+
+    #: ör. `["groups", 1, "items", 3, "code"]`, `["contract", "base_index_value"]`.
+    loc: list[str | int]
+    message: str
+
+
+class ConvertValidationErrorOut(BaseModel):
+    """Donusturme 422 gövdesi: `detail` (insan metni, `; ` ile birlesik; Pydantic sema
+    422'lerinde standart FastAPI listesi) + servis dogrulamasinda `errors` (yapisal)."""
+
+    detail: str | list[dict[str, Any]]
+    errors: list[ConvertFieldError] | None = None
 
 
 class ConvertWarning(BaseModel):

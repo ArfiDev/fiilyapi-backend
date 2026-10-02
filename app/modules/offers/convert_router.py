@@ -32,7 +32,11 @@ from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.offers import convert_service
-from app.modules.offers.convert_schemas import ConvertRequest, ConvertResponse
+from app.modules.offers.convert_schemas import (
+    ConvertRequest,
+    ConvertResponse,
+    ConvertValidationErrorOut,
+)
 from app.modules.users.models import User
 
 router = APIRouter(tags=["offers"], responses=COMMON_ERROR_RESPONSES)
@@ -48,6 +52,13 @@ _PERMISSIONS = [
     "/offers/{offer_id}/convert",
     response_model=ConvertResponse,
     dependencies=_PERMISSIONS,
+    responses={
+        409: {"description": "Zaten dönüştürüldü / kazanılmamış / proje kodu kullanılıyor"},
+        422: {
+            "model": ConvertValidationErrorOut,
+            "description": "Doğrulama hatası; servis doğrulamasında `errors[].loc` yapısaldır",
+        },
+    },
 )
 async def convert_offer_endpoint(
     request: Request,

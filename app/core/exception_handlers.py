@@ -212,9 +212,10 @@ async def _equipment_validation_handler(
 
 
 async def _offer_validation_handler(request: Request, exc: OfferValidationError) -> JSONResponse:
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": str(exc)}
-    )
+    content: dict[str, object] = {"detail": str(exc)}
+    if exc.errors:  # yalniz yapisal hata tasiyan (donusturme) 422'ler; digerleri DEGISMEZ
+        content["errors"] = exc.errors
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=content)
 
 
 async def _invoicing_validation_handler(

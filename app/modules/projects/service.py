@@ -1,6 +1,7 @@
 import uuid
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
@@ -396,18 +397,37 @@ async def _apply_land_share(
     land_share.guarantee_amount = data.guarantee_amount
 
 
+#: Proje kodu üretici danışma kilidi anahtar uzayı: `(anahtar, yıl)`. SABİT, DEĞİŞTİRİLMEZ
+#: (eski/yeni sürüm aynı anda koşarsa farklı kilit alıp yarışı geri getirir). Çakışmasızlık:
+#: procurement 82501/82502, invoicing 82601, posting 30301, şablon 7_450_021 (tek-anahtar).
+PROJECT_CODE_LOCK_KEY = 82701
+
+
+async def _lock_project_code_sequence(session: AsyncSession, year: int) -> None:
+    """Yılın proje kodu dizisini işlem boyu serileştirir (`pg_advisory_xact_lock`).
+
+    `SELECT … FOR UPDATE` burada işe yaramaz: kilitlenecek satır (yılın ilk kodu) henüz yok.
+    Kilit commit/rollback ile KENDİLİĞİNDEN bırakılır; ikinci istek birincinin commit'ini
+    bekler, sonra onun satırını görüp bir sonraki sırayı alır (409 değil, ardışık kod).
+    """
+    await session.execute(select(func.pg_advisory_xact_lock(PROJECT_CODE_LOCK_KEY, year)))
+
+
 async def _next_project_code(session: AsyncSession, year: int) -> str:
     """PRJ-{YYYY}-{NNN} üretir (spec §3.5): o yılın en büyük sırası + 1, 3 hane, 1'den.
 
-    Sayımla DEĞİL maksimum+1 ile: silinen kod yeniden kullanılmasın. Benzersizlik
-    kısıtı yarış durumunu 409'a çevirir (IntegrityError handler).
+    Sayımla DEĞİL maksimum+1 ile: silinen kod yeniden kullanılmasın. Okuma
+    `_lock_project_code_sequence` ALTINDA yapılır (eşzamanlı iki oluşturma ardışık kod alır).
+    Elle verilen `PRJ-{YYYY}-{rakamlar}` kodu sayılır; başka biçimdeki (`PRJ-2026-A1`,
+    `OZEL-1`) sayılmaz.
     """
+    await _lock_project_code_sequence(session, year)
     prefix = f"{_PROJECT_CODE_PREFIX}-{year}-"
     codes = await repository.list_codes_with_prefix(session, prefix)
     max_seq = 0
     for code in codes:
         suffix = code[len(prefix) :]
-        if suffix.isdigit():
+        if suffix.isascii() and suffix.isdigit():
             max_seq = max(max_seq, int(suffix))
     return f"{prefix}{max_seq + 1:03d}"
 
@@ -557,6 +577,8 @@ async def create_project(session: AsyncSession, data: ProjectCreate) -> Project:
     employer = (
         await _resolve_employer(session, data.employer_id) if data.employer_id is not None else None
     )
+    # Kod slug'dan ÖNCE: üretimde danışma kilidi alınır ve (işlem boyu tutulduğundan) aynı
+    # adlı eşzamanlı iki oluşturmanın slug ayırmasını da serileştirir.
     code = data.code or await _next_project_code(session, today().year)
     lines = data.budget_lines
     # budget = Σ kalemler (spec §2.3, §3.4): SERVİS hesaplar; istemci `budget` yok sayılır.
