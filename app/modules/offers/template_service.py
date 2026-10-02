@@ -18,13 +18,13 @@ Fiyat/miktar SAKLANMAZ (T12). Katalog kalemi yoksa 404.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import NotFoundError, OfferValidationError
+from app.core.errors import ConflictError, NotFoundError, OfferValidationError
 from app.modules.catalog.models import EvCatalogItem
 from app.modules.offers import locking
 from app.modules.offers.models import (
@@ -55,6 +55,7 @@ from app.modules.users.models import User
 
 TEMPLATE_MISSING = "Teklif şablonu bulunamadı"
 CATALOG_ITEM_MISSING = "Katalog iş tipi bulunamadı"
+TEMPLATE_STALE = "Şablon başka biri tarafından değiştirildi; sayfayı yenileyin"
 COPY_SUFFIX = " (kopya)"
 
 #: `pg_advisory_xact_lock` anahtari (tek-anahtar formu): varsayilan sablon degisimi serilesir.
@@ -78,6 +79,19 @@ async def lock_template(session: AsyncSession, template_id: uuid.UUID) -> OfferT
     if template is None:
         raise NotFoundError(TEMPLATE_MISSING)
     return template
+
+
+def check_not_stale(template: OfferTemplate, expected_updated_at: datetime | None) -> None:
+    """İyimser kilit (TKL-B5.4): satır `FOR UPDATE` ile kilitliyken çağrılır. `None` = kontrol
+    yok (yalnız "varsayılan yap" ucu; şema yazımlarında alan ZORUNLUDUR)."""
+    if expected_updated_at is not None and template.updated_at != expected_updated_at:
+        raise ConflictError(TEMPLATE_STALE)
+
+
+def _advance(template: OfferTemplate) -> None:
+    """`updated_at`i İLERLET: sistem saati geriye/aynı mikro saniyeye denk gelse bile ÖNCEKİNDEN
+    kesin büyük (bayat sekme aynı değeri tutamaz)."""
+    template.updated_at = max(_now(), template.updated_at + timedelta(microseconds=1))
 
 
 async def lock_template_shared(session: AsyncSession, template_id: uuid.UUID) -> OfferTemplate:
@@ -129,14 +143,20 @@ async def create_template(session: AsyncSession, user: User, data: TemplateCreat
 
 
 async def update_template(
-    session: AsyncSession, user: User, template_id: uuid.UUID, data: TemplateUpdate
+    session: AsyncSession,
+    user: User,
+    template_id: uuid.UUID,
+    data: TemplateUpdate,
+    expected_updated_at: datetime | None,
 ) -> tuple[OfferTemplate, bool, bool]:
     """Doner: `(sablon, alan_degisti_mi, varsayilan_oldu_mu)`. Hicbir sey fiilen degismediyse
     yazilmaz (denetim satiri da yazilmaz)."""
     if data.is_default:
         await _lock_default_slot(session)  # kilit sirasi: varsayilan yuvasi → sablon satiri
     template = await lock_template(session, template_id)
+    check_not_stale(template, expected_updated_at)
     changes = data.model_dump(exclude_unset=True)
+    changes.pop("expected_updated_at", None)
     want_default = changes.pop("is_default", None)
     changed = False
     for field, value in changes.items():
@@ -151,7 +171,7 @@ async def update_template(
         template.is_default = False
         changed = True
     if changed or became_default:
-        template.updated_at = _now()
+        _advance(template)
         template.updated_by_user_id = user.id
         await session.flush()
         await session.refresh(template)
@@ -163,7 +183,7 @@ async def set_default(
 ) -> tuple[OfferTemplate, bool]:
     """`(sablon, degisti_mi)`: zaten varsayilansa yazilmaz."""
     template, _changed, became = await update_template(
-        session, user, template_id, TemplateUpdate(is_default=True)
+        session, user, template_id, TemplateUpdate.model_construct(is_default=True), None
     )
     return template, became
 
@@ -233,9 +253,10 @@ async def replace_content(
 ) -> tuple[OfferTemplate, int, int]:
     """Doner `(sablon, grup_adedi, kalem_adedi)` (denetim satiri icin)."""
     template = await lock_template(session, template_id)
+    check_not_stale(template, data.expected_updated_at)
     groups = [(g.name, [i.catalog_item_id for i in g.items]) for g in data.groups]
     await _replace_rows(session, template, groups)
-    template.updated_at = _now()
+    _advance(template)
     template.updated_by_user_id = user.id
     await session.flush()
     return template, len(groups), sum(len(ids) for _n, ids in groups)

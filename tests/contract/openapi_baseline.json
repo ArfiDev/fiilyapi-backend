@@ -41343,6 +41343,12 @@
         "additionalProperties": false,
         "description": "`PUT /offers/templates/{id}/content` — TUM gruplar + kalemler TAM degistirilir. Gruplar ve\nkalemler govdedeki SIRAYLA siralanir (`sort_order` = dizin).",
         "properties": {
+          "expected_updated_at": {
+            "description": "Şablonun okunan `updated_at` değeri (iyimser kilit; uyuşmazsa 409).",
+            "format": "date-time",
+            "title": "Expected Updated At",
+            "type": "string"
+          },
           "groups": {
             "items": {
               "$ref": "#/components/schemas/TemplateGroupInput"
@@ -41353,7 +41359,8 @@
           }
         },
         "required": [
-          "groups"
+          "groups",
+          "expected_updated_at"
         ],
         "title": "TemplateContentReplace",
         "type": "object"
@@ -41813,6 +41820,12 @@
             ],
             "title": "Description"
           },
+          "expected_updated_at": {
+            "description": "Şablonun okunan `updated_at` değeri (iyimser kilit; uyuşmazsa 409).",
+            "format": "date-time",
+            "title": "Expected Updated At",
+            "type": "string"
+          },
           "is_default": {
             "anyOf": [
               {
@@ -41872,6 +41885,9 @@
             "title": "Profit Pct"
           }
         },
+        "required": [
+          "expected_updated_at"
+        ],
         "title": "TemplateUpdate",
         "type": "object"
       },

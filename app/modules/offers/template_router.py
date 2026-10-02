@@ -132,7 +132,7 @@ async def update_template_endpoint(
 ) -> TemplateDetailRead:
     """Ad / aciklama / GG-kar % (`null` = temizle) / `is_default` (true = varsayilan yap)."""
     template, changed, became_default = await template_service.update_template(
-        session, user, template_id, data
+        session, user, template_id, data, data.expected_updated_at
     )
     if changed:
         await record_audit(
