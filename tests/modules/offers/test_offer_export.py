@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import uuid
+import zipfile
 from io import BytesIO
 
 import openpyxl
@@ -122,6 +123,45 @@ def _musteri_degerler(rev: dict) -> set[str]:
 # --------------------------------------------------------------- SIZINTI BEKCISI
 
 
+def _ham_parcalar(icerik: bytes) -> dict[str, str]:
+    """xlsx = ZIP: TUM parcalar ham metin (sayfalar, sharedStrings, yorumlar, docProps, workbook…).
+    Hucre degeri okuyan tarama gizli sayfa/yorum/ozellik/tanimli ad kacagini GOREMEZ."""
+    with zipfile.ZipFile(BytesIO(icerik)) as zf:
+        return {ad: zf.read(ad).decode("utf-8", errors="replace") for ad in zf.namelist()}
+
+
+def _sayi_deseni(deger: str) -> re.Pattern[str]:
+    """Rakam/nokta/virgulle BITISIK olmayan sayi: `1200.00` `11200.00`/`1200.001`/`1,200.00` icinde
+    sayilmaz ama `(1200.00/...)` ya da `<t>1200.00</t>` icinde BULUNUR."""
+    return re.compile(rf"(?<![\d.,]){re.escape(deger)}(?![\d])")
+
+
+def _tr_kucuk(metin: str) -> str:
+    return metin.replace("İ", "i").replace("I", "ı").lower()
+
+
+def _yasak_kelimeler_bul(metin: str) -> list[str]:
+    """Buyuk/kucuk harf ve Turkce İ/ı duyarli (`MALİYET`, `KÂR`, `Adam-Saat`…) + buyuk `GG`."""
+    kucuk = {metin.lower(), _tr_kucuk(metin)}
+    bulunan = [y for y in YASAK_KELIMELER if any(y in k for k in kucuk)]
+    return bulunan + (["GG"] if "GG" in metin else [])
+
+
+def _kitap_gizli_icerik_yok(kitap: openpyxl.Workbook) -> None:
+    assert len(kitap.sheetnames) == 1, kitap.sheetnames  # gizli ikinci sayfa YOK
+    assert not kitap.defined_names, list(kitap.defined_names)
+    for sayfa in kitap.worksheets:
+        assert sayfa.sheet_state == "visible"
+        for satir in sayfa.iter_rows():
+            for hucre in satir:
+                assert hucre.comment is None, f"{hucre.coordinate}: yorum var"
+        assert not [r for r, d in sayfa.row_dimensions.items() if d.hidden], "gizli satir"
+        assert not [c for c, d in sayfa.column_dimensions.items() if d.hidden], "gizli sutun"
+    p = kitap.properties
+    for ad in ("description", "subject", "keywords", "title", "category", "comments"):
+        assert not getattr(p, ad, None), f"belge ozelligi dolu: {ad}={getattr(p, ad)!r}"
+
+
 async def test_isveren_xlsx_ic_degerleri_ve_ic_basliklari_HICBIR_hucrede_icermez(
     client, admin, dolu
 ) -> None:
@@ -130,17 +170,27 @@ async def test_isveren_xlsx_ic_degerleri_ve_ic_basliklari_HICBIR_hucrede_icermez
     # on kosul: test verisi icin ic ve musteri degerleri CAKISMIYOR (aksi hâlde bekci anlamsiz)
     assert ic and not (ic & _musteri_degerler(rev)), ic & _musteri_degerler(rev)
 
-    kitap = _kitap(await _indir(client, admin, dolu["offer_id"], "employer"))
+    resp = await _indir(client, admin, dolu["offer_id"], "employer")
+    kitap = _kitap(resp)
     hucreler = _hucreler(kitap)
     assert len(hucreler) > 30
     for hucre in hucreler:
         deger = str(hucre.value)
         assert deger not in ic, f"{hucre.coordinate}: ic deger SIZDI: {deger}"
-        kucuk = deger.lower()
-        for yasak in YASAK_KELIMELER:
-            assert yasak not in kucuk, f"{hucre.coordinate}: yasak kelime {yasak!r}: {deger}"
-        assert "GG" not in deger, f"{hucre.coordinate}: {deger}"
-    # (b) varsayilan gorunum = isveren: ayni dosya
+        assert not _yasak_kelimeler_bul(deger), f"{hucre.coordinate}: {deger}"
+    # (a) yapisal: gizli sayfa / yorum / belge ozelligi / tanimli ad / gizli satir-sutun YOK
+    _kitap_gizli_icerik_yok(kitap)
+    # (b) HAM tarama: TUM zip parcalari (hucre okuyan tarama bunlari gormez)
+    parcalar = _ham_parcalar(resp.content)
+    assert any(ad.startswith("xl/worksheets/") for ad in parcalar)
+    assert {"xl/workbook.xml", "docProps/core.xml"} <= set(parcalar)  # sharedStrings olabilir
+    for ad, metin in parcalar.items():
+        if ad.startswith("xl/theme/"):  # yalniz renk/font tanimi; veri tasimaz
+            continue
+        for deger in ic:
+            assert not _sayi_deseni(deger).search(metin), f"{ad}: ic deger SIZDI: {deger}"
+        assert not _yasak_kelimeler_bul(metin), f"{ad}: {_yasak_kelimeler_bul(metin)}"
+    # (c) varsayilan gorunum = isveren: ayni dosya
     varsayilan = _kitap(await _indir(client, admin, dolu["offer_id"]))
     assert _satirlar(varsayilan) == _satirlar(kitap)
 
@@ -148,12 +198,31 @@ async def test_isveren_xlsx_ic_degerleri_ve_ic_basliklari_HICBIR_hucrede_icermez
 async def test_ic_xlsx_ayni_degerleri_ICERIR_pozitif_kontrol(client, admin, dolu) -> None:
     rev = await revizyon(client, admin, dolu["offer_id"])
     ic = _ic_degerler(rev)
-    kitap = _kitap(await _indir(client, admin, dolu["offer_id"], "internal"))
+    resp = await _indir(client, admin, dolu["offer_id"], "internal")
+    kitap = _kitap(resp)
     metinler = {str(h.value) for h in _hucreler(kitap)}
     assert ic <= metinler, ic - metinler
     # ic etiketler de var
     for etiket in ("Adam-saat", "Maliyet", "GG", "Kâr", "İÇ TOPLAMLAR", "Fiyatsız Kalem Sayısı"):
         assert etiket in metinler, etiket
+    # ham tarama ayni degerleri BULUR (aksi hâlde isveren taramasi kor olabilirdi)
+    ham = "\n".join(_ham_parcalar(resp.content).values())
+    for deger in ic:
+        assert _sayi_deseni(deger).search(ham), f"ham taramada bulunamadi: {deger}"
+    assert {"maliyet", "kâr", "adam-saat", "GG"} <= set(_yasak_kelimeler_bul(ham))
+
+
+def test_sayi_deseni_bitisik_rakam_nokta_virgul_saymaz() -> None:
+    desen = _sayi_deseni("1200.00")
+    assert desen.search("<t>1200.00</t>") and desen.search("Is (1200.00/340.00)")
+    for degil in ("11200.00", "1200.001", "1,200.00", "0.1200.00"):
+        assert not desen.search(degil), degil
+    assert _yasak_kelimeler_bul("MALİYET") == ["maliyet"]
+    assert _yasak_kelimeler_bul("Adam-Saat") == ["adam-saat"]
+    assert _yasak_kelimeler_bul("SON FİYAT") == ["son fiyat"]
+    assert _yasak_kelimeler_bul("Genel Gider") == ["genel gider"]
+    assert _yasak_kelimeler_bul("KÂR") == ["kâr"]
+    assert _yasak_kelimeler_bul("Poz No") == []
 
 
 # --------------------------------------------------------------- icerik
@@ -348,3 +417,60 @@ async def test_limited_kapsamda_para_hucreleri_BOS_digerleri_gorunur(
     assert {k["internal"]["man_hours"] for k in _kalemler(rev)} <= {
         str(h.value) for h in _hucreler(ic)
     }
+
+
+# --------------------------------------------------------------- ara toplam ↔ NET (V2)
+
+
+@pytest.fixture
+async def karisik(client, admin, isveren, katalog) -> dict:
+    """Tek grup: [10 x maliyet 100 → tutar 1288.00] + [MIKTARSIZ, maliyet 50]. Miktarsiz kalem
+    tutar uretmez: ara toplam NET ile (1288.00) tutarli olmali, BOSALMAMALI."""
+    o = await teklif(client, admin, isveren)
+    g = await grup(client, admin, o["id"], name="Karışık")
+    await kalem(
+        client, admin, o["id"], g["id"], katalog[0].id, quantity="10", cost_unit_price="100"
+    )
+    await kalem(client, admin, o["id"], g["id"], katalog[2].id, quantity=None, cost_unit_price="50")
+    return o
+
+
+async def test_miktarsiz_kalem_ara_toplami_BOSALTMAZ_NET_ile_tutarli(
+    client, admin, karisik
+) -> None:
+    rev = await revizyon(client, admin, karisik["id"])
+    assert rev["totals"]["unquantified_count"] == 1
+    net = rev["totals"]["customer"]["net"]
+    assert D(net) == D("1288.00")  # elle: 100 x 1,12 x 1,15 = 128,80; x 10
+    emp = _kitap(await _indir(client, admin, karisik["id"], "employer"))
+    ara = [s for s in _tablo(emp, EMPLOYER_HEADERS) if s[0] == "Ara Toplam"]
+    assert [s[5] for s in ara] == ["1288.00"] and ara[0][5] == net
+    miktarsiz = next(k for k in _kalemler(rev) if k["quantity"] is None)
+    satir = next(s for s in _tablo(emp, EMPLOYER_HEADERS) if s[0] == miktarsiz["poz_no"])
+    assert satir[3] is None and satir[5] is None  # kalem hucreleri yine bos
+    # ic gorunum: maliyet/GG/kar ara toplamlari da dolu (elle 1000 / 120 / 168), adam-saat yalniz
+    # miktarli kalemden (10 x 1,5 = 15); miktarsiz kalemin adam-saati bos
+    ic = _kitap(await _indir(client, admin, karisik["id"], "internal"))
+    ara_ic = next(s for s in _tablo(ic, INTERNAL_HEADERS) if s[0] == "Ara Toplam")
+    assert (D(ara_ic[10]), D(ara_ic[11]), D(ara_ic[12])) == (D("1000"), D("120"), D("168"))
+    assert D(ara_ic[6]) == D("15") and D(ara_ic[6]) == D(rev["totals"]["internal"]["man_hours"])
+    satir_ic = next(s for s in _tablo(ic, INTERNAL_HEADERS) if s[0] == miktarsiz["poz_no"])
+    assert satir_ic[6] is None  # adam-saat bilinmiyor: bos hucre (0 DEGIL)
+
+
+async def test_limited_kapsamda_karisik_grubun_ara_toplami_BOS_adam_saat_gorunur(
+    client, admin, db_session, user_factory, karisik
+) -> None:
+    """Gercekten maskeli (miktarli+fiyatli kalemin tutari gizli) → ara toplam BOS; kimlik kovasi
+    olan adam-saat toplami maskelenmez."""
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.limited)
+    token = await _login_with_access(
+        client, db_session, user_factory, "accounting", f"kar.{uuid.uuid4().hex[:6]}@tkl.co"
+    )
+    for gorunum, basliklar in (("employer", EMPLOYER_HEADERS), ("internal", INTERNAL_HEADERS)):
+        kitap = _kitap(await _indir(client, _auth(token), karisik["id"], gorunum))
+        ara = next(s for s in _tablo(kitap, basliklar) if s[0] == "Ara Toplam")
+        assert ara[5] is None, gorunum
+        if gorunum == "internal":
+            assert ara[10] is None and ara[11] is None and ara[12] is None
+            assert D(ara[6]) == D("15")

@@ -477,3 +477,35 @@ async def test_kisitli_disiplinli_kullanici_okur_ama_yazamaz(
         resp = await client.request(yontem, yol, json=govde, headers=kisitli)
         beklenen = 200 if yontem == "GET" else 403
         assert resp.status_code == beklenen, f"{yontem} {yol}: {resp.status_code}"
+
+
+# --------------------------------------------------------------- tavan (servis duzeyi, V3)
+
+
+async def test_tekliften_sablon_101_grup_422_ve_sablon_YAZILMAZ(
+    client, admin, isveren, db_session
+) -> None:
+    from app.modules.offers.template_schemas import TEMPLATE_GROUPS_MAX, TEMPLATE_GROUPS_TOO_MANY
+
+    o = await teklif(client, admin, isveren)
+    for i in range(TEMPLATE_GROUPS_MAX + 1):
+        await grup(client, admin, o["id"], name=f"G{i}")
+    once = (await db_session.execute(select(func.count()).select_from(OfferTemplate))).scalar_one()
+    resp = await client.post(
+        f"{TPL}/from-offer", json={"offer_id": o["id"], "rev_no": 0, "name": "Cok"}, headers=admin
+    )
+    assert resp.status_code == 422, resp.text
+    assert TEMPLATE_GROUPS_TOO_MANY in resp.text
+    sonra = (await db_session.execute(select(func.count()).select_from(OfferTemplate))).scalar_one()
+    assert sonra == once  # hep-ya-hic: yarim sablon kalmaz
+
+
+async def test_servis_yazma_yolu_1001_kalemde_Turkce_422_hatasi() -> None:
+    from app.core.errors import OfferValidationError
+    from app.modules.offers.template_schemas import TEMPLATE_ITEMS_MAX, TEMPLATE_ITEMS_TOO_MANY
+    from app.modules.offers.template_service import _replace_rows
+
+    cok = [("G", [uuid.uuid4() for _ in range(TEMPLATE_ITEMS_MAX + 1)])]
+    # tavan DB'ye dokunmadan once uygulanir (oturum gerekmez)
+    with pytest.raises(OfferValidationError, match=TEMPLATE_ITEMS_TOO_MANY):
+        await _replace_rows(None, None, cok)  # type: ignore[arg-type]

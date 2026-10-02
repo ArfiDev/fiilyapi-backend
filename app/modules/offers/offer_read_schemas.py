@@ -49,7 +49,8 @@ class OfferItemInternalRead(BaseModel):
     profit: Annotated[Decimal | None, _Para]
     #: Elle B.F. varsa TUREV kar %; yoksa uygulanan kar % (paradan turedigi icin `para`).
     profit_pct: Annotated[Decimal | None, _Para]
-    man_hours: Annotated[Decimal, _Id]
+    #: `None` = miktar girilmedi (SO-21): adam-saat bilinmiyor.
+    man_hours: Annotated[Decimal | None, _Id]
 
 
 class OfferItemRead(BaseModel):

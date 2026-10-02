@@ -24,7 +24,7 @@ from typing import Any
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, OfferValidationError
 from app.modules.catalog.models import EvCatalogItem
 from app.modules.offers import locking
 from app.modules.offers.models import (
@@ -38,6 +38,10 @@ from app.modules.offers.models import (
 )
 from app.modules.offers.offer_views import sort_groups, sort_items
 from app.modules.offers.template_schemas import (
+    TEMPLATE_GROUPS_MAX,
+    TEMPLATE_GROUPS_TOO_MANY,
+    TEMPLATE_ITEMS_MAX,
+    TEMPLATE_ITEMS_TOO_MANY,
     TemplateContentReplace,
     TemplateCreate,
     TemplateDetailRead,
@@ -172,11 +176,21 @@ async def delete_template(session: AsyncSession, template_id: uuid.UUID) -> Offe
     return template
 
 
+def check_content_ceilings(groups: list[tuple[str, list[uuid.UUID]]]) -> None:
+    """Grup/kalem tavani (`template_schemas` ile ORTAK sabitler). `PUT content` semada da dener;
+    tekliften sablon sema disindan girer, bu yuzden TEK yazma yolu `_replace_rows` da uygular."""
+    if len(groups) > TEMPLATE_GROUPS_MAX:
+        raise OfferValidationError(TEMPLATE_GROUPS_TOO_MANY)
+    if sum(len(ids) for _name, ids in groups) > TEMPLATE_ITEMS_MAX:
+        raise OfferValidationError(TEMPLATE_ITEMS_TOO_MANY)
+
+
 async def _replace_rows(
     session: AsyncSession,
     template: OfferTemplate,
     groups: list[tuple[str, list[uuid.UUID]]],
 ) -> None:
+    check_content_ceilings(groups)  # tavan sema disinda da (tekliften/kopyadan) gecerli
     catalog_ids = {cid for _name, ids in groups for cid in ids}
     if catalog_ids:
         found = set(
@@ -264,6 +278,7 @@ async def create_from_offer(
         (g.name, [i.catalog_item_id for i in ordered_items if i.group_id == g.id])
         for g in sort_groups(groups)
     ]
+    check_content_ceilings(plan)  # sablon satiri YAZILMADAN once (yarim sablon kalmaz)
     template = await create_template(
         session,
         user,

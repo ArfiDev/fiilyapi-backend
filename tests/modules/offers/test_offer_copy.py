@@ -210,3 +210,29 @@ async def test_denetim_kopyadan_olusturma_metni(client, admin, kaynak, db_sessio
         )
         in kayitlar
     )
+
+
+async def test_SO23_sablondan_olusan_teklifin_kopyasi_template_id_TASIMAZ_kullanim_ARTMAZ(
+    client, admin, isveren, katalog
+) -> None:
+    """Kopya sablondan DEGIL kaynaktan dogar: `template_id` bos, sablonun kullanim sayisi sabit."""
+    from ._offers import TPL, sablon, sablon_icerik
+
+    sab = await sablon(client, admin, "Villa")
+    await sablon_icerik(client, admin, sab["id"], [("Kaba", [katalog[0].id])])
+    resp = await client.post(
+        URL,
+        json={"employer_id": str(isveren.id), "title": "Şablonlu", "template_id": sab["id"]},
+        headers=admin,
+    )
+    assert resp.status_code == 201, resp.text
+    kaynak_teklif = resp.json()
+    assert kaynak_teklif["template_id"] == sab["id"]
+    once = (await client.get(f"{TPL}/{sab['id']}", headers=admin)).json()["usage_count"]
+    assert once == 1
+
+    kopya = await _kopya(client, admin, kaynak_teklif["id"])
+    assert kopya["template_id"] is None
+    assert (await detay(client, admin, kopya["id"]))["template_id"] is None
+    sonra = (await client.get(f"{TPL}/{sab['id']}", headers=admin)).json()["usage_count"]
+    assert sonra == once

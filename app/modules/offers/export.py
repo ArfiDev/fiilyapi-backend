@@ -132,8 +132,9 @@ def _internal_cells(item: OfferItemRead, revision: OfferRevisionRead) -> Row:
     )
 
 
-#: Ara toplam sutunlari: (1 tabanli sutun, kalemden deger, yalniz FIYATLI kalemler toplanir mi).
-#: Adam-saat fiyatsiz kalemde de doludur ve `totals.internal.man_hours` onu da sayar.
+#: Ara toplam sutunlari: (1 tabanli sutun, kalemden deger, para mi). Para sutunlari YALNIZ
+#: toplamlara giren kalemleri (`_enters_totals`) toplar — `calc` ile AYNI kural; adam-saat para
+#: degildir: miktarli her kalemin (fiyatsiz dahil) adam-saati toplanir, miktarsizin `None`dir.
 _Getter = Callable[[OfferItemRead], Decimal | None]
 _SUBTOTALS_EMPLOYER: tuple[tuple[int, _Getter, bool], ...] = (
     (6, lambda i: i.customer.amount if i.customer else None, True),
@@ -147,14 +148,33 @@ _SUBTOTALS_INTERNAL: tuple[tuple[int, _Getter, bool], ...] = (
 )
 
 
+def _enters_totals(item: OfferItemRead) -> bool:
+    """`calc`in `priced and quantified` kurali, zarftan okunur. Miktar `operasyonel`, tutar `para`
+    kovasindadir (ikisi ayri kapsamda maskelenir): tutar VEYA miktar doluysa kalem miktarlidir.
+    Ikisi de `None` ise kalem miktarsizdir (tutar uretilmedi) ve ara toplami BOSALTMAZ."""
+    if not item.priced:
+        return False
+    return item.quantity is not None or (
+        item.customer is not None and item.customer.amount is not None
+    )
+
+
+def _subtotal_cell(items: Sequence[OfferItemRead], getter: _Getter, *, money: bool) -> Cell:
+    """Para: toplamlara giren kalemlerden biri maskeliyse (`None`) BOS (kismi toplam yazilmaz).
+    Adam-saat: `None` (miktarsiz) kalemler atlanir; kimlik kovasi oldugu icin maskelenmez."""
+    if money:
+        values = [getter(i) for i in items if _enters_totals(i)]
+    else:
+        values = [v for v in (getter(i) for i in items) if v is not None]
+    return _s(_sum(values))
+
+
 def _subtotal_row(items: Sequence[OfferItemRead], view: ExportView, width: int) -> Row:
-    """Grup ara toplami. Maskeli deger → BOS hucre (kismi toplam yazilmaz)."""
     cells: list[Cell] = [None] * width
     cells[0] = LABEL_SUBTOTAL
     specs = _SUBTOTALS_EMPLOYER if view is ExportView.employer else _SUBTOTALS_INTERNAL
-    for column, getter, priced_only in specs:
-        values = [getter(i) for i in items if i.priced or not priced_only]
-        cells[column - 1] = _s(_sum(values))
+    for column, getter, money in specs:
+        cells[column - 1] = _subtotal_cell(items, getter, money=money)
     return tuple(cells)
 
 

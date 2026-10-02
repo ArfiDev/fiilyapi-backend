@@ -22,15 +22,18 @@ KALAN olarak turetilmesiyle saglanir: ucunu de bagimsiz yuvarlamak (ornegin GG'y
 
 ## Miktarsiz kalem (SO-21)
 `quantity is None` = "miktar girilmedi" (sablondan teklif). Miktarsiz kalem TOPLAMLARA GIRMEZ:
-`CustomerLine.amount` ve `InternalLine.cost/overhead/profit` `None`, adam-saat KATKISI 0 (0 ile
-CARPILMIS gibi toplanmaz: kalem tutar uretmez). Fiyatli miktarsiz kalemin B.F.si yine hesaplanir
-(`unit_price` dolu, ekran birim fiyati gosterebilir). AYRI sayac `unquantified_count`:
+`CustomerLine.amount` ve `InternalLine.cost/overhead/profit` `None`; `InternalLine.man_hours`
+da `None` ("bilinmiyor", 0 DEGIL) ve toplam adam-saate KATKISI yoktur. Fiyatli miktarsiz
+kalemin B.F.si yine hesaplanir (`unit_price` dolu, ekran birim fiyati gosterebilir). AYRI sayac
+`unquantified_count`:
 miktari bos kalem sayisi. `unpriced_count` (maliyeti bos kalem) ile BAGIMSIZDIR: hem maliyeti
 hem miktari bos kalem IKISINDE de sayilir. Fiyatli+miktarli kalemlerin hesabi DEGISMEZ.
 
 ## Toplam (revizyon)
 net = SUM(tutar) · KDV = `ROUND(net x kdv)` · brut = net + KDV · toplam adam-saat =
-SUM(miktar x unit_mhr) (fiyatsiz kalemler DAHIL) · genel kar % = SUM(kar) / (SUM(maliyet) +
+SUM(miktar x unit_mhr) YALNIZ MIKTARLI kalemlerden (fiyatsiz kalemler DAHIL; miktarsiz kalemin
+adam-saati bilinmedigi icin toplama girmez — toplam bu yuzden kismi olabilir, `unquantified_count`
+kac kalemin eksik oldugunu soyler) · genel kar % = SUM(kar) / (SUM(maliyet) +
 SUM(GG)) x 100 (payda 0 ise `None`).
 
 ## Iki gorunum (B5): isveren ciktisi ve ic cikti
@@ -108,9 +111,10 @@ class CustomerLine:
 @dataclass(frozen=True, slots=True)
 class InternalLine:
     """IC kalem degerleri — isveren ciktisinda YOKTUR. Fiyatsiz kalemde para alanlari `None`,
-    `man_hours` YINE DE doludur."""
+    `man_hours` YINE DE doludur (miktar varsa). `man_hours` `None` = miktar girilmedi: adam-saat
+    BILINMIYOR (0 degil)."""
 
-    man_hours: Decimal
+    man_hours: Decimal | None
     cost: Decimal | None = None
     overhead: Decimal | None = None
     profit: Decimal | None = None
@@ -170,7 +174,7 @@ def calc_item(item: ItemInput, *, overhead_pct: Decimal, profit_pct: Decimal) ->
 
 def _calc_item(item: ItemInput, *, overhead_pct: Decimal, profit_pct: Decimal) -> ItemResult:
     quantified = item.quantity is not None
-    man_hours = item.quantity * item.unit_mhr if item.quantity is not None else Decimal(0)
+    man_hours = item.quantity * item.unit_mhr if item.quantity is not None else None
     cost_unit = item.cost_unit_price
     if cost_unit is None:
         if item.offer_unit_price is not None:
@@ -264,7 +268,10 @@ def _calc_revision(
             overhead=overhead,
             profit=profit,
             profit_pct=_round(profit / base * _HUNDRED) if base > 0 else None,
-            man_hours=sum((r.internal.man_hours for r in results), Decimal(0)),
+            man_hours=sum(
+                (r.internal.man_hours for r in results if r.internal.man_hours is not None),
+                Decimal(0),
+            ),
         ),
         unpriced_count=sum(1 for r in results if not r.priced),
         unquantified_count=sum(1 for r in results if not r.quantified),

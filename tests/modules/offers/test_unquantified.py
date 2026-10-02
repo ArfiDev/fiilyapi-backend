@@ -1,7 +1,7 @@
 """TKL-B5.1 / SO-21 — miktarsiz kalem: calc + API + gonderim kurali.
 
-`quantity IS NULL` = "miktar girilmedi": toplamlara GIRMEZ, adam-saate 0 katkidir, AYRI sayac
-`unquantified_count`; taslakta serbest, gonderimde engellenir (422).
+`quantity IS NULL` = "miktar girilmedi": toplamlara GIRMEZ, adam-saati `None` (bilinmiyor, 0 DEGIL),
+AYRI sayac `unquantified_count`; taslakta serbest, gonderimde engellenir (422).
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def test_miktarsiz_fiyatli_kalem_tutar_ve_ic_degerleri_YOK_birim_fiyat_VAR() -> 
     assert r.customer.unit_price == D("128.80")  # 100 x 1,12 x 1,15
     assert r.customer.amount is None  # 0 DEGIL: tutar uretilmez
     assert r.internal.cost is None and r.internal.overhead is None and r.internal.profit is None
-    assert r.internal.man_hours == D(0)
+    assert r.internal.man_hours is None  # bilinmiyor: 0 DEGIL
 
 
 def test_miktarsiz_elle_birim_fiyat_kar_yuzdesi_turetilir_tutar_yok() -> None:
@@ -61,7 +61,7 @@ def test_toplamlar_miktarsiz_kalemi_DISLAR_sayaclar_bagimsiz() -> None:
     assert sonuc.customer.vat == D("257.60") and sonuc.customer.gross == D("1545.60")
     assert sonuc.internal.cost == D("1000.00")
     assert sonuc.internal.overhead == D("120.00") and sonuc.internal.profit == D("168.00")
-    assert sonuc.internal.man_hours == D("28")  # (10 + 4) x 2; miktarsiz kalemler 0 katkida
+    assert sonuc.internal.man_hours == D("28")  # (10 + 4) x 2; miktarsizlar (None) girmez
     assert sonuc.unpriced_count == 2  # miktarsiz-fiyatsiz + miktarli-fiyatsiz
     assert sonuc.unquantified_count == 2  # miktarsiz-fiyatli + miktarsiz-fiyatsiz
 
@@ -104,7 +104,7 @@ async def test_miktar_gonderilmezse_NULL_kalem_toplama_girmez(client, admin, t, 
     assert k["priced"] is True
     assert D(k["customer"]["unit_price"]) == D("128.80")
     assert k["customer"]["amount"] is None
-    assert k["internal"]["cost"] is None and D(k["internal"]["man_hours"]) == D(0)
+    assert k["internal"]["cost"] is None and k["internal"]["man_hours"] is None
 
     rev = await revizyon(client, admin, oid)
     assert D(rev["totals"]["customer"]["net"]) == D("1288.00")
@@ -201,3 +201,11 @@ async def test_kalemli_yap_yardimcisi_miktarli_kalem_ekler(client, admin, t) -> 
     oid, _ = t
     await kalemli_yap(client, admin, oid)
     assert (await gecis(client, admin, oid, "send", dolu=False)).status_code == 200
+
+
+def test_miktarsiz_FIYATSIZ_kalemde_de_adam_saat_None_miktarli_fiyatsizda_dolu() -> None:
+    bos = calc_item(_girdi(None, None), **REV)
+    assert bos.priced is False and bos.quantified is False
+    assert bos.internal.man_hours is None
+    dolu = calc_item(_girdi(None, "4"), **REV)
+    assert dolu.priced is False and dolu.internal.man_hours == D("8")  # 4 x 2

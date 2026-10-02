@@ -25,6 +25,8 @@ TEMPLATE_NAME_MAX = 80
 #: Tam-degistirme govdesi tavanlari (hep-ya-hic; ekran sablonu yuzlerce kalemi gecmez).
 TEMPLATE_GROUPS_MAX = 100
 TEMPLATE_ITEMS_MAX = 1000
+TEMPLATE_GROUPS_TOO_MANY = f"Şablonda en fazla {TEMPLATE_GROUPS_MAX} grup olabilir"
+TEMPLATE_ITEMS_TOO_MANY = f"Şablonda en fazla {TEMPLATE_ITEMS_MAX} kalem olabilir"
 
 TemplateName = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=TEMPLATE_NAME_MAX)
@@ -88,7 +90,7 @@ class TemplateContentReplace(BaseModel):
     @classmethod
     def _total_items(cls, groups: list[TemplateGroupInput]) -> list[TemplateGroupInput]:
         if sum(len(g.items) for g in groups) > TEMPLATE_ITEMS_MAX:
-            raise ValueError(f"Şablonda en fazla {TEMPLATE_ITEMS_MAX} kalem olabilir")
+            raise ValueError(TEMPLATE_ITEMS_TOO_MANY)
         return groups
 
 
