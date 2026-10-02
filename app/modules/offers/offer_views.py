@@ -102,6 +102,7 @@ def build_item_read(item: OfferItem, result: calc.ItemResult) -> OfferItemRead:
         profit_pct=item.profit_pct,
         offer_unit_price=item.offer_unit_price,
         priced=result.priced,
+        quantified=result.quantified,
         customer=customer,
         internal=OfferItemInternalRead(
             cost=internal.cost,

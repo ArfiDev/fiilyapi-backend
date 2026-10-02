@@ -73,6 +73,8 @@ class OfferItemRead(BaseModel):
     offer_unit_price: Annotated[Decimal | None, _Para]
     # hesap sonucu
     priced: bool
+    #: Miktari dolu mu (SO-21). Acik bayrak: `quantity` `finance` kapsamda maskelenir, bu degil.
+    quantified: Annotated[bool, _Id]
     customer: OfferItemCustomerRead | None
     internal: OfferItemInternalRead
 

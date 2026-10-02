@@ -18792,6 +18792,10 @@
             ],
             "title": "Profit Pct"
           },
+          "quantified": {
+            "title": "Quantified",
+            "type": "boolean"
+          },
           "quantity": {
             "anyOf": [
               {
@@ -18833,6 +18837,7 @@
           "profit_pct",
           "offer_unit_price",
           "priced",
+          "quantified",
           "customer",
           "internal"
         ],
