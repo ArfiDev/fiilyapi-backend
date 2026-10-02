@@ -71,11 +71,15 @@ last_price_provider.register()
 
 # 🔴 KAPSAM MASKESI — IKI PARCA DA GEREKLI (bkz. `catalog/router.py`); cifti
 #    `tests/core/test_kapsam_baglantisi.py` cakar.
+# 🔴 TKL-B4.6 (R5/SO-19, kullanici onayi): disiplin atanmis (kisitli) kullanici teklif modulunu
+#    HIC goremez — teklif okumalari disiplin suzmuyor; DSC "baska disiplin hicbir yerde gorunmez".
+#    `RequireUnrestricted` router duzeyinde: OKUMA dahil her uc (uc uc unutulmasin). Disiplin
+#    suzmesi izin turunda tasarlanir.
 router = APIRouter(
     tags=["offers"],
     responses=COMMON_ERROR_RESPONSES,
     route_class=kapsam_rotasi("contracts", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("contracts")],
+    dependencies=[kapsam_kapisi("contracts"), RequireUnrestricted],
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)

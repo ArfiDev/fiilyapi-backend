@@ -230,7 +230,7 @@ async def test_contracts_view_okur_ama_yazamaz(client, admin, db_session, user_f
     assert Decimal((await client.get(URL, headers=admin)).json()["default_vat_pct"]) == 20
 
 
-async def test_kisitli_disiplinli_kullanici_okur_ama_yazamaz(
+async def test_kisitli_disiplinli_kullanici_ayarlari_da_goremez_R5(
     client, admin, db_session, user_factory
 ) -> None:
     from app.modules.catalog.models import ContractorType, EvDiscipline
@@ -250,7 +250,8 @@ async def test_kisitli_disiplinli_kullanici_okur_ama_yazamaz(
     await db_session.flush()
     kisitli = _auth(token)
 
-    assert (await client.get(URL, headers=kisitli)).status_code == 200
+    # TKL-B4.6 (R5/SO-19): kisitli kullanici teklif modulunu hic goremez — ayar okumasi da 403
+    assert (await client.get(URL, headers=kisitli)).status_code == 403
     assert (await client.put(URL, json=_govde(), headers=kisitli)).status_code == 403
     assert Decimal((await client.get(URL, headers=admin)).json()["default_vat_pct"]) == 20
 
