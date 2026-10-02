@@ -53,6 +53,11 @@ async def list_codes_with_prefix(session: AsyncSession, prefix: str) -> list[str
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def project_code_exists(session: AsyncSession, code: str) -> bool:
+    """`projects.code` (benzersiz) zaten kullanılıyor mu."""
+    return (await session.scalar(select(Project.id).where(Project.code == code))) is not None
+
+
 async def list_projects_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[Project]:
     """Kullanicinin user_project_access satirlarina gore gorunur projeler.
 

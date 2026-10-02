@@ -5628,6 +5628,35 @@
         "title": "ConvertContract",
         "type": "object"
       },
+      "ConvertFieldError": {
+        "description": "Servis dogrulama 422'sinin tek yapisal hatasi: gövde konumu + mesaj.",
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Loc",
+            "type": "array"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "message"
+        ],
+        "title": "ConvertFieldError",
+        "type": "object"
+      },
       "ConvertGroup": {
         "additionalProperties": false,
         "properties": {
@@ -5766,6 +5795,19 @@
             "minLength": 1,
             "title": "City",
             "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
           },
           "end_date": {
             "format": "date",
@@ -5914,6 +5956,45 @@
           "warnings"
         ],
         "title": "ConvertResponse",
+        "type": "object"
+      },
+      "ConvertValidationErrorOut": {
+        "description": "Donusturme hata gövdesi (422 ve proje kodu 409'u). IKI BICIM SOZLESMESI:\n\n* IS KURALI hatasi (servis dogrulamasi: tarih araligi, `open_site`/`site_name` tutarliligi,\n  grup/kalem/endeks/bedel kurallari, `group_disciplines` cakismasi; ve 409 \"proje kodu\n  kullaniliyor\"): `detail` = `str` (`; ` ile birlesik insan metni) + `errors` =\n  `[{loc, message}]` (yapisal; FE alan vurgusu icin).\n* GOVDE SEKLI hatasi (tip, eksik alan, uzunluk/aralik, 2000 kalem tavani, bilinmeyen alan —\n  Pydantic): STANDART FastAPI 422 — `detail` = hata LISTESI, `errors` YOK.\n\n`group_disciplines` hatalarinda `loc[1]` gonderilen HAM anahtar degil NORMALIZE (strip)\nanahtardir (grup adiyla ayni bicim; FE grup adiyla eslestirir). Gerekce: ham anahtar bos\nolabilir/birden cok ham anahtar tek normalize anahtara iner; normalize anahtar tekildir.",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Detail"
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ConvertFieldError"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ConvertValidationErrorOut",
         "type": "object"
       },
       "ConvertWarning": {
@@ -18080,6 +18161,29 @@
             ],
             "title": "Conversion State"
           },
+          "converted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Converted At"
+          },
+          "converted_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Converted By Name"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -18136,6 +18240,16 @@
               }
             ],
             "title": "Prepared By User Id"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OfferProjectRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "project_id": {
             "anyOf": [
@@ -18205,6 +18319,9 @@
           "status",
           "conversion_state",
           "project_id",
+          "project",
+          "converted_at",
+          "converted_by_name",
           "latest_rev_no",
           "created_at",
           "updated_at",
@@ -18347,7 +18464,8 @@
               "sent",
               "won",
               "lost",
-              "withdrawn"
+              "withdrawn",
+              "converted"
             ],
             "title": "Kind",
             "type": "string"
@@ -19033,6 +19151,29 @@
             ],
             "title": "Conversion State"
           },
+          "converted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Converted At"
+          },
+          "converted_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Converted By Name"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -19084,6 +19225,16 @@
           "offer_no": {
             "title": "Offer No",
             "type": "string"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OfferProjectRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "project_id": {
             "anyOf": [
@@ -19146,6 +19297,9 @@
           "status",
           "conversion_state",
           "project_id",
+          "project",
+          "converted_at",
+          "converted_by_name",
           "net",
           "gross",
           "unpriced_count",
@@ -19274,6 +19428,43 @@
         ],
         "title": "OfferPriceEscalation",
         "type": "string"
+      },
+      "OfferProjectRef": {
+        "description": "Donusturmeyle olusan projenin kisa kunyesi (kimlik; para degil). `slug` NULLABLE olabilir.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "slug"
+        ],
+        "title": "OfferProjectRef",
+        "type": "object"
       },
       "OfferRevisionRead": {
         "description": "`GET /offers/{id}/revisions/{rev_no}` — kosullar + gruplar + kalemler + toplamlar.",
@@ -58583,7 +58774,7 @@
     },
     "/offers": {
       "get": {
-        "description": "Teklif listesi (son revizyonun durumu/tutari). `q`: no / is adi / isveren;\n`offer_date_from`/`offer_date_to`: son revizyonun teklif tarihi (dahil-dahil). Zarfta durum\nbasina adet + KDV haric toplam, suresi gecmis adedi ve kazanma orani (`status`\nfiltresinden bagimsiz).",
+        "description": "Teklif listesi (son revizyonun durumu/tutari). `q`: no / is adi / isveren;\n`offer_date_from`/`offer_date_to`: son revizyonun teklif tarihi (dahil-dahil). Zarfta durum\nbasina adet + KDV haric toplam, suresi gecmis adedi ve kazanma orani (`status`\nfiltresinden bagimsiz). `conversion`: `won_not_converted` (son revizyon kazanildi, proje\nyok) | `converted` (proje var); `status` gibi yalniz listeyi daraltir, ozeti degil.",
         "operationId": "list_offers_endpoint_offers_get",
         "parameters": [
           {
@@ -58600,6 +58791,26 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "conversion",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "converted",
+                    "won_not_converted"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Conversion"
             }
           },
           {
@@ -59567,15 +59778,25 @@
           "404": {
             "description": "Kayıt bulunamadı"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConvertValidationErrorOut"
+                }
+              }
+            },
+            "description": "Zaten dönüştürüldü / kazanılmamış (yalnız `detail`) / proje kodu kullanılıyor (`detail` + `errors[0].loc == [\"project\", \"code\"]`)"
+          },
           "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ConvertValidationErrorOut"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "İş kuralı 422'si: `detail` str + `errors`; gövde şekli 422'si: standart `detail` listesi"
           }
         },
         "security": [

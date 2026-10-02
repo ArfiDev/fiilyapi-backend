@@ -28,14 +28,13 @@ from __future__ import annotations
 import uuid
 from datetime import date
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     StringConstraints,
-    field_validator,
     model_validator,
 )
 
@@ -51,6 +50,7 @@ __all__ = [
     "ConvertProject",
     "ConvertRequest",
     "ConvertResponse",
+    "ConvertValidationErrorOut",
     "ConvertWarning",
 ]
 
@@ -72,14 +72,16 @@ _Address = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1,
 _BaseIndex = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=3)]
 _Money = Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=2)]
 
-DATES_REVERSED = "project.end_date: Bitiş tarihi başlangıçtan önce olamaz"
-
 
 class ConvertProject(BaseModel):
     """Yeni projenin cekirdegi. Tip her zaman `taahhut`, taslak DEGIL (SO-37)."""
 
     model_config = _STRICT
 
+    #: Elle proje kodu (mockup "Proje kodu*"). `None` = sunucu `PRJ-YYYY-NNN` uretir. Kural
+    #: `ProjectCreate.code` ile AYNI (serbest metin, 1–50; ek: bas/son bosluk kirpilir).
+    #: SABAH ONAYI adayi: PRJ-YYYY-NNN biciminde zorlama YOK (proje olusturma da zorlamaz).
+    code: _Code | None = None
     name: _Text
     city: _Short
     start_date: date
@@ -87,12 +89,6 @@ class ConvertProject(BaseModel):
     category: _Short | None = None
     parcel: _Parcel | None = None
     address: _Address | None = None
-
-    @model_validator(mode="after")
-    def _window(self) -> ConvertProject:
-        if self.end_date < self.start_date:
-            raise ValueError(DATES_REVERSED)
-        return self
 
 
 class ConvertContract(BaseModel):
@@ -147,27 +143,42 @@ class ConvertRequest(BaseModel):
     #: `None` = proje adi.
     site_name: _Text | None = None
     #: Grup ADI → disiplin kimligi (SO-31). Santiyesiz donusturmede SAKLANMAZ (SO-32; uyari doner).
+    #: ANAHTARLAR HAM gelir; normalize (strip) + cakisma denetimi SERVISTE (`errors[].loc` =
+    #: `["group_disciplines", <NORMALIZE anahtar>]`, ham degil — grup adiyla ayni bicim).
     group_disciplines: dict[str, uuid.UUID] = Field(default_factory=dict)
-
-    @field_validator("group_disciplines")
-    @classmethod
-    def _strip_group_keys(cls, value: dict[str, uuid.UUID]) -> dict[str, uuid.UUID]:
-        """Anahtarlar grup adlariyla AYNI normalize (strip; SO-52); cakisan farkli esleme 422."""
-        out: dict[str, uuid.UUID] = {}
-        for name, discipline_id in value.items():
-            key = name.strip()
-            if out.get(key, discipline_id) != discipline_id:
-                raise ValueError(f"group_disciplines: «{key}» için birden çok eşleme var")
-            out[key] = discipline_id
-        return out
 
     @model_validator(mode="after")
     def _shape(self) -> ConvertRequest:
         if sum(len(group.items) for group in self.groups) > CONVERT_MAX_ITEMS:
             raise ValueError(f"groups: en fazla {CONVERT_MAX_ITEMS} kalem dönüştürülebilir")
-        if self.site_name is not None and not self.open_site:
-            raise ValueError("site_name: yalnız open_site açıkken verilebilir")
         return self
+
+
+class ConvertFieldError(BaseModel):
+    """Servis dogrulama 422'sinin tek yapisal hatasi: gövde konumu + mesaj."""
+
+    #: ör. `["groups", 1, "items", 3, "code"]`, `["contract", "base_index_value"]`.
+    loc: list[str | int]
+    message: str
+
+
+class ConvertValidationErrorOut(BaseModel):
+    """Donusturme hata gövdesi (422 ve proje kodu 409'u). IKI BICIM SOZLESMESI:
+
+    * IS KURALI hatasi (servis dogrulamasi: tarih araligi, `open_site`/`site_name` tutarliligi,
+      grup/kalem/endeks/bedel kurallari, `group_disciplines` cakismasi; ve 409 "proje kodu
+      kullaniliyor"): `detail` = `str` (`; ` ile birlesik insan metni) + `errors` =
+      `[{loc, message}]` (yapisal; FE alan vurgusu icin).
+    * GOVDE SEKLI hatasi (tip, eksik alan, uzunluk/aralik, 2000 kalem tavani, bilinmeyen alan —
+      Pydantic): STANDART FastAPI 422 — `detail` = hata LISTESI, `errors` YOK.
+
+    `group_disciplines` hatalarinda `loc[1]` gonderilen HAM anahtar degil NORMALIZE (strip)
+    anahtardir (grup adiyla ayni bicim; FE grup adiyla eslestirir). Gerekce: ham anahtar bos
+    olabilir/birden cok ham anahtar tek normalize anahtara iner; normalize anahtar tekildir.
+    """
+
+    detail: str | list[dict[str, Any]]
+    errors: list[ConvertFieldError] | None = None
 
 
 class ConvertWarning(BaseModel):
