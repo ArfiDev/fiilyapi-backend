@@ -24,6 +24,16 @@ tek flush. Kalem basina `session.get` DONGUSU YOKTUR.
 BOQ grubu = sozlesme grubu (T15; adi ayni). Elle esleme > grubun kalemlerinin katalog
 disiplini TEKSE o > KARISIKSA eslenmez + uyari (dondurmada `BLOCKER_DISCIPLINELESS_GROUP`).
 Dondurma BURADA YAPILMAZ (T34).
+
+## Pencereler (SO-35 + SO-58)
+`(disiplin, NULL)` penceresi eslenen disiplinlere VE sozlesme kalemlerinin katalog
+disiplinlerinin HEPSINE yazilir (eslensin eslenmesin: karisik grup sonradan Planlama'da baska
+disipline eslenirse dondurma `missing_window`e takilmasin). Mevcut pencere EZILMEZ. Tarih kaynagi
+cagiranin `window`udur (proje baslangic-bitis); yoksa pencere yazilmaz, `no_window_dates` doner.
+
+## Taslak (SO-57)
+Aktif revizyon var ve taslak YOKSA baştan 409 (`NO_DRAFT`): plan dondurulmus agaca gore
+kurulur, dondurmadan sonra eklenen BOQ kalemi gorunmez; sessizce "0 satir" donmek yanlistir.
 """
 
 from __future__ import annotations
@@ -37,7 +47,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import EarnedValueValidationError, NotFoundError
+from app.core.errors import ConflictError, EarnedValueValidationError, NotFoundError
 from app.modules.boq.models import BoqItem
 from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.contracts.models import EmployerContractItem
@@ -52,6 +62,7 @@ from app.modules.earned_value.models import (
     EvLeafSettings,
     EvWindow,
     RateSource,
+    RevisionStatus,
 )
 from app.modules.users.models import User
 
@@ -62,6 +73,12 @@ CODE_MIXED_GROUP = "mixed_discipline_group"
 MSG_MIXED_GROUP = (
     "Grubun kalemleri birden çok disiplinde; Planlama'da disiplin elle eşlenmeli "
     "(eşlenmeden baseline dondurulamaz)"
+)
+#: Projede baslangic/bitis tarihi yoksa pencere yazilamaz (SO-58).
+CODE_NO_PROJECT_DATES = "no_project_dates"
+MSG_NO_PROJECT_DATES = (
+    "Projenin başlangıç/bitiş tarihi yok; yayma pencereleri yazılamadı "
+    "(Planlama'da pencereleri girin)"
 )
 
 
@@ -98,6 +115,21 @@ class ApplyResult:
     mixed_groups: tuple[MixedGroup, ...] = ()
     #: Baglı olup hicbir yaprak orani alamayan kalem sayisi (yuva da katalog da yok).
     unrated_item_count: int = 0
+    #: Bu cagrida Rev.0 taslagi ACILDI mi (yazma oldu ama taslak yoktu).
+    draft_opened: bool = False
+    #: Pencere gerekiyordu ama cagiran tarih vermedi (yazilmadi).
+    no_window_dates: bool = False
+
+    @property
+    def wrote_anything(self) -> bool:
+        """Denetim satiri kosulu: oran, bag, esleme, pencere ya da taslak acma."""
+        return bool(
+            self.filled_leaf_count
+            or self.linked_item_count
+            or self.mapped_group_count
+            or self.window_count
+            or self.draft_opened
+        )
 
 
 @dataclass(slots=True)
@@ -111,6 +143,12 @@ class _Plan:
     rated_items: set[uuid.UUID] = field(default_factory=set)
     unrated_items: int = 0
     mapped_disciplines: set[uuid.UUID] = field(default_factory=set)
+    #: Sozlesme kalemlerinin katalog disiplinleri (SO-58: pencere eslemeden bagimsiz yazilir).
+    catalog_disciplines: set[uuid.UUID] = field(default_factory=set)
+
+    @property
+    def window_disciplines(self) -> set[uuid.UUID]:
+        return self.mapped_disciplines | self.catalog_disciplines
 
 
 # ------------------------------------------------------------------ okuma
@@ -138,11 +176,15 @@ async def load_links(session: AsyncSession, site_id: uuid.UUID) -> list[Contract
 
 
 async def _catalog_index(
-    session: AsyncSession,
+    session: AsyncSession, ids: set[uuid.UUID]
 ) -> dict[uuid.UUID, tuple[uuid.UUID, Decimal]]:
-    """katalog id → (disiplin, standart adam-saat)."""
+    """katalog id → (disiplin, standart adam-saat); YALNIZ istenen kimlikler (O4)."""
+    if not ids:
+        return {}
     rows = await session.execute(
-        select(EvCatalogItem.id, EvCatalogItem.discipline_id, EvCatalogItem.standard_unit_mhr)
+        select(
+            EvCatalogItem.id, EvCatalogItem.discipline_id, EvCatalogItem.standard_unit_mhr
+        ).where(EvCatalogItem.id.in_(ids))
     )
     return {cid: (disc, std) for cid, disc, std in rows.all()}
 
@@ -229,6 +271,9 @@ def build_plan(
 ) -> _Plan:
     by_item = {lk.boq_item_id: lk for lk in links}
     plan = _Plan()
+    plan.catalog_disciplines = {
+        catalog[lk.catalog_item_id][0] for lk in links if lk.catalog_item_id in catalog
+    }
     for group in _groups(tree):
         _plan_group(group, by_item, catalog, manual, plan)
         for item in group.items:
@@ -302,19 +347,22 @@ async def _write_leaf_rates(
         row.rate_source = source
 
 
-async def _write_windows(
-    session: AsyncSession,
-    rev_id: uuid.UUID,
-    disciplines: set[uuid.UUID],
-    window: tuple[date, date],
-) -> int:
-    """Her eslenen disipline `(disiplin, NULL)` penceresi (SO-35); mevcut ezme EZILMEZ."""
+async def _existing_windows(session: AsyncSession, rev_id: uuid.UUID | None) -> set[uuid.UUID]:
+    """Taslakta `(disiplin, NULL)` penceresi zaten olan disiplinler (taslak yoksa bos)."""
+    if rev_id is None:
+        return set()
     rows = await session.execute(
         select(EvWindow.discipline_id).where(
             EvWindow.revision_id == rev_id, EvWindow.section_id.is_(None)
         )
     )
-    todo = disciplines - set(rows.scalars())
+    return set(rows.scalars())
+
+
+def _write_windows(
+    session: AsyncSession, rev_id: uuid.UUID, todo: set[uuid.UUID], window: tuple[date, date]
+) -> None:
+    """Eksik `(disiplin, NULL)` pencereleri yazar (SO-35/SO-58); mevcut pencere EZILMEZ."""
     for disc_id in sorted(todo, key=str):
         session.add(
             EvWindow(
@@ -325,7 +373,6 @@ async def _write_windows(
                 end_date=window[1],
             )
         )
-    return len(todo)
 
 
 # ------------------------------------------------------------------ giris
@@ -346,7 +393,7 @@ async def apply_contract_to_draft(
     `manual_disciplines`: sozlesme grup id → disiplin id (SO-31). `window`: (baslangic, bitis)
     verilirse eslenen her disipline Bolumsuz pencere yazilir. `force_draft`: yazacak sey
     olmasa da Rev.0 taslagi acilir (donusturme). Yazma yoksa taslak acilmaz; aktif revizyon
-    varken ve taslaksizken yazilacak sey varsa 409 (once "taslak ac").
+    varken ve taslaksizken HER ZAMAN 409 (once "taslak ac", SO-57).
     """
     manual = dict(manual_disciplines or {})
     if window is not None and window[1] < window[0]:
@@ -354,8 +401,16 @@ async def apply_contract_to_draft(
     await svc._writable_site(session, ctx)  # noqa: SLF001
     await _require_disciplines(session, set(manual.values()))
     state = await svc.load_state(session, ctx)
+    current = state.revision
+    if current is not None and current.status is not RevisionStatus.DRAFT:
+        raise ConflictError(guards.NO_DRAFT)  # SO-57: aktif var, taslak yok
     links = await load_links(session, ctx.site.id)
-    plan = build_plan(state.tree, links, await _catalog_index(session), manual)
+    catalog_ids = {lk.catalog_item_id for lk in links if lk.catalog_item_id is not None}
+    plan = build_plan(state.tree, links, await _catalog_index(session, catalog_ids), manual)
+    missing = plan.window_disciplines - await _existing_windows(
+        session, current.id if current is not None else None
+    )
+    todo = missing if window is not None else set()
     result = ApplyResult(
         filled_item_count=len(plan.rated_items),
         filled_leaf_count=len(plan.leaf_rates),
@@ -364,11 +419,9 @@ async def apply_contract_to_draft(
         linked_contract_item_ids=frozenset(lk.contract_item_id for lk in links),
         mixed_groups=tuple(plan.mixed),
         unrated_item_count=plan.unrated_items,
+        no_window_dates=window is None and bool(missing),
     )
-    wants_window = window is not None and bool(plan.mapped_disciplines)
-    if not (
-        force_draft or plan.group_targets or plan.item_links or plan.leaf_rates or wants_window
-    ):
+    if not (force_draft or plan.group_targets or plan.item_links or plan.leaf_rates or todo):
         return result
     draft = await svc._draft_for_write(session, ctx, actor)  # noqa: SLF001
     if label and draft.name is None:
@@ -376,8 +429,7 @@ async def apply_contract_to_draft(
     await _write_groups(session, draft.id, plan.group_targets)
     await _write_item_links(session, draft.id, plan.item_links)
     await _write_leaf_rates(session, draft.id, plan.leaf_rates)
-    windows = 0
     if window is not None:
-        windows = await _write_windows(session, draft.id, plan.mapped_disciplines, window)
+        _write_windows(session, draft.id, todo, window)
     await svc._touch(session, draft)  # noqa: SLF001
-    return replace(result, window_count=windows)
+    return replace(result, window_count=len(todo), draft_opened=current is None)

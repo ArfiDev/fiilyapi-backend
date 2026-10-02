@@ -276,11 +276,13 @@ async def test_santiyeli_donusturme_eslemesiz_rev0_taslak_ve_yuvalar(
     # BOQ kalemlerinde katalog bagi + bolumsuz yaprakta oran ve kaynak
     assert await _katalog_baglari(db_session, rev.id, boq) == _beklenen_katalog(mimelk)
     assert await _yaprak_oranlari(db_session, rev.id, boq) == _beklenen_yuva(mimelk)
-    # pencere = proje baslangic-bitis (yalniz eslenen disiplin: MIM)
+    # pencere = proje baslangic-bitis; SO-58: eslenen (MIM) + sozlesme kalemlerinin KATALOG
+    # disiplinlerinin hepsi (karisik grup B'nin ELK'si de eslenmese bile)
     pencereler = await _hepsi(db_session, EvWindow)
-    assert [(w.discipline_id, w.section_id, w.start_date, w.end_date) for w in pencereler] == [
-        (mimelk["MIM"].id, None, START, END)
-    ]
+    assert {(w.discipline_id, w.section_id, w.start_date, w.end_date) for w in pencereler} == {
+        (mimelk["MIM"].id, None, START, END),
+        (mimelk["ELK"].id, None, START, END),
+    }
     # baseline YOK (dondurma Planlama'dan)
     assert await _sayi(db_session, EvBaselineLeaf) == 0
     assert await _sayi(db_session, EvBaselineCurve) == 0
@@ -385,6 +387,12 @@ async def test_santiyesiz_donusturme_sonra_santiye_ac_dagit_ve_sozlesmeden_doldu
     assert await _katalog_baglari(db_session, rev.id, boq) == _beklenen_katalog(mimelk)
     esleme = {r.boq_group_id: r.discipline_id for r in await _hepsi(db_session, EvGroupDiscipline)}
     assert esleme == {boq_gruplari["A"].id: mimelk["MIM"].id}
+    # SO-58: "doldur" eksik pencereleri proje tarihleriyle tamamlar (MIM + karisik B'nin ELK'si)
+    pencere = {(w.discipline_id, w.section_id) for w in await _hepsi(db_session, EvWindow)}
+    assert pencere == {(mimelk["MIM"].id, None), (mimelk["ELK"].id, None)}
+    assert {(w.start_date, w.end_date) for w in await _hepsi(db_session, EvWindow)} == {
+        (START, END)
+    }
 
     # ikinci cagri: SIFIR yazma (satir sayilari + sayaçlar)
     onceki = [
@@ -469,12 +477,13 @@ async def test_planlamada_dondurma_karisik_grup_engeller_esleyince_gecer(
     assert "disciplineless_group" in engel.text
     assert await _sayi(db_session, EvBaselineLeaf) == 0
 
-    # Planlama'da grup B'yi eslestir (MIM: adaptorun pencere yazdigi disiplin) → engel kalmaz
+    # Planlama'da grup B'yi DIGER disipline (ELK) esle: SO-58 ile ELK penceresi onceden yazildi
+    # (B6.5 gozlemi: eskiden `missing_window` 422'ydi) → engel kalmaz, dondurma 200
     esle = await client.put(
         f"{taban}/group-disciplines",
         json={
             "items": [{"boq_group_id": str(boq_gruplari["B"].id),
-                       "discipline_id": str(mimelk["MIM"].id)}]
+                       "discipline_id": str(mimelk["ELK"].id)}]
         },
         headers=admin,
     )  # fmt: skip
@@ -489,6 +498,53 @@ async def test_planlamada_dondurma_karisik_grup_engeller_esleyince_gecer(
     kaynaklar = {b.item_code: (b.unit_mhr, b.rate_source) for b in baseline}
     assert kaynaklar == _beklenen_yuva(mimelk)  # 'offer' satiri (A-2) baseline'a tasindi
     assert [b.item_code for b in baseline if b.rate_source == RateSource.OFFER] == ["A-2"]
+
+
+async def test_aktif_revizyon_taslaksiz_doldur_409_taslak_acilinca_yeni_kalem_dolar(
+    client, admin, db_session, kz, mimelk
+) -> None:
+    """SO-57: dondurmadan sonra eklenen kalem donmus agacta gorunmez → sessiz 200/sifir YOK."""
+    resp = await _donustur(
+        client, admin, kz, open_site=True, group_disciplines={"B": str(mimelk["ELK"].id)}
+    )
+    site_id, pid = resp["site_id"], uuid.UUID(resp["project_id"])
+    taban = f"/sites/{site_id}/earned-value/budget"
+    assert (await client.post(f"{taban}/freeze", json={}, headers=admin)).status_code == 200
+    # sozlesmeye yeni kalem + santiyede ona bagli BOQ satiri (dagitimin yazdigi gibi)
+    gruplar, (_boq_items, boq_gruplari) = (
+        await _gruplar(db_session, pid),
+        await _boq(db_session, uuid.UUID(site_id)),
+    )
+    yeni = EmployerContractItem(
+        project_id=pid, group_id=gruplar["A"].id, code="A-9", description="Sonradan",
+        unit="m2", quantity=D(4), unit_price=D(1), sort_order=99,
+        catalog_item_id=mimelk["siva"].id,
+    )  # fmt: skip
+    db_session.add(yeni)
+    await db_session.flush()
+    db_session.add(
+        BoqItem(
+            site_id=uuid.UUID(site_id),
+            group_id=boq_gruplari["A"].id,
+            contract_item_id=yeni.id,
+            code="A-9",
+            description="Sonradan",
+            unit="m2",
+            quantity=D(4),
+            unit_price=D(1),
+            sort_order=99,
+        )  # fmt: skip
+    )
+    await db_session.flush()
+
+    doldur = await client.post(f"{taban}/fill-from-contract", headers=admin)
+    assert doldur.status_code == 409, doldur.text
+    assert doldur.json()["detail"] == "Açık taslak revizyon yok"
+
+    assert (await client.post(f"{taban}/revisions", headers=admin)).status_code in (200, 201)
+    doldur = await client.post(f"{taban}/fill-from-contract", headers=admin)
+    assert doldur.status_code == 200, doldur.text
+    assert (doldur.json()["filled_leaf_count"], doldur.json()["linked_item_count"]) == (1, 1)
 
 
 # ------------------------------------------------------------------------------- 6

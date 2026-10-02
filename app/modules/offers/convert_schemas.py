@@ -30,7 +30,14 @@ from datetime import date
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.offers.offer_schemas import GroupName, Pct, Quantity, UnitPrice
@@ -141,6 +148,18 @@ class ConvertRequest(BaseModel):
     site_name: _Text | None = None
     #: Grup ADI → disiplin kimligi (SO-31). Santiyesiz donusturmede SAKLANMAZ (SO-32; uyari doner).
     group_disciplines: dict[str, uuid.UUID] = Field(default_factory=dict)
+
+    @field_validator("group_disciplines")
+    @classmethod
+    def _strip_group_keys(cls, value: dict[str, uuid.UUID]) -> dict[str, uuid.UUID]:
+        """Anahtarlar grup adlariyla AYNI normalize (strip; SO-52); cakisan farkli esleme 422."""
+        out: dict[str, uuid.UUID] = {}
+        for name, discipline_id in value.items():
+            key = name.strip()
+            if out.get(key, discipline_id) != discipline_id:
+                raise ValueError(f"group_disciplines: «{key}» için birden çok eşleme var")
+            out[key] = discipline_id
+        return out
 
     @model_validator(mode="after")
     def _shape(self) -> ConvertRequest:

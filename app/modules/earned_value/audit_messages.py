@@ -67,8 +67,30 @@ def filled_from_catalog(project_name: str, site_name: str, filled: int) -> str:
     return f"Bütçe katalogdan dolduruldu: {_where(project_name, site_name)} · {filled} satır"
 
 
-def filled_from_contract(project_name: str, site_name: str, filled: int) -> str:
-    return f"Bütçe sözleşmeden dolduruldu: {_where(project_name, site_name)} · {filled} satır"
+def filled_from_contract(
+    project_name: str,
+    site_name: str,
+    filled: int,
+    *,
+    linked: int = 0,
+    mapped: int = 0,
+    windows: int = 0,
+    draft_opened: bool = False,
+) -> str:
+    """Yazılan her şey metne girer (satır her zaman; bağ/eşleme/pencere/taslak yalnız varsa)."""
+    parts = [f"{filled} satır"]
+    parts.extend(
+        f"{count} {label}"
+        for count, label in (
+            (linked, "katalog bağı"),
+            (mapped, "grup eşlemesi"),
+            (windows, "pencere"),
+        )
+        if count
+    )
+    if draft_opened:
+        parts.append("taslak açıldı")
+    return f"Bütçe sözleşmeden dolduruldu: {_where(project_name, site_name)} · " + " · ".join(parts)
 
 
 def distributions_saved(project_name: str, site_name: str, count: int) -> str:

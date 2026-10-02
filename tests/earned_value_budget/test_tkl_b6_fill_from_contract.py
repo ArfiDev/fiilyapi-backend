@@ -7,9 +7,10 @@ Tasarim: "BOSLARI DOLDUR" (`fill_from_catalog` ile ayni) — dolu oran/bag/eslem
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.modules.audit.models import AuditLog
 from app.modules.boq.models import BoqItem, BoqItemSectionAllocation
@@ -19,6 +20,7 @@ from app.modules.earned_value.models import (
     EvItemSettings,
     EvLeafSettings,
     EvRevision,
+    EvWindow,
     RateSource,
 )
 from app.modules.sites.models import SiteStatus
@@ -67,6 +69,7 @@ async def test_yuvali_yuvasiz_katalogsuz_ve_baglantisiz_kalemler(
 ) -> None:
     kab, duv = disiplinler
     dunya = await _kur(seeded_db, proje, santiye, katalog)
+    proje.start_date, proje.end_date = w.START, w.END
     bagsiz = BoqItem(
         site_id=santiye.id, group_id=dunya.bg["Betonarme"].id, code="EL-1", description="Elle",
         unit="m3", quantity=D(5), unit_price=D(0), sort_order=50,
@@ -113,7 +116,15 @@ async def test_yuvali_yuvasiz_katalogsuz_ve_baglantisiz_kalemler(
     audit = await seeded_db.scalar(
         select(AuditLog.detail).where(AuditLog.detail.like("Bütçe sözleşmeden dolduruldu%"))
     )
-    assert audit is not None and audit.endswith("· 5 satır")
+    # O2: yazilan HER sey metinde (satir + bag + esleme + pencere + taslak acma)
+    assert audit is not None and audit.endswith(
+        "· 5 satır · 5 katalog bağı · 2 grup eşlemesi · 2 pencere · taslak açıldı"
+    )
+    pencereler = {
+        r.discipline_id: (r.start_date, r.end_date, r.section_id)
+        for r in (await seeded_db.execute(select(EvWindow))).scalars()
+    }
+    assert pencereler == {kab.id: (w.START, w.END, None), duv.id: (w.START, w.END, None)}
 
 
 async def test_bolumlu_ve_bolumsuz_tum_yapraklar_dolar(
@@ -235,3 +246,136 @@ async def test_mevcut_offer_yaprak_baska_alanla_patchlenince_kaynak_korunur(
     assert resp.status_code == 200, resp.text
     yap = await _yapraklar(seeded_db, santiye)
     assert yap[(ci1.id, None)] == (D("2.5"), RateSource.OFFER)
+
+
+# ------------------------------------------------------------------ TKL-B6.6 (O2 / O5 / O6)
+
+
+async def _denetim_sayisi(db) -> int:
+    return (
+        await db.scalar(
+            select(func.count())
+            .select_from(AuditLog)
+            .where(AuditLog.detail.like("Bütçe sözleşmeden dolduruldu%"))
+        )
+        or 0
+    )
+
+
+async def test_yalniz_esleme_yazan_doldurma_da_denetlenir(
+    client, admin, seeded_db, proje, santiye, katalog, disiplinler
+) -> None:
+    """O2: oran yazilmasa da (yalniz grup eslemesi) denetim satiri yazilir (P5)."""
+    await _kur(seeded_db, proje, santiye, katalog)
+    proje.start_date, proje.end_date = w.START, w.END
+    assert (await client.post(_url(santiye), headers=admin)).status_code == 200
+    ilk = await _denetim_sayisi(seeded_db)
+    for row in (await seeded_db.execute(select(EvGroupDiscipline))).scalars():
+        await seeded_db.delete(row)
+    await seeded_db.flush()
+
+    out = (await client.post(_url(santiye), headers=admin)).json()
+
+    assert (out["filled_leaf_count"], out["mapped_group_count"]) == (0, 2)
+    assert await _denetim_sayisi(seeded_db) == ilk + 1
+    metinler = (
+        await seeded_db.scalars(
+            select(AuditLog.detail).where(AuditLog.detail.like("Bütçe sözleşmeden dolduruldu%"))
+        )
+    ).all()
+    assert any(t.endswith("· 0 satır · 2 grup eşlemesi") for t in metinler), metinler
+    # sifir yazma = denetim YOK
+    assert (await client.post(_url(santiye), headers=admin)).status_code == 200
+    assert await _denetim_sayisi(seeded_db) == ilk + 1
+
+
+async def test_mevcut_pencere_ezilmez_eksik_pencere_tamamlanir(
+    client, admin, seeded_db, proje, santiye, katalog, disiplinler
+) -> None:
+    """O5/MD: doldur eksik `(disiplin, NULL)` pencereyi proje tarihiyle yazar, mevcudu EZMEZ."""
+    kab, duv = disiplinler
+    await _kur(seeded_db, proje, santiye, katalog)
+    proje.start_date, proje.end_date = w.START, w.END
+    assert (await client.post(_url(santiye), headers=admin)).status_code == 200
+    pencereler = {r.discipline_id: r for r in (await seeded_db.execute(select(EvWindow))).scalars()}
+    kendi = (date(2026, 7, 1), date(2026, 9, 30))
+    pencereler[kab.id].start_date, pencereler[kab.id].end_date = kendi  # elle girilmis
+    await seeded_db.delete(pencereler[duv.id])  # eksik
+    await seeded_db.flush()
+
+    out = (await client.post(_url(santiye), headers=admin)).json()
+
+    assert out["warnings"][-1]["code"] != "no_project_dates"
+    sonra = {
+        r.discipline_id: (r.start_date, r.end_date)
+        for r in (await seeded_db.execute(select(EvWindow))).scalars()
+    }
+    await seeded_db.refresh(pencereler[kab.id])
+    assert sonra == {kab.id: kendi, duv.id: (w.START, w.END)}
+
+
+async def test_projede_tarih_yoksa_pencere_yazilmaz_uyari_doner(
+    client, admin, seeded_db, proje, santiye, katalog, disiplinler
+) -> None:
+    await _kur(seeded_db, proje, santiye, katalog)
+    assert proje.start_date is None and proje.end_date is None
+
+    out = (await client.post(_url(santiye), headers=admin)).json()
+
+    assert "no_project_dates" in [x["code"] for x in out["warnings"]]
+    assert (await seeded_db.execute(select(EvWindow))).scalars().all() == []
+
+
+async def test_orani_bos_ama_satiri_olan_yaprak_guncellenir_pk_cakismaz(
+    client, admin, seeded_db, proje, santiye, katalog, disiplinler
+) -> None:
+    """O6/MG: onceden yazilmis (yuklenici turu) ama oransiz yaprak satiri UPDATE edilir."""
+    dunya = await _kur(seeded_db, proje, santiye, katalog)
+    ci1 = dunya.bi["ci1"]
+    ok = await client.patch(
+        _url(santiye, "/leaves"), headers=admin,
+        json={"leaves": [{"boq_item_id": str(ci1.id), "contractor_type": "subcon"}]},
+    )  # fmt: skip
+    assert ok.status_code == 200, ok.text
+    rev = (await seeded_db.execute(select(EvRevision))).scalar_one()
+    onceki = (
+        await seeded_db.execute(
+            select(EvLeafSettings).where(
+                EvLeafSettings.revision_id == rev.id, EvLeafSettings.boq_item_id == ci1.id
+            )
+        )
+    ).scalar_one()
+    assert onceki.unit_mhr is None  # satir VAR, oran BOS
+
+    resp = await client.post(_url(santiye), headers=admin)
+
+    assert resp.status_code == 200, resp.text
+    satirlar = (
+        (
+            await seeded_db.execute(
+                select(EvLeafSettings).where(
+                    EvLeafSettings.revision_id == rev.id, EvLeafSettings.boq_item_id == ci1.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(satirlar) == 1
+    await seeded_db.refresh(satirlar[0])
+    assert (satirlar[0].unit_mhr, satirlar[0].rate_source) == (D("2.5"), RateSource.OFFER)
+    assert satirlar[0].contractor_type is not None  # elle girilen tur korundu
+
+
+async def test_yazilacak_sey_yoksa_taslak_acilmaz(
+    client, admin, seeded_db, proje, santiye, katalog, disiplinler
+) -> None:
+    """O6/MI: sozlesme baglantisi olmayan santiyede doldur revizyon ACMAZ, denetim yazmaz."""
+    await w.kur(seeded_db, proje, santiye, katalog, boq=False)
+    proje.start_date, proje.end_date = w.START, w.END
+
+    resp = await client.post(_url(santiye), headers=admin)
+
+    assert resp.status_code == 200, resp.text
+    assert (await seeded_db.execute(select(EvRevision))).scalars().all() == []
+    assert await _denetim_sayisi(seeded_db) == 0

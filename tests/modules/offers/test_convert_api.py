@@ -23,7 +23,7 @@ from app.modules.offers.models import Offer
 from app.modules.projects.models import PriceIndexType, Project, ProjectContract, ProjectType
 from app.modules.sites.models import Site
 
-from ._convert import D, Kazanilmis, govde, kazanilmis_teklif, url
+from ._convert import D, Kazanilmis, govde, kalem_govdesi, kazanilmis_teklif, url
 from ._offers import URL, detay, durum_yap, teklif
 
 pytestmark = pytest.mark.usefixtures("tohum_kancasi")
@@ -496,6 +496,38 @@ async def test_gruptan_disiplin_eslemesi_gövdede_olmayan_grup_422(
     await _reddedilir(client, admin, db_session, kz, g, 422, "«Yok» adlı grup gövdede yok")
 
 
+async def test_disiplin_esleme_anahtari_grup_adiyla_ayni_normalize_edilir_SO52(
+    client, admin, db_session, katalog, kz, tohum_kancasi
+) -> None:
+    """O3: `" Kaba"` anahtari (bosluklu) `Kaba` grubuyla eslesir; 422 degil."""
+    g = govde(kz, open_site=True, group_disciplines={" Kaba ": str(katalog[0].discipline_id)})
+    resp = await client.post(url(kz.offer_id), json=g, headers=admin)
+
+    assert resp.status_code == 200, resp.text
+    (req,) = tohum_kancasi.istekler
+    kaba = await db_session.scalar(
+        select(EmployerContractGroup.id).where(
+            EmployerContractGroup.project_id == uuid.UUID(resp.json()["project_id"]),
+            EmployerContractGroup.name == "Kaba",
+        )
+    )
+    assert dict(req.group_disciplines) == {kaba: katalog[0].discipline_id}
+
+
+async def test_normalize_sonrasi_cakisan_farkli_esleme_422(
+    client, admin, db_session, katalog, kz
+) -> None:
+    g = govde(
+        kz,
+        open_site=True,
+        group_disciplines={
+            "Kaba": str(katalog[0].discipline_id),
+            " Kaba": str(uuid.uuid4()),  # normalize sonrasi ayni anahtar, FARKLI deger
+        },
+    )
+    await _reddedilir(client, admin, db_session, kz, g, 422, "birden çok eşleme")
+
+
 async def test_olmayan_disiplin_404(client, admin, db_session, kz) -> None:
     g = govde(kz, group_disciplines={"Kaba": str(uuid.uuid4())})
     await _reddedilir(client, admin, db_session, kz, g, 404, "Disiplin")
@@ -564,3 +596,93 @@ async def test_denetim_santiyesiz_metin(client, admin, db_session, kz) -> None:
         f"Teklif projeye dönüştürüldü: {kz.offer_no} → {resp.json()['project_code']} (4 kalem)"
         in metinler
     )
+
+
+# ------------------------------------------------------------------ sinirlar (O6: MA / MB)
+
+
+def _kalemler(kz: Kazanilmis, adet: int, **over) -> list[dict]:
+    k = kz.kalemler["Beton"]
+    return [
+        kalem_govdesi(k, f"X-{n:05d}", quantity="1", unit_price="1", **over) for n in range(adet)
+    ]
+
+
+def test_kalem_tavani_sinirda_kabul_asinca_sema_hatasi() -> None:
+    """MA: tavan GERCEK sabittir (2000): 2000 kalem sema dogrulamasindan gecer, 2001 gecmez."""
+    from pydantic import ValidationError
+
+    from app.modules.offers.convert_schemas import CONVERT_MAX_ITEMS, ConvertRequest
+
+    assert CONVERT_MAX_ITEMS == 2000
+
+    def istek(adet: int) -> dict:
+        satir = {
+            "catalog_item_id": str(uuid.uuid4()), "code": "", "description": "x", "unit": "m3",
+            "quantity": "1", "unit_price": "1",
+        }  # fmt: skip
+        kalemler = [{**satir, "code": f"X-{n:05d}"} for n in range(adet)]
+        return {
+            "project": {"name": "P", "city": "C", "start_date": "2026-01-01",
+                        "end_date": "2026-12-31"},
+            "contract": {"contract_no": "S", "signature_date": "2026-01-01",
+                         "has_price_escalation": False},
+            "groups": [{"name": "G1", "items": kalemler[:1000]},
+                       {"name": "G2", "items": kalemler[1000:]}],
+        }  # fmt: skip
+
+    assert sum(len(g.items) for g in ConvertRequest.model_validate(istek(2000)).groups) == 2000
+    with pytest.raises(ValidationError, match="en fazla 2000 kalem"):
+        ConvertRequest.model_validate(istek(2001))
+
+
+async def test_2001_kalem_422_hicbir_sey_yazilmaz(client, admin, db_session, kz) -> None:
+    g = govde(kz)
+    g["groups"] = [
+        {"name": "G1", "items": _kalemler(kz, 1000)},
+        {
+            "name": "G2",
+            "items": [{**i, "code": f"Y-{n:05d}"} for n, i in enumerate(_kalemler(kz, 1001))],
+        },
+    ]
+    resp = await client.post(url(kz.offer_id), json=g, headers=admin)
+    assert resp.status_code == 422, resp.text[:300]
+    assert "en fazla 2000 kalem" in resp.text
+    assert await _sayilar(db_session) == (0, 0, 0)
+
+
+async def test_bedel_siniri_asilirsa_anlamli_422(client, admin, db_session, kz) -> None:
+    """MB: Σ kalem tutari `Numeric(18,2)` sinirina (1e16) ESIT ya da USTUNDEYSE 422 + acik metin,
+    yazma YOK (sinir dahil: `>=`)."""
+    g = govde(kz)
+    g["groups"] = g["groups"][:1]
+    g["groups"][0]["items"] = g["groups"][0]["items"][:1]
+    g["groups"][0]["items"][0].update(quantity="10000", unit_price="1000000000000")  # tam 1e16
+    metin = await _reddedilir(
+        client, admin, db_session, kz, g, 422, "Kalem toplamı sözleşme bedeli sınırını aşıyor"
+    )
+    assert "contract.amount" in metin
+
+
+async def test_bedel_sinirin_hemen_altinda_kabul(client, admin, db_session, kz) -> None:
+    g = govde(kz)
+    g["groups"] = g["groups"][:1]
+    g["groups"][0]["items"] = g["groups"][0]["items"][:1]
+    g["groups"][0]["items"][0].update(quantity="10000", unit_price="999999999999.99")  # 1e16-100
+    resp = await client.post(url(kz.offer_id), json=g, headers=admin)
+    assert resp.status_code == 200, resp.text[:300]
+
+
+async def test_2000_kalem_sinirda_kabul_edilir(client, admin, db_session, kz) -> None:
+    """MA (uctan uca): tavandaki 2000 kalem kabul edilir (gercek sabit, sahte kanca)."""
+    g = govde(kz)
+    g["groups"] = [
+        {"name": "G1", "items": _kalemler(kz, 1000)},
+        {
+            "name": "G2",
+            "items": [{**i, "code": f"Y-{n:05d}"} for n, i in enumerate(_kalemler(kz, 1000))],
+        },
+    ]
+    resp = await client.post(url(kz.offer_id), json=g, headers=admin)
+    assert resp.status_code == 200, resp.text[:300]
+    assert resp.json()["contract_item_count"] == 2000

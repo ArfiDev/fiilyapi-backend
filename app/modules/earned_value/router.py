@@ -330,13 +330,23 @@ async def fill_budget_from_contract(
     request: Request, site_id: uuid.UUID, ctx: _Writable, user: _User, session: _Db
 ) -> FillFromContractOut:
     """ "Sözleşmeden doldur" (TKL-B6.4): oran yuvası → katalog standardı; boşları doldurur."""
-    result = await contract_rates.apply_contract_to_draft(session, ctx, user)
-    if result.filled_leaf_count:
+    start, end = ctx.project.start_date, ctx.project.end_date
+    window = (start, end) if start is not None and end is not None else None
+    result = await contract_rates.apply_contract_to_draft(session, ctx, user, window=window)
+    if result.wrote_anything:
         await _audit(
             session,
             request,
             user,
-            msg.filled_from_contract(ctx.project.name, ctx.site.name, result.filled_leaf_count),
+            msg.filled_from_contract(
+                ctx.project.name,
+                ctx.site.name,
+                result.filled_leaf_count,
+                linked=result.linked_item_count,
+                mapped=result.mapped_group_count,
+                windows=result.window_count,
+                draft_opened=result.draft_opened,
+            ),
         )
     return FillFromContractOut(
         filled_item_count=result.filled_item_count,
@@ -351,7 +361,17 @@ async def fill_budget_from_contract(
                 boq_group_id=group.boq_group_id,
             )
             for group in result.mixed_groups
-        ],
+        ]
+        + (
+            [
+                ContractWarningOut(
+                    code=contract_rates.CODE_NO_PROJECT_DATES,
+                    message=contract_rates.MSG_NO_PROJECT_DATES,
+                )
+            ]
+            if result.no_window_dates
+            else []
+        ),
     )
 
 

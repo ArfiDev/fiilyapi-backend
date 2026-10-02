@@ -211,6 +211,41 @@ async def test_pencereler_eslenen_her_disipline_baslangic_bitis(
     assert pencereler == {(kab.id, None): (w.START, w.END), (duv.id, None): (w.START, w.END)}
 
 
+async def test_pencere_eslenmeyen_karisik_grubun_katalog_disiplinlerine_de_yazilir(
+    seeded_db, proje, santiye, katalog, disiplinler
+) -> None:
+    """SO-58: yalniz karisik grup (ci4 KAB + ci5 DUV) → hicbir grup eslenmez ama iki disipline de
+    pencere yazilir (sonradan Planlama'da hangisine eslenirse eslensin dondurma `missing_window`e
+    takilmaz)."""
+    kab, duv = disiplinler
+    dunya = await w.kur(seeded_db, proje, santiye, katalog)
+    for anahtar in ("ci1", "ci2", "ci3", "ci6"):
+        await seeded_db.delete(dunya.bi[anahtar])
+    await seeded_db.flush()
+    await contract_adapter.seed_hook(seeded_db, w.istek(proje, santiye, dunya, w.TUM_ORANLAR))
+
+    assert await _rows(seeded_db, EvGroupDiscipline) == []  # eslenmedi
+    rev = await _rev(seeded_db, santiye)
+    pencereler = {
+        (r.discipline_id, r.section_id): (r.start_date, r.end_date)
+        for r in await _rows(seeded_db, EvWindow, revision_id=rev.id)
+    }
+    assert pencereler == {(kab.id, None): (w.START, w.END), (duv.id, None): (w.START, w.END)}
+
+
+async def test_elle_esleme_tek_disipline_olsa_da_katalog_disiplini_penceresi_yazilir(
+    seeded_db, proje, santiye, katalog, disiplinler
+) -> None:
+    kab, duv = disiplinler
+    dunya = await w.kur(seeded_db, proje, santiye, katalog)
+    elle = {dunya.cg[g].id: duv.id for g in ("Betonarme", "Duvar", "Karışık")}
+    await contract_adapter.seed_hook(
+        seeded_db, w.istek(proje, santiye, dunya, w.TUM_ORANLAR, elle=elle)
+    )
+
+    assert {r.discipline_id for r in await _rows(seeded_db, EvWindow)} == {kab.id, duv.id}
+
+
 async def test_tarihsiz_projede_pencere_yazilmaz(
     seeded_db, proje, santiye, katalog, disiplinler
 ) -> None:
