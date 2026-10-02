@@ -419,20 +419,26 @@ async def test_PATCH_olmayan_ve_baska_tekliflerin_kalemi_404(
     ).status_code == 404
 
 
-async def test_kalem_ve_grup_silme_grup_icindekilerle_birlikte(
+async def test_kalem_silme_ve_grup_silme_yalniz_bos_grup_kalemli_409(
     client, admin, t, katalog, db_session
 ) -> None:
+    """TKL-B4.5 (iddia KASITLI degisti): eskiden grup kalemleriyle birlikte gidiyordu; simdi
+    kalemli grup 409 ve DURUR, kalemler silinince grup silinir."""
     oid, gid = t
     g2 = await grup(client, admin, oid, name="Ince")
     k1 = await _fiyatli(client, admin, oid, gid, katalog[0].id)
-    await _fiyatli(client, admin, oid, g2["id"], katalog[2].id)
+    k2 = await _fiyatli(client, admin, oid, g2["id"], katalog[2].id)
     assert (await client.delete(_kalem_url(oid, k1["id"]), headers=admin)).status_code == 204
     assert (await client.delete(_kalem_url(oid, k1["id"]), headers=admin)).status_code == 404
     assert await _kalem_sayisi(db_session) == 1
+    r = await client.delete(rev_url(oid) + f"/groups/{g2['id']}", headers=admin)
+    assert r.status_code == 409
+    assert r.json()["detail"] == "Grupta kalem var; önce kalemleri silin"
+    assert await _kalem_sayisi(db_session) == 1  # kalem DURUYOR
+    assert (await client.delete(_kalem_url(oid, k2["id"]), headers=admin)).status_code == 204
     assert (
         await client.delete(rev_url(oid) + f"/groups/{g2['id']}", headers=admin)
     ).status_code == 204
-    assert await _kalem_sayisi(db_session) == 0  # grupla birlikte gitti
     rev = await revizyon(client, admin, oid)
     assert [g["name"] for g in rev["groups"]] == ["Kaba"]
 

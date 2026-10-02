@@ -125,9 +125,11 @@ async def test_r2b_yalniz_degisen_alan_yazilir(client, admin, isveren, db_sessio
 # ------------------------------------------------------------------------------ R2c
 
 
-async def test_r2c_dolu_grup_silme_tek_satir_bos_grup_satir_yok(
+async def test_r2c_kalemli_grup_silinemez_409_bos_grup_silinir_satir_yok(
     client, admin, isveren, katalog, db_session
 ) -> None:
+    """TKL-B4.5 (iddia KASITLI degisti): eskiden dolu grup kalemleriyle zincirleme siliniyordu
+    (tek denetim satiri); simdi 409, grup + kalemler DURUR. Bos grup silme (SO-20) satir yazmaz."""
     o = await teklif(client, admin, isveren)
     dolu = await grup(client, admin, o["id"], name="Kaba")
     bos = await grup(client, admin, o["id"], name="Boş")
@@ -137,10 +139,11 @@ async def test_r2c_dolu_grup_silme_tek_satir_bos_grup_satir_yok(
     assert r.status_code == 204
     assert await _audit_details(db_session, AuditAction.delete) == []
     r = await client.delete(rev_url(o["id"]) + f"/groups/{dolu['id']}", headers=admin)
-    assert r.status_code == 204
-    assert await _audit_details(db_session, AuditAction.delete) == [
-        f"Teklif grubu silindi: {o['offer_no']} Rev.0 · Kaba · 3 kalem"
-    ]
+    assert r.status_code == 409
+    assert r.json()["detail"] == "Grupta kalem var; önce kalemleri silin"
+    gruplar = (await revizyon(client, admin, o["id"]))["groups"]
+    assert [(g["name"], len(g["items"])) for g in gruplar] == [("Kaba", 3)]
+    assert await _audit_details(db_session, AuditAction.delete) == []
 
 
 # ------------------------------------------------------------------------------ R3

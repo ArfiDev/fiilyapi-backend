@@ -380,9 +380,6 @@ from app.modules.audit.messages.offers import (
     offer_escalation_changed as offer_escalation_changed,
 )
 from app.modules.audit.messages.offers import (
-    offer_group_deleted as offer_group_deleted,
-)
-from app.modules.audit.messages.offers import (
     offer_items_bulk_created as offer_items_bulk_created,
 )
 from app.modules.audit.messages.offers import (

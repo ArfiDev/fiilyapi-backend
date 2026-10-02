@@ -401,26 +401,10 @@ async def update_group_endpoint(
     _REV + "/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_WRITE
 )
 async def delete_group_endpoint(
-    request: Request,
-    offer_id: _OfferId,
-    rev_no: _RevNo,
-    group_id: _GroupId,
-    user: _User,
-    session: DbSession,
+    offer_id: _OfferId, rev_no: _RevNo, group_id: _GroupId, session: DbSession
 ) -> None:
-    """Grubu icindeki kalemlerle birlikte siler (yalniz taslak)."""
-    # Icinde kalem olan grubun silinmesi TEK denetim satiri yazar; bos grup yazmaz (R2c).
-    offer, revision, name, item_count = await item_service.delete_group(
-        session, offer_id, rev_no, group_id
-    )
-    if item_count > 0:
-        await record_audit(
-            session,
-            action=AuditAction.delete,
-            detail=messages.offer_group_deleted(offer.offer_no, revision.rev_no, name, item_count),
-            actor_user_id=user.id,
-            ip_address=client_ip(request),
-        )
+    """Bos grubu siler (yalniz taslak); icinde kalem varsa 409 (TKL-B4.5). Denetim satiri YOK."""
+    await item_service.delete_group(session, offer_id, rev_no, group_id)
 
 
 # ------------------------------------------------------------------------ kalem

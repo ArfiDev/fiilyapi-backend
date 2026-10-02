@@ -59913,7 +59913,7 @@
     },
     "/offers/{offer_id}/revisions/{rev_no}/groups/{group_id}": {
       "delete": {
-        "description": "Grubu icindeki kalemlerle birlikte siler (yalniz taslak).",
+        "description": "Bos grubu siler (yalniz taslak); icinde kalem varsa 409 (TKL-B4.5). Denetim satiri YOK.",
         "operationId": "delete_group_endpoint_offers__offer_id__revisions__rev_no__groups__group_id__delete",
         "parameters": [
           {

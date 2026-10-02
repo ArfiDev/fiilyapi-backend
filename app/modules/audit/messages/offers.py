@@ -72,11 +72,6 @@ def offer_conditions_updated(offer_no: str, rev_no: int, parts: list[str]) -> st
     return f"Teklif koşulları güncellendi: {offer_no} Rev.{rev_no} · {' · '.join(parts)}"
 
 
-def offer_group_deleted(offer_no: str, rev_no: int, name: str, item_count: int) -> str:
-    """Icinde kalem olan grubun silinmesi TEK satir (bos grup satir YAZMAZ)."""
-    return f"Teklif grubu silindi: {offer_no} Rev.{rev_no} · {name} · {item_count} kalem"
-
-
 def offer_deleted(offer_no: str, title: str) -> str:
     return f"Teklif silindi: {offer_no} · {title}"
 

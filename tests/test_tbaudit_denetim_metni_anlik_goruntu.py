@@ -117,6 +117,14 @@ Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelend
 `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta **KAYIP 0**
 (`git diff`: yalnız 3 `+` satırı, `-` satırı yok); sayaçlar 241→242 sembol, 226→227 fonksiyon.
 
+## 🔴 REFERANSTAN KALDIRILAN SEMBOL (TKL-B4.5, 2026-10-02)
+
+`offer_group_deleted` — yayınlanmadan kaldırıldı: kalemli teklif grubu artık silinemez (409),
+boş grup silme denetim satırı yazmaz; fonksiyonun çağrılacağı yol OLUŞAMAZ. Referans
+`python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile bilinçli tazelendi; diffte
+YALNIZ bu fonksiyonun satırları silindi, başka KAYIP 0; sayaçlar 242→241 sembol, 227→226
+fonksiyon.
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok
@@ -286,9 +294,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 242, f"sembol sayısı 242 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 241, f"sembol sayısı 241 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 227, f"fonksiyon sayısı 227 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 226, f"fonksiyon sayısı 226 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"
