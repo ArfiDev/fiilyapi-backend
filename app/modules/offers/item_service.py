@@ -240,6 +240,7 @@ async def add_items(
             sort_order=sort_order,
             catalog_item_id=entry.id,
             poz_no=entry.poz_no,
+            source_code=entry.source_code,
             description=entry.name,
             unit=entry.uom,
             quantity=body.quantity,

@@ -250,7 +250,7 @@ class OfferItemsBulkCreate(BaseModel):
     items: list[OfferItemCreate] = Field(min_length=1, max_length=OFFER_ITEMS_BULK_MAX)
 
 
-_IMMUTABLE_ITEM_FIELDS = ("catalog_item_id", "poz_no", "description", "unit")
+_IMMUTABLE_ITEM_FIELDS = ("catalog_item_id", "poz_no", "source_code", "description", "unit")
 
 
 class OfferItemUpdate(BaseModel):

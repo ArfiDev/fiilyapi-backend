@@ -71,6 +71,8 @@ class OfferItemRead(BaseModel):
     sort_order: int
     catalog_item_id: uuid.UUID
     poz_no: str
+    #: KAT-B2.1: Bakanlik poz no'su (teklif kaleminin SNAPSHOT'i; katalogdan sunucu kopyasi).
+    source_code: Annotated[str | None, _Id]
     description: str
     unit: str
     quantity: Annotated[Decimal | None, _Ops]

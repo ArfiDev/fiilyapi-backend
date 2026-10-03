@@ -8274,6 +8274,17 @@
             "title": "Sort Order",
             "type": "integer"
           },
+          "source_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Code"
+          },
           "unit": {
             "title": "Unit",
             "type": "string"
@@ -8301,6 +8312,7 @@
           "unit_price",
           "sort_order",
           "catalog_item_id",
+          "source_code",
           "distributed_quantity",
           "remaining_quantity"
         ],
@@ -18930,6 +18942,17 @@
             "title": "Sort Order",
             "type": "integer"
           },
+          "source_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Code"
+          },
           "unit": {
             "title": "Unit",
             "type": "string"
@@ -18946,6 +18969,7 @@
           "sort_order",
           "catalog_item_id",
           "poz_no",
+          "source_code",
           "description",
           "unit",
           "quantity",

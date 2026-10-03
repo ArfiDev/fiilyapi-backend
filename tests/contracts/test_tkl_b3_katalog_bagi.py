@@ -473,6 +473,7 @@ def test_toplu_yanit_sarmalayicisinda_kapsam_maskesi_para_alanini_gizler():
         unit_price=Decimal("100"),
         sort_order=0,
         catalog_item_id=None,
+        source_code="15.100.1001",
         distributed_quantity=Decimal("0"),
         remaining_quantity=Decimal("1"),
     )
@@ -481,6 +482,8 @@ def test_toplu_yanit_sarmalayicisinda_kapsam_maskesi_para_alanini_gizler():
     assert maskele(yanit, Scope.all).items[0].unit_price == Decimal("100")
     assert maskele(yanit, Scope.limited).items[0].quantity == Decimal("1")
     assert maskele(yanit, Scope.limited).items[0].unit_price is None
+    # KAT-B2.1: source_code kimlik alanidir — limited kapsamda GORUNUR
+    assert maskele(yanit, Scope.limited).items[0].source_code == "15.100.1001"
 
 
 # --------------------------------------------------------------- TKL-B3.3 onarimlari

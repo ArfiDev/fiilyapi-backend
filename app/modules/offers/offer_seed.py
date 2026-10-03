@@ -56,6 +56,7 @@ async def copy_content(
                 sort_order=item.sort_order,
                 catalog_item_id=item.catalog_item_id,
                 poz_no=item.poz_no,
+                source_code=item.source_code,
                 description=item.description,
                 unit=item.unit,
                 quantity=item.quantity,
@@ -115,6 +116,7 @@ async def seed_from_template(
                 sort_order=item.sort_order,
                 catalog_item_id=entry.id,
                 poz_no=entry.poz_no,
+                source_code=entry.source_code,
                 description=entry.name,
                 unit=entry.uom,
                 quantity=None,  # SO-21: miktar bos gelir
