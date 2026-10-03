@@ -6,8 +6,9 @@ her deger zarftan AYNEN okunur; tek turetme grup ara toplamidir (zarftaki kalem 
 toplami — tutarlar 0,01'e yuvarli oldugu icin tam esittir).
 
 ## Iki tur
-* `employer` (ISVEREN): Poz No · Tarif · Birim · Miktar · Teklif B.F. · Tutar + net/KDV/genel
-  toplam + kosullar. Maliyet, GG, kar, kar %, adam-saat, katalog/referans/son fiyat YOKTUR.
+* `employer` (ISVEREN): Poz No · Bakanlık No · Tarif · Birim · Miktar · Teklif B.F. · Tutar +
+  net/KDV/genel toplam + kosullar. Maliyet, GG, kar, kar %, adam-saat, katalog/referans/son
+  fiyat YOKTUR.
 * `internal` (IC): isveren sutunlarina ek Adam-saat · Maliyet B.F. · GG % · Kar % · Maliyet ·
   GG · Kar + ic toplamlar.
 
@@ -31,6 +32,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.core.xlsx_text import write_text_cell
 from app.modules.offers.models import Offer, OfferPriceEscalation
 from app.modules.offers.offer_read_schemas import OfferItemRead, OfferRevisionRead
 from app.modules.projects.models import PriceIndexType
@@ -46,9 +48,12 @@ FILE_SUFFIX = {ExportView.employer: "isveren", ExportView.internal: "ic"}
 SHEET_TITLE = "Teklif"
 DATE_FORMAT = "%d.%m.%Y"
 
-#: Isveren tablosu — sira ve metin degistirilmez.
+#: Isveren tablosu. Sira ve metin degistirilmez; ISTISNA: "Bakanlık No" Poz No'nun hemen sagina
+#: KULLANICI KARARIYLA eklendi (KAT-B3 / T49-Q1; deger = kalemin `source_code` snapshot'i).
+#: Sutun indeksleri (`_AMOUNT_COL`, ara toplam, genislik) BU listeden turetilir.
 EMPLOYER_HEADERS: tuple[str, ...] = (
     "Poz No",
+    "Bakanlık No",
     "İş Kalemi Tarifi",
     "Birim",
     "Miktar",
@@ -72,7 +77,14 @@ LABEL_NET = "NET (KDV Hariç)"
 LABEL_GRAND_TOTAL = "GENEL TOPLAM"
 LABEL_INTERNAL_TOTALS = "İÇ TOPLAMLAR"
 
-_AMOUNT_COL = 6  # "Tutar" sutunu (1 tabanli)
+
+def _col(header: str) -> int:
+    """Baslik listesinden 1 tabanli sutun no (ic basliklar isveren basliklarinin devamidir)."""
+    return INTERNAL_HEADERS.index(header) + 1
+
+
+_AMOUNT_COL = _col("Tutar")
+_SOURCE_CODE_COL = _col("Bakanlık No")
 
 _INDEX_LABELS = {
     PriceIndexType.ufe: "ÜFE",
@@ -110,6 +122,7 @@ def _employer_cells(item: OfferItemRead) -> Row:
     customer = item.customer
     return (
         item.poz_no,
+        item.source_code,
         item.description,
         item.unit,
         _s(item.quantity),
@@ -137,14 +150,14 @@ def _internal_cells(item: OfferItemRead, revision: OfferRevisionRead) -> Row:
 #: degildir: miktarli her kalemin (fiyatsiz dahil) adam-saati toplanir, miktarsizin `None`dir.
 _Getter = Callable[[OfferItemRead], Decimal | None]
 _SUBTOTALS_EMPLOYER: tuple[tuple[int, _Getter, bool], ...] = (
-    (6, lambda i: i.customer.amount if i.customer else None, True),
+    (_AMOUNT_COL, lambda i: i.customer.amount if i.customer else None, True),
 )
 _SUBTOTALS_INTERNAL: tuple[tuple[int, _Getter, bool], ...] = (
     *_SUBTOTALS_EMPLOYER,
-    (7, lambda i: i.internal.man_hours, False),
-    (11, lambda i: i.internal.cost, True),
-    (12, lambda i: i.internal.overhead, True),
-    (13, lambda i: i.internal.profit, True),
+    (_col("Adam-saat"), lambda i: i.internal.man_hours, False),
+    (_col("Maliyet"), lambda i: i.internal.cost, True),
+    (_col("GG"), lambda i: i.internal.overhead, True),
+    (_col("Kâr"), lambda i: i.internal.profit, True),
 )
 
 
@@ -185,8 +198,11 @@ def _put(sheet: Worksheet, row: int, values: Sequence[Cell], *, bold: bool = Fal
     for column, value in enumerate(values, start=1):
         if value is None:
             continue  # maskeli/girilmemis: hucreye HIC dokunulmaz (bos)
+        if column == _SOURCE_CODE_COL:
+            write_text_cell(sheet, row, column, value)  # kod formul olarak calismaz (KAT-B3)
+        else:
+            sheet.cell(row=row, column=column).value = value
         cell = sheet.cell(row=row, column=column)
-        cell.value = value
         if bold:
             cell.font = Font(bold=True)
 
@@ -315,7 +331,7 @@ def _write_conditions(sheet: Worksheet, row: int, revision: OfferRevisionRead) -
 
 
 def _apply_layout(sheet: Worksheet, column_count: int) -> None:
-    widths = (14, 42, 10, 14, 16, 16, 12, 16, 10, 10, 16, 16, 16)
+    widths = (14, 16, 42, 10, 14, 16, 16, 12, 16, 10, 10, 16, 16, 16)
     for index in range(column_count):
         sheet.column_dimensions[sheet.cell(row=1, column=index + 1).column_letter].width = widths[
             index
