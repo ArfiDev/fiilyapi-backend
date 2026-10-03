@@ -3,7 +3,7 @@
 | uc | kapi |
 |----|------|
 | kalem listesi / disiplin listesi | `contracts:view` (+ disiplin kapsami) |
-| olustur / guncelle | `contracts:full` + `RequireUnrestricted` |
+| olustur / guncelle / toplu ekle (`/bulk`) | `contracts:full` + `RequireUnrestricted` |
 
 # GECICI IZIN (kullanici karari; izin turuna kadar): katalog ayri bir izin modulu degildir,
 # `contracts` iznine baglanir. `earned_value:view` olup `contracts` yetkisi olmayan roller
@@ -30,12 +30,15 @@ from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
-from app.modules.catalog import queries, service
+from app.modules.catalog import bulk, queries, service
 from app.modules.catalog.schemas import (
     WorkDisciplineListResponse,
+    WorkItemBulkResultRow,
     WorkItemCreate,
     WorkItemListResponse,
     WorkItemRead,
+    WorkItemsBulkCreate,
+    WorkItemsBulkResponse,
     WorkItemUpdate,
 )
 from app.modules.users.models import User
@@ -70,7 +73,8 @@ async def list_work_items_endpoint(
     q: Annotated[str | None, Query(max_length=200)] = None,
     discipline_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> WorkItemListResponse:
-    """İş kalemi kataloğu — poz no sırasıyla. `q` ad veya poz no içinde arar."""
+    """İş kalemi kataloğu — poz no sırasıyla. `q` ad veya poz no içinde, kaynak poz no'da
+    ÖNEKLE arar."""
     items = await queries.list_items(session, scope, q=q, discipline_id=discipline_id)
     return WorkItemListResponse(items=items)
 
@@ -97,6 +101,51 @@ async def create_work_item_endpoint(
     return await queries.read_item(session, item)
 
 
+@router.post(
+    "/catalog/items/bulk",
+    response_model=WorkItemsBulkResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_FULL, RequireUnrestricted],
+)
+async def bulk_work_items_endpoint(
+    request: Request, data: WorkItemsBulkCreate, user: _User, session: DbSession
+) -> WorkItemsBulkResponse:
+    """Toplu kalem ekleme / fiyat güncelleme (1..200, hep-ya-hiç, TEK denetim satırı).
+
+    Poz no sunucuda üretilir. `source_code` DB'de zaten varsa: `on_source_conflict="error"`
+    (varsayılan) → 422; `"update_price"` → yalnız `ref_price` + `ref_price_date` güncellenir.
+    Hatalar `errors[]` içinde `loc: ["body","items",i,alan]` ile döner; hiçbir şey yazılmaz.
+    """
+    rows = await bulk.bulk_upsert_items(
+        session, [e.model_dump() for e in data.items], data.on_source_conflict
+    )
+    counts = {
+        a: sum(1 for r in rows if r.action == a)
+        for a in (bulk.CREATED, bulk.PRICE_UPDATED, bulk.UNCHANGED)
+    }
+    codes = await queries.discipline_codes(session, {r.item.discipline_id for r in rows})
+    await record_audit(
+        session,
+        action=AuditAction.create if counts[bulk.CREATED] else AuditAction.update,
+        detail=messages.work_items_bulk_imported(
+            counts[bulk.CREATED], counts[bulk.PRICE_UPDATED], counts[bulk.UNCHANGED], codes
+        ),
+        actor_user_id=user.id,
+        ip_address=client_ip(request),
+    )
+    return WorkItemsBulkResponse(
+        created=counts[bulk.CREATED],
+        updated=counts[bulk.PRICE_UPDATED],
+        unchanged=counts[bulk.UNCHANGED],
+        items=[
+            WorkItemBulkResultRow(
+                index=r.index, id=r.item.id, poz_no=r.item.poz_no, action=r.action
+            )
+            for r in rows
+        ],
+    )
+
+
 @router.patch(
     "/catalog/items/{item_id}",
     response_model=WorkItemRead,
@@ -116,10 +165,9 @@ async def update_work_item_endpoint(
     `eski → yeni` fiyat girer.
     """
     changes = data.model_dump(exclude_unset=True)
-    before = service.snapshot_fields(await service.get_item(session, item_id), changes)
-    old_price = before.get("ref_price")
-    item = await service.update_item(session, item_id, changes)
-    changed = service.changed_fields(before, item)
+    result = await service.apply_item_update(session, item_id, changes)
+    item, changed = result.item, result.changed
+    old_price = result.before.get("ref_price")
     if changed:
         detail = (
             messages.work_item_price_updated(

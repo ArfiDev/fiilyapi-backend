@@ -100,3 +100,21 @@ def work_item_price_updated(
         f"{work_item_updated(poz_no, name, uom)} · "
         f"referans fiyat {_price_text(old_price)} → {_price_text(new_price)}"
     )
+
+
+#: Toplu katalog aktariminda denetim metnine yazilan en cok disiplin kodu (kalani "+N").
+WORK_ITEMS_BULK_DISCIPLINES_SHOWN = 10
+
+
+def work_items_bulk_imported(
+    created: int, price_updated: int, unchanged: int, discipline_codes: list[str]
+) -> str:
+    """KAT-B1: toplu katalog aktarimi TEK denetim satiri — sayilar + dokunulan disiplinler."""
+    shown = ", ".join(discipline_codes[:WORK_ITEMS_BULK_DISCIPLINES_SHOWN])
+    rest = len(discipline_codes) - WORK_ITEMS_BULK_DISCIPLINES_SHOWN
+    tail = f" … (+{rest})" if rest > 0 else ""
+    return (
+        f"İş kalemi kataloğuna toplu aktarım: {created} kalem eklendi, "
+        f"{price_updated} kalemin fiyatı güncellendi, {unchanged} kalem değişmedi"
+        f" · disiplinler: {shown}{tail}"
+    )

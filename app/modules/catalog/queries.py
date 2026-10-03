@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import last_price
 from app.core.discipline_scope import DisciplineScope
-from app.core.text import like_contains_pattern
+from app.core.text import like_contains_pattern, like_prefix_pattern
 from app.modules.catalog import service
 from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.catalog.schemas import WorkDisciplineRead, WorkItemRead
@@ -32,6 +32,8 @@ def to_read(
             "standard_unit_mhr": item.standard_unit_mhr,
             "default_contractor_type": item.default_contractor_type,
             "ref_price": item.ref_price,
+            "ref_price_date": item.ref_price_date,
+            "source_code": item.source_code,
             "last_price": price,
             "price_updated_at": item.price_updated_at,
             "standard_updated_at": item.standard_updated_at,
@@ -56,8 +58,9 @@ async def list_items(
     q: str | None = None,
     discipline_id: uuid.UUID | None = None,
 ) -> list[WorkItemRead]:
-    """poz_no sirasiyla; `q` ad VEYA poz no icinde (harf duyarsiz). Kisitli kullanici yalniz
-    kendi disiplinlerinin kalemlerini gorur; yabanci `discipline_id` kapsamla KESISIR → `[]`."""
+    """poz_no sirasiyla; `q` ad VEYA poz no icinde, kaynak poz no'da ONEKLE (harf duyarsiz).
+    Kisitli kullanici yalniz kendi disiplinlerinin kalemlerini gorur;
+    yabanci `discipline_id` kapsamla KESISIR → `[]`."""
     stmt = select(EvCatalogItem, EvDiscipline).join(
         EvDiscipline, EvDiscipline.id == EvCatalogItem.discipline_id
     )
@@ -73,6 +76,7 @@ async def list_items(
             or_(
                 EvCatalogItem.name.ilike(pattern, escape="\\"),
                 EvCatalogItem.poz_no.ilike(pattern, escape="\\"),
+                EvCatalogItem.source_code.ilike(like_prefix_pattern(q.strip()), escape="\\"),
             )
         )
     # poz_no metin sirasi: ayni disiplinde sifir dolgulu (0001 < 0002); 5+ hane (10000) tasar.
@@ -83,6 +87,12 @@ async def list_items(
     # notu, `app/core/last_price.py`). `limited` rolde alan maskeyle zaten bosalir.
     prices = await last_price.latest(session, [item.id for item, _ in rows])
     return [to_read(item, discipline, prices.get(item.id)) for item, discipline in rows]
+
+
+async def discipline_codes(session: AsyncSession, discipline_ids: set[uuid.UUID]) -> list[str]:
+    """Verilen disiplinlerin kodlari (alfabetik) — toplu islem denetim metni icin."""
+    stmt = select(EvDiscipline.code).where(EvDiscipline.id.in_(discipline_ids))
+    return sorted((await session.execute(stmt)).scalars())
 
 
 async def list_disciplines(

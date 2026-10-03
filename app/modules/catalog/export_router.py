@@ -3,7 +3,8 @@
 
 Veri `queries.list_items` ile (tek toplu `last_price.latest`, N+1 yok). Maske ELLE uygulanir
 (`kapsamla_maskele`): `limited` rolde Referans Fiyat / Fiyat Guncelleme / Son Fiyat / Kaynak /
-Belge / Tarih BOS; poz, ad, birim, adam-saat, yuklenici gorunur (BOQ export emsali).
+Belge / Tarih / Fiyat Tarihi (`ref_price_date`, KAT-B1: fiyat gizliyken tarihi de gizli) BOS;
+poz, ad, birim, adam-saat, yuklenici, Kaynak Poz No gorunur (BOQ export emsali).
 """
 
 import uuid

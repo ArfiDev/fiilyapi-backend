@@ -13,20 +13,23 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, validates
@@ -139,6 +142,18 @@ class EvCatalogItem(Base):
         CheckConstraint("standard_unit_mhr > 0", name="ck_ev_catalog_items_rate_positive"),
         UniqueConstraint("poz_no", name="uq_ev_catalog_items_poz_no"),
         CheckConstraint("ref_price >= 0", name="ck_ev_catalog_items_ref_price_nonneg"),
+        # KAT-B1.1: fiyat tarihi yalniz fiyatla anlamlidir (servis kurali DB'de de zorlanir).
+        CheckConstraint(
+            "ref_price_date IS NULL OR ref_price IS NOT NULL",
+            name="ck_ev_catalog_items_ref_price_date_requires_price",
+        ),
+        # KAT-B1: bos kaynak kodu serbest (NULL), dolu kod sirket genelinde tekil.
+        Index(
+            "uq_ev_catalog_items_source_code",
+            "source_code",
+            unique=True,
+            postgresql_where=text("source_code IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
@@ -171,6 +186,13 @@ class EvCatalogItem(Base):
     price_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    #: KAT-B1: `ref_price`in GECERLILIK tarihi (fiyat listesi tarihi); `price_updated_at`
+    #: (sunucu damgasi) ile AYNI DEGIL. Yalniz `ref_price` doluyken anlamlidir (servis yazar:
+    #: fiyat degisip tarih verilmezse NULL'a doner — bayat tarih kalmaz).
+    ref_price_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    #: KAT-B1: Bakanlik/kaynak poz kodu (serbest metin, kirpilmis, <= 32; ornek `15.100.1001`).
+    #: `poz_no`dan AYRI: `poz_no` bizim sunucu uretimli numaramizdir. Kismi UQ (yukarida).
+    source_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     standard_updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
