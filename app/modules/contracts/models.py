@@ -347,6 +347,10 @@ class SubcontractorContractItem(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
     quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
+    # KAT-B2.3 (K4): Bakanlik poz no'sunun KOPYASI (snapshot). Istemciden alinmaz; kaynak YALNIZ
+    # `source_contract_item_id` bagindaki isveren kaleminin kodudur (bagsiz = NULL). Kaynak kalem
+    # silinse/kodu degisse de taseron kalemi olustugu anin kodunu korur.
+    source_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # Nullable bilincli: isverenden yuklenen kalem fiyatsiz gelir; "girilmedi" ile
     # "0 TL" ayrimi korunur (spec §3.6).
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
