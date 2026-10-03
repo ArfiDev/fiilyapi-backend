@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.modules.subcontractor_progress_payments.models import (
     QuantitySource,
@@ -37,6 +37,9 @@ __all__ = [
 
 
 # --- Yazma şemaları ---
+
+#: KAT-B2.4 (K5): hakediş satırında Bakanlık poz no'su istemciden alınmaz (PUT/POST gövdesinde 422).
+SOURCE_CODE_SERVER_OWNED = "source_code istemciden alınmaz; sözleşme kaleminden sunucu kopyalar"
 
 
 class SubcontractorProgressPaymentCreate(BaseModel):
@@ -77,6 +80,16 @@ class SubcontractorProgressPaymentLineInput(BaseModel):
     coefficient: Decimal | None = Field(default=None, gt=0)
     sort_order: int | None = Field(default=None, ge=0)
     """Gönderilmezse GÖVDE SIRASI otoritedir."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _kaynak_kod_istemciden_alinmaz(cls, data: object) -> object:
+        """KAT-B2.4 (K5): `source_code` yalniz sunucudan (kalem snapshot'i) gelir; govdede
+        gelirse (degeri `null` olsa da) 422. `extra="forbid"` BILEREK konmadi (mevcut
+        davranis: bilinmeyen alanlar sessiz yok sayilir)."""
+        if isinstance(data, dict) and "source_code" in data:
+            raise ValueError(SOURCE_CODE_SERVER_OWNED)
+        return data
 
 
 class SubcontractorProgressPaymentLinesSave(BaseModel):
@@ -127,6 +140,8 @@ class SubcontractorProgressPaymentLineRead(BaseModel):
     id: uuid.UUID
     contract_item_id: uuid.UUID | None
     code: str = Field(max_length=50)
+    source_code: str | None = Field(max_length=32)
+    """KAT-B2.4: Bakanlık poz no SNAPSHOT'ı (maskesiz rota: düz alan)."""
     description: str
     unit: str = Field(max_length=50)
     contract_unit_price: Decimal

@@ -83,6 +83,7 @@ def _to_distribution_item(
     return ContractDistributionItem(
         id=item.id,
         code=item.code,
+        source_code=item.source_code,
         description=item.description,
         unit=item.unit,
         quantity=item.quantity,

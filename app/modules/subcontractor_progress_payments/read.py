@@ -57,6 +57,7 @@ def _line_read(line: SubcontractorProgressPaymentLine) -> SubcontractorProgressP
         ),
         contract_item_id=line.contract_item_id,
         code=line.code,
+        source_code=line.source_code,
         description=line.description,
         unit=line.unit,
         contract_unit_price=line.contract_unit_price,
