@@ -124,7 +124,9 @@ async def test_basliklar_sabit_dosya_adi_ve_satirlar(
     )
     resp = await client.get(f"{URL}/export", headers=admin)
     satirlar = _satirlar(resp)
-    assert COLUMN_HEADERS == (
+    # KAT-B1: eski 12 sutun sira ve metinle AYNEN kalir; yeni sutunlar SONA eklenir.
+    assert COLUMN_HEADERS[12:] == ("Kaynak Poz No", "Fiyat Tarihi")
+    assert COLUMN_HEADERS[:12] == (
         "Poz No",
         "Disiplin",
         "İş Kalemi",

@@ -19,3 +19,36 @@ CATALOG_ITEM_TAKEN_AS = (
     "Ad: bu disiplinde aynı ad ve birimle bir iş tipi zaten var — «{name}» ({uom}). "
     "Büyük/küçük harf, İ/I ve boşluk farkı ayrı iş tipi sayılmaz"
 )
+
+#: KAT-B1: Bakanlik/kaynak poz kodu tekil (kismi UQ); tekil uc 409 metni.
+SOURCE_CODE_TAKEN_AS = (
+    "Kaynak poz no: bu kod zaten kayıtlı — {poz_no} · {name} ({uom}); "
+    "kaynak poz no şirket genelinde tekildir"
+)
+#: KAT-B1 (2a): fiyat tarihi yalniz referans fiyatla anlamlidir.
+REF_PRICE_DATE_NEEDS_PRICE = (
+    "Fiyat tarihi: referans fiyat olmadan fiyat tarihi verilemez; "
+    "önce referans fiyatı girin ya da tarihi boş bırakın"
+)
+#: KAT-B1 toplu ekleme (satir bazli yapisal hata metinleri).
+BULK_REJECTED = "Toplu ekleme reddedildi: {count} satırda hata var; hiçbir kalem yazılmadı"
+BULK_SOURCE_REPEATED = "Kaynak poz no: istek içinde tekrar ediyor — ilk geçtiği satır {first}"
+BULK_ITEM_REPEATED = (
+    "Ad: istek içinde aynı disiplinde aynı ad ve birimle başka bir satır var — satır {first}"
+)
+BULK_SOURCE_EXISTS = (
+    "Kaynak poz no: bu kod katalogda zaten kayıtlı — {poz_no} · {name} ({uom}); "
+    "fiyatı güncellemek için on_source_conflict=update_price kullanın"
+)
+
+#: KAT-B1.1: istek sirasinda katalog degisti (siniflandirma kilit altinda farkli cikti).
+BULK_CATALOG_CHANGED = (
+    "Toplu ekleme sırasında katalog başka bir işlemle değişti; hiçbir kalem yazılmadı, "
+    "isteği yeniden deneyin"
+)
+#: KAT-B1.1 (D5): eslesen kalemde fiyat gonderilmeden tarih verildi, kalemin fiyati yok.
+BULK_DATE_ON_PRICELESS_ITEM = (
+    "Fiyat tarihi: eşleşen kalemin referans fiyatı yok; tarih için `ref_price` de gönderin"
+)
+SOURCE_CODE_CONTROL_CHARS = "Kaynak poz no: kontrol/biçim karakteri (görünmez karakter) içeremez"
+REF_PRICE_DATE_OUT_OF_RANGE = "Fiyat tarihi: {low:%d.%m.%Y} ile {high:%d.%m.%Y} arasında olmalı"

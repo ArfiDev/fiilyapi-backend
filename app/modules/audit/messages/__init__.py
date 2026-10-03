@@ -227,6 +227,9 @@ from app.modules.audit.messages.core import (
     LOGIN_DETAIL as LOGIN_DETAIL,
 )
 from app.modules.audit.messages.core import (
+    WORK_ITEMS_BULK_DISCIPLINES_SHOWN as WORK_ITEMS_BULK_DISCIPLINES_SHOWN,
+)
+from app.modules.audit.messages.core import (
     _price_text as _price_text,
 )
 from app.modules.audit.messages.core import (
@@ -273,6 +276,9 @@ from app.modules.audit.messages.core import (
 )
 from app.modules.audit.messages.core import (
     work_item_updated as work_item_updated,
+)
+from app.modules.audit.messages.core import (
+    work_items_bulk_imported as work_items_bulk_imported,
 )
 from app.modules.audit.messages.documents import (
     _document_scope as _document_scope,

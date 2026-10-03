@@ -345,4 +345,12 @@ class EarnedValueValidationError(DomainError):
     Kayit vardir ve gorunur; ihlal edilen sey duzeltilebilir ALAN DEGERLERIDIR
     (tarih araligi, bant sirasi, taslak olmayan revizyona yazma DEGIL — o durum
     engelidir ve `ConflictError`dir). Mesaj Turkce ve dogrudan kullaniciya gosterilir.
+
+    Istege bagli `errors` (KAT-B1): `OfferValidationError.errors` ile AYNI bicim
+    (`{"loc": [...], "message": str}`); doluysa 422 govdesine EKLENIR, `detail` AYNEN kalir;
+    bossa govde bugunku gibidir (yalniz `detail`).
     """
+
+    def __init__(self, message: str = "", errors: list[dict[str, object]] | None = None) -> None:
+        super().__init__(message)
+        self.errors: list[dict[str, object]] = list(errors) if errors else []

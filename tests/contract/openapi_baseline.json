@@ -47216,6 +47216,40 @@
         "title": "WorkDisciplineRead",
         "type": "object"
       },
+      "WorkItemBulkResultRow": {
+        "properties": {
+          "action": {
+            "enum": [
+              "created",
+              "price_updated",
+              "unchanged"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "poz_no": {
+            "title": "Poz No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "id",
+          "poz_no",
+          "action"
+        ],
+        "title": "WorkItemBulkResultRow",
+        "type": "object"
+      },
       "WorkItemCreate": {
         "additionalProperties": false,
         "properties": {
@@ -47265,6 +47299,30 @@
               }
             ],
             "title": "Ref Price"
+          },
+          "ref_price_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Price Date"
+          },
+          "source_code": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Code"
           },
           "standard_unit_mhr": {
             "anyOf": [
@@ -47388,6 +47446,29 @@
             ],
             "title": "Ref Price"
           },
+          "ref_price_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Price Date"
+          },
+          "source_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Code"
+          },
           "standard_unit_mhr": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Standard Unit Mhr",
@@ -47498,6 +47579,30 @@
             ],
             "title": "Ref Price"
           },
+          "ref_price_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Price Date"
+          },
+          "source_code": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Code"
+          },
           "standard_unit_mhr": {
             "anyOf": [
               {
@@ -47529,6 +47634,66 @@
           }
         },
         "title": "WorkItemUpdate",
+        "type": "object"
+      },
+      "WorkItemsBulkCreate": {
+        "additionalProperties": false,
+        "description": "`POST /catalog/items/bulk` govdesi (hep-ya-hic, 1..200).\n\n`on_source_conflict`: `source_code`u DB'de ZATEN olan kalem icin `error` (varsayilan →\n422) ya da `update_price` (yalniz `ref_price` + `ref_price_date` guncellenir, digerleri\nyok sayilir). Yeni kodlu / kodsuz kalemler her iki kipte EKLENIR.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkItemCreate"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "on_source_conflict": {
+            "default": "error",
+            "enum": [
+              "error",
+              "update_price"
+            ],
+            "title": "On Source Conflict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "WorkItemsBulkCreate",
+        "type": "object"
+      },
+      "WorkItemsBulkResponse": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkItemBulkResultRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "created",
+          "updated",
+          "unchanged",
+          "items"
+        ],
+        "title": "WorkItemsBulkResponse",
         "type": "object"
       },
       "WorkLogCreate": {
@@ -50262,7 +50427,7 @@
     },
     "/catalog/items": {
       "get": {
-        "description": "İş kalemi kataloğu — poz no sırasıyla. `q` ad veya poz no içinde arar.",
+        "description": "İş kalemi kataloğu — poz no sırasıyla. `q` ad veya poz no içinde, kaynak poz no'da\nÖNEKLE arar.",
         "operationId": "list_work_items_endpoint_catalog_items_get",
         "parameters": [
           {
@@ -50385,6 +50550,59 @@
           }
         ],
         "summary": "Create Work Item Endpoint",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/catalog/items/bulk": {
+      "post": {
+        "description": "Toplu kalem ekleme / fiyat güncelleme (1..200, hep-ya-hiç, TEK denetim satırı).\n\nPoz no sunucuda üretilir. `source_code` DB'de zaten varsa: `on_source_conflict=\"error\"`\n(varsayılan) → 422; `\"update_price\"` → yalnız `ref_price` + `ref_price_date` güncellenir.\nHatalar `errors[]` içinde `loc: [\"body\",\"items\",i,alan]` ile döner; hiçbir şey yazılmaz.",
+        "operationId": "bulk_work_items_endpoint_catalog_items_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkItemsBulkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemsBulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Bulk Work Items Endpoint",
         "tags": [
           "catalog"
         ]

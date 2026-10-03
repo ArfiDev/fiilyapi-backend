@@ -19,24 +19,31 @@ cagirir — poz no kurallari tek yerde. Bu modul EV'yi import ETMEZ (bekci:
 ## Kilit sirasi
 Kalem yazimi yalniz HEDEF disiplin satirini kilitler (kalem satirini ayrica kilitlemez);
 disiplin kodu degisimi yalniz O disiplin satirini kilitler, sonra kalemlerini gunceller.
-Hicbir yol iki disiplin kilidi tutmaz → disiplinler arasi kilit dongusu yok.
+Tekil yollar en cok BIR disiplin kilidi tutar; toplu yol (`bulk.py`) birden cok disiplini `id`
+sirasiyla kilitler ve ONLARDAN SONRA kalemi kilitler (disiplin → kalem, hepsinde ayni sira):
+disiplinler arasi dongu `id` sirasiyla, disiplin↔kalem dongusu sabit sirayla onlenir.
 
-## `ref_price` / `price_updated_at`
+## `ref_price` / `price_updated_at` / `ref_price_date` (KAT-B1)
 `price_updated_at` YALNIZ `ref_price` DEGISTIGINDE (ilk atama dahil) `now` olur; baska alan
-degisince dokunulmaz.
+degisince dokunulmaz. `ref_price_date` fiyatin gecerlilik tarihidir (`resolve_price`):
+* fiyat DEGISIR + tarih VERILIR → tarih = verilen; fiyat DEGISIR + tarih VERILMEZ → tarih NULL
+  (eski tarih yeni fiyata ait olamaz); YALNIZ tarih degisir → yalniz tarih (`price_updated_at`
+  dokunulmaz); birlestirilmis durumda fiyat NULL iken tarih dolu → 422.
 """
 
 from __future__ import annotations
 
 import uuid
 from collections.abc import Iterable, Mapping
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import DuplicateError, NotFoundError
+from app.core.errors import DuplicateError, EarnedValueValidationError, NotFoundError
 from app.core.labels import normalize_label
 from app.modules.catalog import guards
 from app.modules.catalog.models import EvCatalogItem, EvDiscipline
@@ -202,6 +209,58 @@ async def assert_item_free(
         raise DuplicateError(guards.CATALOG_ITEM_TAKEN_AS.format(name=taken.name, uom=taken.uom))
 
 
+async def assert_source_code_free(
+    session: AsyncSession, source_code: str, exclude_id: uuid.UUID | None = None
+) -> None:
+    """Kaynak poz kodu tekil (`uq_ev_catalog_items_source_code`); bu SELECT alana ozel 409
+    metni icindir, DB indeksi yarisin son savunmasidir (IntegrityError → genel 409)."""
+    stmt = select(EvCatalogItem.poz_no, EvCatalogItem.name, EvCatalogItem.uom).where(
+        EvCatalogItem.source_code == source_code
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(EvCatalogItem.id != exclude_id)
+    taken = (await session.execute(stmt.limit(1))).first()
+    if taken is not None:
+        raise DuplicateError(
+            guards.SOURCE_CODE_TAKEN_AS.format(poz_no=taken.poz_no, name=taken.name, uom=taken.uom)
+        )
+
+
+@dataclass(frozen=True)
+class PriceState:
+    """`resolve_price` sonucu: yazilacak fiyat/tarih ve neyin DEGISTIGI."""
+
+    price: Decimal | None
+    price_date: date | None
+    price_changed: bool
+    date_changed: bool
+
+
+def resolve_price(
+    old_price: Decimal | None, old_date: date | None, changes: Mapping[str, Any]
+) -> PriceState:
+    """`ref_price` + `ref_price_date` kurallarinin TEK kaynagi (tekil uclar + toplu ekleme).
+
+    `changes` yalniz GELEN anahtarlari tasir (`ref_price` / `ref_price_date`). Kurallar: modul
+    docstring'i. Birlestirilmis durumda fiyat NULL + tarih dolu → 422 (alan adli, `loc`lu)."""
+    price = changes.get("ref_price", old_price)
+    price_changed = "ref_price" in changes and price != old_price
+    if "ref_price_date" in changes:
+        price_date = changes["ref_price_date"]
+    elif price_changed:
+        price_date = None  # bayat tarih bırakılmaz
+    else:
+        price_date = old_date
+    if price is None and price_date is not None:
+        raise EarnedValueValidationError(
+            guards.REF_PRICE_DATE_NEEDS_PRICE,
+            errors=[
+                {"loc": ["body", "ref_price_date"], "message": guards.REF_PRICE_DATE_NEEDS_PRICE}
+            ],
+        )
+    return PriceState(price, price_date, price_changed, price_date != old_date)
+
+
 async def create_item(session: AsyncSession, fields: Mapping[str, Any]) -> EvCatalogItem:
     """Yeni kalem + SIRADAKI poz no. `fields`: discipline_id, name, uom, standard_unit_mhr,
     default_contractor_type, (description, ref_price). `poz_no` gonderilemez (ValueError)."""
@@ -210,9 +269,12 @@ async def create_item(session: AsyncSession, fields: Mapping[str, Any]) -> EvCat
     # Govde ici varlik referansi: disiplin yoksa 404 (repo kanonu); AYNI cagri kilitler.
     discipline = await lock_discipline(session, fields["discipline_id"])
     await assert_item_free(session, discipline.id, fields["name"], fields["uom"])
+    if fields.get("source_code") is not None:
+        await assert_source_code_free(session, fields["source_code"])
+    state = resolve_price(None, None, fields)
     now = datetime.now(UTC)
     item = EvCatalogItem(
-        **fields,
+        **{**fields, "ref_price_date": state.price_date},
         poz_no=await next_poz_no(session, discipline),
         standard_updated_at=now,
         price_updated_at=now if fields.get("ref_price") is not None else None,
@@ -222,21 +284,58 @@ async def create_item(session: AsyncSession, fields: Mapping[str, Any]) -> EvCat
     return item
 
 
+async def lock_item(session: AsyncSession, item_id: uuid.UUID) -> EvCatalogItem:
+    """Kalem satirini `FOR NO KEY UPDATE` ile kilitler ve TAZE okur (`populate_existing`).
+    Fiyat/tarih karari (`resolve_price`) YALNIZ kilit altinda okunan degerle verilir: kilitsiz
+    okuma bayat fiyatla karar verip (a) degismezini bozar ya da tarihi yanlis fiyata yapistirir
+    (KAT-B1.1 Y1). Kilit sirasi her yerde DISIPLIN → KALEM."""
+    stmt = (
+        select(EvCatalogItem)
+        .where(EvCatalogItem.id == item_id)
+        .with_for_update(key_share=True)
+        .execution_options(populate_existing=True)
+    )
+    item = (await session.execute(stmt)).scalar_one_or_none()
+    if item is None:
+        raise NotFoundError(guards.CATALOG_ITEM_MISSING)
+    return item
+
+
+@dataclass(frozen=True)
+class ItemUpdate:
+    """`apply_item_update` sonucu: guncel kalem + KILIT ALTINDA alinan onceki degerler."""
+
+    item: EvCatalogItem
+    before: dict[str, Any]
+    changed: list[str]
+
+
 async def update_item(
     session: AsyncSession, item_id: uuid.UUID, changes: Mapping[str, Any]
 ) -> EvCatalogItem:
+    return (await apply_item_update(session, item_id, changes)).item
+
+
+async def apply_item_update(
+    session: AsyncSession, item_id: uuid.UUID, changes: Mapping[str, Any]
+) -> ItemUpdate:
     """Kismi kalem guncelleme. Disiplin DEGISIRSE yeni disiplinin sayacindan yeni poz no
     (eski numara bosa duser); `standard_updated_at` yalniz oran, `price_updated_at` yalniz
-    `ref_price` degisince."""
+    `ref_price` degisince; `ref_price_date` icin `resolve_price`.
+
+    Kilit sirasi: (hedef disiplin) → kalem. Once kilitsiz `get_item` (404 onceligi), sonra
+    hedef disiplin kilidi, sonra kalem kilidi ve TAZE okuma; onceki degerler (`before`) de
+    kilit altinda alinir (denetim metni bayat degerden uretilmesin)."""
     if "poz_no" in changes or "price_updated_at" in changes:
         raise ValueError("poz_no / price_updated_at istemciden gelemez; sunucu uretir")
-    item = await get_item(session, item_id)
-    moving = "discipline_id" in changes and changes["discipline_id"] != item.discipline_id
+    await get_item(session, item_id)
+    target: EvDiscipline | None = None
+    if "discipline_id" in changes:
+        target = await lock_discipline(session, changes["discipline_id"])  # yoksa 404
+    item = await lock_item(session, item_id)
+    moving = target is not None and target.id != item.discipline_id
+    before = snapshot_fields(item, changes)
     new_poz_no: str | None = None
-    if moving:
-        target = await lock_discipline(session, changes["discipline_id"])
-    elif "discipline_id" in changes:
-        await get_discipline(session, changes["discipline_id"])  # ayni disiplin: 404 kontrolu
     key = (
         changes.get("discipline_id", item.discipline_id),
         changes.get("name", item.name),
@@ -244,19 +343,23 @@ async def update_item(
     )
     if key != (item.discipline_id, item.name, item.uom):
         await assert_item_free(session, *key, exclude_id=item.id)
-    if moving:
+    if moving and target is not None:
         new_poz_no = await next_poz_no(session, target)
     new_rate = changes.get("standard_unit_mhr")
     if new_rate is not None and new_rate != item.standard_unit_mhr:
         item.standard_updated_at = datetime.now(UTC)
-    if "ref_price" in changes and changes["ref_price"] != item.ref_price:
+    if changes.get("source_code") is not None and changes["source_code"] != item.source_code:
+        await assert_source_code_free(session, changes["source_code"], exclude_id=item.id)
+    state = resolve_price(item.ref_price, item.ref_price_date, changes)
+    if state.price_changed:
         item.price_updated_at = datetime.now(UTC)
     for field, value in changes.items():
         setattr(item, field, value)
+    item.ref_price_date = state.price_date
     if new_poz_no is not None:
         item.poz_no = new_poz_no
     await session.flush()
-    return item
+    return ItemUpdate(item, before, changed_fields(before, item))
 
 
 def snapshot_fields(item: EvCatalogItem, fields: Iterable[str]) -> dict[str, Any]:

@@ -21,3 +21,8 @@ def like_contains_pattern(q: str) -> str:
     paylasir."""
     escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+def like_prefix_pattern(q: str) -> str:
+    """`ILIKE 'q%'` kalibi (onek eslesmesi); kacis `like_contains_pattern` ile AYNI."""
+    return like_contains_pattern(q)[1:]

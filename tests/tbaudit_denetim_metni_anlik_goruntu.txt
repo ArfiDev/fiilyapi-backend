@@ -12,6 +12,7 @@ FINANCIAL_INSTRUMENT_STATUS_LABELS = {'portfolio': 'Portföyde', 'collected': 'T
 LOGIN_DETAIL = 'Sisteme giriş yapıldı'
 OFFER_BULK_POZ_SHOWN = 10
 OFFER_TERMS_SHOWN = 60
+WORK_ITEMS_BULK_DISCIPLINES_SHOWN = 10
 _ENTRY_TYPE_LABELS = {'purchase': 'Satınalma girişi', 'transfer': 'Şantiye transferi', 'adjustment': 'Manuel düzeltme'}
 _approval_label(document_type='<document_type#0>', step_no=101, total_steps=102, role='<role#3>') = '<document_type#0> · adım 101/102 · <role#3>'
 _approval_label(document_type='<document_type#0>', step_no=0, total_steps=102, role='<role#3>') = '<document_type#0> · adım 0/102 · <role#3>'
@@ -400,3 +401,8 @@ work_item_price_updated(poz_no='<poz_no#0>', name='<name#1>', uom='<uom#2>', old
 work_item_price_updated(poz_no='<poz_no#0>', name='<name#1>', uom='<uom#2>', old_price=None, new_price=Decimal('1004.55')) = 'İş kalemi kataloğu kalemi güncellendi: <poz_no#0> · <name#1> (<uom#2>) · referans fiyat — → 1,004.55 TL'
 work_item_price_updated(poz_no='<poz_no#0>', name='<name#1>', uom='<uom#2>', old_price=Decimal('1003.55'), new_price=None) = 'İş kalemi kataloğu kalemi güncellendi: <poz_no#0> · <name#1> (<uom#2>) · referans fiyat 1,003.55 TL → —'
 work_item_updated(poz_no='<poz_no#0>', name='<name#1>', uom='<uom#2>') = 'İş kalemi kataloğu kalemi güncellendi: <poz_no#0> · <name#1> (<uom#2>)'
+work_items_bulk_imported(created=100, price_updated=101, unchanged=102, discipline_codes=['<discipline_codes#3a>', '<discipline_codes#3b>']) = 'İş kalemi kataloğuna toplu aktarım: 100 kalem eklendi, 101 kalemin fiyatı güncellendi, 102 kalem değişmedi · disiplinler: <discipline_codes#3a>, <discipline_codes#3b>'
+work_items_bulk_imported(created=0, price_updated=101, unchanged=102, discipline_codes=['<discipline_codes#3a>', '<discipline_codes#3b>']) = 'İş kalemi kataloğuna toplu aktarım: 0 kalem eklendi, 101 kalemin fiyatı güncellendi, 102 kalem değişmedi · disiplinler: <discipline_codes#3a>, <discipline_codes#3b>'
+work_items_bulk_imported(created=100, price_updated=0, unchanged=102, discipline_codes=['<discipline_codes#3a>', '<discipline_codes#3b>']) = 'İş kalemi kataloğuna toplu aktarım: 100 kalem eklendi, 0 kalemin fiyatı güncellendi, 102 kalem değişmedi · disiplinler: <discipline_codes#3a>, <discipline_codes#3b>'
+work_items_bulk_imported(created=100, price_updated=101, unchanged=0, discipline_codes=['<discipline_codes#3a>', '<discipline_codes#3b>']) = 'İş kalemi kataloğuna toplu aktarım: 100 kalem eklendi, 101 kalemin fiyatı güncellendi, 0 kalem değişmedi · disiplinler: <discipline_codes#3a>, <discipline_codes#3b>'
+work_items_bulk_imported(created=100, price_updated=101, unchanged=102, discipline_codes=[]) = 'İş kalemi kataloğuna toplu aktarım: 100 kalem eklendi, 101 kalemin fiyatı güncellendi, 102 kalem değişmedi · disiplinler: '

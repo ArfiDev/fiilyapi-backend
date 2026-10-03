@@ -105,9 +105,10 @@ async def _days_locked_handler(request: Request, exc: DaysLockedError) -> JSONRe
 async def _earned_value_validation_handler(
     request: Request, exc: EarnedValueValidationError
 ) -> JSONResponse:
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": str(exc)}
-    )
+    content: dict[str, object] = {"detail": str(exc)}
+    if exc.errors:  # yalniz yapisal hata tasiyan (katalog toplu ekleme) 422'ler; digerleri DEGISMEZ
+        content["errors"] = exc.errors
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=content)
 
 
 async def _site_validation_handler(request: Request, exc: SiteValidationError) -> JSONResponse:
