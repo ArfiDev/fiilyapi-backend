@@ -841,5 +841,9 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # = +8 yol / +11 operasyon (308→316 · 441→452).
     # TKL-B6: `POST /offers/{offer_id}/convert` + `POST …/earned-value/budget/fill-from-contract`
     # = +2 yol / +2 operasyon (316→318 · 452→454).
-    assert len(yollar) == 318
-    assert operasyonlar == 454
+    # KAT-B1: `POST /catalog/items/bulk` (toplu katalog ekleme / fiyat guncelleme; yeni yol,
+    # tek operasyon) = +1 yol / +1 operasyon (318→319 · 454→455). Olculdu: openapi baseline
+    # 319 yol / 455 operasyon. `source_code`/`ref_price_date` alanlari ve
+    # `on_source_conflict` ne yol ne operasyon acar.
+    assert len(yollar) == 319
+    assert operasyonlar == 455
