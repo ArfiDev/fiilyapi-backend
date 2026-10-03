@@ -53,6 +53,8 @@ class SeedItemInput:
     unit: str
     quantity: Decimal
     unit_price: Decimal
+    #: KAT-B2.1: Bakanlik poz no snapshot'i (donusturmede TEKLIF kaleminden; baglisiz = None).
+    source_code: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +103,7 @@ async def seed_contract(
                 unit_price=entry.unit_price,
                 sort_order=item_index,
                 catalog_item_id=entry.catalog_item_id,
+                source_code=entry.source_code,
                 price_changed_at=now,
             )
             for item_index, entry in enumerate(group_input.items)

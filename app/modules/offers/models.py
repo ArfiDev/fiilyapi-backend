@@ -390,6 +390,9 @@ class OfferItem(Base):
         UUID(as_uuid=True), ForeignKey("ev_catalog_items.id", ondelete="RESTRICT"), nullable=False
     )
     poz_no: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: KAT-B2.1: Bakanlik poz no'sunun KOPYASI (snapshot; katalogdaki kod sonradan degisse/silinse
+    #: de kalem eklendigi anin kodunu tutar). NULL = katalog kaleminde kod yoktu.
+    source_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     description: Mapped[str] = mapped_column(String(200), nullable=False)
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
     #: NULL = miktar girilmedi (SO-21): toplamlara girmez, gonderimde engellenir.

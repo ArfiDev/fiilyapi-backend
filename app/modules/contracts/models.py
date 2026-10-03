@@ -120,6 +120,10 @@ class EmployerContractItem(Base):
     catalog_item_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("ev_catalog_items.id", ondelete="SET NULL"), nullable=True
     )
+    # KAT-B2.1: Bakanlik poz no'sunun KOPYASI (snapshot). Istemciden alinmaz; katalog bagi varsa
+    # sunucu kopyalar, donusturmede teklif kaleminin snapshot'indan gelir; baglisiz = NULL.
+    # `MIRRORED_ITEM_FIELDS`e GIRMEZ (BOQ ayna kumesi degismez).
+    source_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # TKL-B3.1: `unit_price` DEGER olarak her degistiginde ilerler (son fiyat sagligi icin);
     # API'de DONMEZ.
     price_changed_at: Mapped[datetime] = mapped_column(

@@ -249,6 +249,7 @@ def _employer_item_response(**overrides):
         unit_price=Decimal("100"),
         sort_order=0,
         catalog_item_id=None,
+        source_code=None,
         distributed_quantity=Decimal("0"),
         remaining_quantity=Decimal("10"),
     )

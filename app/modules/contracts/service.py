@@ -412,6 +412,7 @@ def to_item_response(
         unit_price=item.unit_price,
         sort_order=item.sort_order,
         catalog_item_id=item.catalog_item_id,
+        source_code=item.source_code,
         distributed_quantity=distributed,
         remaining_quantity=item.quantity - distributed,
     )
@@ -538,10 +539,16 @@ async def update_employer_group(
 
 
 def _new_item(
-    project_id: uuid.UUID, group_id: uuid.UUID, data: EmployerContractItemCreate
+    project_id: uuid.UUID,
+    group_id: uuid.UUID,
+    data: EmployerContractItemCreate,
+    source_code: str | None = None,
 ) -> EmployerContractItem:
     """TKL-B3.1: `price_changed_at` açıkça `now` yazılır (server_default eski konteyner
-    penceresi içindir) — aynı işlemde sonradan gelen fiyat değişimi ondan ÖNCE damgalanamaz."""
+    penceresi içindir) — aynı işlemde sonradan gelen fiyat değişimi ondan ÖNCE damgalanamaz.
+
+    KAT-B2.1: `source_code` istemciden ALINMAZ (K2); katalog bağı varsa çağıran katalogdan
+    okuyup verir (snapshot), bağsız kalemde NULL."""
     return EmployerContractItem(
         project_id=project_id,
         group_id=group_id,
@@ -552,6 +559,7 @@ def _new_item(
         unit_price=data.unit_price,
         sort_order=data.sort_order,
         catalog_item_id=data.catalog_item_id,
+        source_code=source_code,
         price_changed_at=datetime.now(UTC),
     )
 
@@ -568,10 +576,11 @@ async def create_employer_item(
     if project.contract is None:
         raise NotFoundError(CONTRACT_MISSING)
     group = await _ensure_group_in_project(session, data.group_id, project.id)
+    source_code: str | None = None
     if data.catalog_item_id is not None:
-        await catalog_service.get_item(session, data.catalog_item_id)
+        source_code = (await catalog_service.get_item(session, data.catalog_item_id)).source_code
     await _ensure_code_unique(session, project.id, data.code)
-    item = _new_item(project.id, group.id, data)
+    item = _new_item(project.id, group.id, data, source_code)
     session.add(item)
     await session.flush()
     await session.refresh(item)
@@ -599,16 +608,19 @@ async def create_employer_items_bulk(
     for group_id in sorted(group_ids):
         await _ensure_group_in_project(session, group_id, project.id)
     catalog_ids = {e.catalog_item_id for e in entries if e.catalog_item_id is not None}
+    source_codes: dict[uuid.UUID, str | None] = {}
     if catalog_ids:
-        # TEK sorgu (N+1 yok); eksik varsa tekil uçla aynı mesajla 404.
-        found = set(
-            (
-                await session.execute(
-                    select(EvCatalogItem.id).where(EvCatalogItem.id.in_(catalog_ids))
+        # TEK sorgu (N+1 yok); eksik varsa tekil uçla aynı mesajla 404. KAT-B2.1: aynı
+        # sorgu Bakanlık poz no'sunu da okur (snapshot kopyası).
+        source_codes = {
+            row.id: row.source_code
+            for row in await session.execute(
+                select(EvCatalogItem.id, EvCatalogItem.source_code).where(
+                    EvCatalogItem.id.in_(catalog_ids)
                 )
-            ).scalars()
-        )
-        if found != catalog_ids:
+            )
+        }
+        if source_codes.keys() != catalog_ids:
             raise NotFoundError(CATALOG_ITEM_MISSING)
 
     seen: set[str] = set()
@@ -621,7 +633,10 @@ async def create_employer_items_bulk(
         if entry.code in taken:
             raise DuplicateError(f"{DUPLICATE_ITEM_CODE}: {entry.code}")
 
-    items = [_new_item(project.id, entry.group_id, entry) for entry in entries]
+    items = [
+        _new_item(project.id, entry.group_id, entry, source_codes.get(entry.catalog_item_id))
+        for entry in entries
+    ]
     session.add_all(items)
     await session.flush()
     return items, project

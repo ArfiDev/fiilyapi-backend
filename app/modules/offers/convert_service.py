@@ -36,7 +36,7 @@ from app.modules.catalog.guards import CATALOG_ITEM_MISSING, DISCIPLINE_MISSING
 from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.contracts import seed_service
 from app.modules.contracts.seed_service import SeedGroupInput, SeedItemInput
-from app.modules.offers.convert_schemas import ConvertRequest, ConvertWarning
+from app.modules.offers.convert_schemas import ConvertItem, ConvertRequest, ConvertWarning
 from app.modules.offers.locking import latest_revision, lock_offer
 from app.modules.offers.models import (
     Offer,
@@ -298,7 +298,27 @@ def _project_input(body: ConvertRequest, offer: Offer, revision: OfferRevision) 
     )
 
 
-def _seed_inputs(body: ConvertRequest) -> list[SeedGroupInput]:
+def _source_code(
+    item: ConvertItem,
+    offer_items: dict[uuid.UUID, OfferItem],
+    catalog: dict[uuid.UUID, EvCatalogItem],
+) -> str | None:
+    """KAT-B2.1a (K3 duzeltmesi): Bakanlik poz no kaynagi.
+
+    1) `offer_item_id` VARSA o teklif kaleminin SNAPSHOT'i (NULL ise NULL; katalog OKUNMAZ).
+    2) YOKSA (ekranda eklenen satir) katalog kaleminden kopya (sozlesmeye tekil eklemeyle
+       tutarli). Katalog `_load_catalog`un TEK toplu sorgusundan gelir (ek sorgu yok).
+    """
+    if item.offer_item_id is not None:
+        return offer_items[item.offer_item_id].source_code
+    return catalog[item.catalog_item_id].source_code
+
+
+def _seed_inputs(
+    body: ConvertRequest,
+    offer_items: dict[uuid.UUID, OfferItem],
+    catalog: dict[uuid.UUID, EvCatalogItem],
+) -> list[SeedGroupInput]:
     return [
         SeedGroupInput(
             name=group.name,
@@ -310,6 +330,7 @@ def _seed_inputs(body: ConvertRequest) -> list[SeedGroupInput]:
                     unit=item.unit,
                     quantity=item.quantity,
                     unit_price=item.unit_price,
+                    source_code=_source_code(item, offer_items, catalog),
                 )
                 for item in group.items
             ],
@@ -384,7 +405,9 @@ async def convert_offer(
         )
 
     project = await project_service.create_project(session, _project_input(body, offer, revision))
-    seeded = await seed_service.seed_contract(session, project, _seed_inputs(body))
+    seeded = await seed_service.seed_contract(
+        session, project, _seed_inputs(body, offer_items, catalog)
+    )
     site: Site | None = None
     if body.open_site:
         (site, *_rest) = await sites_repository.list_sites_for_project(session, project.id)

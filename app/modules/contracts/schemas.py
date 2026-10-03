@@ -192,6 +192,9 @@ EMPLOYER_ITEMS_BULK_MAX = 200
 #: PATCH'te katalog bagi gelirse (TKL-B3.1): bag SABITTIR, yalniz olusturmada verilir.
 CATALOG_LINK_IMMUTABLE = "Katalog bağı sonradan değiştirilemez"
 
+#: KAT-B2.1 (K2): Bakanlık poz no'su istemciden alınmaz (Create ve PATCH gövdesinde 422).
+SOURCE_CODE_SERVER_OWNED = "source_code istemciden alınmaz; katalog bağından sunucu kopyalar"
+
 
 class EmployerContractItemCreate(BaseModel):
     group_id: uuid.UUID
@@ -204,6 +207,15 @@ class EmployerContractItemCreate(BaseModel):
     # TKL-B3.1: degerler (kod/aciklama/birim/fiyat) istemcide katalog seciciden dolar ve
     # govdede gelir; sunucu yalniz bagin VARLIGINI dogrular (yoksa 404).
     catalog_item_id: uuid.UUID | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _kaynak_kod_istemciden_alinmaz(cls, data: object) -> object:
+        """KAT-B2.1 (K2): `source_code` yalniz sunucudan (katalog snapshot'i) gelir; govdede
+        gelirse (degeri `null` olsa da) 422. `extra="forbid"` BILEREK konmadi (bkz. Update)."""
+        if isinstance(data, dict) and "source_code" in data:
+            raise ValueError(SOURCE_CODE_SERVER_OWNED)
+        return data
 
 
 class EmployerContractItemsBulkCreate(BaseModel):
@@ -245,6 +257,8 @@ class EmployerContractItemUpdate(BaseModel):
         degismesin."""
         if isinstance(data, dict) and "catalog_item_id" in data:
             raise ValueError(CATALOG_LINK_IMMUTABLE)
+        if isinstance(data, dict) and "source_code" in data:
+            raise ValueError(SOURCE_CODE_SERVER_OWNED)
         return data
 
     @field_validator(
@@ -282,6 +296,8 @@ class EmployerContractItemResponse(BaseModel):
     unit_price: Annotated[Decimal | None, Gorunurluk.para]
     sort_order: int
     catalog_item_id: uuid.UUID | None
+    #: KAT-B2.1: Bakanlık poz no'su (SNAPSHOT; bağsız/boş kalemde null). `code`'dan AYRI.
+    source_code: Annotated[str | None, Gorunurluk.kimlik]
     distributed_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
     remaining_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
 
