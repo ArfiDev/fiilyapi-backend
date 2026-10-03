@@ -196,6 +196,12 @@ CATALOG_LINK_IMMUTABLE = "Katalog bağı sonradan değiştirilemez"
 SOURCE_CODE_SERVER_OWNED = "source_code istemciden alınmaz; katalog bağından sunucu kopyalar"
 
 
+#: KAT-B2.3 (K9): taşeron kaleminde de Bakanlık poz no'su istemciden alınmaz (422).
+SUBCONTRACT_SOURCE_CODE_SERVER_OWNED = (
+    "source_code istemciden alınmaz; kaynak işveren kaleminden sunucu kopyalar"
+)
+
+
 class EmployerContractItemCreate(BaseModel):
     group_id: uuid.UUID
     code: str = Field(min_length=1, max_length=50)
@@ -432,6 +438,7 @@ class ContractDistributionAllocation(BaseModel):
 class ContractDistributionItem(BaseModel):
     id: uuid.UUID
     code: str
+    source_code: Annotated[str | None, Gorunurluk.kimlik]
     description: str
     unit: str
     quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
@@ -534,6 +541,16 @@ class SubcontractorContractItemCreate(BaseModel):
     sort_order: int | None = Field(default=None, ge=0)
     source_contract_item_id: uuid.UUID | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _kaynak_kod_istemciden_alinmaz(cls, data: object) -> object:
+        """KAT-B2.3 (K4/K9): `source_code` yalniz sunucudan (kaynak isveren kaleminin snapshot'i)
+        gelir; govdede gelirse (degeri `null` olsa da) 422 — tekil ve ic ice yazmada.
+        `extra="forbid"` BILEREK konmadi (borc)."""
+        if isinstance(data, dict) and "source_code" in data:
+            raise ValueError(SUBCONTRACT_SOURCE_CODE_SERVER_OWNED)
+        return data
+
 
 class SubcontractorContractItemUpdate(BaseModel):
     code: str | None = Field(default=None, min_length=1, max_length=50)
@@ -542,6 +559,15 @@ class SubcontractorContractItemUpdate(BaseModel):
     quantity: Decimal | None = Field(default=None, gt=0)
     unit_price: Decimal | None = Field(default=None, ge=0)
     sort_order: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _kaynak_kod_istemciden_alinmaz(cls, data: object) -> object:
+        """KAT-B2.3 (K9): PATCH govdesinde `source_code` (null dahil) 422. `extra="forbid"`
+        BILEREK konmadi: baska bilinmeyen alanlar bugun sessizce yok sayiliyor (borc)."""
+        if isinstance(data, dict) and "source_code" in data:
+            raise ValueError(SUBCONTRACT_SOURCE_CODE_SERVER_OWNED)
+        return data
 
 
 class SubcontractorContractItemGroup(BaseModel):
@@ -569,6 +595,8 @@ class SubcontractorContractItemResponse(BaseModel):
     quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
     unit_price: Annotated[Decimal | None, Gorunurluk.para]
     sort_order: int
+    #: KAT-B2.3: Bakanlık poz no'su (SNAPSHOT; kaynak işveren kaleminden, bağsızsa null).
+    source_code: Annotated[str | None, Gorunurluk.kimlik]
     # Bağsız kalemler `group: null` ile döner (spec §3.6).
     group: SubcontractorContractItemGroup | None = None
 

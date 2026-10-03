@@ -243,3 +243,28 @@ async def test_contract_item_id_null_boq_satiri_gorunmez(
         for alloc in kalem["allocations"]
     }
     assert len(tum_kodlar) == 2  # yalnız iki dağıtılmış BOQ satırı (A:120, B:80)
+
+
+@pytest.mark.asyncio
+async def test_dagitim_kalemi_source_code_doner_kodsuz_null(
+    client, admin_headers, dagitimli_proje, seeded_db
+):
+    """KAT-B2.4 (K10): isveren hakedis FORMU dagitim kaleminden kurulur → kalemin Bakanlik poz
+    no'su (`employer_contract_items.source_code`) okunur; kodsuz kalem `null`."""
+    from sqlalchemy import update
+
+    await seeded_db.execute(
+        update(EmployerContractItem)
+        .where(EmployerContractItem.project_id == dagitimli_proje)
+        .where(EmployerContractItem.code == "04.001")
+        .values(source_code="15.100.1001")
+    )
+    await seeded_db.flush()
+    govde = (
+        await client.get(
+            f"/projects/{dagitimli_proje}/contract/distribution", headers=admin_headers
+        )
+    ).json()
+    kalemler = {k["code"]: k for g in govde["groups"] for k in g["items"]}
+    assert kalemler["04.001"]["source_code"] == "15.100.1001"
+    assert kalemler["09.014"]["source_code"] is None

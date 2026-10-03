@@ -27,6 +27,7 @@ from app.core.slug import allocate_slug
 from app.modules.contracts import guards, repository
 from app.modules.contracts.models import (
     ContractStatus,
+    EmployerContractItem,
     SubcontractorContract,
     SubcontractorContractItem,
 )
@@ -133,7 +134,7 @@ async def create_subcontractor_contract(
         is_draft=data.is_draft,
     )
     await _ensure_contract_no_unique(session, data.contract_no)
-    await _ensure_nested_items_valid(session, project_id, data.items)
+    source_codes = await _ensure_nested_items_valid(session, project_id, data.items)
 
     contract = SubcontractorContract(
         project_id=project_id,
@@ -176,6 +177,7 @@ async def create_subcontractor_contract(
             SubcontractorContractItem(
                 contract_id=contract.id,
                 source_contract_item_id=item.source_contract_item_id,
+                source_code=source_codes.get(item.source_contract_item_id),
                 code=item.code,
                 description=item.description,
                 unit=item.unit,
@@ -332,7 +334,7 @@ async def _ensure_nested_items_valid(
     session: AsyncSession,
     project_id: uuid.UUID,
     items: list[SubcontractorContractItemCreate],
-) -> None:
+) -> dict[uuid.UUID, str | None]:
     """İÇ İÇE kalem yazma yolu için "önce doğrula sonra yaz" bloğu — dal geneli
 
     son inceleme (CRITICAL + IMPORTANT bulguları): `create_subcontract_item`
@@ -345,17 +347,24 @@ async def _ensure_nested_items_valid(
     oluşturulduğu için mevcut kalemlerle çakışma yoktur, yalnız gövde
     içi tekrar mümkündür.
     """
+    # KAT-B2.3 (K4): doğrulamada zaten okunan kaynak kalemlerin Bakanlık no'su döner (ek sorgu yok).
+    source_codes: dict[uuid.UUID, str | None] = {}
     seen_codes: set[str] = set()
     for item in items:
-        await _ensure_source_item_in_project(session, item.source_contract_item_id, project_id)
+        source_item = await _ensure_source_item_in_project(
+            session, item.source_contract_item_id, project_id
+        )
+        if source_item is not None:
+            source_codes[source_item.id] = source_item.source_code
         if item.code in seen_codes:
             raise DuplicateError(guards.DUPLICATE_ITEM_CODE)
         seen_codes.add(item.code)
+    return source_codes
 
 
 async def _ensure_source_item_in_project(
     session: AsyncSession, source_contract_item_id: uuid.UUID | None, project_id: uuid.UUID
-) -> None:
+) -> EmployerContractItem | None:
     """C11 incelemesinden devredilen ek iş: gövdedeki `source_contract_item_id`
 
     doğrulanmadan yazılıyordu — başka bir projenin işveren kalemine bağlanabilir
@@ -367,10 +376,11 @@ async def _ensure_source_item_in_project(
     edebilirdi.
     """
     if source_contract_item_id is None:
-        return
+        return None
     source_item = await repository.get_employer_item(session, source_contract_item_id)
     if source_item is None or source_item.project_id != project_id:
         raise NotFoundError(guards.ITEM_MISSING)
+    return source_item
 
 
 def _ensure_price_allowed(contract: SubcontractorContract, unit_price: object) -> None:
@@ -398,7 +408,9 @@ async def create_subcontract_item(
     data: SubcontractorContractItemCreate,
 ) -> tuple[SubcontractorContractItem, SubcontractorContract, Project]:
     contract, project = await _visible_contract(session, actor, contract_id)
-    await _ensure_source_item_in_project(session, data.source_contract_item_id, project.id)
+    source_item = await _ensure_source_item_in_project(
+        session, data.source_contract_item_id, project.id
+    )
     await _ensure_item_code_unique(session, contract.id, data.code)
     # SIRA BİLİNÇLİ — fiyat kapısı EN SONDA. Önüne alınsaydı
     # `_ensure_source_item_in_project`in IDOR 404'ünü 422 ile MASKELERDİ:
@@ -409,6 +421,7 @@ async def create_subcontract_item(
     item = SubcontractorContractItem(
         contract_id=contract.id,
         source_contract_item_id=data.source_contract_item_id,
+        source_code=source_item.source_code if source_item is not None else None,
         code=data.code,
         description=data.description,
         unit=data.unit,
@@ -462,6 +475,7 @@ async def to_subcontract_item_response(
         id=item.id,
         contract_id=item.contract_id,
         source_contract_item_id=item.source_contract_item_id,
+        source_code=item.source_code,
         code=item.code,
         description=item.description,
         unit=item.unit,
@@ -477,7 +491,8 @@ async def load_items_from_employer(
 ) -> tuple[int, int, SubcontractorContract, Project]:
     """`FORM` 115 / `TSD` 91 — işveren sözleşmesi kalemlerini kopyalar (spec §6.5).
 
-    `code`/`description`/`unit`/`quantity` kopyalanır, `unit_price` BİLİNÇLİ
+    `code`/`description`/`unit`/`quantity` + `source_code` (K4 snapshot; yalnız YENİ kalemlere —
+    K14: mevcut kalemin `source_code`u doldurulmaz/değiştirilmez) kopyalanır, `unit_price` BİLİNÇLİ
     olarak NULL bırakılır (taşeron fiyatını kullanıcı girer). Idempotent: aynı
     `code` sözleşmede zaten varsa atlanır, üzerine YAZILMAZ. Atomik: tek
     `flush` ile — bir kalem yazılamazsa (örn. beklenmeyen bütünlük hatası)
@@ -506,6 +521,7 @@ async def load_items_from_employer(
             SubcontractorContractItem(
                 contract_id=contract.id,
                 source_contract_item_id=employer_item.id,
+                source_code=employer_item.source_code,
                 code=employer_item.code,
                 description=employer_item.description,
                 unit=employer_item.unit,
@@ -624,6 +640,7 @@ async def to_subcontract_detail(
             id=item.id,
             contract_id=item.contract_id,
             source_contract_item_id=item.source_contract_item_id,
+            source_code=item.source_code,
             code=item.code,
             description=item.description,
             unit=item.unit,

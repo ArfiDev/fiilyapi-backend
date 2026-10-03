@@ -144,7 +144,7 @@ async def refresh_prices(
     "düşen satır" alanı icat edilmez, çünkü hiçbir veri kaybolmaz.
 
     Değişmemiş satır/yüzde YAZILMAZ (gereksiz `UPDATE` yok, no-op tazeleme
-    `refreshed_count=0` döner) — beş alanın TAMAMI aynıysa satır sayılmaz.
+    `refreshed_count=0` döner) — altı alanın (beşli + `source_code`) TAMAMI aynıysa satır sayılmaz.
     """
     payment, project, contract = await visible_payment_locked(session, actor, payment_id)
     if payment.status != ProgressPaymentStatus.draft:
@@ -176,6 +176,7 @@ async def refresh_prices(
         item, group_name = item_and_group
         if (
             line.code == item.code
+            and line.source_code == item.source_code
             and line.description == item.description
             and line.unit == item.unit
             and line.contract_unit_price == item.unit_price
@@ -183,6 +184,7 @@ async def refresh_prices(
         ):
             continue
         line.code = item.code
+        line.source_code = item.source_code
         line.description = item.description
         line.unit = item.unit
         line.contract_unit_price = item.unit_price
@@ -495,6 +497,7 @@ def _line_detail(
         contract_item_id=line.contract_item_id,
         site_id=line.site_id,
         code=line.code,
+        source_code=line.source_code,
         description=line.description,
         unit=line.unit,
         contract_unit_price=line.contract_unit_price,

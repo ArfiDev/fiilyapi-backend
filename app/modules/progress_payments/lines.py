@@ -301,6 +301,7 @@ def _new_line(plan: _ResolvedLine) -> ProgressPaymentLine:
         contract_item_id=plan.item.id,
         site_id=plan.key[1],
         code=plan.item.code,
+        source_code=plan.item.source_code,
         description=plan.item.description,
         unit=plan.item.unit,
         contract_unit_price=plan.item.unit_price,

@@ -18,7 +18,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # 🔴 Bu modül kapsam kısıtlı DEĞİLDİR (matriste bütün hücreleri `Scope.all`) ama
 # şemalarından biri KISITLI bir modülün yanıtına gömülür — gerekçesi
@@ -55,6 +55,9 @@ ProgressPaymentStatusLiteral = Literal["draft", "pending_approval", "approved", 
 
 # --- Yazma şemaları (spec §9.2) ---
 
+#: KAT-B2.4 (K5): hakediş satırında Bakanlık poz no'su istemciden alınmaz (PUT/POST gövdesinde 422).
+SOURCE_CODE_SERVER_OWNED = "source_code istemciden alınmaz; sözleşme kaleminden sunucu kopyalar"
+
 
 class ProgressPaymentLineInput(BaseModel):
     """`PUT …/lines` gövdesindeki tek satır (spec §9.2) — hem POST'un iç içe
@@ -71,6 +74,16 @@ class ProgressPaymentLineInput(BaseModel):
     site_id: uuid.UUID
     quantity: Decimal = Field(ge=0)
     coefficient: Decimal | None = Field(default=None, gt=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _kaynak_kod_istemciden_alinmaz(cls, data: object) -> object:
+        """KAT-B2.4 (K5): `source_code` yalniz sunucudan (kalem snapshot'i) gelir; govdede
+        gelirse (degeri `null` olsa da) 422. `extra="forbid"` BILEREK konmadi (mevcut
+        davranis: bilinmeyen alanlar sessiz yok sayilir)."""
+        if isinstance(data, dict) and "source_code" in data:
+            raise ValueError(SOURCE_CODE_SERVER_OWNED)
+        return data
 
 
 class ProgressPaymentLinesSave(BaseModel):
@@ -181,6 +194,8 @@ class ProgressPaymentLineDetail(BaseModel):
     contract_item_id: uuid.UUID | None
     site_id: uuid.UUID
     code: str = Field(max_length=50)
+    source_code: str | None = Field(max_length=32)
+    """KAT-B2.4: Bakanlık poz no SNAPSHOT'ı (maskesiz rota: düz alan)."""
     description: str
     unit: str = Field(max_length=50)
     contract_unit_price: Decimal

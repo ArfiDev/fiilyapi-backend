@@ -189,6 +189,9 @@ class ProgressPaymentLine(Base):
         index=True,
     )
     code: Mapped[str] = mapped_column(String(50), nullable=False)
+    # KAT-B2.4: Bakanlik poz no'sunun SNAPSHOT'i (snapshot besliyi altiliya cikarir);
+    # kaynak kalemin `source_code`u satir olusurken KOPYALANIR, istemciden ALINMAZ.
+    source_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
     contract_unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)

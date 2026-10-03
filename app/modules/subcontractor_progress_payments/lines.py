@@ -380,6 +380,7 @@ def _new_line(plan: _ResolvedLine) -> SubcontractorProgressPaymentLine:
     return SubcontractorProgressPaymentLine(
         contract_item_id=plan.item.id,
         code=plan.item.code,
+        source_code=plan.item.source_code,
         description=plan.item.description,
         unit=plan.item.unit,
         contract_unit_price=plan.item.unit_price,
@@ -447,8 +448,8 @@ async def refresh_snapshots(session: AsyncSession, payment: SubcontractorProgres
     * Bağı kopmuş (`contract_item_id IS NULL`) ya da fiyatı geri çekilmiş kalem
       atlanır: satır SİLİNMEZ, yalnız sayaca girmez (`contract_unit_price` NOT
       NULL'dur, NULL yazılamaz — eski snapshot korunur).
-    * Beş alanın TAMAMI aynıysa satır yazılmaz (gereksiz `UPDATE` yok; no-op
-      tazeleme 0 döner).
+    * Altı alanın (beşli + `source_code`) TAMAMI aynıysa satır yazılmaz (gereksiz `UPDATE`
+      yok; no-op tazeleme 0 döner).
     """
     item_ids = [line.contract_item_id for line in payment.lines if line.contract_item_id]
     items = await repository.get_contract_items_by_ids(session, item_ids)
@@ -462,6 +463,7 @@ async def refresh_snapshots(session: AsyncSession, payment: SubcontractorProgres
         group_name = item_groups.get(item.source_contract_item_id)
         if (
             line.code == item.code
+            and line.source_code == item.source_code
             and line.description == item.description
             and line.unit == item.unit
             and line.contract_unit_price == item.unit_price
@@ -469,6 +471,7 @@ async def refresh_snapshots(session: AsyncSession, payment: SubcontractorProgres
         ):
             continue
         line.code = item.code
+        line.source_code = item.source_code
         line.description = item.description
         line.unit = item.unit
         line.contract_unit_price = item.unit_price

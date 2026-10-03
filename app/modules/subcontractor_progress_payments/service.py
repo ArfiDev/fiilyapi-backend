@@ -192,6 +192,7 @@ async def _build_lines(
         SubcontractorProgressPaymentLine(
             contract_item_id=item.id,
             code=item.code,
+            source_code=item.source_code,
             description=item.description,
             unit=item.unit,
             contract_unit_price=item.unit_price,
