@@ -231,15 +231,17 @@ def test_sayi_deseni_bitisik_rakam_nokta_virgul_saymaz() -> None:
 async def test_basliklar_ve_sira_sabit(client, admin, dolu) -> None:
     emp = _kitap(await _indir(client, admin, dolu["offer_id"], "employer"))
     ic = _kitap(await _indir(client, admin, dolu["offer_id"], "internal"))
+    # KAT-B3 / T49: "Bakanlık No" Poz No'nun HEMEN SAĞINDA (kullanıcı kararıyla eklendi)
     assert EMPLOYER_HEADERS == (
         "Poz No",
+        "Bakanlık No",
         "İş Kalemi Tarifi",
         "Birim",
         "Miktar",
         "Teklif B.F.",
         "Tutar",
     )
-    assert INTERNAL_HEADERS[6:] == (
+    assert INTERNAL_HEADERS[7:] == (
         "Adam-saat",
         "Maliyet B.F.",
         "GG %",
@@ -253,6 +255,39 @@ async def test_basliklar_ve_sira_sabit(client, admin, dolu) -> None:
     assert not any(s[: len(INTERNAL_HEADERS)] == INTERNAL_HEADERS for s in _satirlar(emp))
 
 
+FORMUL_KODU = '=HYPERLINK("http://k.co")'
+
+
+@pytest.fixture
+async def kodlu_katalog(seeded_db, katalog):
+    """`dolu`dan ONCE istenmeli: kalem olusurken katalogdan `source_code` snapshot'lanir."""
+    for entry, kod in zip(katalog, ["15.100.1001", None, FORMUL_KODU], strict=True):
+        entry.source_code = kod
+    await seeded_db.flush()
+    return katalog
+
+
+@pytest.mark.parametrize("gorunum", ["employer", "internal"])
+async def test_bakanlik_no_sutunu_poz_no_yaninda_kodlu_deger_kodsuz_bos_formul_string(
+    client, admin, kodlu_katalog, dolu, gorunum
+) -> None:
+    rev = await revizyon(client, admin, dolu["offer_id"])
+    resp = await _indir(client, admin, dolu["offer_id"], gorunum)
+    kitap = _kitap(resp)
+    basliklar = EMPLOYER_HEADERS if gorunum == "employer" else INTERNAL_HEADERS
+    assert basliklar[:2] == ("Poz No", "Bakanlık No")
+    satirlar = {s[0]: s for s in _tablo(kitap, basliklar) if s[0] and s[2]}
+    beklenen = {k["poz_no"]: k["source_code"] for k in _kalemler(rev)}
+    assert sorted(v for v in beklenen.values() if v) == sorted(["15.100.1001", FORMUL_KODU])
+    assert None in beklenen.values()  # kodsuz kalem de var
+    for poz, kod in beklenen.items():
+        assert satirlar[poz][1] == kod  # kodsuz → None (bos hucre)
+    # formul degil STRING: veri tipi 's' (HYPERLINK calismaz)
+    hucre = next(c for s in kitap.active.iter_rows() for c in s if c.value == FORMUL_KODU)
+    assert hucre.data_type == "s"
+    assert not any(c.data_type == "f" for s in kitap.active.iter_rows() for c in s)
+
+
 async def test_kunye_toplamlar_ve_kosullar(client, admin, dolu) -> None:
     rev = await revizyon(client, admin, dolu["offer_id"])
     kitap = _kitap(await _indir(client, admin, dolu["offer_id"]))
@@ -264,10 +299,10 @@ async def test_kunye_toplamlar_ve_kosullar(client, admin, dolu) -> None:
     assert re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", kunye["Tarih"])
     assert re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", kunye["Geçerlilik Bitişi"])
     t = rev["totals"]["customer"]
-    toplam = {s[0]: s[5] for s in satirlar if s[0] in ("NET (KDV Hariç)", "GENEL TOPLAM")}
+    toplam = {s[0]: s[6] for s in satirlar if s[0] in ("NET (KDV Hariç)", "GENEL TOPLAM")}
     assert toplam == {"NET (KDV Hariç)": t["net"], "GENEL TOPLAM": t["gross"]}
     kdv = next(s for s in satirlar if s[0] and s[0].startswith("KDV (%"))
-    assert kdv[0] == "KDV (%20)" and kdv[5] == t["vat"]
+    assert kdv[0] == "KDV (%20)" and kdv[6] == t["vat"]
     assert kunye["Ödeme Koşulu"] == "Peşin ödeme"
     assert kunye["Teslim Süresi"] == "90 gün"
     assert kunye["Fiyat Farkı"] == "Endeksli (ÜFE)" or kunye["Fiyat Farkı"] == "Sabit fiyat"
@@ -287,12 +322,12 @@ async def test_tutarlar_API_ile_birebir_ve_her_hucre_str(client, admin, dolu) ->
     satirlar = {s[0]: s for s in _tablo(kitap, INTERNAL_HEADERS) if s[0] and s[2]}
     for k in _kalemler(rev):
         satir = satirlar[k["poz_no"]]
-        assert satir[3] == k["quantity"]
-        assert satir[4] == (k["customer"]["unit_price"] if k["customer"] else None)
-        assert satir[5] == (k["customer"]["amount"] if k["customer"] else None)
-        assert satir[6] == k["internal"]["man_hours"]
-        assert satir[7] == k["cost_unit_price"]
-        assert (satir[10], satir[11], satir[12]) == (
+        assert satir[4] == k["quantity"]
+        assert satir[5] == (k["customer"]["unit_price"] if k["customer"] else None)
+        assert satir[6] == (k["customer"]["amount"] if k["customer"] else None)
+        assert satir[7] == k["internal"]["man_hours"]
+        assert satir[8] == k["cost_unit_price"]
+        assert (satir[11], satir[12], satir[13]) == (
             k["internal"]["cost"],
             k["internal"]["overhead"],
             k["internal"]["profit"],
@@ -304,17 +339,17 @@ async def test_grup_ara_toplamlari_ve_fiyatsiz_kalem_bos_hucre(client, admin, do
     g1, g2 = rev["groups"]
     kitap = _kitap(await _indir(client, admin, dolu["offer_id"], "employer"))
     ara = [s for s in _tablo(kitap, EMPLOYER_HEADERS) if s[0] == "Ara Toplam"]
-    assert [s[5] for s in ara] == ["1608.00", "0.00"]  # ikinci grup yalniz fiyatsiz kalem
+    assert [s[6] for s in ara] == ["1608.00", "0.00"]  # ikinci grup yalniz fiyatsiz kalem
     fiyatsiz = next(k for k in g2["items"])
     assert fiyatsiz["priced"] is False
     satir = next(s for s in _tablo(kitap, EMPLOYER_HEADERS) if s[0] == fiyatsiz["poz_no"])
-    assert satir[3] == fiyatsiz["quantity"] and satir[4] is None and satir[5] is None
-    assert sum(D(k["customer"]["amount"]) for k in g1["items"]) == D(ara[0][5])
+    assert satir[4] == fiyatsiz["quantity"] and satir[5] is None and satir[6] is None
+    assert sum(D(k["customer"]["amount"]) for k in g1["items"]) == D(ara[0][6])
     # ic gorunum: ara toplam maliyet/GG/kar da dolu; fiyatsiz grup adam-saat DOLU
     ic = _kitap(await _indir(client, admin, dolu["offer_id"], "internal"))
     ara_ic = [s for s in _tablo(ic, INTERNAL_HEADERS) if s[0] == "Ara Toplam"]
-    assert ara_ic[0][10] == "1200.00"  # 1000 + 200 (maliyet), elle
-    assert ara_ic[1][6] == fiyatsiz["internal"]["man_hours"]
+    assert ara_ic[0][11] == "1200.00"  # 1000 + 200 (maliyet), elle
+    assert ara_ic[1][7] == fiyatsiz["internal"]["man_hours"]
 
 
 async def test_miktari_girilmemis_fiyatsiz_kalem_CALISMAZ_degil_BOS_basar(
@@ -331,7 +366,7 @@ async def test_miktari_girilmemis_fiyatsiz_kalem_CALISMAZ_degil_BOS_basar(
         kitap = openpyxl.load_workbook(build_offer_workbook(offer, rev, gorunum))
         basliklar = EMPLOYER_HEADERS if gorunum is ExportView.employer else INTERNAL_HEADERS
         satir = next(s for s in _tablo(kitap, basliklar) if s[0] == bos.poz_no)
-        assert satir[3:6] == (None, None, None)
+        assert satir[4:7] == (None, None, None)
         assert "None" not in {str(h.value) for h in _hucreler(kitap)}
 
 
@@ -442,9 +477,9 @@ async def test_limited_kapsamda_para_hucreleri_BOS_digerleri_gorunur(
         assert "Peşin ödeme" in metinler
         satirlar = _satirlar(kitap)
         genel = next(s for s in satirlar if s[0] == "GENEL TOPLAM")
-        assert genel[5] is None
+        assert genel[6] is None
         ara = next(s for s in satirlar if s[0] == "Ara Toplam")
-        assert ara[5] is None  # kismi/maskeli toplam yazilmaz
+        assert ara[6] is None  # kismi/maskeli toplam yazilmaz
     ic = _kitap(await _indir(client, _auth(token), dolu["offer_id"], "internal"))
     assert {k["internal"]["man_hours"] for k in _kalemler(rev)} <= {
         str(h.value) for h in _hucreler(ic)
@@ -476,18 +511,18 @@ async def test_miktarsiz_kalem_ara_toplami_BOSALTMAZ_NET_ile_tutarli(
     assert D(net) == D("1288.00")  # elle: 100 x 1,12 x 1,15 = 128,80; x 10
     emp = _kitap(await _indir(client, admin, karisik["id"], "employer"))
     ara = [s for s in _tablo(emp, EMPLOYER_HEADERS) if s[0] == "Ara Toplam"]
-    assert [s[5] for s in ara] == ["1288.00"] and ara[0][5] == net
+    assert [s[6] for s in ara] == ["1288.00"] and ara[0][6] == net
     miktarsiz = next(k for k in _kalemler(rev) if k["quantity"] is None)
     satir = next(s for s in _tablo(emp, EMPLOYER_HEADERS) if s[0] == miktarsiz["poz_no"])
-    assert satir[3] is None and satir[5] is None  # kalem hucreleri yine bos
+    assert satir[4] is None and satir[6] is None  # kalem hucreleri yine bos
     # ic gorunum: maliyet/GG/kar ara toplamlari da dolu (elle 1000 / 120 / 168), adam-saat yalniz
     # miktarli kalemden (10 x 1,5 = 15); miktarsiz kalemin adam-saati bos
     ic = _kitap(await _indir(client, admin, karisik["id"], "internal"))
     ara_ic = next(s for s in _tablo(ic, INTERNAL_HEADERS) if s[0] == "Ara Toplam")
-    assert (D(ara_ic[10]), D(ara_ic[11]), D(ara_ic[12])) == (D("1000"), D("120"), D("168"))
-    assert D(ara_ic[6]) == D("15") and D(ara_ic[6]) == D(rev["totals"]["internal"]["man_hours"])
+    assert (D(ara_ic[11]), D(ara_ic[12]), D(ara_ic[13])) == (D("1000"), D("120"), D("168"))
+    assert D(ara_ic[7]) == D("15") and D(ara_ic[7]) == D(rev["totals"]["internal"]["man_hours"])
     satir_ic = next(s for s in _tablo(ic, INTERNAL_HEADERS) if s[0] == miktarsiz["poz_no"])
-    assert satir_ic[6] is None  # adam-saat bilinmiyor: bos hucre (0 DEGIL)
+    assert satir_ic[7] is None  # adam-saat bilinmiyor: bos hucre (0 DEGIL)
 
 
 async def test_limited_kapsamda_karisik_grubun_ara_toplami_BOS_adam_saat_gorunur(
@@ -502,7 +537,7 @@ async def test_limited_kapsamda_karisik_grubun_ara_toplami_BOS_adam_saat_gorunur
     for gorunum, basliklar in (("employer", EMPLOYER_HEADERS), ("internal", INTERNAL_HEADERS)):
         kitap = _kitap(await _indir(client, _auth(token), karisik["id"], gorunum))
         ara = next(s for s in _tablo(kitap, basliklar) if s[0] == "Ara Toplam")
-        assert ara[5] is None, gorunum
+        assert ara[6] is None, gorunum
         if gorunum == "internal":
-            assert ara[10] is None and ara[11] is None and ara[12] is None
-            assert D(ara[6]) == D("15")
+            assert ara[11] is None and ara[12] is None and ara[13] is None
+            assert D(ara[7]) == D("15")

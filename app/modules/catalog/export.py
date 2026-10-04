@@ -15,6 +15,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 
 from app.core.timezone import to_display
+from app.core.xlsx_text import write_text_cell as _write
 from app.modules.catalog.schemas import WorkItemRead
 
 SHEET_TITLE = "İş Kalemi Kataloğu"
@@ -51,19 +52,6 @@ def _day(value: datetime | None) -> str | None:
 def _date(value: date | None) -> str | None:
     """`Fiyat Tarihi` takvim gunudur (saat dilimi donusumu YOK): `gg.aa.yyyy`."""
     return None if value is None else value.strftime(DATE_FORMAT)
-
-
-#: Excel'de hucreyi FORMUL yapan ilk karakterler (CSV/formul enjeksiyonu); sekme ve CR dahil.
-_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
-
-
-def _write(sheet, row: int, column: int, value: str) -> None:  # noqa: ANN001
-    """Metin hucresini HER ZAMAN string yazar (`data_type='s'`): `=HYPERLINK(...)` gibi bir
-    ad/kod formul olarak calismaz (KAT-B1.1 D4)."""
-    cell = sheet.cell(row=row, column=column)
-    cell.value = value
-    if value.startswith(_FORMULA_PREFIXES):
-        cell.data_type = "s"
 
 
 def _s(value: object | None) -> str | None:
