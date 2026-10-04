@@ -397,9 +397,10 @@ async def test_K9_gorunmeyen_santiyenin_faturasi_HER_UCTA_404(
             headers=sef_headers,
         )
     ).status_code == 404
+    # SIL-B1: DELETE kapısı (yalnız Sistem Yöneticisi) önce koşar → 403; varlık yine sızmaz.
     assert (
         await client.delete(f"/equipment/rental-invoice-lines/{line_id}", headers=sef_headers)
-    ).status_code == 404
+    ).status_code == 403
 
     liste = await client.get("/equipment/rental-invoices", headers=sef_headers)
     assert liste.status_code == 200, liste.text

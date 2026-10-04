@@ -23,13 +23,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import timezone
-from app.core.access import AccessLevel, can_delete
-from app.core.errors import DeleteNotAllowedError, DuplicateError, SiteValidationError
+from app.core.errors import DuplicateError, SiteValidationError
 from app.modules.audit import messages
 from app.modules.projects import costs
 from app.modules.projects import repository as projects_repository
 from app.modules.projects.schemas import MetricPlaceholder, metric
-from app.modules.roles.repository import get_permission
 from app.modules.sales import guards, repository, summary
 from app.modules.sales.models import SaleType, UnitSale, UnitSaleStatus
 from app.modules.sales.repository import InstallmentStats
@@ -391,22 +389,14 @@ async def delete_sale(session: AsyncSession, actor: User, sale_id: uuid.UUID) ->
     edilir (T5 `cancel`). Muhasebeleşmiş bir satışı yok etmek geri alınamaz veri
     kaybıdır; iptal ise denetim izi bırakır ve üniteyi yine serbest bırakır.
 
-    Kapı router'da `sales:admin`tır (kalıcı karar 2026-07-30: `full` silmeyi
-    KAPSAMAZ). `can_delete` (`app/core/access.py:55`) yine de burada çağrılır —
-    `units/router.py.delete_unit_endpoint`teki durumun aynısı: taslak istisnası
-    bugün HTTP üzerinden ULAŞILABİLİR DEĞİLDİR, ama kural tek yerde ve doğru
-    katmanda durur; kapı ileride gevşetilirse kendiliğinden devreye girer.
+    Kapı router'da `require_system_admin`dir (SIL-B1, K4): `can_delete` ve taslak istisnası
+    KALDIRILDI; bu fonksiyon yalnız satışın DURUM kuralını (409) uygular.
 
     Silinen rezervasyon ünitenin `sales_status`unu `listed`e DÖNDÜRÜR: aksi
     hâlde ünite kimsenin satamayacağı bir `reserved` durumunda kalırdı.
     """
     sale, project = await guards.visible_sale(session, actor, sale_id)
     guards.ensure_deletable_status(sale.is_draft)
-
-    permission = await get_permission(session, actor.role_id, "sales")
-    level = permission.access_level if permission is not None else AccessLevel.none
-    if not can_delete(actor.id, level, sale):
-        raise DeleteNotAllowedError(guards.DELETE_NOT_ALLOWED)
 
     _, unit, block, customer = await _sale_row(session, sale.id)
     # `units/service.delete_unit` ile aynı gerekçe: metin satır yok olmadan

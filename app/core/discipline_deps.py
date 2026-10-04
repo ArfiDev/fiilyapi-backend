@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
@@ -41,9 +41,19 @@ async def resolve_discipline_scope(
 DisciplineScoped = Annotated[DisciplineScope, Depends(resolve_discipline_scope)]
 
 
-async def require_unrestricted(scope: DisciplineScoped) -> None:
+async def require_unrestricted(request: Request, scope: DisciplineScoped) -> None:
     """Kisitli kullaniciya 403 — govde mevcut izin kapisiyla (`permissions.require_permission`)
-    BIREBIR ayni; atamasiz kullanici gecer."""
+    BIREBIR ayni; atamasiz kullanici gecer.
+
+    🔴 SIL-B1 (KARARLAR §1.7, K4: silme HER KOSULDA yalniz Sistem Yoneticisi): DELETE isteklerinde
+    bu kapi ATLANIR. Disiplin atanmis Sistem Yoneticisi de siler. Router duzeyinde
+    `RequireUnrestricted` tasiyan router'lar (teklifler, hakedisler) icin tek tek ucu ayirmak yerine
+    kural BURADA yasar; `tests/core/test_silme_kapi_bekcisi.py` her DELETE ucunun
+    `require_system_admin` tasidigini carpar, yani DELETE'in baska bir kapisi YOKTUR. Okuma ve
+    yazma uclarinin davranisi DEGISMEDI.
+    """
+    if request.method == "DELETE":
+        return
     if scope.is_restricted:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Bu işlem için yetkiniz yok"

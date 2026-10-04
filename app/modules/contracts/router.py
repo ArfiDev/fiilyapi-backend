@@ -14,8 +14,8 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
-from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.core.slug import parse_ref
@@ -235,7 +235,8 @@ async def update_employer_contract_group_endpoint(
 @router.delete(
     "/contracts/employer/groups/{group_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_ADMIN],
+    responses={**DELETE_403_YANITI, 409: {"description": "Grupta poz var; önce pozları silin"}},
+    dependencies=[require_system_admin()],
 )
 async def delete_employer_contract_group_endpoint(
     request: Request,
@@ -243,9 +244,9 @@ async def delete_employer_contract_group_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §7. 409 `GROUP_HAS_ITEMS`: grupta poz varsa silinmez. Kapı `_ADMIN`
+    """İşveren sözleşme grubunu siler. YALNIZ Sistem Yöneticisi.
 
-    (`boq/router.py.delete_boq_item_endpoint` deseninin birebiri).
+    Pozu olan grup **409** (iş kuralı).
     """
     project_name, group_name = await service.delete_employer_group(session, user, group_id)
     await record_audit(
@@ -345,7 +346,8 @@ async def update_employer_contract_item_endpoint(
 @router.delete(
     "/contracts/employer/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_ADMIN],
+    responses={**DELETE_403_YANITI},
+    dependencies=[require_system_admin()],
 )
 async def delete_employer_contract_item_endpoint(
     request: Request,
@@ -353,10 +355,10 @@ async def delete_employer_contract_item_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §7. Engel YOK: bağlı `boq_items.contract_item_id` DB'de `ON DELETE
+    """İşveren sözleşme kalemini (poz) siler. YALNIZ Sistem Yöneticisi.
 
-    SET NULL` ile serbest kalır, satır SİLİNMEZ. Kapı `_ADMIN`
-    (`boq/router.py.delete_boq_item_endpoint` deseninin birebiri).
+    Engel yok: bağlı `boq_items.contract_item_id` DB'de `ON DELETE SET NULL` ile serbest kalır,
+    satır SİLİNMEZ.
     """
     project_name, code, description = await service.delete_employer_item(session, user, item_id)
     await record_audit(
@@ -439,7 +441,11 @@ async def update_subcontractor_endpoint(
 @router.delete(
     "/subcontractors/{subcontractor_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_ADMIN],
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Taşeronun sözleşmesi ya da günlük işçi kaydı var; önce onları silin"},
+    },
+    dependencies=[require_system_admin()],
 )
 async def delete_subcontractor_endpoint(
     request: Request,
@@ -447,11 +453,9 @@ async def delete_subcontractor_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §7. 409 `SUBCONTRACTOR_HAS_CONTRACTS`: taşeronun sözleşmesi varsa
+    """Taşeron firmasını siler. YALNIZ Sistem Yöneticisi.
 
-    silinmez. Kapı `_ADMIN` — `boq/router.py.delete_boq_item_endpoint`/
-    `sites/router.py.delete_site_endpoint` deseninin BİREBİRİ, `can_delete`
-    istisnası YOK (yalnız `subcontractor-contracts` silme ucunda geçerli).
+    Sözleşmesi (ya da günlük işçi sayısı kaydı) olan taşeron **409** (iş kuralı).
     """
     name = await subcontractors.delete_subcontractor(session, subcontractor_id)
     await record_audit(
@@ -608,7 +612,11 @@ async def update_subcontractor_contract_endpoint(
 @router.delete(
     "/subcontractor-contracts/{contract_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_FULL],
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Faturaya bağlı hakedişi olan sözleşme silinemez (veri bütünlüğü)"},
+    },
+    dependencies=[require_system_admin()],
 )
 async def delete_subcontractor_contract_endpoint(
     request: Request,
@@ -616,20 +624,10 @@ async def delete_subcontractor_contract_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §7, §5.0. KAPI KARARI (task C12, belirsizlik notu): bu ucun dısındaki
+    """Taşeron sözleşmesini siler. YALNIZ Sistem Yöneticisi.
 
-    DÖRT DELETE ucu (`subcontractors`, kalemler, işveren grup/kalem) `boq`/
-    `sites` deseninin BİREBİRİ — saf `_ADMIN` kapısı, servis katmanında ek
-    kontrol YOK. Bu uç TEK istisna: kapı `_FULL`'dir, kesin yetki kararını
-    `subcontracts.delete_subcontractor_contract` içindeki `can_delete`
-    (`app/core/access.py`, spec §5.0 taslak istisnası) verir. Gerekçe: `boq`/
-    `sites` DELETE uçlarının HİÇBİRİ `can_delete`'i KULLANMIYOR (kod taraması
-    doğrulandı) — saf `_ADMIN` kapısı proje müdürünün KENDİ taslağını silmesini
-    de engellerdi, bu da spec §5.0'ın taslak istisnasını uçta ANLAMSIZ
-    bırakırdı. En yakın emsal `projects/service.py.visible_projects`'in
-    `get_permission` ile aktörün gerçek erişim seviyesini SERVİSTE okuma
-    deseni — o da router kapısının (`_VIEW`) ötesinde ek bir servis içi karar
-    örneğidir.
+    Kalemleri ve hakedişleri CASCADE ile birlikte gider. Hakedişi faturaya bağlıysa DB kısıtı
+    nedeniyle **409** (`Veri bütünlüğü hatası`, `code` yok).
     """
     (
         project_name,
@@ -703,7 +701,8 @@ async def update_subcontract_item_endpoint(
 @router.delete(
     "/subcontractor-contracts/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_ADMIN],
+    responses={**DELETE_403_YANITI},
+    dependencies=[require_system_admin()],
 )
 async def delete_subcontract_item_endpoint(
     request: Request,
@@ -711,11 +710,7 @@ async def delete_subcontract_item_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §7. Engel YOK. Kapı `_ADMIN` — `can_delete` istisnası burada YOK,
-
-    yalnız `DELETE /subcontractor-contracts/{contract_id}` ucunda geçerlidir
-    (task brief kararı).
-    """
+    """Taşeron sözleşme kalemini siler. YALNIZ Sistem Yöneticisi. Engel yok."""
     contract_no, code = await subcontracts.delete_subcontract_item(session, user, item_id)
     await record_audit(
         session,

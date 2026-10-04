@@ -20,7 +20,8 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -31,7 +32,6 @@ from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import budget_service as svc
 from app.modules.earned_value import contract_rates
 from app.modules.earned_value.access import (
-    APPROVE,
     BASELINE_FREEZE,
     VIEW,
     WRITE,
@@ -151,7 +151,11 @@ async def open_budget_draft(
 @router.delete(
     f"{_BASE}/revisions/{{revision_id}}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[APPROVE, RequireUnrestricted],
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Yalnız taslak revizyon silinebilir (dondurulmuş revizyon silinemez)"},
+    },
+    dependencies=[require_system_admin()],
 )
 async def delete_budget_draft(
     request: Request,
@@ -161,7 +165,11 @@ async def delete_budget_draft(
     user: _User,
     session: _Db,
 ) -> Response:
-    """Yalniz TASLAK silinir (onay duzeyi); donmus revizyon 409."""
+    """Bütçe taslağını siler. YALNIZ Sistem Yöneticisi.
+
+    Yalnız TASLAK revizyon silinir; dondurulmuş revizyon **409** (iş kuralı). Tamamlanmış
+    şantiyede de **409**.
+    """
     rev = await svc.delete_draft(session, ctx, revision_id)
     await _audit(
         session, request, user, msg.draft_deleted(ctx.project.name, ctx.site.name, rev.number)

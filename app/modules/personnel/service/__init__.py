@@ -141,9 +141,6 @@ from app.modules.personnel.service.leave_requests import (
     _assert_pending as _assert_pending,
 )
 from app.modules.personnel.service.leave_requests import (
-    _can_delete_leave_request as _can_delete_leave_request,
-)
-from app.modules.personnel.service.leave_requests import (
     _create_leave_request_for as _create_leave_request_for,
 )
 from app.modules.personnel.service.leave_requests import (

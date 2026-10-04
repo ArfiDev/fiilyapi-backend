@@ -115,14 +115,18 @@ async def mesajlarim(
     return list(satirlar)
 
 
-async def sohbet_sil(
-    session: AsyncSession, *, user_id: uuid.UUID, conversation_id: uuid.UUID
-) -> bool:
-    """Sahiplik kapısından geçerse siler. Mesajlar FK CASCADE ile gider."""
-    if await sohbetim(session, user_id=user_id, conversation_id=conversation_id) is None:
-        return False
-    await session.execute(delete(AiConversation).where(AiConversation.id == conversation_id))
-    return True
+async def sohbet_sil(session: AsyncSession, *, conversation_id: uuid.UUID) -> bool:
+    """Sohbeti SAHİBİNE BAKMADAN siler; yoksa `False`. Mesajlar FK CASCADE ile gider.
+
+    SIL-B1 (KARARLAR 7034741, K4): silme YALNIZ Sistem Yöneticisi'nindir ve başkasının
+    sohbetini de kapsar; sahiplik süzgeci bu fonksiyonda YOKTUR. Sahibi kendi sohbetini
+    SİLEMEZ — kapı `require_system_admin`dir (router). Okuma yolları (`sohbetim`,
+    `mesajlarim`) sahiplik kapısını TAŞIMAYA devam eder: yalnız silme gevşedi.
+    """
+    sonuc = await session.execute(
+        delete(AiConversation).where(AiConversation.id == conversation_id)
+    )
+    return bool(sonuc.rowcount)
 
 
 async def turu_baslat(

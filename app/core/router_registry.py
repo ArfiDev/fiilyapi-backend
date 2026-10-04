@@ -127,6 +127,7 @@ from app.modules.projects.router import router as projects_router
 from app.modules.roles.router import router as roles_router
 from app.modules.sales.router import router as sales_router
 from app.modules.settings.router import router as settings_router
+from app.modules.silme.router import router as silme_router
 from app.modules.site_diary.router import router as site_diary_router
 from app.modules.site_planning.router import router as site_planning_router
 from app.modules.sites.flat_list_router import router as sites_flat_list_router
@@ -204,6 +205,8 @@ ROUTERS: tuple[APIRouter, ...] = (
     roles_router,
     sales_router,
     settings_router,
+    # SIL-B1: `/admin/silme/...` — kökte `"/{param}"` biçimli rota yok, sıra tuzağı yok.
+    silme_router,
     site_diary_router,
     site_planning_router,
     earned_value_catalog_router,

@@ -47,8 +47,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_pages, require_permission
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -74,7 +74,6 @@ _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
 #: IZN-B2: çek/senet durum değiştir = Çek & Ödeme sayfası ONAYLAR (eşik eski `full`).
 _STATUS_APPROVE = require_pages(("mali.cek_odeme",), "approve")
-_ADMIN = require_permission(service.PERMISSION_MODULE, AccessLevel.admin)
 
 # TB3 sayfalama standardi: varsayilan 50, tavan 200 — tavan asimi sessizce
 # KIRPILMAZ, **422** doner (ST/SA/`invoicing`/`bank-accounts` ile birebir).
@@ -301,8 +300,12 @@ async def change_financial_instrument_status_endpoint(
 @router.delete(
     "/financial-instruments/{instrument_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={**_NOT_FOUND, 409: {"description": "Yalnızca portföydeki kayıt silinebilir"}},
-    dependencies=[_ADMIN],
+    responses={
+        **DELETE_403_YANITI,
+        **_NOT_FOUND,
+        409: {"description": "Yalnızca portföydeki ve ödemesiz çek/senet silinebilir"},
+    },
+    dependencies=[require_system_admin()],
 )
 async def delete_financial_instrument_endpoint(
     request: Request,
@@ -310,10 +313,10 @@ async def delete_financial_instrument_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """**YALNIZ `admin`** (modul docstring'i) → 204; terminal durumda **409**.
+    """Çek/senet kaydını siler. YALNIZ Sistem Yöneticisi.
 
-    `full` seviyesi (muhasebe) 403 alir: silme mali izi yok eder ve tahsil
-    edilmis bir cekin kaydi hicbir seviyede silinemez.
+    Yalnız portföydeki kayıt silinir; terminal durumdaki ya da bağlı ödemesi olan evrak **409**
+    (iş kuralı). Tahsil edilmiş bir çekin kaydı hiçbir koşulda silinemez.
     """
     detail = await service.delete_instrument(session, user, instrument_id)
     await _audit(request, session, user, AuditAction.delete, detail)

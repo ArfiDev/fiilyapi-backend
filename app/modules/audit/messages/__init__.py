@@ -35,6 +35,7 @@ istisna). Yani bir dilim artik yalniz KENDI dosyasina dokunur.
 * `treasury.py`    — banka/kasa · odeme (HZ-1) + cek/senet (FIN-1)
 * `accounting.py`  — hesap plani · yevmiye (MU-1) + donem (MU-2)
 * `approvals.py`   — onay zinciri motoru (OK-1A)
+* `silme.py`       — silme motoru bağlı kayıt özeti (SIL-B1)
 
 Bagimlilik yonu TEK YONLUDUR ve cember YOKTUR: yalnizca `shared` disaridan
 okunur, alt moduller birbirini ITHAL ETMEZ.
@@ -669,6 +670,9 @@ from app.modules.audit.messages.shared import (
 )
 from app.modules.audit.messages.shared import (
     _damga as _damga,
+)
+from app.modules.audit.messages.silme import (
+    deleted_with_dependents as deleted_with_dependents,
 )
 from app.modules.audit.messages.sites import (
     section_created as section_created,

@@ -37,7 +37,6 @@ from app.modules.users.models import User
 
 __all__ = [
     "CUSTOMER_MISSING",
-    "DELETE_NOT_ALLOWED",
     "DUPLICATE_SEQUENCE_NO",
     "INSTALLMENT_AMOUNT_NOT_POSITIVE",
     "INSTALLMENT_MISSING",
@@ -97,9 +96,6 @@ UNIT_ALREADY_SOLD = "Bu ünitede zaten açık bir satış kaydı var"
 # `DuplicateError` (benzersizlik) değil `ConflictError` (kaydın DURUMU) —
 # `progress_payments`in `PAYMENT_NOT_DELETABLE` ayrımının aynısı.
 SALE_NOT_DELETABLE = "Yalnızca rezervasyon kaydı silinebilir; satış iptal edilmelidir"
-
-# 403 — `can_delete` (`app/core/access.py`) reddi.
-DELETE_NOT_ALLOWED = "Bu satış kaydını silme yetkiniz yok"
 
 # 409 — T5 geçiş matrisinde (bkz. `transitions.TRANSITIONS`) OLMAYAN her çift.
 # `ConflictError` (409), `progress_payments.guards.INVALID_STATUS_TRANSITION` ile

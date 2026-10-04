@@ -241,13 +241,10 @@ def _bagimlilik_agacinda(
 U6_ROTALARI: frozenset[Rota] = frozenset(
     {
         ("POST", "/sites/{site_id}/boq/groups"),
-        ("DELETE", "/boq/groups/{group_id}"),
-        ("DELETE", "/diary/{entry_id}"),
         ("POST", "/earned-value/catalog"),
         ("PATCH", "/earned-value/catalog/{item_id}"),
         ("POST", "/earned-value/catalog/{item_id}/adopt-actual"),
         ("POST", "/earned-value/disciplines"),
-        ("DELETE", "/earned-value/disciplines/{discipline_id}"),
         ("PATCH", "/earned-value/disciplines/{discipline_id}"),
         ("PUT", "/sites/{site_id}/earned-value/budget/distributions"),
         ("POST", "/sites/{site_id}/earned-value/budget/fill-from-catalog"),
@@ -255,7 +252,6 @@ U6_ROTALARI: frozenset[Rota] = frozenset(
         ("POST", "/sites/{site_id}/earned-value/budget/freeze"),
         ("PUT", "/sites/{site_id}/earned-value/budget/group-disciplines"),
         ("POST", "/sites/{site_id}/earned-value/budget/revisions"),
-        ("DELETE", "/sites/{site_id}/earned-value/budget/revisions/{revision_id}"),
         ("PUT", "/sites/{site_id}/earned-value/budget/windows"),
         ("POST", "/sites/{site_id}/earned-value/days/{day}/unlock"),
         ("POST", "/sites/{site_id}/earned-value/reports/daily/{day}/approve"),
@@ -295,8 +291,22 @@ U6_ROTALARI: frozenset[Rota] = frozenset(
 )
 
 
+#: SIL-B1 (KARARLAR §1.7, K4): silme HER KOŞULDA yalnız Sistem Yöneticisi'nindir; disiplin atanmış
+#: Sistem Yöneticisi de siler. Eskiden Ü6 olan bu DELETE uçlarında `RequireUnrestricted` KALDIRILDI.
+#: Disiplin süzgeci bu uçlarda KASITLI olarak uygulanmaz: "işaretli" sayılırlar ve kapıları
+#: `test_silme_muaf_rotalar_yalniz_delete_ve_sistem_yoneticisi_kapili` ile kilitlidir.
+SILME_MUAF_ROTALARI: frozenset[Rota] = frozenset(
+    {
+        ("DELETE", "/boq/groups/{group_id}"),
+        ("DELETE", "/diary/{entry_id}"),
+        ("DELETE", "/earned-value/disciplines/{discipline_id}"),
+        ("DELETE", "/sites/{site_id}/earned-value/budget/revisions/{revision_id}"),
+    }
+)
+
+
 def isaretli_rotalar() -> set[Rota]:
-    sonuc: set[Rota] = set()
+    sonuc: set[Rota] = set(SILME_MUAF_ROTALARI)
     for ctx in iter_route_contexts(app.routes):
         if not isinstance(ctx.original_route, APIRoute):
             continue
@@ -399,6 +409,46 @@ def test_izin_listesi_etiketi_duyarli_rota_hedef_dilimine_esittir() -> None:
         r: (IZIN_LISTESI[r], duyarli[r]) for r in IZIN_LISTESI if IZIN_LISTESI[r] != duyarli[r]
     }
     assert not farkli, f"izin listesi etiketi != sınıflandırıcı hedefi: {farkli}"
+
+
+def test_silme_muaf_rotalar_yalniz_delete_ve_sistem_yoneticisi_kapili() -> None:
+    """Muaf rotalar DELETE'tir, `require_system_admin` taşır ve `require_unrestricted` TAŞIMAZ."""
+    bulunan: set[Rota] = set()
+    for ctx in iter_route_contexts(app.routes):
+        if not isinstance(ctx.original_route, APIRoute):
+            continue
+        dependant = ctx.dependant or ctx.original_route.dependant
+        for yontem in ctx.methods:
+            rota = (yontem, ctx.path)
+            if rota not in SILME_MUAF_ROTALARI:
+                continue
+            bulunan.add(rota)
+            assert yontem == "DELETE", rota
+            assert not _bagimlilik_agacinda(dependant, require_unrestricted), rota
+    assert bulunan == set(SILME_MUAF_ROTALARI), (
+        f"bayat muaf rota: {set(SILME_MUAF_ROTALARI) - bulunan}"
+    )
+
+
+def test_require_unrestricted_delete_isteklerini_atlar_diger_metotlarda_kisitliyi_durdurur() -> (
+    None
+):
+    """Router düzeyinde `RequireUnrestricted` taşıyan router'lar (teklifler, hakedişler) için DELETE
+    istisnası bağımlılığın İÇİNDE yaşar; DELETE dışı metotların kapısı DEĞİŞMEDİ."""
+    import asyncio  # noqa: PLC0415
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    from fastapi import HTTPException  # noqa: PLC0415
+
+    kisitli = SimpleNamespace(is_restricted=True)
+    asyncio.run(require_unrestricted(SimpleNamespace(method="DELETE"), kisitli))  # type: ignore[arg-type]
+    for metot in ("GET", "POST", "PUT", "PATCH"):
+        try:
+            asyncio.run(require_unrestricted(SimpleNamespace(method=metot), kisitli))  # type: ignore[arg-type]
+        except HTTPException as hata:
+            assert hata.status_code == 403
+        else:
+            raise AssertionError(f"{metot} kısıtlıyı durdurmadı")
 
 
 def test_u6_rotalari_require_unrestricted_tasir_ve_isaretli_sayilir() -> None:

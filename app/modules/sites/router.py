@@ -10,13 +10,15 @@ from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped
 from app.core.discipline_scope import DisciplineScope
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.core.slug import parse_ref
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
+from app.modules.silme import service as silme_service
+from app.modules.silme.params import DELETE_WITH_PREVIEW_RESPONSES, PreviewTokenQuery
 from app.modules.sites import repository, service
 from app.modules.sites.models import Section, Site
 from app.modules.sites.schemas import (
@@ -47,14 +49,7 @@ router = APIRouter(
 
 _VIEW = require_permission("sites", AccessLevel.view)
 _FULL = require_permission("sites", AccessLevel.full)
-# KULLANICI KARARI 2026-07-30 ("silme = sistem yoneticisi"): SILME uclari yazma
-# uclarindan BIR SEVIYE YUKARIDADIR. Neden `_FULL` DEGIL: `app/core/access.py`
-# "full yazmayi kapsar, SILMEYI KAPSAMAZ" der; `units`/`blocks`/`boq` DELETE
-# uclariyla birebir ayni desen (`units/router.py:181,206`).
-#
-# BILINEN SONUC (kabul edildi): seed matrisinde `sites:admin` yalniz
-# `system_admin`'dedir — proje muduru dahil kimse santiye/bolum silemez.
-_ADMIN = require_permission("sites", AccessLevel.admin)
+# SILME uclari `require_system_admin` ile kapilidir (SIL-B1): modul seviyesi degil rol ANAHTARI.
 
 
 async def _audit(
@@ -179,24 +174,30 @@ async def update_site_endpoint(
     return await _detail_of(session, site, current_user, scope)
 
 
-@router.delete("/sites/{site_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_ADMIN])
+@router.delete(
+    "/sites/{site_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=DELETE_WITH_PREVIEW_RESPONSES,
+    dependencies=[require_system_admin()],
+)
 async def delete_site_endpoint(
     request: Request,
     site_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Spec §7.1. CASCADE KORKULUGU servistedir — bolum/poz/blok varsa 409.
+    """Santiyeyi bagli kayitlariyla birlikte siler. YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.
 
-    Yetki kapisi korkuluktan ONCE calisir: yetkisiz aktor 403 alir ve santiyenin
-    bagli kayit tasiyip tasimadigini OGRENEMEZ. Gorunmeyen santiye 404 doner ve
-    govdesi var olmayan UUID'ninkiyle BIREBIR AYNIDIR.
+    Bolum, poz, blok, unite, puantaj, gunluk, belge, plan, sozlesme ve diger bagli kayitlar
+    birlikte silinir. Once `GET /admin/silme/site/{id}/onizleme`, onay, sonra bu uc `preview_token`
+    ile cagrilir: eksikse 428 `preview_required`; agac degistiyse 409 `preview_stale`; agacta
+    mali kayit varsa 409 `financial_pending` (mali silme sonraki surumde acilacak).
 
-    Yanit `204 No Content`, GOVDESIZ. Denetim metni servis icinde, satir yok
-    olmadan ONCE kurulur; engellenen silme (409) istisna attigi icin buraya hic
-    gelmez ve gunluge satir dusmez.
+    Gorunmeyen ve var olmayan santiye ayni yaniti verir. Yanit `204 No Content`, govdesiz. Denetim
+    satirina silinen ve bagi kopan kayitlarin tam dokumu yazilir.
     """
-    detail = await service.delete_site(session, current_user, site_id)
+    detail = await silme_service.sil(session, "site", site_id, preview_token)
     await _audit(request, session, current_user, AuditAction.delete, detail)
 
 
@@ -269,34 +270,28 @@ async def get_section_endpoint(
 
 
 @router.delete(
-    "/sections/{section_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_ADMIN]
+    "/sections/{section_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=DELETE_WITH_PREVIEW_RESPONSES,
+    dependencies=[require_system_admin()],
 )
 async def delete_section_endpoint(
     request: Request,
     section_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Spec §7.1. 🔴 **BU CUMLE BAYATTI VE DUZELTILDI (BC-3, 2026-09-05).**
+    """Bolumu bagli kayitlariyla birlikte siler. YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.
 
-    Eski metin *"`sections.id`'yi hedefleyen FK yok"* diyordu; `deletes.py`nin
-    servis docstring'i bunu zaten curutmustu ama router'daki kopya duruyordu.
-    ÖLÇÜLDÜ (`Base.metadata` uzerinden, kelime aramasiyla DEGIL): `sections.id`yi
-    **ON BIR** FK hedefliyor — ikisi CASCADE (`boq_item_section_allocations`,
-    `section_milestones` ve BC-3'un `section_documents`i), kalani SET NULL
-    (`personnel`, `purchase_requests`, `sections.depends_on_section_id`,
-    `site_diary_entries`, `site_plan_rows`, `stock_entry_lines`,
-    `subcontractor_progress_payments`, `timesheet_entries`).
-    Silme yine de kosulsuzdur cunku hicbiri RESTRICT DEGIL; kosulsuzlugun
-    gerekcesi "FK yok" DEGIL, "engelleyen FK yok"tur.
-
-    Kapi `_ADMIN`'dir — bolum santiyenin ic kirilimi oldugu icin `sites`
-    modulunun seviyeleri kullanilir, AYRI izin modulu acilmaz.
-
-    Yanit `204 No Content`, GOVDESIZ. Denetim metni servis icinde, satir yok
-    olmadan ONCE kurulur.
+    Kilometre tasi, dagitim, belge ve bolume yazilmis gunluk miktar satirlari birlikte silinir.
+    Bagi kopan kayitlar (personel, puantaj, satinalma talebi…) SILINMEZ, yalniz bolum bagi
+    kopar; onizlemede `detached` olarak gorunur. Once `GET /admin/silme/section/{id}/onizleme`,
+    sonra bu uc `preview_token` ile: eksikse 428 `preview_required`; agac degistiyse 409
+    `preview_stale`; mali kayit varsa 409 `financial_pending`. Kalan bolumlerin `sort_order`
+    degerleri yeniden numaralanmaz. Yanit `204 No Content`, govdesiz.
     """
-    detail = await service.delete_section(session, current_user, section_id)
+    detail = await silme_service.sil(session, "section", section_id, preview_token)
     await _audit(request, session, current_user, AuditAction.delete, detail)
 
 

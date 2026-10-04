@@ -385,8 +385,8 @@ async def withdraw_leave_request(
     YALNIZ sahiplik vardır. Geri çekme bir VAZGEÇMEdir, yetki yükseltmesi değil:
     admin'in başkası adına "vazgeçmesi" anlamsızdır ve görevler ayrılığını
     bulandırır — admin zaten `reject` edebilir (gerekçesi denetime düşer) ya da
-    `DELETE` edebilir. Bu yüzden `_can_delete_leave_request` YENİDEN
-    KULLANILMAZ; `is_own_personnel_record` (core'un TEK yazımı) doğrudan okunur.
+    `DELETE` edebilir (SIL-B1'den beri DELETE yalnız Sistem Yöneticisi'nindir). Bu yüzden
+    sahiplik kuralı ayrı yazılır; `is_own_personnel_record` (core'un TEK yazımı) doğrudan okunur.
 
     ## 🔴 Neden sahiplik kapısı KİLİTTEN ÖNCE
 

@@ -6,7 +6,6 @@
 class AsyncSession <- sqlalchemy.ext.asyncio.session.AsyncSession
 class ConflictError <- app.core.errors.ConflictError
 class Decimal <- decimal.Decimal
-class DeleteNotAllowedError <- app.core.errors.DeleteNotAllowedError
 class NotFoundError <- app.core.errors.NotFoundError
 other PERMISSION_MODULE: builtins.str = 'procurement'
 class ProcurementValidationError <- app.core.errors.ProcurementValidationError
@@ -41,9 +40,6 @@ class SupplierCreate <- app.modules.procurement.schemas.SupplierCreate
 class SupplierResponse <- app.modules.procurement.schemas.SupplierResponse
 class SupplierUpdate <- app.modules.procurement.schemas.SupplierUpdate
 class User <- app.modules.users.models.User
-class _DeletableRequest <- <service>._DeletableRequest
-    __init__(self, request: app.modules.procurement.models.PurchaseRequest) -> None
-    __slots__ = ('created_by', 'is_draft')
 dict _TRANSITION_MESSAGES:
     <RequestAction.submit: 'submit'>: app.modules.audit.messages.procurement.purchase_request_submitted
     <RequestAction.approve: 'approve'>: app.modules.audit.messages.procurement.purchase_request_approved
@@ -67,8 +63,7 @@ async def _visible_project_ids(session: sqlalchemy.ext.asyncio.session.AsyncSess
 async def _visible_quote(session: sqlalchemy.ext.asyncio.session.AsyncSession, request: app.modules.procurement.models.PurchaseRequest, quote_id: uuid.UUID) -> app.modules.procurement.models.PurchaseQuote
 module approvals_service -> app.modules.approvals.service
 async def build_request_detail(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, request: app.modules.procurement.models.PurchaseRequest) -> app.modules.procurement.schemas.PurchaseRequestResponse
-def can_delete(actor_id: uuid.UUID, level: app.core.access.AccessLevel, record: app.core.access.Deletable) -> bool
-async def can_delete_request(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, request: app.modules.procurement.models.PurchaseRequest) -> bool
+async def can_delete_request(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User) -> bool
 async def create_order(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, data: app.modules.procurement.schemas.PurchaseOrderCreate) -> tuple[app.modules.procurement.schemas.PurchaseOrderResponse, str]
 async def create_quote(session: sqlalchemy.ext.asyncio.session.AsyncSession, request: app.modules.procurement.models.PurchaseRequest, data: app.modules.procurement.schemas.PurchaseQuoteCreate) -> tuple[app.modules.procurement.schemas.PurchaseQuoteResponse, str]
 async def create_request(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, data: app.modules.procurement.schemas.PurchaseRequestCreate) -> tuple[app.modules.procurement.models.PurchaseRequest, str]
@@ -149,22 +144,16 @@ _to_order_response = {'id': UUID('11111111-1111-1111-1111-111111111111'), 'order
 _new_lines[] = {'request_id': UUID('22222222-2222-2222-2222-222222222222'), 'stock_item_id': UUID('33333333-3333-3333-3333-333333333333'), 'free_text_name': None, 'free_text_unit': None, 'quantity': Decimal('2.000'), 'estimated_unit_price': None, 'sort_order': 0}
 _new_lines[] = {'request_id': UUID('22222222-2222-2222-2222-222222222222'), 'stock_item_id': None, 'free_text_name': 'Serbest', 'free_text_unit': 'Adet', 'quantity': Decimal('1.500'), 'estimated_unit_price': Decimal('10.00'), 'sort_order': 1}
 _assert_draft(draft) -> OK
-_DeletableRequest(draft) = created_by=UUID('55555555-5555-5555-5555-555555555555') is_draft=True
 _assert_quote_wait(draft) -> ConflictError: Teklifler yalnızca teklif bekleyen talebe eklenebilir
 _assert_draft(pending_approval) -> ConflictError: Yalnızca taslak talep düzenlenebilir veya silinebilir
-_DeletableRequest(pending_approval) = created_by=UUID('55555555-5555-5555-5555-555555555555') is_draft=False
 _assert_quote_wait(pending_approval) -> ConflictError: Teklifler yalnızca teklif bekleyen talebe eklenebilir
 _assert_draft(quote_wait) -> ConflictError: Yalnızca taslak talep düzenlenebilir veya silinebilir
-_DeletableRequest(quote_wait) = created_by=UUID('55555555-5555-5555-5555-555555555555') is_draft=False
 _assert_quote_wait(quote_wait) -> OK
 _assert_draft(ordered) -> ConflictError: Yalnızca taslak talep düzenlenebilir veya silinebilir
-_DeletableRequest(ordered) = created_by=UUID('55555555-5555-5555-5555-555555555555') is_draft=False
 _assert_quote_wait(ordered) -> ConflictError: Teklifler yalnızca teklif bekleyen talebe eklenebilir
 _assert_draft(delivered) -> ConflictError: Yalnızca taslak talep düzenlenebilir veya silinebilir
-_DeletableRequest(delivered) = created_by=UUID('55555555-5555-5555-5555-555555555555') is_draft=False
 _assert_quote_wait(delivered) -> ConflictError: Teklifler yalnızca teklif bekleyen talebe eklenebilir
 _assert_draft(rejected) -> ConflictError: Yalnızca taslak talep düzenlenebilir veya silinebilir
-_DeletableRequest(rejected) = created_by=UUID('55555555-5555-5555-5555-555555555555') is_draft=False
 _assert_quote_wait(rejected) -> ConflictError: Teklifler yalnızca teklif bekleyen talebe eklenebilir
 _assert_shipping_rule(included=True, cost=None) -> OK
 _assert_shipping_rule(included=True, cost=Decimal('0.00')) -> ProcurementValidationError: Nakliye dahilse ayrıca nakliye tutarı girilemez

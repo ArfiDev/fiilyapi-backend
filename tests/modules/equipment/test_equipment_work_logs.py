@@ -326,10 +326,13 @@ async def test_patch_aralik_bosaltilirsa_saat_dogrudan_yazilir(client, sef_heade
 
 
 @pytest.mark.asyncio
-async def test_delete_kaydi_siler_ve_tavani_bosaltir(client, sef_headers, makine):
-    """Çalışma kaydı mali iz DEĞİLDİR (türev maliyet): kayıt hatası silinebilir."""
+async def test_delete_kaydi_siler_ve_tavani_bosaltir(client, sef_headers, admin_headers, makine):
+    """Çalışma kaydı mali iz DEĞİLDİR (türev maliyet): kayıt hatası silinebilir — YALNIZ Sistem
+    Yöneticisi (SIL-B1; `full` yazar şef silemez)."""
     kayit = await _kayit_ac(client, sef_headers, makine.id, hours="20")
-    silme = await client.delete(f"/equipment/work-logs/{kayit['id']}", headers=sef_headers)
+    yasak = await client.delete(f"/equipment/work-logs/{kayit['id']}", headers=sef_headers)
+    assert yasak.status_code == 403, yasak.text
+    silme = await client.delete(f"/equipment/work-logs/{kayit['id']}", headers=admin_headers)
     assert silme.status_code == 204, silme.text
 
     yeniden = await client.post(
@@ -341,8 +344,8 @@ async def test_delete_kaydi_siler_ve_tavani_bosaltir(client, sef_headers, makine
 
 
 @pytest.mark.asyncio
-async def test_delete_olmayan_kayit_404(client, sef_headers):
-    yanit = await client.delete(f"/equipment/work-logs/{uuid.uuid4()}", headers=sef_headers)
+async def test_delete_olmayan_kayit_404(client, admin_headers):
+    yanit = await client.delete(f"/equipment/work-logs/{uuid.uuid4()}", headers=admin_headers)
     assert yanit.status_code == 404, yanit.text
 
 

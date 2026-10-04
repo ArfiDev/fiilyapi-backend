@@ -18,8 +18,7 @@ from typing import NamedTuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, can_delete
-from app.core.errors import ConflictError, DeleteNotAllowedError, NotFoundError, SiteValidationError
+from app.core.errors import ConflictError, NotFoundError, SiteValidationError
 from app.core.slug import allocate_slug, composite_slug
 from app.modules.contracts import guards as contract_guards
 from app.modules.contracts import repository as contracts_repository
@@ -27,7 +26,6 @@ from app.modules.contracts.models import SubcontractorContract, SubcontractorCon
 from app.modules.progress_payments import calculations
 from app.modules.projects.models import Project
 from app.modules.projects.service import visible_projects
-from app.modules.roles.repository import get_permission
 from app.modules.subcontractor_progress_payments import guards, lines, repository
 from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
@@ -382,8 +380,7 @@ async def delete_payment(
     session: AsyncSession, actor: User, payment_id: uuid.UUID
 ) -> DeletedPaymentSummary:
     """Katman 1: `approved`/`paid` ADMİN DAHİL kimseye silinmez (409).
-    Katman 2: kalan kümede `can_delete` — admin koşulsuz, aksi hâlde yalnız
-    kaydı AÇAN aktörün KENDİ taslağı (403).
+    Kapı router'da yalnız Sistem Yöneticisi'dir (SIL-B1, K4: "kendi taslağı" istisnası YOK).
 
     Silme de bir YAZMA işlemidir (işveren H8 denetimi K1): satır kilitsiz
     okunursa eşzamanlı bir onay katman-1 kontrolünü TOCTOU ile atlatabilir —
@@ -393,11 +390,6 @@ async def delete_payment(
 
     if payment.status in (SubcontractorPaymentStatus.approved, SubcontractorPaymentStatus.paid):
         raise ConflictError(guards.PAYMENT_NOT_DELETABLE)
-
-    permission = await get_permission(session, actor.role_id, "progress_payments")
-    level = permission.access_level if permission is not None else AccessLevel.none
-    if not can_delete(actor.id, level, payment):
-        raise DeleteNotAllowedError(guards.DELETE_NOT_ALLOWED)
 
     # Özet `session.delete` ÖNCESİNDE kurulur — sonra okunursa denetim satırı
     # sessizce varsayılanlara düşer (işveren H10 mutasyon denetiminin bulgusu).

@@ -24,7 +24,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.progress_payments import guards
 from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
-from app.modules.sites import guards as site_guards
+from tests._silme_yardimci import sil_aile
+from tests.discipline_scope._b2_yardim import SISYON_ONLY
 
 pytestmark = pytest.mark.asyncio
 
@@ -90,15 +91,17 @@ async def test_admin_unapprove_sonrasi_silebilir(
 # --- 2. Katman 2: draft/pending_approval — can_delete çapraz tablosu ---
 
 
-async def test_sef_kendi_taslagini_silebilir_204(
+async def test_sef_kendi_taslagini_da_silemez_403_istisna_yok(
     client: AsyncClient,
     site_chief_headers: dict[str, str],
     seeded_db: AsyncSession,
     kendi_taslagi: uuid.UUID,
 ) -> None:
+    """SIL-B1 (K4): eski "kendi taslağını sahibi siler" (`can_delete`) istisnası KALDIRILDI."""
     yanit = await client.delete(f"/progress-payments/{kendi_taslagi}", headers=site_chief_headers)
-    assert yanit.status_code == 204, yanit.text
-    assert not await _var_mi(seeded_db, kendi_taslagi)
+    assert yanit.status_code == 403, yanit.text
+    assert yanit.json() == SISYON_ONLY
+    assert await _var_mi(seeded_db, kendi_taslagi)
 
 
 async def test_sef_baskasinin_taslagini_silemez_403(
@@ -111,7 +114,7 @@ async def test_sef_baskasinin_taslagini_silemez_403(
         f"/progress-payments/{baskasinin_taslagi}", headers=site_chief_headers
     )
     assert yanit.status_code == 403, yanit.text
-    assert yanit.json()["detail"] == guards.DELETE_NOT_ALLOWED
+    assert yanit.json() == SISYON_ONLY
     assert await _var_mi(seeded_db, baskasinin_taslagi)
 
 
@@ -129,7 +132,7 @@ async def test_pending_admin_disinda_silinemez_403(
         f"/progress-payments/{kisitli_projede_onay_bekleyen}", headers=muhasebe_headers
     )
     assert yanit.status_code == 403, yanit.text
-    assert yanit.json()["detail"] == guards.DELETE_NOT_ALLOWED
+    assert yanit.json() == SISYON_ONLY
     assert await _var_mi(seeded_db, kisitli_projede_onay_bekleyen)
 
 
@@ -149,22 +152,19 @@ async def test_pending_admin_silebilir_204(
 # --- 3. IDOR: görünmeyen proje ↔ var olmayan kimlik ayırt edilemez (spec §9.0) ---
 
 
-async def test_gorunmeyen_projedeki_hakedis_404(
+async def test_gorunmeyen_projedeki_hakedis_403_varlik_sizmaz(
     client: AsyncClient,
     site_chief_headers: dict[str, str],
     seeded_db: AsyncSession,
     gorunmeyen_hakedis: uuid.UUID,
 ) -> None:
-    """`site_chief_headers` `gorunmeyen_hakedis`in projesini GÖRMEZ — kayıt
-
-    GERÇEKTEN var olsa da var olmayan kimlikle AYNI 404 gövdesini döner (403
-    DEĞİL — varlık sızdırmaz).
-    """
+    """`site_chief_headers` Sistem Yöneticisi DEĞİL: kapı handler'dan ÖNCE koşar (SIL-B1) —
+    `gorunmeyen_hakedis` GERÇEKTEN var olsa da var olmayan kimlikle AYNI 403 gövdesini alır."""
     yanit = await client.delete(
         f"/progress-payments/{gorunmeyen_hakedis}", headers=site_chief_headers
     )
-    assert yanit.status_code == 404, yanit.text
-    assert yanit.json()["detail"] == guards.PAYMENT_MISSING
+    assert yanit.status_code == 403, yanit.text
+    assert yanit.json() == SISYON_ONLY
     assert await _var_mi(seeded_db, gorunmeyen_hakedis)
 
 
@@ -263,17 +263,25 @@ async def test_silme_santiyeyi_etkilemez(
 # --- 5. `sites` RESTRICT korkuluğu (spec §4.2, §7.1 dipnotu) ---
 
 
-async def test_hakedisli_santiye_silinemez_409(
-    client: AsyncClient, admin_headers: dict[str, str], hakedisli_santiye: uuid.UUID
+async def test_taslak_hakedis_satirli_santiye_silinir_satirlar_gider_baslik_kalir(
+    client: AsyncClient,
+    admin_headers: dict[str, str],
+    seeded_db: AsyncSession,
+    hakedisli_santiye: uuid.UUID,
 ) -> None:
-    """§4.2 RESTRICT: hakediş satırı olan bir şantiye silinemez; DB'nin ham
+    """SIL-B1: eski SITE_HAS_PROGRESS_PAYMENTS 409 korkuluğu Sistem Yöneticisi için BYPASS edilir.
 
-    `IntegrityError` → 500 emniyet ağına DÜŞMEDEN serviste 409 + eyleme dönük
-    Türkçe metin döner.
-    """
-    yanit = await client.delete(f"/sites/{hakedisli_santiye}", headers=admin_headers)
-    assert yanit.status_code == 409, yanit.text
-    assert yanit.json()["detail"] == site_guards.SITE_HAS_PROGRESS_PAYMENTS
+    `progress_payment_lines.site_id` RESTRICT: satırlar önce silinir. TASLAK hakediş mali
+    sayılmaz (fişi yok) → silme geçer. Başlık KALIR (bayat kalır: SIL-B2'ye devir, bkz.
+    `tests/modules/silme/test_silme_api.py::test_hakedis_baslik_bayat_kalir_SIL_B2`)."""
+    from app.modules.progress_payments.models import ProgressPaymentLine
+
+    yanit = await sil_aile(client, admin_headers, "site", hakedisli_santiye)
+    assert yanit.status_code == 204, yanit.text
+    satirlar = await seeded_db.execute(
+        select(ProgressPaymentLine.id).where(ProgressPaymentLine.site_id == hakedisli_santiye)
+    )
+    assert satirlar.all() == []
 
 
 async def test_hakedissiz_santiye_silinebilir_204(
@@ -294,5 +302,5 @@ async def test_hakedissiz_santiye_silinebilir_204(
     seeded_db.add(site)
     await seeded_db.flush()
 
-    yanit = await client.delete(f"/sites/{site.id}", headers=admin_headers)
+    yanit = await sil_aile(client, admin_headers, "site", site.id)
     assert yanit.status_code == 204, yanit.text

@@ -48,8 +48,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -68,7 +68,6 @@ router = APIRouter(tags=["treasury"], responses=COMMON_ERROR_RESPONSES)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
-_ADMIN = require_permission(service.PERMISSION_MODULE, AccessLevel.admin)
 
 # TB3 sayfalama standardı: varsayılan 50, tavan 200 — tavan aşımı sessizce
 # KIRPILMAZ, 422 döner (ST/SA/`invoicing` ile birebir).
@@ -214,10 +213,11 @@ async def update_bank_account_endpoint(
     "/bank-accounts/{account_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
+        **DELETE_403_YANITI,
         404: {"description": "Banka hesabı bulunamadı"},
-        409: {"description": "Bu hesaba bağlı ödeme kayıtları var"},
+        409: {"description": "Hesaba bağlı ödeme kaydı var"},
     },
-    dependencies=[_ADMIN],
+    dependencies=[require_system_admin()],
 )
 async def delete_bank_account_endpoint(
     request: Request,
@@ -225,11 +225,9 @@ async def delete_bank_account_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """**YALNIZ `admin`** → 204; ödemesi olan hesap **409**.
+    """Banka hesabını siler. YALNIZ Sistem Yöneticisi.
 
-    `full` seviyesi (muhasebe) 403 alır — gerekçe modül docstring'indedir.
-    409 SERVİSTEN gelir: ham FK ihlalinin 500'ü ya da ayrımsız "Veri bütünlüğü
-    hatası" kullanıcıya SIZMAZ. Yanıt gövdesizdir.
+    Ödemesi olan hesap **409** (iş kuralı). Yanıt gövdesizdir.
     """
     detail = await service.delete_account(session, account_id)
     await _audit(request, session, user, AuditAction.delete, detail)

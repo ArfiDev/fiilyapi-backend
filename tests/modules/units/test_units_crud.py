@@ -11,9 +11,8 @@ sayısını SIZDIRMAZ.
 import uuid
 from decimal import Decimal
 
-import pytest
-
 from app.core.access import AccessLevel
+from tests._silme_yardimci import sil_aile
 
 from ._units_api import (
     _auth,
@@ -407,7 +406,7 @@ async def test_delete_unit_returns_204(client, db_session, user_factory, project
     unit = await _unit(db_session, project, block, "1")
     token = await _login(client, user_factory, "system_admin")
 
-    resp = await client.delete(f"/units/{unit.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "unit", unit.id)
 
     assert resp.status_code == 204
     assert await _count_units_in_block(db_session, block.id) == 0
@@ -422,8 +421,8 @@ async def test_delete_unit_twice_returns_404(client, db_session, user_factory, p
     unit = await _unit(db_session, project, block, "1")
     token = await _login(client, user_factory, "system_admin")
 
-    first = await client.delete(f"/units/{unit.id}", headers=_auth(token))
-    second = await client.delete(f"/units/{unit.id}", headers=_auth(token))
+    first = await sil_aile(client, _auth(token), "unit", unit.id)
+    second = await sil_aile(client, _auth(token), "unit", unit.id)
 
     assert first.status_code == 204
     assert second.status_code == 404
@@ -447,8 +446,8 @@ async def test_delete_unit_invisible_returns_403_indistinguishable_from_unknown(
     unit = await _unit(db_session, project, block, "1")
     token = await _login(client, user_factory, "patron")
 
-    resp = await client.delete(f"/units/{unit.id}", headers=_auth(token))
-    unknown = await client.delete(f"/units/{uuid.uuid4()}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "unit", unit.id)
+    unknown = await sil_aile(client, _auth(token), "unit", uuid.uuid4())
 
     assert resp.status_code == unknown.status_code == 403
     assert resp.json() == unknown.json()
@@ -459,7 +458,7 @@ async def test_delete_unit_unknown_uuid_returns_404_same_message(client, user_fa
     """IDOR-7: var olmayan unite ile gorunmeyen unite AYIRT EDILEMEZ."""
     token = await _login(client, user_factory, "system_admin")
 
-    resp = await client.delete(f"/units/{uuid.uuid4()}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "unit", uuid.uuid4())
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Ünite bulunamadı"
@@ -475,7 +474,7 @@ async def test_delete_unit_view_permission_forbidden(
     unit = await _unit(db_session, project, block, "1")
     token = await _login_with_access(client, db_session, user_factory, "site_chief")
 
-    resp = await client.delete(f"/units/{unit.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "unit", unit.id)
 
     assert resp.status_code == 403
     assert await _count_units_in_block(db_session, block.id) == 1
@@ -496,22 +495,17 @@ async def test_delete_unit_full_permission_forbidden(
     token = await _login_with_access(client, db_session, user_factory, "patron")
 
     patch = await client.patch(f"/units/{unit.id}", json={"unit_no": "9"}, headers=_auth(token))
-    resp = await client.delete(f"/units/{unit.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "unit", unit.id)
 
     assert patch.status_code == 200, "on kosul: bu rol uniteyi DUZENLEYEBILMELI"
     assert resp.status_code == 403
     assert await _count_units_in_block(db_session, block.id) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
-async def test_delete_unit_admin_permission_allowed(
+async def test_delete_unit_admin_seviyesi_yetmez_yalniz_sistem_yoneticisi_siler(
     client, db_session, user_factory, project_factory
 ):
-    """`projects:admin` siler — kapi seviyede, rol adinda DEGIL."""
+    """SIL-B1: `projects:admin` seviyesi silmeye YETMEZ — kapı rol ANAHTARI `system_admin`dir."""
     project = await project_factory("B7-4C")
     site = await _site(db_session, project)
     block = await _block(db_session, project, site)
@@ -519,71 +513,53 @@ async def test_delete_unit_admin_permission_allowed(
     await _set_permission(db_session, "project_manager", "projects", AccessLevel.admin)
     token = await _login_with_access(client, db_session, user_factory, "project_manager")
 
-    resp = await client.delete(f"/units/{unit.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "unit", unit.id)
 
-    assert resp.status_code == 204
-    assert await _count_units_in_block(db_session, block.id) == 0
+    assert resp.status_code == 403
+    assert await _count_units_in_block(db_session, block.id) == 1
 
 
 # --- B7: DELETE /blocks/{id} (spec §7.9) ---
 
 
-async def test_delete_block_with_units_returns_409(
+async def test_delete_block_with_units_deletes_units_too(
     client, db_session, user_factory, project_factory
 ):
-    """Cascade YOKTUR: unitesi olan blok silinemez (spec §7.9)."""
+    """SIL-B1: eski "ünitesi olan blok 409" kuralı Sistem Yöneticisi için BYPASS edilir; ünite
+    (RESTRICT çocuk) önce, blok sonra silinir."""
     project = await project_factory("B7-5")
     site = await _site(db_session, project)
     block = await _block(db_session, project, site)
     await _unit(db_session, project, block, "1")
     token = await _login(client, user_factory, "system_admin")
 
-    resp = await client.delete(f"/blocks/{block.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "block", block.id)
 
-    assert resp.status_code == 409
-    assert resp.json()["detail"] == "Bu blokta ünite var, önce üniteleri silin"
+    assert resp.status_code == 204
+    assert await _block_exists(db_session, block.id) is False
+    assert await _count_units_in_block(db_session, block.id) == 0
 
 
-async def test_delete_block_with_units_leaves_block_and_units_intact(
+async def test_delete_block_leaves_other_blocks_units_intact(
     client, db_session, user_factory, project_factory
 ):
-    """KANIT TESTI (plan B7 test 6): 409 SONRASI blok duruyor ve unite sayisi
-    DEGISMEMIS. 24 daireyi tek istekle sessizce silmek geri alinamaz veri
-    kaybidir; durum kodu tek basina bunu kanitlamaz."""
+    """KANIT TESTI: 24 daireli blok silinince YALNIZ onun üniteleri gider; yan bloğunki durur."""
     project = await project_factory("B7-6")
     site = await _site(db_session, project)
     block = await _block(db_session, project, site)
+    other = await _block(db_session, project, site, "B Blok")
     for no in (str(n) for n in range(1, 25)):
         await _unit(db_session, project, block, no)
+    await _unit(db_session, project, other, "1")
     token = await _login(client, user_factory, "system_admin")
-    before = await _count_units_in_block(db_session, block.id)
+    assert await _count_units_in_block(db_session, block.id) == 24
 
-    resp = await client.delete(f"/blocks/{block.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "block", block.id)
 
-    after = await _count_units_in_block(db_session, block.id)
-    assert resp.status_code == 409
-    assert before == 24
-    assert after == before
-    assert await _block_exists(db_session, block.id) is True
-
-
-async def test_delete_block_error_message_omits_unit_count(
-    client, db_session, user_factory, project_factory
-):
-    """Spec §7.9: mesajda unite ADEDI VERILMEZ — gorunurluk disi bilgi sizmaz."""
-    project = await project_factory("B7-7")
-    site = await _site(db_session, project)
-    block = await _block(db_session, project, site)
-    for no in ("1", "2", "3"):
-        await _unit(db_session, project, block, no)
-    token = await _login(client, user_factory, "system_admin")
-
-    resp = await client.delete(f"/blocks/{block.id}", headers=_auth(token))
-
-    assert resp.status_code == 409
-    detail = resp.json()["detail"]
-    assert detail == "Bu blokta ünite var, önce üniteleri silin"
-    assert not any(char.isdigit() for char in detail)
+    assert resp.status_code == 204
+    assert await _count_units_in_block(db_session, block.id) == 0
+    assert await _count_units_in_block(db_session, other.id) == 1
+    assert await _block_exists(db_session, other.id) is True
 
 
 async def test_delete_empty_block_returns_204(client, db_session, user_factory, project_factory):
@@ -592,28 +568,9 @@ async def test_delete_empty_block_returns_204(client, db_session, user_factory, 
     block = await _block(db_session, project, site)
     token = await _login(client, user_factory, "system_admin")
 
-    resp = await client.delete(f"/blocks/{block.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "block", block.id)
 
     assert resp.status_code == 204
-    assert await _block_exists(db_session, block.id) is False
-
-
-async def test_delete_block_after_units_removed_returns_204(
-    client, db_session, user_factory, project_factory
-):
-    """Akis dogrulamasi: once uniteler, sonra blok — kullaniciya soylenen yol."""
-    project = await project_factory("B7-9")
-    site = await _site(db_session, project)
-    block = await _block(db_session, project, site)
-    unit = await _unit(db_session, project, block, "1")
-    token = await _login(client, user_factory, "system_admin")
-
-    blocked = await client.delete(f"/blocks/{block.id}", headers=_auth(token))
-    await client.delete(f"/units/{unit.id}", headers=_auth(token))
-    allowed = await client.delete(f"/blocks/{block.id}", headers=_auth(token))
-
-    assert blocked.status_code == 409
-    assert allowed.status_code == 204
     assert await _block_exists(db_session, block.id) is False
 
 
@@ -631,8 +588,8 @@ async def test_delete_block_invisible_returns_403_indistinguishable_from_unknown
     block = await _block(db_session, project, site)
     token = await _login(client, user_factory, "patron")
 
-    resp = await client.delete(f"/blocks/{block.id}", headers=_auth(token))
-    unknown = await client.delete(f"/blocks/{uuid.uuid4()}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "block", block.id)
+    unknown = await sil_aile(client, _auth(token), "block", uuid.uuid4())
 
     assert resp.status_code == unknown.status_code == 403
     assert resp.json() == unknown.json()
@@ -643,7 +600,7 @@ async def test_delete_block_unknown_uuid_returns_404_same_message(client, user_f
     """IDOR-7: var olmayan blok ile gorunmeyen blok AYIRT EDILEMEZ."""
     token = await _login(client, user_factory, "system_admin")
 
-    resp = await client.delete(f"/blocks/{uuid.uuid4()}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "block", uuid.uuid4())
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Blok bulunamadı"
@@ -657,7 +614,7 @@ async def test_delete_block_view_permission_forbidden(
     block = await _block(db_session, project, site)
     token = await _login_with_access(client, db_session, user_factory, "site_chief")
 
-    resp = await client.delete(f"/blocks/{block.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "block", block.id)
 
     assert resp.status_code == 403
     assert await _block_exists(db_session, block.id) is True
@@ -673,32 +630,27 @@ async def test_delete_block_full_permission_forbidden(
     token = await _login_with_access(client, db_session, user_factory, "patron")
 
     patch = await client.patch(f"/blocks/{block.id}", json={"name": "Z Blok"}, headers=_auth(token))
-    resp = await client.delete(f"/blocks/{block.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "block", block.id)
 
     assert patch.status_code == 200, "on kosul: bu rol blogu DUZENLEYEBILMELI"
     assert resp.status_code == 403
     assert await _block_exists(db_session, block.id) is True
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
-async def test_delete_block_admin_permission_allowed(
+async def test_delete_block_admin_seviyesi_yetmez_yalniz_sistem_yoneticisi_siler(
     client, db_session, user_factory, project_factory
 ):
-    """`projects:admin` siler — kapi seviyede, rol adinda DEGIL."""
+    """SIL-B1: kapı seviyede DEĞİL, rol anahtarında: `projects:admin` olsa da 403."""
     project = await project_factory("B7-11C")
     site = await _site(db_session, project)
     block = await _block(db_session, project, site)
     await _set_permission(db_session, "project_manager", "projects", AccessLevel.admin)
     token = await _login_with_access(client, db_session, user_factory, "project_manager")
 
-    resp = await client.delete(f"/blocks/{block.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "block", block.id)
 
-    assert resp.status_code == 204
-    assert await _block_exists(db_session, block.id) is False
+    assert resp.status_code == 403
+    assert await _block_exists(db_session, block.id) is True
 
 
 # --- P3.1 §0.B: kodu NULL olan blokta ANLIK turetme (spec §3.2, karar 8) ---

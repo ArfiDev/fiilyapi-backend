@@ -23,7 +23,7 @@ from app.modules.boq.models import BoqItem
 from app.modules.site_diary.models import SiteDiaryLine
 from tests._disiplin_dunyasi import GUN3, Dunya, _kimlik
 from tests.discipline_scope._b2_golden_araclari import audit_kimlikleri, yeni_audit
-from tests.discipline_scope._b2_yardim import YETKI_YOK, YOK_KIMLIK, ham_satirlar, ozet
+from tests.discipline_scope._b2_yardim import SISYON_ONLY, YOK_KIMLIK, ham_satirlar, ozet
 
 YAZANLAR = True
 ESKI = datetime(2020, 1, 1, 12, 0, tzinfo=UTC)
@@ -294,15 +294,21 @@ async def test_put_lines_audit_sayisi_govdedeki_satir_sayisidir(
 # ------------------------------------------------------------------ Ü5: silme
 
 
-async def test_gunluk_silme_kisitliya_403_atamasiz_esi_kendi_taslagini_siler(
-    client: AsyncClient, dunya: Dunya, civil_yazar, yazar_atamasiz
+async def test_gunluk_silme_sadece_sistem_yoneticisi_disiplin_atanmis_olsa_da_siler(
+    client: AsyncClient, dunya: Dunya, civil_yazar, yazar_atamasiz, atamasiz, admin_kisitli
 ) -> None:
+    """SIL-B1 (K4): silme YALNIZ Sistem Yöneticisi'nindir — "kendi taslağını siler" istisnası YOK.
+    Disiplin kısıtı DELETE'te uygulanmaz: disiplin atanmış Sistem Yöneticisi de siler."""
     url = f"/sites/{dunya.santiye.id}/diary"
     kendi_civil = await client.post(url, headers=civil_yazar, json={"entry_date": "2026-05-12"})
     kendi_atamasiz = await client.post(
         url, headers=yazar_atamasiz, json={"entry_date": "2026-05-13"}
     )
-    resp = await client.delete(f"/diary/{kendi_civil.json()['id']}", headers=civil_yazar)
-    assert (resp.status_code, resp.json()) == (403, YETKI_YOK)
-    pozitif = await client.delete(f"/diary/{kendi_atamasiz.json()['id']}", headers=yazar_atamasiz)
-    assert pozitif.status_code == 204, pozitif.text  # aynı rol, atamasız → 403 DEĞİL
+    for baslik, gun in ((civil_yazar, kendi_civil), (yazar_atamasiz, kendi_atamasiz)):
+        resp = await client.delete(f"/diary/{gun.json()['id']}", headers=baslik)
+        assert (resp.status_code, resp.json()) == (403, SISYON_ONLY)  # kendi taslağı da 403
+    # SIL-B1: disiplin kısıtı DELETE'te UYGULANMAZ: disiplin atanmış Sistem Yöneticisi siler
+    kisitli = await client.delete(f"/diary/{kendi_civil.json()['id']}", headers=admin_kisitli)
+    assert kisitli.status_code == 204, kisitli.text
+    pozitif = await client.delete(f"/diary/{kendi_atamasiz.json()['id']}", headers=atamasiz)
+    assert pozitif.status_code == 204, pozitif.text

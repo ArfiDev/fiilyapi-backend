@@ -13,8 +13,8 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import can_delete
 from app.core.errors import ConflictError, NotFoundError
+from app.core.page_gate import is_admin_role
 from app.modules.procurement import guards, repository
 from app.modules.procurement.models import PurchaseRequest, PurchaseRequestStatus
 from app.modules.procurement.schemas import PurchaseRequestLineCreate
@@ -120,25 +120,13 @@ def _assert_draft(request: PurchaseRequest) -> None:
         raise ConflictError(guards.REQUEST_NOT_DRAFT)
 
 
-class _DeletableRequest:
-    """`app.core.access.Deletable` protokolune KOPRU.
+async def can_delete_request(session: AsyncSession, actor: User) -> bool:
+    """Yanıttaki `can_delete` bayrağı ile SİLME UCU AYNI kuraldan beslenir (SIL-B1, K4): silme
+    YALNIZ Sistem Yöneticisi'nindir; "talebi açan kendi taslağını siler" istisnası KALDIRILDI.
+    Ekran düğmeyi gösterip sonra 403 yemesin.
 
-    Kural KOPYALANMAZ: silme kosulu repoda tek yerdedir (`can_delete`), ama o
-    fonksiyon `created_by`/`is_draft` adlarini bekler; talebin karsiliklari
-    `created_by_user_id` ve `status is draft`tir. Kopru olmasaydi ayni kural
-    burada ikinci kez yazilir ve zamanla sapardi.
-    """
-
-    __slots__ = ("created_by", "is_draft")
-
-    def __init__(self, request: PurchaseRequest) -> None:
-        self.created_by = request.created_by_user_id
-        self.is_draft = request.status is PurchaseRequestStatus.draft
-
-
-async def can_delete_request(session: AsyncSession, actor: User, request: PurchaseRequest) -> bool:
-    """Yanittaki `can_delete` bayragi ile SILME UCU AYNI fonksiyondan beslenir —
-    ekran dugmeyi gosterip sonra 403 yemesin."""
-    return can_delete(
-        actor.id, await repository.actor_level(session, actor), _DeletableRequest(request)
-    )
+    🔴 `is_admin_role` (async) kullanılır, senkron `access.is_system_admin` DEĞİL: onay/ret
+    yolunda aktör servis içinde süresi dolmuş (expired) olarak gelir ve `User.role`
+    `lazy="raise"` olduğu için senkron okuma 500 atardı (PR #172 CI). `require_system_admin`
+    kapısıyla aynı tek kaynak."""
+    return await is_admin_role(session, actor)

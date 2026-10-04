@@ -25,8 +25,8 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
-from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_any_permission
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import require_any_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -36,7 +36,7 @@ from app.modules.earned_value import (
     contract_adapter,
     discipline_adapter,
 )
-from app.modules.earned_value.access import ADMIN, CATALOG, PERMISSION_MODULE, VIEW
+from app.modules.earned_value.access import CATALOG, PERMISSION_MODULE, VIEW
 from app.modules.earned_value.schemas_catalog import (
     CatalogItemCreate,
     CatalogItemRead,
@@ -147,12 +147,20 @@ async def update_discipline_endpoint(
     "/earned-value/disciplines/{discipline_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
-    dependencies=[ADMIN, RequireUnrestricted],
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Disiplin kullanımda ya da kullanıcılara atanmış"},
+    },
+    dependencies=[require_system_admin()],
 )
 async def delete_discipline_endpoint(
     request: Request, discipline_id: uuid.UUID, user: _User, session: _Session
 ) -> Response:
-    """Disiplini siler — yalniz HICBIR EV kaydinda kullanilmiyorsa (B1-9), yoksa 409."""
+    """Disiplini siler. YALNIZ Sistem Yöneticisi.
+
+    Hiçbir EV kaydında kullanılmıyorsa ve kullanıcıya atanmamışsa silinir; aksi hâlde **409**
+    (iş kuralı). Disiplin atanmış Sistem Yöneticisi de siler (disiplin kısıtı DELETE'te yok).
+    """
     discipline = await catalog_service.delete_discipline(session, discipline_id)
     detail = audit_messages.discipline_deleted(discipline.code, discipline.name)
     await _audit(session, request, user, AuditAction.delete, detail)

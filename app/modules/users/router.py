@@ -7,8 +7,8 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
-from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -139,7 +139,12 @@ async def reset_password_endpoint(
 @router.delete(
     "/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[require_permission("user_management", AccessLevel.admin)],
+    responses={
+        **DELETE_403_YANITI,
+        400: {"description": "Son aktif Sistem Yöneticisi silinemez"},
+        409: {"description": "İz bırakmış kullanıcı silinemez (veri bütünlüğü; `code` yok)"},
+    },
+    dependencies=[require_system_admin()],
 )
 async def delete_user_endpoint(
     request: Request,
@@ -148,6 +153,11 @@ async def delete_user_endpoint(
     session: DbSession,
 ) -> None:
     # Ad silmeden ONCE okunmali; sonra okunursa satir yoktur.
+    """Kullanıcıyı siler. YALNIZ Sistem Yöneticisi.
+
+    Son aktif Sistem Yöneticisi silinemez (**400**). İz bırakmış kullanıcı (12 tabloda RESTRICT) DB
+    kısıtı nedeniyle **409** `Veri bütünlüğü hatası` alır; anonimleştirme yolu SIL-B3'tedir.
+    """
     target = await repository.get_user(session, user_id)
     deleted_name = target.full_name if target is not None else ""
     await service.delete_user(session, user_id)  # kullanici yoksa 404 firlatir

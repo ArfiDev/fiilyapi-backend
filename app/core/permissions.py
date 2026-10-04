@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel, Scope
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.page_gate import Flag, gate_ok, page_ok, pages_ok
+from app.core.openapi import SYSTEM_ADMIN_ONLY_DETAIL
+from app.core.page_gate import Flag, gate_ok, is_admin_role, page_ok, pages_ok
 from app.core.scoped_route import kapsam_bagimligi_kur
 from app.modules.roles.repository import get_permission, role_mask_basis
 from app.modules.users.models import User
@@ -35,6 +36,30 @@ def require_permission(module_key: str, min_level: AccessLevel):
     ) -> None:
         if not await gate_ok(session, user, module_key, min_level):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_DENIED)
+
+    return Depends(_check)
+
+
+def require_system_admin():
+    """Silme kapısı (SIL-B1, KARARLAR §1.7 K4): YALNIZ Sistem Yöneticisi, HER KOŞULDA.
+
+    `require_permission`dan farkı: modül seviyesine DEĞİL rol ANAHTARINA bakar
+    (`page_gate.is_admin_role`). `admin` seviyesi matrisle başka role de verilebilir; silme
+    yetkisi verilemez. İstisna YOKTUR: kendi taslağı, AI sohbeti, izin talebi dahil.
+
+    Kullanımı: `@router.delete("/x/{id}", dependencies=[require_system_admin()])`.
+    Kapı handler'dan ÖNCE koşar: yetkisiz aktör kaydın var olup olmadığını (404) ya da bağlı
+    kaydı olup olmadığını (409) öğrenemez. `tests/core/test_silme_kapi_bekcisi.py` her DELETE
+    ucunun bu kapıyı taşıdığını router taramasıyla çakar.
+    """
+
+    async def _check(user: Annotated[User, Depends(get_current_user)], session: DbSession) -> None:
+        # Rol ANAHTARI == system_admin: `page_gate.is_admin_role` TEK kaynaktır (IZN-B2'nin
+        # "her yerde geçer" kuralıyla aynı yardımcı); yüklenmemiş rol için anahtar okunur.
+        if not await is_admin_role(session, user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=SYSTEM_ADMIN_ONLY_DETAIL
+            )
 
     return Depends(_check)
 

@@ -20,7 +20,6 @@ Katmanlar (ok yonu = bagimlilik, cember YOK):
 * `reads.py`          — liste + detay okuma uclari
 * `site_writes.py`    — `create_site` / `update_site`
 * `section_writes.py` — `create_section` / `update_section`
-* `deletes.py`        — `delete_site` / `delete_section`
 
 `X as X` bicimi BILINCLIDIR: acik yeniden-ihrac, `noqa` olmadan F401'i susturur
 ve `__all__`e girmeyen ozel adlari da kapsar.
@@ -40,12 +39,6 @@ from app.modules.sites.service.codes import (
 )
 from app.modules.sites.service.codes import (
     _next_site_code as _next_site_code,
-)
-from app.modules.sites.service.deletes import (
-    delete_section as delete_section,
-)
-from app.modules.sites.service.deletes import (
-    delete_site as delete_site,
 )
 from app.modules.sites.service.presenters import (
     _BOQ as _BOQ,

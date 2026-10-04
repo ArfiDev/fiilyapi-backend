@@ -40,6 +40,7 @@ from app.modules.audit.messages import section_updated
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.sites.models import Section, SectionMilestone, Site
 from tests._section_types import SEED_TYPE_IDS, seed_section_types
+from tests._silme_yardimci import sil_aile
 
 SECTION_MISSING = "Bölüm bulunamadı"
 
@@ -606,7 +607,7 @@ async def test_delete_section_cascades_milestones(
     section_id = section.id
     token = await _login(client, user_factory)
 
-    resp = await client.delete(f"/sections/{section_id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "section", section_id)
 
     assert resp.status_code == 204, resp.text
     assert await _milestones(db_session, section_id) == []
@@ -624,7 +625,7 @@ async def test_delete_predecessor_keeps_dependent_and_nulls_link(
     await db_session.flush()
     token = await _login(client, user_factory)
 
-    resp = await client.delete(f"/sections/{predecessor.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "section", predecessor.id)
     assert resp.status_code == 204, resp.text
 
     # `SET NULL` DB'de olur; testte istek ile fikstur AYNI oturumu paylastigi icin

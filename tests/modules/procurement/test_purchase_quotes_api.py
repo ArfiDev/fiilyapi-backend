@@ -189,6 +189,7 @@ async def test_kanon_karsi_ornegi_bicim_ihlali_422dir(
 async def test_baska_talebin_teklifi_404(
     client,
     satinalma_headers,
+    admin_headers,
     gorunen_proje,
     teklif_bekleyen_talep,
     talep_fabrikasi,
@@ -201,13 +202,13 @@ async def test_baska_talebin_teklifi_404(
     )
     teklif = await teklif_fabrikasi(oteki, await tedarikci_fabrikasi("Beton A.Ş."))
 
-    for metot, kwargs in (
-        ("patch", {"json": {"unit_price": "99.00"}}),
-        ("delete", {}),
+    for metot, kwargs, baslik in (
+        ("patch", {"json": {"unit_price": "99.00"}}, satinalma_headers),
+        ("delete", {}, admin_headers),  # SIL-B1: DELETE yalnız Sistem Yöneticisi
     ):
         yanit = await getattr(client, metot)(
             f"{_YOL}/{teklif_bekleyen_talep.id}/quotes/{teklif.id}",
-            headers=satinalma_headers,
+            headers=baslik,
             **kwargs,
         )
         assert yanit.status_code == 404, (metot, yanit.text)
@@ -252,6 +253,7 @@ async def test_teklif_yazimi_katalog_kapisi_ister(
 async def test_teklif_guncellenir_ve_silinir(
     client,
     satinalma_headers,
+    admin_headers,
     seeded_db,
     teklif_bekleyen_talep,
     tedarikci_fabrikasi,
@@ -270,8 +272,12 @@ async def test_teklif_guncellenir_ve_silinir(
     assert Decimal(guncelle.json()["unit_price"]) == Decimal("1180.00")
     assert guncelle.json()["delivery_time"] == "Yarın sabah"
 
-    sil = await client.delete(
+    yasak = await client.delete(
         f"{_YOL}/{teklif_bekleyen_talep.id}/quotes/{teklif.id}", headers=satinalma_headers
+    )
+    assert yasak.status_code == 403, yasak.text  # SIL-B1: `full` satınalma silemez
+    sil = await client.delete(
+        f"{_YOL}/{teklif_bekleyen_talep.id}/quotes/{teklif.id}", headers=admin_headers
     )
     assert sil.status_code == 204, sil.text
     assert (

@@ -49,8 +49,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_pages, require_permission
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit.models import AuditAction
@@ -76,7 +76,6 @@ _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
 #: IZN-B2: Gelen faturada Onayla / Tahsil Edildi = Fatura Yönetimi sayfası ONAYLAR (eski `full`).
 _INVOICE_APPROVE = require_pages(("mali.fatura",), "approve")
-_ADMIN = require_permission(service.PERMISSION_MODULE, AccessLevel.admin)
 
 # TB3 sayfalama standardı: varsayılan 50, tavan 200 — tavan aşımı sessizce
 # KIRPILMAZ, 422 döner (ST/SA ile birebir).
@@ -292,10 +291,11 @@ async def update_invoice_endpoint(
     "/invoices/{invoice_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
+        **DELETE_403_YANITI,
         404: {"description": "Fatura bulunamadı"},
         409: {"description": "Yalnızca taslak fatura silinebilir"},
     },
-    dependencies=[_ADMIN],
+    dependencies=[require_system_admin()],
 )
 async def delete_invoice_endpoint(
     request: Request,
@@ -303,10 +303,10 @@ async def delete_invoice_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """**YALNIZ `admin` + yalnız `draft`** → 204; başka durum **409**.
+    """Faturayı siler. YALNIZ Sistem Yöneticisi.
 
-    `full` seviyesi (muhasebe) 403 alır — gerekçe modül docstring'indedir.
-    Kalemler birlikte gider. Yanıt gövdesizdir.
+    Yalnız `draft` fatura silinir; başka durum **409** (iş kuralı). Kalemler birlikte gider.
+    Yanıt gövdesizdir.
     """
     invoice = await service.visible_invoice(session, user, invoice_id, for_update=True)
     detail = await service.delete_invoice(session, invoice)
@@ -583,8 +583,14 @@ async def create_invoice_payment_endpoint(
 @router.delete(
     "/payments/{payment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={404: {"description": "Ödeme kaydı bulunamadı"}},
-    dependencies=[_ADMIN],
+    responses={
+        **DELETE_403_YANITI,
+        404: {"description": "Ödeme kaydı bulunamadı"},
+        409: {
+            "description": "Portföy dışı çek/senede ya da ödenmiş hakedişe bağlı ödeme silinemez"
+        },
+    },
+    dependencies=[require_system_admin()],
 )
 async def delete_payment_endpoint(
     request: Request,
@@ -592,14 +598,11 @@ async def delete_payment_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """**YALNIZ `admin`** → 204: yanlış tahsilat geri alınabilmelidir.
+    """Ödeme/tahsilat kaydını siler. YALNIZ Sistem Yöneticisi.
 
-    `full` seviyesi (muhasebe) 403 alır — `full` silmeyi KAPSAMAZ (repo kanonu)
-    ve ödeme, bakiyeyi doğrudan oynatan mali bir kayıttır.
-
-    🔴 Silme AYNI kilidi alır (K7) ve fatura durumunu **YENİDEN TÜRETİR**:
-    `collected` → `sent`e düşebilir. Görünmeyen faturanın ödemesi de "yok"tur
-    (404). Yanıt gövdesizdir.
+    Yanlış tahsilat geri alınabilmelidir; ama bağlı çek/senet portföyden çıkmışsa ya da ödeme
+    ödenmiş hakedişe aitse **409** (iş kuralı). Silme AYNI kilidi alır (K7) ve fatura durumunu
+    YENİDEN TÜRETİR.
     """
     detail = await payments_service.delete_payment(session, user, payment_id)
     await _audit(request, session, user, AuditAction.delete, detail)

@@ -269,7 +269,7 @@ async def santiye(santiye_sozlesmesi) -> uuid.UUID:
     return santiye_sozlesmesi[1]
 
 
-# --- DELETE /subcontractor-contracts/{id} — kapı + can_delete taslak istisnası ---
+# --- DELETE /subcontractor-contracts/{id} — kapı: yalnız Sistem Yöneticisi (SIL-B1) ---
 
 
 @pytest.mark.asyncio
@@ -282,16 +282,17 @@ async def test_proje_muduru_silemez(client, project_manager_headers, taseron_soz
 
 
 @pytest.mark.asyncio
-async def test_kendi_taslagini_silebilir(client, project_manager_headers, kendi_taslagi):
+async def test_kendi_taslagini_silemez_istisna_yok(client, project_manager_headers, kendi_taslagi):
+    """SIL-B1 (K4): eski `can_delete` taslak istisnası KALDIRILDI — kendi taslağı da 403."""
     yanit = await client.delete(
         f"/subcontractor-contracts/{kendi_taslagi}", headers=project_manager_headers
     )
-    assert yanit.status_code == 204
+    assert yanit.status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_baskasinin_taslagini_silemez(client, project_manager_headers, baskasinin_taslagi):
-    """`can_delete` taslak istisnası yalnız SAHİBİNE uygulanır (spec §5.0)."""
+    """Taslak istisnası yok (SIL-B1): başkasının taslağı da 403."""
     yanit = await client.delete(
         f"/subcontractor-contracts/{baskasinin_taslagi}", headers=project_manager_headers
     )
@@ -307,14 +308,15 @@ async def test_admin_yayindaki_sozlesmeyi_siler(client, admin_headers, taseron_s
 
 
 @pytest.mark.asyncio
-async def test_gorunmeyen_sozlesme_404(client, kisitli_headers, taseron_sozlesmesi):
-    """Kapsam dışı proje + var olmayan kimlik AYNI 404 gövdesini döner (IDOR)."""
+async def test_gorunmeyen_sozlesme_ayni_403(client, kisitli_headers, taseron_sozlesmesi):
+    """SIL-B1: kapı (Sistem Yöneticisi) handler'dan ÖNCE koşar; kapsam dışı sözleşme ile var
+    olmayan kimlik AYNI 403 gövdesini alır (varlık sızmaz, IDOR)."""
     gercek = await client.delete(
         f"/subcontractor-contracts/{taseron_sozlesmesi}", headers=kisitli_headers
     )
     yok = await client.delete(f"/subcontractor-contracts/{uuid.uuid4()}", headers=kisitli_headers)
-    assert gercek.status_code == 404
-    assert yok.status_code == 404
+    assert gercek.status_code == 403
+    assert yok.status_code == 403
     assert gercek.json()["detail"] == yok.json()["detail"]
 
 
@@ -415,11 +417,25 @@ async def test_sozlesme_kalemi_silinince_boq_satiri_kalir(
 
 
 @pytest.mark.asyncio
-async def test_sozlesmeli_santiye_silinemez(client, admin_headers, santiye_sozlesmesi):
+async def test_sozlesmeli_santiye_silinir_sozlesme_birlikte_gider(
+    client, admin_headers, santiye_sozlesmesi, seeded_db
+):
+    """SIL-B1: eski SITE_HAS_CONTRACTS 409 korkuluğu Sistem Yöneticisi için BYPASS edilir;
+    taşeron sözleşmesi (`site_id` RESTRICT) önce, şantiye sonra silinir."""
+    from sqlalchemy import func
+    from sqlalchemy import select as sa_select
+
+    from tests._silme_yardimci import sil_aile
+
     _, site_id = santiye_sozlesmesi
-    yanit = await client.delete(f"/sites/{site_id}", headers=admin_headers)
-    assert yanit.status_code == 409
-    assert "önce sözleşmeleri silin" in yanit.json()["detail"]
+    yanit = await sil_aile(client, admin_headers, "site", site_id)
+    assert yanit.status_code == 204
+    kalan = await seeded_db.execute(
+        sa_select(func.count())
+        .select_from(SubcontractorContract)
+        .where(SubcontractorContract.site_id == site_id)
+    )
+    assert kalan.scalar_one() == 0
 
 
 # --- Ek iş: source_contract_item_id IDOR/doğrulama (C11 incelemesinden) ---

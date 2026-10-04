@@ -195,7 +195,7 @@ async def test_gorunmeyen_calisma_kaydinin_detayi_ve_yazmasi_404(
     )
     silme = await client.delete(f"/equipment/work-logs/{kayit_id}", headers=sef_headers)
     assert duzeltme.status_code == 404, duzeltme.text
-    assert silme.status_code == 404, silme.text
+    assert silme.status_code == 403, silme.text  # SIL-B1: kapı önce; varlık sızmaz
 
 
 @pytest.mark.asyncio

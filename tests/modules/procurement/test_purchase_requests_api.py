@@ -459,9 +459,12 @@ async def test_liste_sayfalama_ve_limit_tavani(client, sef_headers, gorunen_proj
 
 
 async def test_liste_satirinda_tahmini_toplam_ve_can_delete(
-    client, sef_headers, gorunen_proje, kart_fabrikasi
+    client, sef_headers, admin_headers, gorunen_proje, kart_fabrikasi
 ):
-    """SAT tablosu tutar sütunu TÜREVDİR; `can_delete` liste satırında da döner."""
+    """SAT tablosu tutar sütunu TÜREVDİR; `can_delete` liste satırında da döner.
+
+    SIL-B1 (K4): bayrak YALNIZ Sistem Yöneticisi için `true`dur — talebi açan şef kendi taslağını
+    da silemez (`false`)."""
     kart = await kart_fabrikasi("SNK-0421")
     assert (
         await client.post(
@@ -477,7 +480,9 @@ async def test_liste_satirinda_tahmini_toplam_ve_can_delete(
     satir = (await client.get(_YOL, headers=sef_headers)).json()["items"][0]
     assert Decimal(satir["estimated_total"]) == Decimal("322500.00")
     assert satir["line_count"] == 1
-    assert satir["can_delete"] is True
+    assert satir["can_delete"] is False
+    admin_satiri = (await client.get(_YOL, headers=admin_headers)).json()["items"][0]
+    assert admin_satiri["can_delete"] is True
     # Liste satırı KALEMLERİ TAŞIMAZ — tablo onları göstermez, taşımak her
     # satırda ikinci bir sorgu demek olurdu.
     assert "lines" not in satir
@@ -501,9 +506,11 @@ async def test_gorunmeyen_projenin_talebi_listede_yok_ve_detayda_404(
     for cagri in (
         client.get(f"{_YOL}/{talep_id}", headers=satinalma_headers),
         client.patch(f"{_YOL}/{talep_id}", json={"priority": "urgent"}, headers=satinalma_headers),
-        client.delete(f"{_YOL}/{talep_id}", headers=satinalma_headers),
     ):
         assert (await cagri).status_code == 404
+    # SIL-B1: DELETE kapısı (yalnız Sistem Yöneticisi) önce koşar → 403, varlık sızmaz.
+    silme = await client.delete(f"{_YOL}/{talep_id}", headers=satinalma_headers)
+    assert silme.status_code == 403
 
 
 # --- PATCH: yalnız draft ---
@@ -563,7 +570,9 @@ async def test_patch_kalem_gondermezse_kalemler_korunur(
     assert bosalt.json()["lines"] == []
 
 
-async def test_taslak_disinda_patch_ve_delete_409(client, sef_headers, seeded_db, gorunen_proje):
+async def test_taslak_disinda_patch_ve_delete_409(
+    client, sef_headers, admin_headers, seeded_db, gorunen_proje
+):
     """Spec §4: PATCH/DELETE YALNIZ `draft`ta. Durum çakışması **409**tur —
     404 (yok) ya da 403 (yetki) değil: kullanıcının yetkisi VARDIR, engelleyen
     şey kaydın DURUMUDUR."""
@@ -578,7 +587,7 @@ async def test_taslak_disinda_patch_ve_delete_409(client, sef_headers, seeded_db
         f"{_YOL}/{talep_id}", json={"priority": "urgent"}, headers=sef_headers
     )
     assert patch.status_code == 409, patch.text
-    sil = await client.delete(f"{_YOL}/{talep_id}", headers=sef_headers)
+    sil = await client.delete(f"{_YOL}/{talep_id}", headers=admin_headers)  # SIL-B1: yalnız SisYön
     assert sil.status_code == 409, sil.text
 
     detay = await client.get(f"{_YOL}/{talep_id}", headers=sef_headers)
@@ -589,7 +598,7 @@ async def test_taslak_disinda_patch_ve_delete_409(client, sef_headers, seeded_db
 
 
 async def test_taslak_silinir_kalemler_de_gider(
-    client, sef_headers, seeded_db, gorunen_proje, kart_fabrikasi
+    client, sef_headers, admin_headers, seeded_db, gorunen_proje, kart_fabrikasi
 ):
     kart = await kart_fabrikasi("SNK-0421")
     olustur = await client.post(
@@ -597,7 +606,11 @@ async def test_taslak_silinir_kalemler_de_gider(
     )
     assert await _sayimlar(seeded_db) == (1, 1)
 
-    yanit = await client.delete(f"{_YOL}/{olustur.json()['id']}", headers=sef_headers)
+    # SIL-B1 (K4): talebi açan şef kendi taslağını da silemez; yalnız Sistem Yöneticisi siler.
+    yasak = await client.delete(f"{_YOL}/{olustur.json()['id']}", headers=sef_headers)
+    assert yasak.status_code == 403, yasak.text
+    assert await _sayimlar(seeded_db) == (1, 1)
+    yanit = await client.delete(f"{_YOL}/{olustur.json()['id']}", headers=admin_headers)
     assert yanit.status_code == 204, yanit.text
     assert await _sayimlar(seeded_db) == (0, 0)
 
@@ -669,14 +682,16 @@ async def test_submit_engelleri_taslak_gevsekligini_tamamlar():
 # --- Denetim ---
 
 
-async def test_mutasyonlar_denetime_yazilir(client, sef_headers, seeded_db, gorunen_proje):
+async def test_mutasyonlar_denetime_yazilir(
+    client, sef_headers, admin_headers, seeded_db, gorunen_proje
+):
     from app.modules.audit.models import AuditLog
 
     olustur = await client.post(_YOL, json=_govde(gorunen_proje.id), headers=sef_headers)
     talep_id = olustur.json()["id"]
     numara = olustur.json()["request_no"]
     await client.patch(f"{_YOL}/{talep_id}", json={"priority": "urgent"}, headers=sef_headers)
-    await client.delete(f"{_YOL}/{talep_id}", headers=sef_headers)
+    await client.delete(f"{_YOL}/{talep_id}", headers=admin_headers)
 
     kayitlar = (
         (await seeded_db.execute(select(AuditLog).order_by(AuditLog.occurred_at))).scalars().all()

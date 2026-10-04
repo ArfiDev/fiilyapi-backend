@@ -14,8 +14,7 @@ from typing import NamedTuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, can_delete
-from app.core.errors import ConflictError, DeleteNotAllowedError, NotFoundError, SiteValidationError
+from app.core.errors import ConflictError, NotFoundError, SiteValidationError
 from app.core.slug import allocate_slug, composite_slug
 from app.core.timezone import today
 from app.modules.contracts.models import EmployerContractItem
@@ -39,7 +38,6 @@ from app.modules.progress_payments.schemas import (
 )
 from app.modules.projects.models import Project, ProjectContract
 from app.modules.projects.service import visible_projects
-from app.modules.roles.repository import get_permission
 from app.modules.users.models import User
 
 _ZERO = Decimal("0")
@@ -697,15 +695,8 @@ async def delete_payment(
     siler). Muhasebeleşmiş evrak yok edilmez; admin gerekirse önce `unapprove`
     ile (H6) durumu `pending_approval`'a geri çeker — denetim izli iki adım.
 
-    Katman 2 (§7.1/2): `status ∈ {draft, pending_approval}` → `can_delete`
-    (`app/core/access.py:55`): admin koşulsuz; aksi hâlde yalnız kaydı AÇAN
-    aktör + kayıt hâlâ TASLAK (`is_draft` property, H1) + aktörün en az `draft`
-    seviyesi varsa silinebilir. `pending_approval` (`is_draft=False`) admin
-    dışında KİMSEYE açık değildir — taslak istisnası orada ölü kuraldır.
-
-    Aktörün GERÇEK erişim seviyesi `subcontracts.delete_subcontractor_contract`
-    deseninin aynısıyla (`get_permission`) okunur: router kapısı (`_DRAFT`)
-    yalnız "bu modüle hiç erişimi yok" durumunu (403) eler, kesin karar burada.
+    Katman 2 (SIL-B1, K4): kapı router'da yalnız Sistem Yöneticisi'dir; eski "kendi taslağını
+    sahibi siler" (`can_delete`) istisnası KALDIRILDI.
 
     Kapsam (§9.0) `_visible_payment` ile İLK adımda kurulur: görünmeyen
     projedeki GERÇEK kayıt ile var olmayan kimlik burada da AYIRT EDİLEMEZ
@@ -727,11 +718,6 @@ async def delete_payment(
 
     if payment.status in (ProgressPaymentStatus.approved, ProgressPaymentStatus.paid):
         raise ConflictError(guards.PAYMENT_NOT_DELETABLE)
-
-    permission = await get_permission(session, actor.role_id, "progress_payments")
-    level = permission.access_level if permission is not None else AccessLevel.none
-    if not can_delete(actor.id, level, payment):
-        raise DeleteNotAllowedError(guards.DELETE_NOT_ALLOWED)
 
     # H8'den devredilen ZORUNLULUK (plan H10, spec §11): özet `session.delete`
     # ÖNCESİNDE kurulur. Mutasyon denetimi (H10) bu okumayı silmeden SONRAKİ bir

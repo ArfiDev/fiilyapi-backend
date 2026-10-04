@@ -22,6 +22,7 @@ from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import UserProjectAccess
 from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._silme_yardimci import sil_aile
 
 # --- Kurulum yardımcıları (test_boq_api.py deseniyle birebir) ---------------
 
@@ -572,7 +573,7 @@ async def test_bolum_silinince_UC_AYRI_iddia(client, db_session, user_factory, p
     # senkron bağlamda tembel yükleme tetikler (MissingGreenlet).
     site_id, item_id, kat_a_id, kat_b_id = site.id, item.id, kat_a.id, kat_b.id
 
-    silme = await client.delete(f"/sections/{kat_a_id}", headers=_auth(token))
+    silme = await sil_aile(client, _auth(token), "section", kat_a_id)
     assert silme.status_code in (204, 200), silme.text
     db_session.expire_all()
 

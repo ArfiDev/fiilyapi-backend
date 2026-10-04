@@ -33,8 +33,8 @@ from app.modules.boq.models import BoqItemSectionAllocation
 from app.modules.boq.progress import realized_by_item
 from app.modules.site_diary import guards, repository
 from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine
-from app.modules.sites import guards as sites_guards
 from app.modules.sites.models import Section
+from tests._silme_yardimci import onizle, sil_aile
 from tests.site_diary.conftest import VARSAYILAN_TARIH
 
 pytestmark = pytest.mark.asyncio
@@ -493,12 +493,12 @@ async def test_ozet_gunun_son_kumulatifine_esit_kalir(
 # --- Bölüm silme (FK RESTRICT — geçici karar, CEO sorusu) ---
 
 
-async def test_bolum_silme_miktar_satiri_varken_409_eyleme_donuk_metin_satir_ayakta(
+async def test_bolum_silme_miktar_satiri_varken_satirlar_birlikte_silinir_onizlemede_gorunur(
     client: AsyncClient, admin_headers, santiye, bolum, seeded_db: AsyncSession
 ) -> None:
-    """PLN-B2.10: korkuluk FK'den (RESTRICT, ikinci katman) ÖNCE koşar — kullanıcı
-    opak "Veri bütünlüğü hatası" değil kaç günlükte kaç satır + ilk tarihi görür.
-    Taslak günlüğün satırı da sayılır (silinse o da kaybolurdu)."""
+    """SIL-B1 (PLN-B2.10 korkuluğu Sistem Yöneticisi için KALKTI): bölüme yazılmış günlük miktar
+    satırları (`site_diary_lines.section_id` RESTRICT) önizlemede `restrict` olarak görünür ve
+    bölümle BİRLİKTE silinir. Bölümsüz satır (üçüncü) ve günlük başlıkları KALIR."""
     site, _, items = santiye
     await _tahsis(seeded_db, items[0], bolum, "120")
     await _tahsis(seeded_db, items[1], bolum, "100")
@@ -519,17 +519,20 @@ async def test_bolum_silme_miktar_satiri_varken_409_eyleme_donuk_metin_satir_aya
         gonder=False,
     )
 
-    yanit = await client.delete(f"/sections/{bolum.id}", headers=admin_headers)
+    onizleme = (await onizle(client, admin_headers, "section", bolum.id)).json()
+    satirlar = next(g for g in onizleme["groups"] if g["table"] == "site_diary_lines")
+    yanit = await sil_aile(client, admin_headers, "section", bolum.id)
 
-    assert yanit.status_code == 409, yanit.text
-    assert yanit.json()["detail"] == sites_guards.section_has_diary_lines(2, 3, date(2026, 7, 3))
-    assert yanit.json()["detail"] == (
-        "Bölümün 2 günlükte 3 miktar satırı var (ilk: 03.07.2026); silinemez"
-    )
+    assert (satirlar["count"], satirlar["relation"]) == (3, "restrict")
+    assert yanit.status_code == 204, yanit.text
     kalan = await seeded_db.execute(
         select(SiteDiaryLine.id).where(SiteDiaryLine.section_id == bolum.id)
     )
-    assert len(kalan.all()) == 3
+    assert kalan.all() == []
+    bolumsuz = await seeded_db.execute(
+        select(SiteDiaryLine.id).where(SiteDiaryLine.section_id.is_(None))
+    )
+    assert len(bolumsuz.all()) == 1  # bölümsüz satır dokunulmadı
 
 
 async def test_bolum_silme_miktar_satiri_yoksa_bugunku_gibi_kosulsuz(
@@ -541,7 +544,7 @@ async def test_bolum_silme_miktar_satiri_yoksa_bugunku_gibi_kosulsuz(
         client, admin_headers, site.id, VARSAYILAN_TARIH, [_satir(items[0], "5")], gonder=True
     )
 
-    yanit = await client.delete(f"/sections/{bolum.id}", headers=admin_headers)
+    yanit = await sil_aile(client, admin_headers, "section", bolum.id)
 
     assert yanit.status_code == 204, yanit.text
     entry = (
@@ -563,6 +566,6 @@ async def test_bolum_silme_yalniz_BASLIK_etiketi_varken_bugunku_gibi_silinir(
     )
     assert kayit.status_code == 201, kayit.text
 
-    yanit = await client.delete(f"/sections/{bolum.id}", headers=admin_headers)
+    yanit = await sil_aile(client, admin_headers, "section", bolum.id)
 
     assert yanit.status_code == 204, yanit.text

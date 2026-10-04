@@ -17,18 +17,15 @@ from typing import NamedTuple
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import day_hooks
-from app.core.access import AccessLevel, can_delete
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.errors import (
     ConflictError,
-    DeleteNotAllowedError,
     DuplicateError,
     NotFoundError,
     SiteValidationError,
 )
 from app.modules.projects.models import Project
 from app.modules.projects.service import visible_projects
-from app.modules.roles.repository import get_permission
 from app.modules.site_diary import guards, lines, repository, skeleton
 from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine
 from app.modules.site_diary.schemas import (
@@ -369,22 +366,13 @@ async def delete_entry(
     session: AsyncSession, actor: User, entry_id: uuid.UUID
 ) -> DeletedEntrySummary:
     """Katman 1: gönderilmiş kayıt ADMİN DAHİL kimseye silinmez (409).
-    Katman 2: kalan kümede `can_delete` — admin koşulsuz, aksi hâlde yalnız
-    kaydı AÇAN aktörün KENDİ taslağı (403).
-
-    Sıra bilinçlidir: `can_delete` admin'e koşulsuz izin verdiği için katman 1
-    ondan SONRA koşsaydı hiç çalışmazdı.
+    Kapı router'da yalnız Sistem Yöneticisi'dir (SIL-B1, K4: "kendi taslağı" istisnası YOK).
     """
     entry, site, project = await visible_entry_locked(session, actor, entry_id)
     await assert_entry_days_unlocked(session, entry)
 
     if entry.status != DiaryStatus.draft:
         raise ConflictError(guards.ENTRY_NOT_DELETABLE)
-
-    permission = await get_permission(session, actor.role_id, PERMISSION_MODULE)
-    level = permission.access_level if permission is not None else AccessLevel.none
-    if not can_delete(actor.id, level, entry):
-        raise DeleteNotAllowedError(guards.DELETE_NOT_ALLOWED)
 
     # Özet `session.delete` ÖNCESİNDE kurulur — sonra okunursa denetim satırı
     # sessizce varsayılanlara düşer (taşeron H10 mutasyon denetiminin bulgusu).

@@ -27,8 +27,8 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
-from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
@@ -214,11 +214,23 @@ async def update_offer_endpoint(
     return await offer_queries.build_offer_detail(session, offer)
 
 
-@router.delete("/offers/{offer_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_WRITE)
+@router.delete(
+    "/offers/{offer_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Teklif yalnız tek revizyonlu ve taslak iken silinebilir"},
+    },
+    dependencies=[require_system_admin()],
+)
 async def delete_offer_endpoint(
     request: Request, offer_id: _OfferId, user: _User, session: DbSession
 ) -> None:
-    """Yalniz tek revizyonlu ve taslak teklif. Numara geri kullanilmaz."""
+    """Teklifi siler. YALNIZ Sistem Yöneticisi.
+
+    Yalnız tek revizyonlu ve taslak teklif silinir; aksi hâlde **409** (iş kuralı). Numara geri
+    kullanılmaz.
+    """
     offer = await offer_service.delete_offer(session, user, offer_id)
     await record_audit(
         session,
@@ -402,12 +414,22 @@ async def update_group_endpoint(
 
 
 @router.delete(
-    _REV + "/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_WRITE
+    _REV + "/groups/{group_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Revizyon taslak değil ya da grupta kalem var"},
+    },
+    dependencies=[require_system_admin()],
 )
 async def delete_group_endpoint(
     offer_id: _OfferId, rev_no: _RevNo, group_id: _GroupId, session: DbSession
 ) -> None:
-    """Bos grubu siler (yalniz taslak); icinde kalem varsa 409 (TKL-B4.5). Denetim satiri YOK."""
+    """Teklif grubunu siler. YALNIZ Sistem Yöneticisi.
+
+    Yalnız taslak revizyondaki BOŞ grup silinir; revizyon taslak değilse ya da grupta kalem varsa
+    **409** (iş kuralı). Denetim satırı yazılmaz.
+    """
     await item_service.delete_group(session, offer_id, rev_no, group_id)
 
 
@@ -476,7 +498,10 @@ async def update_item_endpoint(
 
 
 @router.delete(
-    _REV + "/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_WRITE
+    _REV + "/items/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={**DELETE_403_YANITI, 409: {"description": "Revizyon taslak değil"}},
+    dependencies=[require_system_admin()],
 )
 async def delete_item_endpoint(
     offer_id: _OfferId, rev_no: _RevNo, item_id: _ItemId, session: DbSession

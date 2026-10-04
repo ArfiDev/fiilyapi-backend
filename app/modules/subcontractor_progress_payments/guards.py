@@ -18,7 +18,6 @@ from typing import Protocol
 
 from app.core.errors import SiteValidationError
 from app.modules.progress_payments.guards import (
-    DELETE_NOT_ALLOWED,
     INVALID_STATUS_TRANSITION,
     LINES_REQUIRED,
     OPEN_PAYMENT_EXISTS,
@@ -29,7 +28,6 @@ from app.modules.progress_payments.guards import (
 )
 
 __all__ = [
-    "DELETE_NOT_ALLOWED",
     "DUPLICATE_LINE",
     "INVALID_STATUS_TRANSITION",
     "ITEM_CONTRACT_MISMATCH",

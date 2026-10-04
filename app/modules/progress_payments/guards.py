@@ -82,12 +82,6 @@ OPEN_PAYMENT_EXISTS = "Bu sözleşmede açık bir hakediş var; önce onu tamaml
 INVALID_STATUS_TRANSITION = "Bu durumdan bu işleme geçilemez."
 PAYMENT_NOT_DELETABLE = "Onaylanmış veya ödenmiş hakediş silinemez."
 
-# 403 — silme (task H8, spec §7.1 katman 2): `can_delete` (`app/core/access.py`)
-# reddi. `contracts/guards.py.DELETE_NOT_ALLOWED` metniyle BİREBİR AYNI — kopya
-# değil, iki modülün bağımsız sözleşmesi (bu dosyanın SITE_PROJECT_MISMATCH
-# yorumundaki gerekçenin aynısı: `app/core/` metin sabitleri için ev değildir).
-DELETE_NOT_ALLOWED = "Bu işlem için yetkiniz yok"
-
 
 def validate_coefficient(coefficient: Decimal | None, *, has_price_escalation: bool) -> None:
     """FF kilidi (spec §10/5) — hakediş BAŞLIĞI ve SATIRI için TEK kopya kural.

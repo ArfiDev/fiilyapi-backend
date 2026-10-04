@@ -74,8 +74,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -158,7 +158,6 @@ def _register(spec: OwnerSpec) -> None:
     # Kural: "gördüğün kayda, yüklemeye yetkin varsa bağlayabilirsin."
     # SİLME bunun DIŞINDADIR (aşağıda) ve GÖRÜNÜRLÜK süzgeci DEĞİŞMEDİ.
     view = require_permission(spec.permission_module, AccessLevel.view)
-    full = require_permission(spec.permission_module, AccessLevel.full)
     owner_path = f"{spec.route_root}/{{owner_id}}/documents"
     link_path = f"{spec.route_root}/documents/{{link_id}}"
 
@@ -225,8 +224,8 @@ def _register(spec: OwnerSpec) -> None:
     @router.delete(
         link_path,
         status_code=status.HTTP_204_NO_CONTENT,
-        responses=_LINK_404,
-        dependencies=[full],
+        responses={**_LINK_404, **DELETE_403_YANITI},
+        dependencies=[require_system_admin()],
         operation_id=f"detach_{spec.key}_document",
         summary=f"{spec.label} belgesi bağını kaldır",
     )

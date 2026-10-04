@@ -13,7 +13,6 @@ from decimal import Decimal
 from app.modules.sites.guards import SITE_MISSING
 
 __all__ = [
-    "DELETE_NOT_ALLOWED",
     "DUPLICATE_WORKER_SUBCONTRACTOR",
     "LINE_SECTION_MISMATCH",
     "LINE_SECTION_NOT_ALLOCATED",
@@ -77,10 +76,6 @@ ENTRY_NOT_EDITABLE = "Gönderilmiş günlük kayıt düzenlenemez"
 # ADMİN DAHİL kimseye silinmez. `can_delete` (ikinci katman) admin'e koşulsuz
 # izin verdiği için bu kontrol ondan ÖNCE koşmak zorundadır.
 ENTRY_NOT_DELETABLE = "Gönderilmiş günlük kayıt silinemez"
-
-# 403 (`DeleteNotAllowedError`) — silme kuralının İKİNCİ katmanı (`app/core/access.py`):
-# admin olmayan aktör yalnız KENDİ açtığı TASLAĞI siler.
-DELETE_NOT_ALLOWED = "Bu kaydı silme yetkiniz yok"
 
 # 422 — bölüm bilgi alanıdır ama SAHİPSİZ olamaz: günlüğün şantiyesine ait
 # olmalıdır. Var OLMAYAN bölüm de AYNI 422'yi alır — bölüm bir alan DEĞERİDİR,

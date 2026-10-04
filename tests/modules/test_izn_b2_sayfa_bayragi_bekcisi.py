@@ -5,7 +5,7 @@ Görür ya da Onaylar biti yazma kapısını açıyordu (Şef'e yalnız `ik.izin
 `POST /personnel` geçiyordu). Bu bekçi o sınıfı yapısal olarak kapatır:
 
 BOŞ bir role TEK bir (sayfa, bayrak) verilir — 100 sayfa × {Görür, Düzenler, Onaylar} — ve gerçek
-kapı bağımlılıkları 460 operasyon üzerinde çalıştırılır. Açılan HER rota, düğme tablosundaki
+kapı bağımlılıkları 462 operasyon üzerinde çalıştırılır. Açılan HER rota, düğme tablosundaki
 (aşağıdaki test SABİTLERİ; uygulamadan BAĞIMSIZ elle yazıldı) uçlarla çakışmalıdır:
 
 * Görür  → yalnız GÖRME eşiği tam `(modül, view)` olan sayfanın GET uçları (`VIEW_GATE_PAGES`);

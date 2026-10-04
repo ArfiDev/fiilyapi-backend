@@ -853,6 +853,10 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # IZN-B2: `GET`/`PUT /roles/{role_id}/pages` · `POST /roles/{role_id}/copy`
     # = +2 yol / +3 operasyon (321→323 · 457→460). Eski
     # `PUT /roles/{role_id}/permissions/{module_key}` 410 olarak YERİNDE kalır (yol/operasyon
-    # sayısı değişmez). Paralel SIL-B1 de sayıyı oynatabilir: ikinci merge yeniden ölçer.
-    assert len(yollar) == 323
-    assert operasyonlar == 460
+    # sayısı değişmez).
+    # SIL-B1: `GET …/onizleme` + `DELETE` (`/admin/silme/{kind}/{record_id}`) = +2 yol /
+    # +2 operasyon (323→325 · 460→462; B2 sonrası YENİDEN ÖLÇÜLDÜ). Aile uçlarına
+    # (`DELETE /sites/{id}` …) eklenen `preview_token` sorgu parametresi ne yol ne operasyon
+    # açar (`tests/contract/` yakalar).
+    assert len(yollar) == 325
+    assert operasyonlar == 462

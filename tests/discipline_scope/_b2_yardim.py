@@ -14,6 +14,8 @@ from tests._disiplin_dunyasi import Dunya, _kimlik
 
 YOK_KIMLIK = uuid.UUID(int=0xD15C)
 YETKI_YOK = {"detail": "Bu işlem için yetkiniz yok"}
+#: SIL-B1: silme kapısı (Sistem Yöneticisi) — rol anahtarı, seviye değil.
+SISYON_ONLY = {"detail": "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"}
 
 
 def ozet(resp: Response) -> tuple[int, str | None, object]:

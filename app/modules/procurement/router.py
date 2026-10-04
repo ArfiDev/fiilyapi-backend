@@ -56,8 +56,8 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_pages, require_permission
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.approvals.gate import require_pages_or_chain_step
@@ -336,11 +336,8 @@ async def update_purchase_request_endpoint(
 @router.delete(
     "/purchase-requests/{request_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={
-        403: {"description": "Yalnızca talebi açan kendi taslağını silebilir"},
-        409: {"description": "Yalnızca taslak talep silinebilir"},
-    },
-    dependencies=[_REQUEST],
+    responses={**DELETE_403_YANITI, 409: {"description": "Yalnızca taslak talep silinebilir"}},
+    dependencies=[require_system_admin()],
 )
 async def delete_purchase_request_endpoint(
     request: Request,
@@ -348,13 +345,11 @@ async def delete_purchase_request_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """**YALNIZ taslak** silinir (409 aksi hâlde) ve kararı `can_delete` verir
-    (403 aksi hâlde) — kapı gerekçesi modül docstring'indedir.
+    """Satınalma talebini siler. YALNIZ Sistem Yöneticisi.
 
-    Yanıtın `can_delete` bayrağı ile bu uç AYNI fonksiyondan beslenir: ekran
-    düğmeyi gösterip sonra 403 yemez. Kalemler CASCADE ile gider.
-
-    Yanıt `204 No Content`, gövdesizdir.
+    YALNIZ taslak talep silinir; aksi hâlde **409** (iş kuralı, Sistem Yöneticisi'ni de durdurur).
+    Talebi açan kişi kendi taslağını da silemez. Yanıttaki `can_delete` bayrağı bu kuraldan
+    beslenir: yalnız Sistem Yöneticisi için `true`. Kalemler CASCADE ile gider.
     """
     purchase_request = await service.visible_request_locked(session, user, request_id)
     detail = await service.delete_request(session, user, purchase_request)
@@ -590,10 +585,11 @@ async def update_quote_endpoint(
     "/purchase-requests/{request_id}/quotes/{quote_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
+        **DELETE_403_YANITI,
         404: {"description": "Talep ya da teklif bulunamadı"},
         409: {"description": "Teklifler yalnızca teklif bekleyen talepte silinebilir"},
     },
-    dependencies=[_FULL],
+    dependencies=[require_system_admin()],
 )
 async def delete_quote_endpoint(
     request: Request,
@@ -602,11 +598,9 @@ async def delete_quote_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Yanlış girilmiş bir teklif SİLİNİR (talep hâlâ `quote_wait` iken).
+    """Tedarikçi teklifini siler. YALNIZ Sistem Yöneticisi.
 
-    `can_delete` taslak istisnası BURADA GEÇERSİZDİR: teklifin "sahibi" onu
-    giren kullanıcı değil TEDARİKÇİDİR ve kayıtta `created_by` kolonu yoktur.
-    Kapı bu yüzden düz `full`dur.
+    Yanlış girilmiş teklif, talep hâlâ `quote_wait` iken silinir; aksi hâlde **409** (iş kuralı).
     """
     purchase_request = await service.visible_request_locked(session, user, request_id)
     detail = await service.delete_quote(session, purchase_request, quote_id)

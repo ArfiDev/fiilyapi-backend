@@ -10,7 +10,6 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import can_delete
 from app.core.slug import url_safe_key
 from app.modules.inventory.models import StockItem
 from app.modules.procurement import repository
@@ -28,7 +27,6 @@ from app.modules.procurement.schemas import (
 )
 from app.modules.procurement.service.core import _visible_project_ids
 from app.modules.procurement.service.request_access import (
-    _DeletableRequest,
     can_delete_request,
 )
 from app.modules.users.models import User
@@ -82,7 +80,7 @@ async def build_request_detail(
     return PurchaseRequestResponse(
         **_base_fields(request),
         estimated_total=toplam,
-        can_delete=await can_delete_request(session, actor, request),
+        can_delete=await can_delete_request(session, actor),
         lines=satirlar,
     )
 
@@ -132,9 +130,9 @@ async def list_requests(
 ) -> PurchaseRequestListResponse:
     """SAT tablosunun veri kaynagi.
 
-    Dort sorgu kosar ve sayisi SATIR SAYISINDAN BAGIMSIZDIR: sayfa (tahmini
+    Uc sorgu kosar ve sayisi SATIR SAYISINDAN BAGIMSIZDIR: sayfa (tahmini
     toplam ve kalem sayisi JOIN'li alt sorgudan) · sayim · aktorun izin
-    seviyesi (`can_delete` icin TEK kez) · gorunur projeler.
+    seviyesi · gorunur projeler.
     """
     project_ids = await _visible_project_ids(session, actor)
     totals = repository.request_totals()
@@ -144,7 +142,7 @@ async def list_requests(
         session, project_ids, totals, limit=limit, offset=offset, **suzgec
     )
     total = await repository.count_requests(session, project_ids, **suzgec)
-    level = await repository.actor_level(session, actor)
+    can_delete = await can_delete_request(session, actor)
 
     return PurchaseRequestListResponse(
         items=[
@@ -152,7 +150,7 @@ async def list_requests(
                 **_base_fields(row[0]),
                 estimated_total=row.estimated_total,
                 line_count=row.line_count,
-                can_delete=can_delete(actor.id, level, _DeletableRequest(row[0])),
+                can_delete=can_delete,
             )
             for row in rows
         ],

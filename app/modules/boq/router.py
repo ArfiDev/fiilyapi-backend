@@ -8,8 +8,8 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
-from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku, kapsamla_maskele
 from app.modules.audit import messages
@@ -345,7 +345,11 @@ async def save_section_distribution_endpoint(
 @router.delete(
     "/boq/groups/{group_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_ADMIN, RequireUnrestricted],
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Grupta iş kalemi var; önce kalemleri silin"},
+    },
+    dependencies=[require_system_admin()],
 )
 async def delete_boq_group_endpoint(
     request: Request,
@@ -353,13 +357,11 @@ async def delete_boq_group_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """TB3-C: YALNIZ BOS grup silinir; kalemi olan grup 409 doner.
+    """İş kalemi grubunu siler. YALNIZ Sistem Yöneticisi.
 
-    Kapi `_ADMIN`'dir — `delete_boq_item_endpoint` ile BIREBIR ayni gerekce
-    (`full` silmeyi KAPSAMAZ). F-SD smoke'unda canlida bos test grubu 405
-    aldigi icin acildi.
+    Yalnız BOŞ grup silinir; kalemi olan grup **409** (iş kuralı).
     """
-    # DSC-B2 (Ü6): grup silme yapisal islemdir → kisitliya 403 (`RequireUnrestricted`).
+    # SIL-B1: grup silme YALNIZ Sistem Yoneticisi'nindir; disiplin kisiti DELETE'te uygulanmaz.
     name = await service.delete_group(session, user, group_id)
     await record_audit(
         session,
@@ -373,7 +375,11 @@ async def delete_boq_group_endpoint(
 @router.delete(
     "/boq/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_ADMIN],
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Kaleme yazılmış günlük kayıt satırı var; önce günlüklerden çıkarın"},
+    },
+    dependencies=[require_system_admin()],
 )
 async def delete_boq_item_endpoint(
     request: Request,
@@ -382,16 +388,10 @@ async def delete_boq_item_endpoint(
     session: DbSession,
     scope: DisciplineScoped,
 ) -> None:
-    """Frontend F13 (kalem silme) bu uca baglidir.
+    """İş kalemini (poz) siler. YALNIZ Sistem Yöneticisi.
 
-    KULLANICI KARARI 2026-07-30: kapi `_ADMIN`'dir, PATCH'ten (`_FULL`) BIR
-    SEVIYE YUKARI. Gerekce `app/core/access.py`'deki kuraldir: "full silmeyi
-    KAPSAMAZ — silme yalnizca admin seviyesindedir". Boylece uc, mevcut
-    `users`/`roles`/sirket logosu DELETE uclariyla tutarli hâle gelir.
-
-    BILINEN SONUC (kabul edildi): seed matrisinde `boq:admin` yalniz
-    `system_admin`'dedir; proje muduru dahil kimse kalem SILEMEZ, silme talebi
-    sistem yoneticisine gider. Bu BEKLENEN davranistir, hata degil.
+    Kaleme yazılmış günlük satırı varsa **409** (iş kuralı, Sistem Yöneticisi'ni de durdurur).
+    Frontend F13 (kalem silme) bu uca bağlıdır.
     """
     code, description = await service.delete_item(session, user, item_id, scope)
     await record_audit(

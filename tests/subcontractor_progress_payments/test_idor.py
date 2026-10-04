@@ -36,17 +36,18 @@ async def test_gorunmeyen_hakedis_patch_404(
     assert yanit.status_code == 404
 
 
-async def test_gorunmeyen_hakedis_delete_404(
+async def test_gorunmeyen_hakedis_delete_403_kapi_once_kosar(
     client: AsyncClient, kisitli_headers: dict[str, str], gorunmeyen_hakedis: uuid.UUID
 ) -> None:
-    """Silme de görünürlükten geçer — yetki/durum kararı SONRA verilir."""
+    """SIL-B1: kapı (yalnız Sistem Yöneticisi) önce koşar; görünmeyen ve var olmayan kimlik AYNI
+    403'ü alır (varlık sızmaz)."""
     gercek = await client.delete(
         f"/subcontractor-progress-payments/{gorunmeyen_hakedis}", headers=kisitli_headers
     )
     sahte = await client.delete(
         f"/subcontractor-progress-payments/{uuid.uuid4()}", headers=kisitli_headers
     )
-    assert gercek.status_code == sahte.status_code == 404
+    assert gercek.status_code == sahte.status_code == 403
     assert gercek.json() == sahte.json()
 
 

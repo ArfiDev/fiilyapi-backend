@@ -211,18 +211,6 @@ async def get_open_sale_for_unit(
     return (row[0], row[1]) if row is not None else None
 
 
-async def block_has_units(session: AsyncSession, block_id: uuid.UUID) -> bool:
-    """Blok DELETE korkulugunun (spec §7.9) tek sorgusu.
-
-    `count(*)` yerine `EXISTS`: kac unite oldugu KULLANILMAZ (hata mesajinda adet
-    verilmez — gorunurluk disi bilgi sizdirmaz), 24 satiri saymanin anlami yok.
-    """
-    result = await session.execute(
-        select(select(Unit.id).where(Unit.block_id == block_id).exists())
-    )
-    return bool(result.scalar_one())
-
-
 async def existing_unit_nos(
     session: AsyncSession, block_id: uuid.UUID, unit_nos: list[str]
 ) -> set[str]:
