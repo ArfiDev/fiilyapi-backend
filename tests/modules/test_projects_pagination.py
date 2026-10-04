@@ -304,12 +304,12 @@ async def test_bos_sayfada_toplu_sorgular_bos_liste_alir(
 async def test_total_gorunur_olmayan_projeyi_saymaz(
     client, db_session, user_factory, project_factory
 ):
-    from app.modules.users.models import UserProjectAccess
+    from app.modules.users.models import ProjectMember
 
     izinli = await project_factory("T5-V1")
     await project_factory("T5-V2")
     user = await user_factory(email="kisitli@t5.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=izinli.id, all_projects=False))
+    db_session.add(ProjectMember(user_id=user.id, project_id=izinli.id, role_id=user.role_id))
     await db_session.flush()
     login = await client.post(
         "/auth/login", json={"email": "kisitli@t5.co", "password": "parola1234"}

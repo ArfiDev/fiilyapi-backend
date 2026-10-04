@@ -53,7 +53,7 @@ from app.modules.projects.models import Project
 from app.modules.sales.models import SaleType, UnitSale, UnitSaleStatus
 from app.modules.sites.models import Section, Site
 from app.modules.units.models import Block, Unit, UnitKind
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 
 # Beyaz listeye göre tipik bir künye (spec §4): PDF, 48 MB'ın çok altında.
 ORNEK_MIME = "application/pdf"
@@ -174,7 +174,7 @@ async def _scoped_headers(
     """Rolü verilen ama kapsamı TEK projeye kısıtlanmış kullanıcı (IDOR yüzeyi)."""
     headers = await _login(client, user_factory, role_key, email)
     user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=project.id, all_projects=False))
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
     await seeded_db.flush()
     return headers
 

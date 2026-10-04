@@ -7,7 +7,8 @@ from app.core.access import AccessLevel, Scope
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import SYSTEM_ADMIN_ONLY_DETAIL
-from app.core.page_gate import Flag, gate_ok, is_admin_role, page_ok, pages_ok
+from app.core.page_gate import Flag, gate_flags, gate_ok, is_admin_role, page_ok, pages_ok
+from app.core.project_access import record_gate
 from app.core.scoped_route import kapsam_bagimligi_kur
 from app.modules.roles.repository import get_permission, role_mask_basis
 from app.modules.users.models import User
@@ -36,6 +37,8 @@ def require_permission(module_key: str, min_level: AccessLevel):
     ) -> None:
         if not await gate_ok(session, user, module_key, min_level):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_DENIED)
+        # IZN-B3: geçilen kapı, proje bağlamlı kesin karar için kaydedilir (`core/project_access`).
+        record_gate(session, gate_flags(module_key, min_level))
 
     return Depends(_check)
 
@@ -78,6 +81,11 @@ def require_any_permission(*gates: tuple[str, AccessLevel]):
     ) -> None:
         for module_key, min_level in gates:
             if await gate_ok(session, user, module_key, min_level):
+                # VEYA: tüm kapıların çiftleri TEK grupta (herhangi biri yeter).
+                record_gate(
+                    session,
+                    tuple(pair for key, level in gates for pair in gate_flags(key, level)),
+                )
                 return
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_DENIED)
 
@@ -98,6 +106,7 @@ def require_page(page_key: str, flag: Flag):
     ) -> None:
         if not await page_ok(session, user, page_key, flag):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_DENIED)
+        record_gate(session, ((page_key, flag),))
 
     return Depends(_check_page)
 
@@ -115,6 +124,7 @@ def require_pages(page_keys: tuple[str, ...], flag: Flag):
     ) -> None:
         if not await pages_ok(session, user, page_keys, flag):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_DENIED)
+        record_gate(session, tuple((key, flag) for key in page_keys))
 
     return Depends(_check_pages)
 

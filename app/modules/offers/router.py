@@ -26,7 +26,6 @@ from fastapi import APIRouter, Depends, Path, Query, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -72,15 +71,13 @@ last_price_provider.register()
 
 # 🔴 KAPSAM MASKESI — IKI PARCA DA GEREKLI (bkz. `catalog/router.py`); cifti
 #    `tests/core/test_kapsam_baglantisi.py` cakar.
-# 🔴 TKL-B4.6 (R5/SO-19, kullanici onayi): disiplin atanmis (kisitli) kullanici teklif modulunu
-#    HIC goremez — teklif okumalari disiplin suzmuyor; DSC "baska disiplin hicbir yerde gorunmez".
-#    `RequireUnrestricted` router duzeyinde: OKUMA dahil her uc (uc uc unutulmasin). Disiplin
-#    suzmesi izin turunda tasarlanir.
+# IZN-B3: disiplin PROJE BASINA atanir; teklif sirket geneli oldugu icin `RequireUnrestricted`
+#    (eski R5/SO-19 kisiti) KALKTI — teklif yalniz sayfa izniyle yonetilir.
 router = APIRouter(
     tags=["offers"],
     responses=COMMON_ERROR_RESPONSES,
     route_class=kapsam_rotasi("contracts", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("contracts"), RequireUnrestricted],
+    dependencies=[kapsam_kapisi("contracts")],
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)
@@ -89,7 +86,7 @@ _FULL = require_permission("contracts", AccessLevel.full)
 _User = Annotated[User, Depends(get_current_user)]
 _OfferId = Annotated[uuid.UUID, Path()]
 _RevNo = Annotated[int, Path(ge=0, le=100_000)]
-_WRITE = [_FULL, RequireUnrestricted]
+_WRITE = [_FULL]
 
 
 @router.get("/offers/settings", response_model=OfferSettingsRead, dependencies=[_VIEW])
@@ -101,7 +98,7 @@ async def get_offer_settings_endpoint(session: DbSession) -> OfferSettingsRead:
 @router.put(
     "/offers/settings",
     response_model=OfferSettingsRead,
-    dependencies=[_FULL, RequireUnrestricted],
+    dependencies=[_FULL],
 )
 async def update_offer_settings_endpoint(
     request: Request, data: OfferSettingsUpdate, user: _User, session: DbSession

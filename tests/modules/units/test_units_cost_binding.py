@@ -182,7 +182,6 @@ async def test_unite_listesinde_sorgu_sayisi_unite_sayisindan_bagimsizdir(
     from sqlalchemy import event
 
     from app.modules.units import service
-    from app.modules.users.models import UserProjectAccess
     from tests.conftest import test_engine
 
     @contextmanager
@@ -199,7 +198,7 @@ async def test_unite_listesinde_sorgu_sayisi_unite_sayisindan_bagimsizdir(
             event.remove(test_engine.sync_engine, "before_cursor_execute", kaydet)
 
     user = await user_factory(email="olcum@ucost.co", password="parola1234", role_key="patron")
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     kucuk = await project_factory(code="UC-N1", project_type="kendi_yatirim")
     kucuk.budget_material = Decimal("1000000.00")
     kucuk_blok = await _block(seeded_db, kucuk)

@@ -39,13 +39,13 @@ from app.modules.earned_value.models import (
     EvGroupDiscipline,
     EvRevision,
     RevisionStatus,
-    UserDiscipline,
 )
 from app.modules.site_diary import lines as lines_mod
 from app.modules.site_diary import repository, service
 from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine
 from app.modules.site_diary.schemas import SiteDiaryLineInput, SiteDiaryLinesSave
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import User
+from tests._proje_ekibi import disiplin_ata
 from tests._yaris import YARIS_TAVANI_SN, kilitte_bekleyen_sorgu
 from tests.earned_value_budget.test_budget_concurrency import _Ortam, _sonlandir, _yaris_ortami
 
@@ -99,14 +99,11 @@ async def _zemin(ortam: _Ortam) -> _Zemin:
                 EvGroupDiscipline(
                     revision_id=rev.id, boq_group_id=ortam.group_ids[1], discipline_id=duv.id
                 ),
-                UserDiscipline(user_id=civil.id, discipline_id=ortam.discipline_id),
-                UserDiscipline(user_id=elek.id, discipline_id=duv.id),
-                UserProjectAccess(
-                    user_id=civil.id, project_id=ortam.project_id, all_projects=False
-                ),
-                UserProjectAccess(user_id=elek.id, project_id=ortam.project_id, all_projects=False),
             ]
         )
+        await s.flush()
+        await disiplin_ata(s, civil, ortam.project_id, ortam.discipline_id)
+        await disiplin_ata(s, elek, ortam.project_id, duv.id)
         kalemler = [
             BoqItem(
                 site_id=ortam.site_id,

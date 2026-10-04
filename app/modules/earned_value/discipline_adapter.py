@@ -24,16 +24,14 @@ from sqlalchemy import ColumnElement, case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import discipline_scope as port
-from app.core.discipline_ref import DisciplineRef
 from app.core.discipline_scope import DisciplineScope
 from app.modules.boq.models import BoqGroup, BoqItem
-from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value.models import (
     EvGroupDiscipline,
     EvRevision,
     RevisionStatus,
-    UserDiscipline,
 )
+from app.modules.users.models import ProjectMember, ProjectMemberDiscipline, User
 
 
 def _visibility_revision(site_id_col: Any, correlate: Any) -> ColumnElement[Any]:
@@ -78,32 +76,32 @@ def group_discipline_expr(group: Any) -> ColumnElement[Any]:
 class EvDisciplineProvider:
     """`DisciplineProvider` uygulamasi (durumsuz; tek ornek `PROVIDER`)."""
 
-    async def user_scope(self, session: AsyncSession, user_id: uuid.UUID) -> DisciplineScope:
-        rows = await session.execute(
-            select(UserDiscipline.discipline_id).where(UserDiscipline.user_id == user_id)
+    async def user_scope(
+        self, session: AsyncSession, user_id: uuid.UUID, project_id: uuid.UUID | None = None
+    ) -> DisciplineScope:
+        """IZN-B3: disiplin PROJE BASINA (`project_member_disciplines`). `project_id` verilirse o
+        projedeki atama; `None` → kullanicinin kisitli oldugu tum projeler (cok proje kapsami).
+        "Tum projeler" kisisi KISITSIZdir (ekip satiri/disiplin tasimaz; bayat satir yok sayilir).
+        """
+        stmt = (
+            select(ProjectMember.project_id, ProjectMemberDiscipline.discipline_id)
+            .join(ProjectMember, ProjectMember.id == ProjectMemberDiscipline.member_id)
+            .join(User, User.id == ProjectMember.user_id)
+            .where(ProjectMember.user_id == user_id, User.all_projects.is_(False))
         )
-        return DisciplineScope.of(set(rows.scalars()))
-
-    async def user_disciplines_detail(
-        self, session: AsyncSession, user_id: uuid.UUID
-    ) -> list[DisciplineRef]:
-        rows = await session.execute(
-            select(EvDiscipline)
-            .join(UserDiscipline, UserDiscipline.discipline_id == EvDiscipline.id)
-            .where(UserDiscipline.user_id == user_id)
-        )
-        return sorted(
-            (DisciplineRef.model_validate(row) for row in rows.scalars()), key=lambda d: str(d.id)
-        )
+        if project_id is not None:
+            rows = (await session.execute(stmt.where(ProjectMember.project_id == project_id))).all()
+            return DisciplineScope.of({discipline_id for _pid, discipline_id in rows})
+        by_project: dict[uuid.UUID, set[uuid.UUID]] = {}
+        for pid, discipline_id in (await session.execute(stmt)).all():
+            by_project.setdefault(pid, set()).add(discipline_id)
+        return DisciplineScope.of_projects(by_project)
 
     def item_discipline_expr(self, item: Any) -> ColumnElement[Any]:
         return item_discipline_expr(item)
 
     def group_discipline_expr(self, group: Any) -> ColumnElement[Any]:
         return group_discipline_expr(group)
-
-    def user_discipline_ids_subquery(self, user_id: uuid.UUID) -> Any:
-        return select(UserDiscipline.discipline_id).where(UserDiscipline.user_id == user_id)
 
     async def item_disciplines(
         self, session: AsyncSession, item_ids: list[uuid.UUID]

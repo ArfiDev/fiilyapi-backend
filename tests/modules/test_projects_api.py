@@ -7,7 +7,7 @@ from app.core.access import AccessLevel, Scope
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.projects.models import ProjectContract
 from app.modules.roles.models import Module, Role, RolePermission
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 from tests._legacy_permission_yardimcisi import sync_page_cells
 
 
@@ -79,7 +79,7 @@ async def test_patron_now_allowed_and_scoped(client, db_session, user_factory, p
     granted = await project_factory("GK-A")
     await project_factory("OSB-1")
     user = await user_factory(email="patron@t.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=granted.id, all_projects=False))
+    db_session.add(ProjectMember(user_id=user.id, project_id=granted.id, role_id=user.role_id))
     await db_session.flush()
     login = await client.post(
         "/auth/login", json={"email": "patron@t.co", "password": "parola1234"}
@@ -231,7 +231,7 @@ async def test_create_duplicate_code_returns_409(client, user_factory, project_f
 
 async def _login_with_all_access(client, db_session, user_factory, role_key: str) -> str:
     user = await user_factory(email=f"{role_key}@t.co", password="parola1234", role_key=role_key)
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await db_session.flush()
     resp = await client.post(
         "/auth/login", json={"email": f"{role_key}@t.co", "password": "parola1234"}
@@ -252,7 +252,7 @@ async def test_patch_project_outside_access_is_404_and_changes_nothing(
     granted = await project_factory("GK-A")
     hidden = await project_factory("OSB-1", name="Dokunulmamis Ad")
     user = await user_factory(email="scoped-pm@t.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=granted.id, all_projects=False))
+    db_session.add(ProjectMember(user_id=user.id, project_id=granted.id, role_id=user.role_id))
     await db_session.flush()
     login = await client.post(
         "/auth/login", json={"email": "scoped-pm@t.co", "password": "parola1234"}

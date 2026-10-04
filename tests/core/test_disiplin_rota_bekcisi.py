@@ -82,6 +82,22 @@ STOK_DUYARSIZ_ROTALAR: dict[Rota, str] = {
     # DSC-B5 (S5): yazma da disiplinsiz — gerçek depo bakiyesi tek kaynak.
     ("POST", "/stock/entries"): _STOK_GEREKCE,
 }
+#: IZN-B3: disiplin PROJE BAŞINA atanır; ŞİRKET GENELİ katalog uçları (disiplin listesi/CRUD +
+#: birim oran kataloğu) kullanıcı kapsamıyla SÜZÜLMEZ ve `RequireUnrestricted` taşımaz (yönetim
+#: yalnız sayfa izniyle). Duyarlı sayılmazlar; tersine işaretli olmaları KIRMIZIdır
+#: (`test_sirket_geneli_katalog_uclari_kapsam_ve_u6_tasimaz`).
+SIRKET_GENELI_KATALOG_ROTALARI: frozenset[Rota] = frozenset(
+    {
+        ("GET", "/earned-value/catalog"),
+        ("POST", "/earned-value/catalog"),
+        ("PATCH", "/earned-value/catalog/{item_id}"),
+        ("POST", "/earned-value/catalog/{item_id}/adopt-actual"),
+        ("GET", "/earned-value/disciplines"),
+        ("POST", "/earned-value/disciplines"),
+        ("PATCH", "/earned-value/disciplines/{discipline_id}"),
+        ("DELETE", "/earned-value/disciplines/{discipline_id}"),
+    }
+)
 _EV_B3_YOLU = re.compile(r"/earned-value/(panel|reports/|settings/preview)")
 _EV_AYAR_YOLU = re.compile(r"/earned-value/settings$")
 #: Modül kökü sınıflandırıcısının DIŞINDA kalan duyarlı rotalar: (yöntem, yol) -> (dilim,
@@ -165,6 +181,8 @@ def _aile(modul: str) -> str | None:
 def _dilim(aile: str, yontem: str, yol: str) -> str | None:
     """Duyarlı rotanın HEDEF dilimi (spec dilim tanımı); duyarlı değilse None."""
     yazma = yontem in _YAZMA
+    if (yontem, yol) in SIRKET_GENELI_KATALOG_ROTALARI:
+        return None
     if aile in ("hakedis", "tas_hakedis"):
         return "DSC-B5"
     if aile == "stok":
@@ -241,11 +259,6 @@ def _bagimlilik_agacinda(
 U6_ROTALARI: frozenset[Rota] = frozenset(
     {
         ("POST", "/sites/{site_id}/boq/groups"),
-        ("POST", "/earned-value/catalog"),
-        ("PATCH", "/earned-value/catalog/{item_id}"),
-        ("POST", "/earned-value/catalog/{item_id}/adopt-actual"),
-        ("POST", "/earned-value/disciplines"),
-        ("PATCH", "/earned-value/disciplines/{discipline_id}"),
         ("PUT", "/sites/{site_id}/earned-value/budget/distributions"),
         ("POST", "/sites/{site_id}/earned-value/budget/fill-from-catalog"),
         ("POST", "/sites/{site_id}/earned-value/budget/fill-from-contract"),
@@ -360,6 +373,24 @@ def test_izin_listesinde_b4_girdisi_kalmadi() -> None:
 
 def test_izin_listesinde_b5_girdisi_kalmadi() -> None:
     assert not [r for r, d in IZIN_LISTESI.items() if d == "DSC-B5"]
+
+
+def test_sirket_geneli_katalog_uclari_kapsam_ve_u6_tasimaz() -> None:
+    """IZN-B3: katalog/disiplin yönetimi şirket geneli; `DisciplineScoped`/`RequireUnrestricted`
+    TAŞIMAZ (taşırsa proje başına disiplinle çelişir: kısıtlı kişi şirket kataloğunu göremezdi)."""
+    bulunan: set[Rota] = set()
+    for ctx in iter_route_contexts(app.routes):
+        if not isinstance(ctx.original_route, APIRoute):
+            continue
+        dependant = ctx.dependant or ctx.original_route.dependant
+        for yontem in ctx.methods:
+            rota = (yontem, ctx.path)
+            if rota not in SIRKET_GENELI_KATALOG_ROTALARI:
+                continue
+            bulunan.add(rota)
+            assert not _isaretli(dependant), rota
+            assert not _bagimlilik_agacinda(dependant, require_unrestricted), rota
+    assert bulunan == set(SIRKET_GENELI_KATALOG_ROTALARI), "bayat şirket geneli katalog rotası"
 
 
 def test_kullanici_disiplin_uclari_duyarli_degildir() -> None:

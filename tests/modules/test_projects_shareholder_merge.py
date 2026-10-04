@@ -31,13 +31,12 @@ from app.modules.projects.schemas import (
 )
 from app.modules.projects.service import create_project, update_project
 from app.modules.units.models import Unit, UnitKind, UnitOwnerSide
-from app.modules.users.models import UserProjectAccess
 from tests.modules.units._units_api import _block, _site
 
 
 async def _writer(seeded_db, user_factory, email: str):
     user = await user_factory(email=email, password="parola1234", role_key="patron")
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await seeded_db.flush()
     return user
 

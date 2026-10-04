@@ -1,8 +1,8 @@
 """Teklif revizyonu Excel ucu (TKL-B5.2) — okuma ucudur, denetim satiri YAZMAZ.
 
 Kapi `offers/router.py` okumalariyla BIREBIR: `contracts:view` + kapsam cifti (route sinifi +
-`kapsam_kapisi`) + `RequireUnrestricted` (TKL-B4.6, R5/SO-19: disiplin atanmis kullanici teklif
-modulunu hic goremez). Ayri dosya: B4 router'ina dokunmadan eklenir.
+`kapsam_kapisi`) (IZN-B3: disiplin proje basina; teklif sirket geneli). Ayri dosya: B4
+router'ina dokunmadan eklenir.
 
 🔴 Maske ELLE uygulanir (`kapsamla_maskele`): rota sarmalayicisi `Response` govdesinin icine
 bakamaz (bkz. `boq/router.py` kacak-uc notu). Zarf kitaba girmeden ONCE maskelenir.
@@ -21,7 +21,6 @@ from fastapi import APIRouter, Path, Query, Response
 from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
-from app.core.discipline_deps import RequireUnrestricted
 from app.core.errors import NotFoundError
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
@@ -38,7 +37,7 @@ router = APIRouter(
     tags=["offers"],
     responses=COMMON_ERROR_RESPONSES,
     route_class=kapsam_rotasi("contracts", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("contracts"), RequireUnrestricted],  # TKL-B4.6 (R5)
+    dependencies=[kapsam_kapisi("contracts")],
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)

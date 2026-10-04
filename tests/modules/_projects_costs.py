@@ -25,7 +25,7 @@ from app.modules.subcontractor_progress_payments.models import (
     SubcontractorProgressPaymentLine,
 )
 from app.modules.units.models import Block, Unit, UnitKind, UnitSalesStatus
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 from tests._legacy_permission_yardimcisi import sync_page_cells
 
 _TENTH = Decimal("0.1")
@@ -45,13 +45,8 @@ async def _login(client, user_factory, role_key: str, *, email: str | None = Non
 async def _scoped_login(client, db_session, user_factory, project: Project | None) -> str:
     """Kapsamlı kullanıcı: yalnız verilen projeye erişir (IDOR kapısı testi)."""
     user = await user_factory(email="kapsamli@p10.co", password="parola1234", role_key="patron")
-    db_session.add(
-        UserProjectAccess(
-            user_id=user.id,
-            project_id=None if project is None else project.id,
-            all_projects=False,
-        )
-    )
+    if project is not None:
+        db_session.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
     await db_session.flush()
     resp = await client.post(
         "/auth/login", json={"email": "kapsamli@p10.co", "password": "parola1234"}

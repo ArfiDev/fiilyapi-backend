@@ -64,7 +64,7 @@ router = APIRouter(
 
 # Spec §8 S1 (kullanıcı kararı): satış yetkisi proje yetkisinden AYRILIR —
 # `sales` kendi izin modülüdür (matris 19). Kapsam (`visible_projects`) yine
-# `projects` üzerinden gelir: izin "yetki", `user_project_access` "kapsam"dır.
+# `projects` üzerinden gelir: izin "yetki", proje ekibi (`project_members`) "kapsam"dır.
 _VIEW = require_permission("sales", AccessLevel.view)
 _FULL = require_permission("sales", AccessLevel.full)
 #: IZN-B2: Aktif Et / Tapu Devri / İptal / Taksit Öde = Satış Yönetimi ONAYLAR (eşik eski `full`).

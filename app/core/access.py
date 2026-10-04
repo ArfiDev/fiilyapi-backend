@@ -34,7 +34,7 @@ class Scope(str, enum.Enum):
 #:   `own`     — `GET /approvals` bilerek kapısızdır ve `_pending_filter`in
 #:               "Bekçi 5"i senin AÇTIĞIN zinciri onay kutundan ZATEN çıkarır;
 #:               `created_by == aktör` süzgeci o bekçiyi TERS ÇEVİRİRDİ.
-#:   `project` — proje kapsamı `UserProjectAccess`ten sürülür ve ilgili iki
+#:   `project` — proje kapsamı proje ekibinden (`project_members`) sürülür ve ilgili iki
 #:               modül onu ZATEN uygular; ikinci bir kopya bir gün ayrışırdı.
 #:   `stock`   — onay kutusu zaten kişiseldir.
 #:

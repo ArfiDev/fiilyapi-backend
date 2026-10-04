@@ -29,7 +29,7 @@ from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
     SubcontractorProgressPayment,
 )
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 
 GRUP_ADI = "A — Betonarme İşleri"
 
@@ -79,9 +79,7 @@ async def kisitli_headers(
     email = "kisitli@thk-crud.co"
     await user_factory(email=email, password="parola1234", role_key="project_manager")
     user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
-    seeded_db.add(
-        UserProjectAccess(user_id=user.id, project_id=kisitli_proje.id, all_projects=False)
-    )
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=kisitli_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text
@@ -99,9 +97,7 @@ async def sef_headers(
     email = "sef@thk-crud.co"
     await user_factory(email=email, password="parola1234", role_key="site_chief")
     user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
-    seeded_db.add(
-        UserProjectAccess(user_id=user.id, project_id=kisitli_proje.id, all_projects=False)
-    )
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=kisitli_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

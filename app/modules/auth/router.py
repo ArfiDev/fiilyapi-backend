@@ -6,7 +6,6 @@ from app.core.access import is_system_admin
 from app.core.config import settings
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_scope import user_disciplines_detail
 from app.core.ratelimit import client_ip, limiter
 from app.core.sayfalar import SAYFA_BY_KEY, PageLevel, sistem_yoneticisi_sayfalari
 from app.core.security import TokenError, create_access_token, create_refresh_token, decode_token
@@ -15,6 +14,7 @@ from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.auth.schemas import LoginRequest, MeResponse, PageGrant, RefreshRequest, TokenPair
 from app.modules.auth.service import AuthError, authenticate
+from app.modules.auth.team import load_team, team_projects, team_role_pages
 from app.modules.roles.repository import (
     derived_role_matrix,
     list_role_hidden_categories,
@@ -118,7 +118,6 @@ async def me(
     """`permissions` (IZN-B2): SAYFA HÜCRELERİNDEN türetilmiş salt-okur modül düzeyi
     (`roles.repository.derived_role_matrix`; `/roles/{id}/permissions` ucuyla ayni kaynak).
     Frontend B6/F5'e kadar onu okur; kapılar `pages` hücrelerinden karar verir."""
-    disciplines = await user_disciplines_detail(session, user.id)
     admin = is_system_admin(user)
     cells: dict[str, tuple[PageLevel, bool]] = {}
     if admin:
@@ -140,6 +139,8 @@ async def me(
         cells = {cell.page_key: (cell.level, cell.can_approve) for cell in rows}
         hidden_fields = await list_role_hidden_categories(session, user.role_id)
     matrix = await derived_role_matrix(session, user.role_id, user.role.key, cells)
+    # "Tüm projeler" kişide ekip satırı YOK SAYILIR: ana rolle çalışır (KARARLAR §1.7).
+    team = [] if user.all_projects else await load_team(session, user.id)
     return MeResponse(
         id=user.id,
         email=user.email,
@@ -149,7 +150,9 @@ async def me(
         is_system_admin=admin,
         status=user.status,
         permissions={module.key: level for module, level, _scope in matrix},
-        disciplines=disciplines,
         pages=pages,
         hidden_fields=hidden_fields,
+        all_projects=user.all_projects,
+        projects=await team_projects(session, team),
+        role_pages=await team_role_pages(session, team, user.role.key),
     )

@@ -31,7 +31,7 @@ from app.modules.catalog.service import next_poz_no
 from app.modules.earned_value.engine import ContractorType
 from app.modules.projects.models import Project
 from app.modules.sites.models import Site
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 
 PASSWORD = "parola1234"
 
@@ -160,9 +160,7 @@ def login(client: AsyncClient, seeded_db: AsyncSession, user_factory, proje: Pro
             email=email, password=PASSWORD, role_key=role_key, full_name=f"Kişi {role_key}"
         )
         if role_key != "system_admin":
-            seeded_db.add(
-                UserProjectAccess(user_id=user.id, project_id=proje.id, all_projects=False)
-            )
+            seeded_db.add(ProjectMember(user_id=user.id, project_id=proje.id, role_id=user.role_id))
             await seeded_db.flush()
         resp = await client.post("/auth/login", json={"email": email, "password": PASSWORD})
         assert resp.status_code == 200, resp.text

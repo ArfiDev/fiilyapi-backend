@@ -51,6 +51,7 @@ from app.modules.earned_value.schemas_catalog import (
     DisciplineRef,
     DisciplineUpdate,
 )
+from app.modules.users.models import ProjectMember, ProjectMemberDiscipline
 
 #: Katalog oran kolonunun kuantumu (Numeric(12,4)) — benimsenen ortalama buna oturur.
 _RATE_QUANTUM = Decimal(1).scaleb(-RATE_PRECISION[1])
@@ -105,7 +106,7 @@ async def update_discipline(
 class DisciplineUsage:
     item_count: int  # katalog is tipi sayisi
     site_count: int  # disipline BOQ grubu eslenmis (ya da donmus baseline'i olan) santiye
-    user_count: int = 0  # disipline atanmis kullanici (`user_disciplines`; DSC-B0)
+    user_count: int = 0  # disipline atanmis kullanici (proje ekibi + donmus `user_disciplines`)
 
 
 async def discipline_usage(
@@ -145,12 +146,22 @@ async def discipline_usage(
             )
         ).all()
     )
+    # IZN-B3: disiplin artık PROJE EKİBİNDE atanır (`project_member_disciplines`); donmuş global
+    # `user_disciplines` satırları (B6'ya kadar) da FK RESTRICT ile bağlı kaldığı için SAYILIR.
+    # Sayı = disipline atanmış FARKLI kullanıcı (iki kaynakta birden olan bir kez sayılır).
+    assigned = (
+        select(UserDiscipline.discipline_id.label("d"), UserDiscipline.user_id.label("u")).union(
+            select(ProjectMemberDiscipline.discipline_id, ProjectMember.user_id).join(
+                ProjectMember, ProjectMember.id == ProjectMemberDiscipline.member_id
+            )
+        )
+    ).subquery()
     users = dict(
         (
             await session.execute(
-                select(UserDiscipline.discipline_id, func.count())
-                .where(UserDiscipline.discipline_id.in_(discipline_ids))
-                .group_by(UserDiscipline.discipline_id)
+                select(assigned.c.d, func.count())
+                .where(assigned.c.d.in_(discipline_ids))
+                .group_by(assigned.c.d)
             )
         ).all()
     )

@@ -26,7 +26,6 @@ from sqlalchemy import func, select
 from app.core.access import AccessLevel, Scope
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
-from app.modules.users.models import UserProjectAccess
 from tests._legacy_permission_yardimcisi import sync_page_cells
 from tests._silme_yardimci import sil_aile
 
@@ -50,7 +49,7 @@ async def _login(client, session, user_factory, role_key: str, *, grant_all: boo
     address = f"{role_key}-{uuid.uuid4().hex[:6]}@t.co"
     user = await user_factory(email=address, password="parola1234", role_key=role_key)
     if grant_all:
-        session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+        user.all_projects = True
         await session.flush()
     resp = await client.post("/auth/login", json={"email": address, "password": "parola1234"})
     return resp.json()["access_token"]

@@ -20,12 +20,11 @@ from app.modules.sites.models import Site
 from app.modules.units import service
 from app.modules.units.models import Block, Unit, UnitKind, UnitOwnerSide, UnitSalesStatus
 from app.modules.units.schemas import UnitOwnerSideFilter, UnitValueBasis
-from app.modules.users.models import UserProjectAccess
 
 
 async def _patron(session, user_factory, email: str):
     user = await user_factory(email=email, password="parola1234", role_key="patron")
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
     return user
 

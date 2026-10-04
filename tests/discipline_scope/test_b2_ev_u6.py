@@ -1,4 +1,5 @@
-"""DSC-B2 Ü6 — EV yapısal/toplu uçlar KISITLIYA 403 (`RequireUnrestricted`); F1: her 403'ün
+"""DSC-B2 Ü6 — EV yapısal/toplu uçlar KISITLIYA 403 (`RequireUnrestricted`); IZN-B3: şirket geneli
+katalog/disiplin yazmaları HARİÇ (artık açık). F1: her 403'ün
 yanında aynı roldeki ATAMASIZ eş 2xx (ya da uca özgü iş kuralı 409/422 — ASLA 403) alır.
 
 Bağımlılık ağacı bekçisi `tests/core/test_disiplin_rota_bekcisi.py::U6_ROTALARI`; bu dosya
@@ -33,38 +34,46 @@ async def _iki_yon(
 # ------------------------------------------------------------------ catalog_router
 
 
-async def test_disiplin_ve_katalog_yazmalari_kisitliya_403(
+async def _iki_yon_acik(
+    client: AsyncClient, yontem: str, url: str, kisitli, es, govde=None, pozitif=(200, 201, 204)
+) -> None:  # noqa: ANN001
+    """IZN-B3: şirket geneli yazma — proje başına disiplinli kişi de aynı roldeki atamasız eş gibi
+    GEÇER (403 DEĞİL)."""
+    for baslik in (kisitli, es):
+        yanit = await client.request(yontem, url, headers=baslik, json=govde)
+        assert yanit.status_code != 403, (yontem, url, yanit.text)
+        assert yanit.status_code in pozitif, (yontem, url, yanit.status_code, yanit.text)
+
+
+async def test_disiplin_ve_katalog_yazmalari_sirket_geneli_kisitliya_da_acik(
     client: AsyncClient, dunya: Dunya, civil_yazar, yazar_atamasiz
 ) -> None:
-    yeni = {
-        "code": "MEK",
-        "name": "Mekanik",
-        "color": "#aa0000",
-        "default_contractor_type": "own",
-    }
-    await _iki_yon(client, "POST", "/earned-value/disciplines", civil_yazar, yazar_atamasiz, yeni)
-    kimlik = (
-        await client.post(
-            "/earned-value/disciplines", headers=yazar_atamasiz, json={**yeni, "code": "M2"}
+    for kod, baslik in (("MEK", civil_yazar), ("M2", yazar_atamasiz)):
+        yeni = {
+            "code": kod,
+            "name": f"Mekanik {kod}",
+            "color": "#aa0000",
+            "default_contractor_type": "own",
+        }
+        yanit = await client.post("/earned-value/disciplines", headers=baslik, json=yeni)
+        assert yanit.status_code == 201, yanit.text
+        kimlik = yanit.json()["id"]
+        yanit = await client.patch(
+            f"/earned-value/disciplines/{kimlik}", headers=baslik, json={"name": f"{kod} 2"}
         )
-    ).json()["id"]
-    await _iki_yon(
-        client,
-        "PATCH",
-        f"/earned-value/disciplines/{kimlik}",
-        civil_yazar,
-        yazar_atamasiz,
-        {"name": "Mekanik 2"},
-    )
+        assert yanit.status_code == 200, yanit.text
     katalog = {
         "discipline_id": str(dunya.kab.id),
-        "name": "Kalıp",
         "uom": "m2",
         "standard_unit_mhr": "1.5",
         "default_contractor_type": "own",
     }
-    await _iki_yon(client, "POST", "/earned-value/catalog", civil_yazar, yazar_atamasiz, katalog)
-    await _iki_yon(
+    for ad, baslik in (("Kalıp A", civil_yazar), ("Kalıp B", yazar_atamasiz)):
+        yanit = await client.post(
+            "/earned-value/catalog", headers=baslik, json={**katalog, "name": ad}
+        )
+        assert yanit.status_code == 201, yanit.text
+    await _iki_yon_acik(
         client,
         "PATCH",
         f"/earned-value/catalog/{KAB_KATALOG}",
@@ -72,7 +81,7 @@ async def test_disiplin_ve_katalog_yazmalari_kisitliya_403(
         yazar_atamasiz,
         {"name": "Beton 2"},
     )
-    await _iki_yon(
+    await _iki_yon_acik(
         client,
         "POST",
         f"/earned-value/catalog/{KAB_KATALOG}/adopt-actual",

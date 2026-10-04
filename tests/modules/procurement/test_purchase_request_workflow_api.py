@@ -27,7 +27,7 @@ from app.modules.procurement.models import (
     PurchaseRequestLine,
     PurchaseRequestStatus,
 )
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 
 _YOL = "/purchase-requests"
 
@@ -505,7 +505,7 @@ async def test_her_gecis_denetim_satiri_yazar(
         email="sa-denetim@ok1a.co", password="parola1234", role_key="procurement"
     )
     seeded_db.add(
-        UserProjectAccess(user_id=onaycı.id, project_id=gorunen_proje.id, all_projects=False)
+        ProjectMember(user_id=onaycı.id, project_id=gorunen_proje.id, role_id=onaycı.role_id)
     )
     seeded_db.add(UserApprovalRole(user_id=onaycı.id, approval_role=ApprovalRole.procurement))
     await seeded_db.flush()

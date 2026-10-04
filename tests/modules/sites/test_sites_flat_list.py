@@ -16,7 +16,7 @@ from sqlalchemy import select
 from app.core.access import AccessLevel, Scope
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Site
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 from tests._legacy_permission_yardimcisi import sync_page_cells
 
 # Düz ucun yanıt alanları — K3 gereği YALIN küme. `SiteCard` alanları (status,
@@ -36,7 +36,7 @@ async def _login_scoped(client, session, user_factory, role_key: str, email: str
     """`user_project_access` satırlarıyla SINIRLI görünürlük (all_projects YOK)."""
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
     for project in projects:
-        session.add(UserProjectAccess(user_id=user.id, project_id=project.id))
+        session.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
     await session.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     return resp.json()["access_token"]

@@ -62,7 +62,7 @@ from app.modules.treasury.models import (
     Payment,
     PaymentMethodKind,
 )
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 from tests._iban import tr_iban
 
 
@@ -350,9 +350,7 @@ async def kapsamli_muhasebe_headers(
     email = "kapsamli@hazine.co"
     await user_factory(email=email, password="parola1234", role_key="accounting")
     user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
-    seeded_db.add(
-        UserProjectAccess(user_id=user.id, project_id=gorunen_proje.id, all_projects=False)
-    )
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=gorunen_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     return _auth(await _login_mevcut(client, email))
 
@@ -378,9 +376,7 @@ async def kapsamli_pm_headers(
     email = "kapsamli.pm@hazine.co"
     await user_factory(email=email, password="parola1234", role_key="project_manager")
     user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
-    seeded_db.add(
-        UserProjectAccess(user_id=user.id, project_id=gorunen_proje.id, all_projects=False)
-    )
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=gorunen_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     return _auth(await _login_mevcut(client, email))
 

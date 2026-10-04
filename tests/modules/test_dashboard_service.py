@@ -1,5 +1,4 @@
 from app.modules.dashboard.service import build_summary
-from app.modules.users.models import UserProjectAccess
 
 
 async def test_summary_counts_only_active_projects(seeded_db, user_factory, project_factory):
@@ -7,7 +6,7 @@ async def test_summary_counts_only_active_projects(seeded_db, user_factory, proj
     await project_factory("OSB-1", status="on_hold")
     await project_factory("SAHIL-2", status="completed")
     user = await user_factory(email="patron@t.co", password="parola1234", role_key="patron")
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await seeded_db.flush()
 
     summary = await build_summary(seeded_db, user)

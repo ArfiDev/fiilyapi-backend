@@ -22,7 +22,7 @@ from app.modules.sales.models import UnitSaleStatus
 from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
 )
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 from tests.conftest import test_engine
 
 from ._projects_costs import (
@@ -245,7 +245,7 @@ async def test_costs_view_seviyesi_yeterlidir(client, db_session, user_factory, 
     project = await project_factory(code="VW-1")
     await _set_permission(db_session, "site_chief", AccessLevel.view)
     user = await user_factory(email="sef@p10.co", password="parola1234", role_key="site_chief")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=project.id, all_projects=False))
+    db_session.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
     await db_session.flush()
     login = await client.post("/auth/login", json={"email": "sef@p10.co", "password": "parola1234"})
     token = login.json()["access_token"]

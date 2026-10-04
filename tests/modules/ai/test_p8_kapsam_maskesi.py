@@ -63,7 +63,7 @@ from app.modules.ai.registry import ToolRegistry, ToolSpec
 from app.modules.ai.result import Ok, ToolError, Truncated
 from app.modules.ai.tools.catalog import READ_TOOLS
 from app.modules.roles.models import Module, Role, RolePermission
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 
 # `asyncio_mode = "auto"` (pyproject) — ayrıca `pytestmark` YAZILMAZ: yazılsaydı bu
 # dosyadaki SENKRON keşif testi "asyncio işaretli ama async değil" uyarısı verirdi.
@@ -259,7 +259,9 @@ async def maske_kurulumu(seeded_db, user_factory, project_factory):
     )
 
     kullanici = await user_factory("p8maske@fiil.example.com", "Sifre1234!", _ROL)
-    seeded_db.add(UserProjectAccess(user_id=kullanici.id, project_id=proje.id))
+    seeded_db.add(
+        ProjectMember(user_id=kullanici.id, project_id=proje.id, role_id=kullanici.role_id)
+    )
     await seeded_db.flush()
 
     # 🔴 KİMLİK HARİTASINDAN ÇIKAR: okuma düzlemi AYNI session'ı kullanır ve

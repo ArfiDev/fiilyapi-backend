@@ -13,11 +13,10 @@ from app.modules.audit import messages
 from app.modules.sites import service
 from app.modules.sites.models import Section, SectionStatus, Site, SiteStatus
 from app.modules.sites.schemas import SectionCreate, SectionUpdate, SiteCreate, SiteUpdate
-from app.modules.users.models import UserProjectAccess
 
 
 async def _grant_all(session, user) -> None:
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
 
 

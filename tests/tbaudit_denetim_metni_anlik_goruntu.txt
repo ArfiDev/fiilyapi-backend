@@ -256,7 +256,6 @@ progress_payment_unapproved(project_name='<project_name#0>', sequence_no=101, pr
 progress_payment_unapproved(project_name='<project_name#0>', sequence_no=101, previous_approver_name='<previous_approver_name#2>', previous_approved_at=None) = 'Hakediş onayı geri çekildi: <project_name#0> · #101 · Önceki onay: <previous_approver_name#2> · Bilinmiyor'
 progress_payment_updated(project_name='<project_name#0>', sequence_no=101) = 'Hakediş güncellendi: <project_name#0> · #101'
 progress_payment_updated(project_name='<project_name#0>', sequence_no=0) = 'Hakediş güncellendi: <project_name#0> · #0'
-project_access_updated(name='<name#0>') = 'Proje erişimi güncellendi: <name#0>'
 project_created(name='<name#0>') = 'Yeni proje oluşturuldu: <name#0>'
 project_updated(name='<name#0>') = 'Proje güncellendi: <name#0>'
 purchase_order_created(order_no='<order_no#0>', supplier_name='<supplier_name#1>') = 'Sipariş oluşturuldu: <order_no#0> · <supplier_name#1>'
@@ -401,6 +400,9 @@ units_bulk_created(project_name='<project_name#0>', block_name='<block_name#1>',
 units_imported(project_name='<project_name#0>', created=101, skipped=102) = "Üniteler Excel'den içe aktarıldı: <project_name#0> · 101 ünite (102 satır atlandı)"
 units_imported(project_name='<project_name#0>', created=0, skipped=102) = "Üniteler Excel'den içe aktarıldı: <project_name#0> · 0 ünite (102 satır atlandı)"
 units_imported(project_name='<project_name#0>', created=101, skipped=0) = "Üniteler Excel'den içe aktarıldı: <project_name#0> · 101 ünite"
+user_access_updated(name='<name#0>', role_name='<role_name#1>', all_projects=True, project_count=103) = 'Kullanıcı erişimi güncellendi: <name#0> · ana rol <role_name#1> · tüm projeler'
+user_access_updated(name='<name#0>', role_name='<role_name#1>', all_projects=False, project_count=103) = 'Kullanıcı erişimi güncellendi: <name#0> · ana rol <role_name#1> · 103 projede ekip'
+user_access_updated(name='<name#0>', role_name='<role_name#1>', all_projects=True, project_count=0) = 'Kullanıcı erişimi güncellendi: <name#0> · ana rol <role_name#1> · tüm projeler'
 user_created(name='<name#0>', role_name='<role_name#1>') = 'Kullanıcı oluşturuldu: <name#0> · <role_name#1>'
 user_deleted(name='<name#0>') = 'Kullanıcı silindi: <name#0>'
 user_updated(name='<name#0>') = 'Kullanıcı güncellendi: <name#0>'

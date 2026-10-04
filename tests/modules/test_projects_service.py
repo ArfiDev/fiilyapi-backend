@@ -17,11 +17,11 @@ from app.modules.projects.service import (
     list_projects_overview,
     update_project,
 )
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 
 
 async def _grant_all(seeded_db, user) -> None:
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await seeded_db.flush()
 
 
@@ -74,7 +74,7 @@ async def test_scope_filter_limits_non_admin(seeded_db, user_factory, project_fa
     granted = await project_factory("T-1")
     await project_factory("T-2")
     user = await user_factory(email="p3@t.co", password="parola1234", role_key="patron")
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=granted.id, all_projects=False))
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=granted.id, role_id=user.role_id))
     await seeded_db.flush()
 
     result = await list_projects_overview(

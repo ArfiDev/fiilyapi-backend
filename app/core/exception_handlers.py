@@ -31,6 +31,7 @@ from app.core.errors import (
     SiteValidationError,
     TreasuryValidationError,
     UnitValidationError,
+    UserAccessValidationError,
 )
 from app.core.silme.hatalar import (
     CODE_FINANCIAL_PENDING,
@@ -255,6 +256,14 @@ async def _role_validation_handler(request: Request, exc: RoleValidationError) -
     )
 
 
+async def _user_access_validation_handler(
+    request: Request, exc: UserAccessValidationError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": str(exc)}
+    )
+
+
 async def _offer_validation_handler(request: Request, exc: OfferValidationError) -> JSONResponse:
     content: dict[str, object] = {"detail": str(exc)}
     if exc.errors:  # yalniz yapisal hata tasiyan (donusturme) 422'ler; digerleri DEGISMEZ
@@ -371,6 +380,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(PayrollValidationError, _payroll_validation_handler)
     app.add_exception_handler(EquipmentValidationError, _equipment_validation_handler)
     app.add_exception_handler(RoleValidationError, _role_validation_handler)
+    app.add_exception_handler(UserAccessValidationError, _user_access_validation_handler)
     app.add_exception_handler(OfferValidationError, _offer_validation_handler)
     app.add_exception_handler(InvoicingValidationError, _invoicing_validation_handler)
     app.add_exception_handler(TreasuryValidationError, _treasury_validation_handler)

@@ -241,10 +241,9 @@ async def list_land_share_units_endpoint(
     "",
     response_model=ProjectDetailResponse,
     status_code=status.HTTP_201_CREATED,
-    # Proje olusturma ADMIN isidir (kullanici karari 2026-07-28). `full` kasitli
-    # olarak YETMEZ: olusturana otomatik UserProjectAccess yazilmadigi icin,
-    # kapsamli bir `full` kullanicisi goremedigi bir proje yaratirdi. Admin
-    # gorunurluk suzgecini zaten atlar (spec §5.2), boylece bu bosluk kapanir.
+    # Proje olusturma "Projeler" sayfasi Duzenler'dir (IZN-B2: eski admin esigi). IZN-B3:
+    # olusturana ANA rolüyle ekip satiri yazilir (`add_creator_membership`), boylece olusturan
+    # kendi yarattigi projeyi gorur; Sistem Yoneticisi / "Tum projeler" kisisi zaten gorur.
     dependencies=[require_page("genel.projeler", "edit")],
 )
 async def create_project_endpoint(
@@ -255,6 +254,7 @@ async def create_project_endpoint(
     scope: DisciplineScoped,
 ) -> ProjectDetailResponse:
     project = await service.create_project(session, data)
+    await service.add_creator_membership(session, current_user, project)
     await record_audit(
         session,
         action=AuditAction.create,

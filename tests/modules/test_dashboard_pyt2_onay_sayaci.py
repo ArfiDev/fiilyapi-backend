@@ -29,7 +29,7 @@ from app.modules.approvals import service as approvals_service
 from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
 from app.modules.dashboard.service import build_summary
 from app.modules.projects.models import Project
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 from tests.conftest import test_engine
 from tests.modules.approvals.conftest import onay_rolu_ver, taseron_evraki
 
@@ -76,11 +76,11 @@ def aktor(seeded_db: AsyncSession, user_factory):
         if approval_roles:
             await onay_rolu_ver(seeded_db, user, *approval_roles)
         if projeler is None:
-            seeded_db.add(UserProjectAccess(user_id=user.id, all_projects=True))
+            user.all_projects = True
         else:
             for proje in projeler:
                 seeded_db.add(
-                    UserProjectAccess(user_id=user.id, project_id=proje.id, all_projects=False)
+                    ProjectMember(user_id=user.id, project_id=proje.id, role_id=user.role_id)
                 )
         await seeded_db.flush()
         return user
@@ -408,8 +408,10 @@ async def test_onay_rolu_OLAN_aktorun_panel_MALIYETI_CAKILDI(seeded_db, aktor, p
         ozet = await build_summary(seeded_db, sef)
 
     assert ozet.pending_approvals.count == 2
-    assert len(sorgular) == 47, (
-        f"onay rolu tasiyan aktorun panel maliyeti {len(sorgular)} sorgu oldu (beklenen 47) — "
+    # IZN-B3: 47 → 41. `visible_projects` artık 1 okumadır (üyelik JOIN `projects`; eskiden izin
+    # okuması + `user_project_access` + `projects`): panelin ÜÇ çağrısında −2'şer = −6.
+    assert len(sorgular) == 41, (
+        f"onay rolu tasiyan aktorun panel maliyeti {len(sorgular)} sorgu oldu (beklenen 41) — "
         "rozet icin sayfa GOVDESI de cekiliyor olabilir (`limit` degisti mi?)"
     )
 
@@ -436,7 +438,8 @@ async def test_onay_rolu_YOKSA_panel_TEK_ek_sorgu_oder(seeded_db, aktor, project
     assert ozet.pending_approvals.count == 0
     # IZN-B2: 35 → 37. Proje kartı izni artık İKİ okumadır (seviye: sayfa hücreleri `gate_ok`;
     # kapsam: eski satır / `tum_tutarlar` hibriti `actor_scope`) + rolün tek seferlik okunması.
-    assert len(sorgular) == 37, (
+    # IZN-B3: 37 → 33 (`visible_projects` −2 × iki çağrı: portföy + risk).
+    assert len(sorgular) == 33, (
         f"rolsüz aktörün panel maliyeti {len(sorgular)} sorgu — "
         "taban 8 + onay rolü 1 + portföy 10 + risk 15 + proje kartı izin kapısı 3 (IZN-B2)"
     )

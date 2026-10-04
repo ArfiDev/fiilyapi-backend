@@ -25,6 +25,15 @@ bekçiyi hiçliğe çevirir; bir metni bilerek değiştiren dilim referansı
 `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazeler ve
 **farkı incelemede görünür kılar** — sessizce değil.
 
+## 🔴 REFERANS DEĞİŞİKLİĞİ (IZN-B3, 2026-10-04)
+
+`project_access_updated` KALDIRILDI, yerine `user_access_updated` geldi: eski
+`PUT /users/{id}/project-access` ucu 410 oldu ve yerini ana rol + proje ekibini tek işlemde
+yazan `PUT /users/{id}/access` aldı. Referans
+`python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; fark (`git diff`): TEK
+satır silindi (`project_access_updated`), üç `user_access_updated` çağrısı eklendi; başka metin
+DEĞİŞMEDİ. Eski denetim satırları veritabanında olduğu gibi kalır.
+
 ## 🔴 REFERANSA EKLENEN SEMBOL (SIL-B1, 2026-10-04)
 
 `deleted_with_dependents` — silme motorunun mevcut silme metnine eklediği TAM dökümü:

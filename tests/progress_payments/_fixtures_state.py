@@ -22,7 +22,7 @@ from app.modules.progress_payments.models import (
 )
 from app.modules.projects.models import Project, ProjectContract
 from app.modules.sites.models import Site
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import User
 
 from ._fixtures_base import _auth, _dagit
 from ._fixtures_lines import _gecmisli_ortam
@@ -43,7 +43,7 @@ async def muhasebe_headers(
     email = "muhasebe@pp-transitions.co"
     await user_factory(email=email, password="parola1234", role_key="accounting")
     user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text
@@ -59,7 +59,7 @@ async def saha_headers(
     email = "saha@pp-transitions.co"
     await user_factory(email=email, password="parola1234", role_key="field_engineer")
     user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

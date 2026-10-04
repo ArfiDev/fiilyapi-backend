@@ -25,7 +25,7 @@ from sqlalchemy import select
 
 from app.modules.projects.models import Project
 from app.modules.sites.models import Section, Site
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 
 PROJECT_MISSING = "Proje bulunamadı"
 SITE_MISSING = "Şantiye bulunamadı"
@@ -360,7 +360,7 @@ async def test_erisim_verilince_AYNI_slug_ACILIR_POZITIF_KONTROL(
     project, site, section = await _invisible_tree(db_session, project_factory)
     address = f"grant-{uuid.uuid4().hex[:6]}@t.co"
     user = await user_factory(email=address, password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=project.id, all_projects=False))
+    db_session.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
     await db_session.flush()
     login = await client.post("/auth/login", json={"email": address, "password": "parola1234"})
     token = login.json()["access_token"]
@@ -382,7 +382,7 @@ async def test_slug_NULL_olan_kayit_bos_slugla_ACILMAZ(
     assert project.slug is None
     address = f"noslug-{uuid.uuid4().hex[:6]}@t.co"
     user = await user_factory(email=address, password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=project.id, all_projects=False))
+    db_session.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
     await db_session.flush()
     login = await client.post("/auth/login", json={"email": address, "password": "parola1234"})
     token = login.json()["access_token"]

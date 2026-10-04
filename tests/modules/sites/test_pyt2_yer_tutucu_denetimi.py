@@ -29,7 +29,6 @@ from app.modules.sites import service
 from app.modules.sites.models import Site
 from app.modules.sites.schemas import SectionCreate
 from app.modules.sites.service import presenters
-from app.modules.users.models import UserProjectAccess
 
 _SITES_KOKU = pathlib.Path(presenters.__file__).resolve().parent.parent
 #: Yer tutucu zarflarinin sinif adlari (`projects.schemas`ten ithal edilir).
@@ -50,7 +49,7 @@ async def _kurulum(session, user_factory, project_factory, kod: str, email: str)
     session.add(site)
     await session.flush()
     user = await user_factory(email=email, password="parola1234", role_key="patron")
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
     bolum = await service.create_section(
         session, user, site.id, SectionCreate(name="Kaba Yapı", is_draft=True)

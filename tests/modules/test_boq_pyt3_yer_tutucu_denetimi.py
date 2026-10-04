@@ -42,7 +42,6 @@ from app.modules.progress_payments.models import (
 from app.modules.projects.models import ProjectContract
 from app.modules.roles.models import Role
 from app.modules.sites.models import Site
-from app.modules.users.models import UserProjectAccess
 
 _BOQ_KOKU = pathlib.Path(boq_service.__file__).resolve().parent
 _ZARF_ADLARI = {"MetricPlaceholder"}
@@ -51,7 +50,7 @@ _IZINLI_DOSYA = "service.py"
 
 async def _login_with_access(client, session, user_factory, role_key: str, email: str) -> str:
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

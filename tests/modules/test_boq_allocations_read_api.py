@@ -24,7 +24,7 @@ from app.modules.audit.models import AuditLog
 from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 from tests._legacy_permission_yardimcisi import sync_page_cells
 
 # --- Kurulum yardimcilari (test_boq_allocations_api.py deseniyle birebir) ----
@@ -54,13 +54,10 @@ async def _login(
     client, session, user_factory, role_key: str, email: str, project=None, all_projects=True
 ) -> str:
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
-    session.add(
-        UserProjectAccess(
-            user_id=user.id,
-            project_id=None if project is None else project.id,
-            all_projects=all_projects,
-        )
-    )
+    if all_projects:
+        user.all_projects = True
+    elif project is not None:
+        session.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
     await session.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     return resp.json()["access_token"]

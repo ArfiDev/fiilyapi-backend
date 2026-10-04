@@ -45,7 +45,7 @@ from app.modules.boq.schemas import (
 from app.modules.projects.models import Project, ProjectStatus, ProjectType
 from app.modules.roles.models import Role
 from app.modules.sites.models import Section, Site
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 from tests._yaris import YARIS_TAVANI_SN, kilitte_bekleyen_sorgu
 from tests.conftest import test_engine
 
@@ -116,7 +116,7 @@ async def _kur() -> _Kurulum:
         )
         session.add_all([aktor, project])
         await session.flush()
-        session.add(UserProjectAccess(user_id=aktor.id, project_id=None, all_projects=True))
+        aktor.all_projects = True
 
         site = Site(project_id=project.id, code="BDG-CONC", name="Matris Şantiyesi")
         session.add(site)
@@ -169,7 +169,7 @@ async def _temizle(kurulum: _Kurulum) -> None:
         await session.execute(delete(BoqGroup).where(BoqGroup.site_id == kurulum.site_id))
         await session.execute(delete(Site).where(Site.id == kurulum.site_id))
         await session.execute(
-            delete(UserProjectAccess).where(UserProjectAccess.user_id == kurulum.actor_id)
+            delete(ProjectMember).where(ProjectMember.user_id == kurulum.actor_id)
         )
         await session.execute(delete(User).where(User.id == kurulum.actor_id))
         await session.execute(delete(Project).where(Project.id == kurulum.project_id))

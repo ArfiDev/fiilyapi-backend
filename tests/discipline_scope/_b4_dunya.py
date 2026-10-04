@@ -39,7 +39,7 @@ from app.modules.progress_payments.models import (
 from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine, WorkerSource
 from app.modules.sites.models import Section, Site
 from app.modules.timesheet.models import TimesheetEntry
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 from tests._disiplin_dunyasi import GUN1, SIFRE, Dunya, _giris, _kimlik, kur
 from tests._section_types import seed_section_types
 from tests.discipline_scope._b2_golden_araclari import rastgele_kimlikleri_etiketle
@@ -78,7 +78,7 @@ async def _pm_atamasiz(session, client, user_factory, d: Dunya) -> None:
     user = await user_factory(
         email="pm_atamasiz@dsc-b4.co", password=SIFRE, role_key="project_manager"
     )
-    session.add(UserProjectAccess(user_id=user.id, project_id=d.proje.id, all_projects=False))
+    session.add(ProjectMember(user_id=user.id, project_id=d.proje.id, role_id=user.role_id))
     await session.flush()
     d.kullanici["pm_atamasiz"] = user
     d.etiketler[user.id] = "<user:pm_atamasiz>"
@@ -342,7 +342,9 @@ async def genislet_b4(
     await _pm_atamasiz(session, client, user_factory, d)
     for ad in ("civil", "elek", "pm_atamasiz"):
         session.add(
-            UserProjectAccess(user_id=d.kullanici[ad].id, project_id=proje2.id, all_projects=False)
+            ProjectMember(
+                user_id=d.kullanici[ad].id, project_id=proje2.id, role_id=d.kullanici[ad].role_id
+            )
         )
     await seed_section_types(session)  # BLF-B1: bölüm tipi tohumu (atamasız ve kısıtlı aynı)
     await session.flush()

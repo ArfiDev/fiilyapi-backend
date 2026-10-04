@@ -21,7 +21,7 @@ from app.modules.customers.models import Customer, CustomerType
 from app.modules.projects.models import Project
 from app.modules.sites.models import Site
 from app.modules.units.models import Block, Unit, UnitKind, UnitOwnerSide
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 
 PAROLA = "parola1234"
 
@@ -55,9 +55,9 @@ async def _kullanici_basliklari(
     await user_factory(email=email, password=PAROLA, role_key=role_key)
     user = (await session.execute(select(User).where(User.email == email))).scalar_one()
     if all_projects:
-        session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+        user.all_projects = True
     for project_id in project_ids or []:
-        session.add(UserProjectAccess(user_id=user.id, project_id=project_id, all_projects=False))
+        session.add(ProjectMember(user_id=user.id, project_id=project_id, role_id=user.role_id))
     await session.flush()
     return _auth(await _login(client, email))
 

@@ -118,7 +118,7 @@ async def _zemin_kur(database: str) -> _Zemin:
     """Ham SQL ile zemin: rol · kullanici · TUM PROJE erisimi · proje ·
     tedarikci · `quote_wait` talebi · kalem · teklif.
 
-    Kapsam `user_project_access.all_projects` ile verilir (`projects` izin
+    Kapsam `users.all_projects` ile verilir (`projects` izin
     satiri gerekmez): `service.visible_request` oradan gecer.
     """
     z = _Zemin()
@@ -132,8 +132,8 @@ async def _zemin_kur(database: str) -> _Zemin:
         )
         await raw.execute(
             "INSERT INTO users (id, email, password_hash, full_name, title, role_id, "
-            "status, token_version) "
-            "VALUES ($1, 'sakilit@ornek.test', 'x', 'SA Kilit', '', $2, 'active', 0)",
+            "status, token_version, all_projects) "
+            "VALUES ($1, 'sakilit@ornek.test', 'x', 'SA Kilit', '', $2, 'active', 0, true)",
             z.user_id,
             role_id,
         )
@@ -141,12 +141,6 @@ async def _zemin_kur(database: str) -> _Zemin:
             "INSERT INTO projects (id, code, name, status, budget, progress_pct) "
             "VALUES ($1, 'P-KILIT', 'Kilit', 'active', 0, 0)",
             z.project_id,
-        )
-        await raw.execute(
-            "INSERT INTO user_project_access (id, user_id, project_id, all_projects) "
-            "VALUES ($1, $2, NULL, true)",
-            uuid.uuid4(),
-            z.user_id,
         )
         await raw.execute(
             "INSERT INTO suppliers (id, name, payment_terms, is_active) "

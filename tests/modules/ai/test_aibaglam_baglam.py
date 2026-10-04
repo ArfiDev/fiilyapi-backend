@@ -53,7 +53,7 @@ from app.modules.ai.registry import ToolRegistry, ToolSpec
 from app.modules.ai.result import Ok, ToolError
 from app.modules.ai.tools.catalog import READ_TOOLS
 from app.modules.sites.models import Site, SiteStatus
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 
 #: 🔴 `pytestmark = pytest.mark.asyncio` YOKTUR: `pyproject.toml` `asyncio_mode
 #: = "auto"` der, yani işaret gereksizdir ve bu dosyadaki SENKRON testlerde
@@ -159,8 +159,12 @@ async def kurulum(seeded_db, user_factory, project_factory):
 
     iceriden = await user_factory("bgl-ic@fiil.test", "Sifre1234!", "patron")
     disaridan = await user_factory("bgl-dis@fiil.test", "Sifre1234!", "patron")
-    seeded_db.add(UserProjectAccess(user_id=iceriden.id, project_id=a_projesi.id))
-    seeded_db.add(UserProjectAccess(user_id=iceriden.id, project_id=c_projesi.id))
+    seeded_db.add(
+        ProjectMember(user_id=iceriden.id, project_id=a_projesi.id, role_id=iceriden.role_id)
+    )
+    seeded_db.add(
+        ProjectMember(user_id=iceriden.id, project_id=c_projesi.id, role_id=iceriden.role_id)
+    )
     await seeded_db.flush()
 
     # 🔴 Kimlik haritasından çıkar: okuma düzlemi/`get_current_user` aynı

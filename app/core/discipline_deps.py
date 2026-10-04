@@ -26,16 +26,28 @@ from fastapi import Depends, HTTPException, Request, status
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_scope import DisciplineScope, user_scope
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, user_scope
+from app.modules.projects.context import resolve_project
 from app.modules.users.models import User
 
 
 async def resolve_discipline_scope(
+    request: Request,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> DisciplineScope:
-    """Istegi yapan kullanicinin disiplin kapsami (atamasiz/kayitsiz → KISITSIZ)."""
-    return await user_scope(session, user.id)
+    """Istegi yapan kullanicinin disiplin kapsami (IZN-B3: PROJE BASINA).
+
+    * "Tum projeler" kisisi → KISITSIZ (disiplin kisiti olmaz).
+    * Istek tek bir projeye aitse (yol parametresinden `projects.context.resolve_project`) → o
+      projedeki atama; atamasiz = o projede kisitsiz.
+    * Proje baglamsiz uc (liste) ya da cozulemeyen kayit → COK PROJE kapsami (kisitli oldugu
+      projelerin haritasi; `DisciplineScope.is_multi_project`).
+    """
+    if user.all_projects:
+        return UNRESTRICTED
+    project_id = await resolve_project(session, request.url.path, request.path_params)
+    return await user_scope(session, user.id, project_id)
 
 
 DisciplineScoped = Annotated[DisciplineScope, Depends(resolve_discipline_scope)]

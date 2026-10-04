@@ -22,8 +22,8 @@ from app.core.last_price import LastPrice
 from app.modules.catalog.export import COLUMN_HEADERS
 from app.modules.catalog.models import ContractorType, EvCatalogItem, EvDiscipline
 from app.modules.catalog.service import next_poz_no
-from app.modules.earned_value.models import UserDiscipline
 from app.modules.users.models import User
+from tests._proje_ekibi import baska_projede_disiplinli
 
 from .._boq import _auth, _login_with_access, _set_permission
 
@@ -222,7 +222,7 @@ async def test_son_fiyat_TEK_toplu_cagri_ve_sorgu_sayisi_kalem_sayisindan_bagims
     assert len(cok) == len(az)
 
 
-async def test_disiplin_kisitli_kullanici_yalniz_kendi_disiplinini_indirir(
+async def test_proje_basina_disiplinli_kullanici_katalogun_tamamini_indirir(
     client, db_session, user_factory, seeded_db, disiplin, son_fiyat
 ) -> None:
     diger = EvDiscipline(
@@ -238,7 +238,7 @@ async def test_disiplin_kisitli_kullanici_yalniz_kendi_disiplinini_indirir(
     uid = (
         await db_session.execute(select(User.id).where(User.email == "pm.kisitli.export@tkl.co"))
     ).scalar_one()
-    db_session.add(UserDiscipline(user_id=uid, discipline_id=diger.id))
-    await db_session.flush()
+    await baska_projede_disiplinli(db_session, uid, diger.id)
     satirlar = _satirlar(await client.get(f"{URL}/export", headers=_auth(token)))
-    assert [s[2] for s in satirlar[1:]] == ["Boru"]
+    # IZN-B3: katalog sirket geneli — proje basina disiplin kisiti katalogu SUZMEZ.
+    assert sorted(s[2] for s in satirlar[1:]) == ["Beton", "Boru"]

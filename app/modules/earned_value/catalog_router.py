@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
+from app.core.discipline_scope import UNRESTRICTED
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_any_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -75,8 +75,9 @@ async def _audit(
 
 # DSC-B0b: kullanici yonetimi ekrani (atama secicisi) disiplin katalogunu okur ama EV izni
 # gerektirmez → `earned_value:view` VEYA `user_management:view`. Izin MATRISI degismez; yalniz
-# bu ucun kapisi "herhangi biri yeter". Kisitli kullanici yine yalniz kendi disiplinlerini gorur
-# (`DisciplineScoped`, B1). Gerekce `#` yorumdur: docstring openapi aciklamasina sizar.
+# bu ucun kapisi "herhangi biri yeter". Katalog herkese tam gorunur
+# (IZN-B3: katalog sirket geneli, kapsamla suzulmez). Gerekce `#` yorumdur: docstring
+# openapi aciklamasina sizar.
 _DISCIPLINE_LIST_GATE = require_any_permission(
     (PERMISSION_MODULE, AccessLevel.view), ("user_management", AccessLevel.view)
 )
@@ -97,12 +98,12 @@ def _discipline_read(row, usage: catalog_service.DisciplineUsage) -> DisciplineR
     response_model=list[DisciplineRead],
     dependencies=[_DISCIPLINE_LIST_GATE],
 )
-async def list_disciplines_endpoint(
-    session: _Session, scope: DisciplineScoped
-) -> list[DisciplineRead]:
-    """Sirket disiplinleri (K2) — `sort_order`, sonra `code` sirasiyla."""
-    # Kisitli kullanici yalniz kendi disiplinlerini gorur (Ü8) — `list_disciplines(scope)`.
-    rows = await catalog_service.list_disciplines(session, scope)
+async def list_disciplines_endpoint(session: _Session) -> list[DisciplineRead]:
+    """Sirket disiplinleri (K2) — `sort_order`, sonra `code` sirasiyla.
+
+    IZN-B3: disiplin atamasi PROJE BASINA oldugu icin sirket katalogu kullanici kapsamina gore
+    SUZULMEZ (herkes tum disiplinleri gorur)."""
+    rows = await catalog_service.list_disciplines(session, UNRESTRICTED)
     usage = await catalog_service.discipline_usage(session, [r.id for r in rows])
     return [_discipline_read(row, usage[row.id]) for row in rows]
 
@@ -111,7 +112,7 @@ async def list_disciplines_endpoint(
     "/earned-value/disciplines",
     response_model=DisciplineRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[CATALOG, RequireUnrestricted],
+    dependencies=[CATALOG],
 )
 async def create_discipline_endpoint(
     request: Request, data: DisciplineCreate, user: _User, session: _Session
@@ -126,7 +127,7 @@ async def create_discipline_endpoint(
 @router.patch(
     "/earned-value/disciplines/{discipline_id}",
     response_model=DisciplineRead,
-    dependencies=[CATALOG, RequireUnrestricted],
+    dependencies=[CATALOG],
 )
 async def update_discipline_endpoint(
     request: Request,
@@ -173,7 +174,6 @@ async def delete_discipline_endpoint(
 @router.get("/earned-value/catalog", response_model=list[CatalogItemRead], dependencies=[VIEW])
 async def list_catalog_endpoint(
     session: _Session,
-    scope: DisciplineScoped,
     discipline_id: Annotated[uuid.UUID | None, Query()] = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> list[CatalogItemRead]:
@@ -183,7 +183,7 @@ async def list_catalog_endpoint(
     agirlikli ortalamasi (`catalog_service.catalog_actuals`); tamamlanmis santiye verisi
     yoksa bostur.
     """
-    rows = await catalog_service.list_catalog(session, discipline_id, q, scope)
+    rows = await catalog_service.list_catalog(session, discipline_id, q, UNRESTRICTED)
     return [catalog_service.to_read(row) for row in rows]
 
 
@@ -191,7 +191,7 @@ async def list_catalog_endpoint(
     "/earned-value/catalog",
     response_model=CatalogItemRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[CATALOG, RequireUnrestricted],
+    dependencies=[CATALOG],
 )
 async def create_catalog_item_endpoint(
     request: Request, data: CatalogItemCreate, user: _User, session: _Session
@@ -207,7 +207,7 @@ async def create_catalog_item_endpoint(
 @router.patch(
     "/earned-value/catalog/{item_id}",
     response_model=CatalogItemRead,
-    dependencies=[CATALOG, RequireUnrestricted],
+    dependencies=[CATALOG],
 )
 async def update_catalog_item_endpoint(
     request: Request,
@@ -226,7 +226,7 @@ async def update_catalog_item_endpoint(
 @router.post(
     "/earned-value/catalog/{item_id}/adopt-actual",
     response_model=CatalogItemRead,
-    dependencies=[CATALOG, RequireUnrestricted],
+    dependencies=[CATALOG],
 )
 async def adopt_actual_endpoint(
     request: Request, item_id: uuid.UUID, user: _User, session: _Session

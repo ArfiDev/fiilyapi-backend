@@ -284,6 +284,10 @@ class EvRevision(Base):
 class UserDiscipline(Base):
     """Kullanici → disiplin atamasi (DSC-B0, spec Ü9). Satir yok = kisitsiz kullanici.
 
+    IZN-B3: DONDURULDU. Disiplin artik PROJE BASINA (`project_member_disciplines`); bu tabloya
+    YAZILMAZ ve kapsam buradan OKUNMAZ. Yalniz disiplin silme sayaci (FK RESTRICT) hala sayar;
+    tablo B6'da duser.
+
     FK'ler: kullanici silinince atamalari CASCADE ile gider; disiplin RESTRICT (atanmis
     disiplin silinemez — `catalog_service.delete_discipline` sayaci ANLAMLI 409 verir; yoksa
     FK ihlali genel 409 'Veri butunlugu hatasi'na duserdi). PK `(user_id, discipline_id)`

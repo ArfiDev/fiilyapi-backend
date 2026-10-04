@@ -34,8 +34,9 @@ from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import SYSTEM_ADMIN_ROLE_KEY, AccessLevel
-from app.core.sayfalar import SAYFA_BY_KEY, SAYFALAR, PageLevel
+from app.core.sayfalar import SAYFA_BY_KEY, SAYFALAR, PageKind, PageLevel
 from app.modules.roles.models import Role, RolePagePermission
+from app.modules.users.models import ProjectMember
 
 Flag = Literal["view", "edit", "approve"]
 _FLAG_OF_ESIK: Final[tuple[tuple[str, Flag], ...]] = (
@@ -153,25 +154,99 @@ async def is_admin_role(session: AsyncSession, user: object) -> bool:
     return role is not None and role.key == SYSTEM_ADMIN_ROLE_KEY
 
 
+PageFlag = tuple[str, Flag]
+
+
+# ---------------------------------------------------------------------------
+# PROJE EKİBİ (IZN-B3): rol PROJE BAŞINA. Proje içi sayfalar o projedeki rolle (ekip satırı),
+# şirket geneli sayfalar ANA rolle çalışır; "Tüm projeler" kişi proje içinde de ANA rolle çalışır.
+# ---------------------------------------------------------------------------
+
+
+def project_pairs(pairs: tuple[PageFlag, ...]) -> tuple[PageFlag, ...]:
+    """Bayrak çiftlerinden YALNIZ proje içi sayfalar (`tur=proje`): ekip rolü yalnız onlarda."""
+    return tuple((key, flag) for key, flag in pairs if SAYFA_BY_KEY[key].tur is PageKind.proje)
+
+
+async def team_roles(session: AsyncSession, user: object) -> dict[uuid.UUID, uuid.UUID]:
+    """Kullanıcının proje → ekip rolü haritası. "Tüm projeler" kişide BOŞ (ana rolle çalışır)."""
+    if getattr(user, "all_projects", False):
+        return {}
+    rows = await session.execute(
+        select(ProjectMember.project_id, ProjectMember.role_id).where(
+            ProjectMember.user_id == user.id  # type: ignore[attr-defined]
+        )
+    )
+    return {project_id: role_id for project_id, role_id in rows.all()}
+
+
+async def cells_of_roles(
+    session: AsyncSession, role_ids: set[uuid.UUID], page_keys: tuple[str, ...]
+) -> dict[uuid.UUID, Cells]:
+    """Birden çok rolün verilen sayfalardaki hücreleri — TEK sorgu."""
+    out: dict[uuid.UUID, Cells] = {role_id: {} for role_id in role_ids}
+    if not role_ids or not page_keys:
+        return out
+    rows = await session.execute(
+        select(
+            RolePagePermission.role_id,
+            RolePagePermission.page_key,
+            RolePagePermission.level,
+            RolePagePermission.can_approve,
+        ).where(
+            RolePagePermission.role_id.in_(role_ids), RolePagePermission.page_key.in_(page_keys)
+        )
+    )
+    for role_id, key, level, approve in rows.all():
+        if key in SAYFA_BY_KEY:
+            out[role_id][key] = (level, approve)
+    return out
+
+
+def cells_satisfy(cells: Cells, pairs: tuple[PageFlag, ...]) -> bool:
+    return any(key in cells and flag_true(cells[key], flag) for key, flag in pairs)
+
+
+async def _team_ok(session: AsyncSession, user: object, pairs: tuple[PageFlag, ...]) -> bool:
+    """Ekip rollerinden HERHANGİ BİRİ proje içi sayfa bayraklarından birini taşıyor mu."""
+    scoped = project_pairs(pairs)
+    if not scoped:
+        return False
+    role_ids = set((await team_roles(session, user)).values())
+    if not role_ids:
+        return False
+    cells = await cells_of_roles(session, role_ids, tuple({key for key, _ in scoped}))
+    return any(cells_satisfy(role_cells, scoped) for role_cells in cells.values())
+
+
 async def gate_ok(session: AsyncSession, user: object, module_key: str, level: AccessLevel) -> bool:
-    """`require_permission(modül, düzey)`in kararı. Sistem Yöneticisi her yerde geçer."""
+    """`require_permission(modül, düzey)`in KABA kararı. Sistem Yöneticisi her yerde geçer.
+
+    IZN-B3: ANA rol geçmiyorsa, ekip rollerinden biri proje içi sayfalarla geçiyorsa da geçer
+    (kesin karar projenin etkin rolüyle `visible_projects`te verilir; `core/project_access`).
+    """
     if await is_admin_role(session, user):
         return True
     flags = gate_flags(module_key, level)
     if not flags:
         return False  # eşleşen bayrak yok (admin/silme dahil) → yalnız Sistem Yöneticisi
     cells = await load_cells(session, user.role_id, tuple(k for k, _ in flags))  # type: ignore[attr-defined]
-    return gate_ok_from_cells(cells, module_key, level)
+    if gate_ok_from_cells(cells, module_key, level):
+        return True
+    return await _team_ok(session, user, flags)
 
 
 async def pages_ok(
     session: AsyncSession, user: object, page_keys: tuple[str, ...], flag: Flag
 ) -> bool:
-    """`require_pages(sayfalar, bayrak)`ın kararı: sayfalardan HERHANGİ BİRİNDE bayrak doğruysa."""
+    """`require_pages(sayfalar, bayrak)`ın kaba kararı: sayfalardan HERHANGİ BİRİNDE bayrak doğruysa
+    (ana rol; ya da ekip rolü proje içi sayfalarda)."""
     if await is_admin_role(session, user):
         return True
     cells = await load_cells(session, user.role_id, tuple(page_keys))  # type: ignore[attr-defined]
-    return any(key in cells and flag_true(cells[key], flag) for key in page_keys)
+    if any(key in cells and flag_true(cells[key], flag) for key in page_keys):
+        return True
+    return await _team_ok(session, user, tuple((key, flag) for key in page_keys))
 
 
 async def page_ok(session: AsyncSession, user: object, page_key: str, flag: Flag) -> bool:

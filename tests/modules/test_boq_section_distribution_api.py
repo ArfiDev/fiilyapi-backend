@@ -211,10 +211,7 @@ async def test_gorunmeyen_ve_olmayan_santiye_404_GET_ve_PUT(
     project = await project_factory("BDG-404")
     site = await _site(db_session, project)
     # Erisimi OLMAYAN kullanici: proje erisimi hic verilmez.
-    from app.modules.users.models import UserProjectAccess  # noqa: PLC0415
-
-    user = await user_factory(email="yok@bdg.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=False))
+    await user_factory(email="yok@bdg.co", password="parola1234", role_key="patron")
     await db_session.flush()
     resp = await client.post("/auth/login", json={"email": "yok@bdg.co", "password": "parola1234"})
     headers = _auth(resp.json()["access_token"])

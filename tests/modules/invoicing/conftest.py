@@ -56,7 +56,7 @@ from app.modules.treasury.models import (
     Payment,
     PaymentMethodKind,
 )
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 
 
 async def _login(client: AsyncClient, user_factory, role_key: str, email: str) -> str:
@@ -79,7 +79,7 @@ async def _login_with_access(
     project: Project,
 ) -> dict[str, str]:
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=project.id, all_projects=False))
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

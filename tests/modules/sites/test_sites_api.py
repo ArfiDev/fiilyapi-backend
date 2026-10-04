@@ -9,7 +9,6 @@ from sqlalchemy import select
 from app.core.timezone import today
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.sites.models import Section, Site, SiteStatus
-from app.modules.users.models import UserProjectAccess
 
 
 async def _login(client, user_factory, role_key: str, email: str | None = None) -> str:
@@ -23,7 +22,7 @@ async def _login_with_access(client, session, user_factory, role_key: str) -> st
     """system_admin disindaki roller icin gorunurluk user_project_access'ten gelir."""
     address = f"{role_key}@t.co"
     user = await user_factory(email=address, password="parola1234", role_key=role_key)
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
     resp = await client.post("/auth/login", json={"email": address, "password": "parola1234"})
     return resp.json()["access_token"]

@@ -34,7 +34,7 @@ from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.inventory.models import StockCategory, StockItem, Warehouse
 from app.modules.projects.models import Project
 from app.modules.sites.models import Section, Site
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 
 
 async def _login(client: AsyncClient, user_factory, role_key: str, email: str) -> str:
@@ -99,9 +99,7 @@ async def satinalma_headers(
     """
     email = "satinalma@stok.co"
     user = await user_factory(email=email, password="parola1234", role_key="procurement")
-    seeded_db.add(
-        UserProjectAccess(user_id=user.id, project_id=gorunen_proje.id, all_projects=False)
-    )
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=gorunen_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

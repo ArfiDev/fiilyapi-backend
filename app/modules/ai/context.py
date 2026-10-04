@@ -27,7 +27,7 @@ depoda defalarca ölçülmüş bir hatadır: iki süzgeç zamanla ayrışır ve 
 taraf sessiz bir yetki sızıntısı olur.
 
 ⚠️ **Dürüst not.** `POST /ai/chat` kapısı `ai:view`tir, `projects:view` DEĞİL.
-Yani `projects:none` olan ama `user_project_access` satırı bulunan bir kullanıcı
+Yani `projects:none` olan ama proje ekibi satırı (`project_members`) bulunan bir kullanıcı
 bu yoldan bir proje **ADINI** modele taşıyabilir. Bu bilinçlidir: `visible_*`
 zinciri bu depodaki tek kapsam kaynağıdır ve buraya ikinci bir kapı koymak
 yukarıdaki "kopya süzgeç" hatasının ta kendisi olurdu. Kimlik hiçbir yönde

@@ -8,15 +8,15 @@ from app.core.errors import DomainError, NotFoundError, PermissionLockedError
 from app.core.page_gate import is_admin_role, load_cells, page_ok
 from app.core.sayfalar import PageLevel
 from app.core.security import hash_password
-from app.modules.projects.models import Project
 from app.modules.roles.models import SYSTEM_ADMIN_KEY, Role
 from app.modules.users import repository
-from app.modules.users.models import User, UserProjectAccess, UserStatus
-from app.modules.users.schemas import ProjectAccessInput, UserCreate, UserUpdate
+from app.modules.users.models import User, UserStatus
+from app.modules.users.schemas import UserCreate, UserResponse, UserUpdate
 
 
-async def _is_last_active_system_admin(session: AsyncSession, user: User) -> bool:
-    if user.role.key != SYSTEM_ADMIN_KEY or user.status is not UserStatus.active:
+async def is_last_active_system_admin(session: AsyncSession, user: User) -> bool:
+    # `user.role` lazy="raise": rol anahtarı `is_admin_role` ile okunur (yüklü değilse tek `get`).
+    if not await is_admin_role(session, user) or user.status is not UserStatus.active:
         return False
     count = (
         await session.execute(
@@ -41,7 +41,7 @@ def _grant_covers(actor: tuple[PageLevel, bool], target: tuple[PageLevel, bool])
     )
 
 
-async def _require_assignable_role(session: AsyncSession, actor: User, role_id: uuid.UUID) -> Role:
+async def require_assignable_role(session: AsyncSession, actor: User, role_id: uuid.UUID) -> Role:
     """Aktörün bu rolü atamaya yetkisi var mı?
 
     "Rol Yönetimi" sayfasında Düzenler (eski `user_management=admin`; Sistem Yöneticisi) her rolü
@@ -81,7 +81,7 @@ async def _require_assignable_role(session: AsyncSession, actor: User, role_id: 
 async def create_user(session: AsyncSession, actor: User, data: UserCreate) -> User:
     if await repository.get_user_by_email(session, data.email) is not None:
         raise DomainError("Bu e-posta zaten kayıtlı")
-    await _require_assignable_role(session, actor, data.role_id)
+    await require_assignable_role(session, actor, data.role_id)
 
     password_hash = await run_in_threadpool(hash_password, data.password)
     user = User(
@@ -104,11 +104,11 @@ async def update_user(
 
     demotes_role = data.role_id is not None and data.role_id != user.role_id
     deactivates = data.status is not None and data.status is not UserStatus.active
-    if (demotes_role or deactivates) and await _is_last_active_system_admin(session, user):
+    if (demotes_role or deactivates) and await is_last_active_system_admin(session, user):
         raise DomainError("Son aktif Sistem Yöneticisi düşürülemez")
 
     if data.role_id is not None:
-        await _require_assignable_role(session, actor, data.role_id)
+        await require_assignable_role(session, actor, data.role_id)
         user.role_id = data.role_id
     if data.full_name is not None:
         user.full_name = data.full_name
@@ -134,39 +134,26 @@ async def delete_user(session: AsyncSession, user_id: uuid.UUID) -> None:
     user = await repository.get_user(session, user_id)
     if user is None:
         raise NotFoundError("Kullanıcı bulunamadı")
-    if await _is_last_active_system_admin(session, user):
+    if await is_last_active_system_admin(session, user):
         raise DomainError("Son aktif Sistem Yöneticisi silinemez")
     await session.delete(user)
     await session.flush()
 
 
-async def set_project_access(
-    session: AsyncSession, user_id: uuid.UUID, data: ProjectAccessInput
-) -> list[UserProjectAccess]:
-    # 🔴 TAM-DEĞİŞTİRME (`DELETE` + `INSERT`) KİLİT ALTINDA KOŞAR. Tabloda
-    # `(user_id, project_id)` UNIQUE kısıtı YOKTUR (migration `e274019416f6`
-    # yalnız PK + NON-UNIQUE indeks açar), yani kilitsiz iki eşzamanlı istek
-    # birbirinin `DELETE`iyle `INSERT`i arasına girip ya iki kümenin karışımını
-    # ya da AYNI projenin çift satırını bırakır. Erişim kararı
-    # (`projects.visible_projects`) bu satırlardan okunur — sapma SESSİZDİR.
-    # Kısıt yerine kilit seçildi: canlı satırlara dokunulmaz, migration gerekmez.
-    user = await repository.get_user_locked(session, user_id)
-    if user is None:
-        raise NotFoundError("Kullanıcı bulunamadı")
-    # Kayıt #51 (kalan bacak): tabloda (user_id, project_id) üzerinde UNIQUE
-    # kısıt YOK ve `ProjectAccessInput.project_ids` tekilleştirme yapmıyor —
-    # tek istekte aynı proje ID'si birden fazla gönderilirse eşzamanlılık
-    # gerekmeden AYNI projeye iki satır yazılır. Sırayı koruyarak burada
-    # tekilleştir; giriş sırası mockup/UI için anlamlı olabileceğinden
-    # `set()` yerine sıra-koruyan tekilleştirme kullanılır.
-    project_ids = list(dict.fromkeys(data.project_ids))
-    if not data.all_projects and project_ids:
-        found = (
-            (await session.execute(select(Project.id).where(Project.id.in_(project_ids))))
-            .scalars()
-            .all()
+async def user_responses(session: AsyncSession, users: list[User]) -> list[UserResponse]:
+    """Kullanıcı yanıtları; `project_count` TEK `COUNT … GROUP BY` ile (N+1 yok)."""
+    counts = await repository.project_counts(session, [u.id for u in users])
+    return [
+        UserResponse(
+            id=u.id,
+            email=u.email,
+            full_name=u.full_name,
+            title=u.title,
+            role_id=u.role_id,
+            status=u.status,
+            last_login_at=u.last_login_at,
+            all_projects=u.all_projects,
+            project_count=counts.get(u.id, 0),
         )
-        missing = set(project_ids) - set(found)
-        if missing:
-            raise NotFoundError("Proje bulunamadı")
-    return await repository.replace_project_access(session, user_id, data.all_projects, project_ids)
+        for u in users
+    ]

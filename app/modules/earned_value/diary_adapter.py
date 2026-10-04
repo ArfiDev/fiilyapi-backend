@@ -681,7 +681,7 @@ async def _overrun_reasons(
     """Asim engeli. KISITSIZ: bugunku bool yolu (tek madde). KISITLI (Ü5/S8): kendi satirinda
     asim varsa mevcut metin; ARDINDAN gorunmeyen (baska disiplin/eslemesiz) gerekceli olmayan
     asim varsa AYNI kod + OPAK madde (kalem adi/kodu YOK, yalniz satir sayisi). Sira: once kendi."""
-    scope = await user_scope(session, ctx.actor_id)
+    scope = await user_scope(session, ctx.actor_id, entry.project_id)  # IZN-B3: proje basina
     if not scope.is_restricted:
         if await _has_line_overrun_without_reason(session, ctx.site_id, entry, tree):
             return [SubmitReason(SUBMIT_OVERRUN, OVERRUN_MESSAGE)]

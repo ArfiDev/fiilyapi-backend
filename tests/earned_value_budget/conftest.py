@@ -30,7 +30,7 @@ from app.modules.catalog.service import next_poz_no
 from app.modules.earned_value.engine import ContractorType
 from app.modules.projects.models import Project
 from app.modules.sites.models import Section, Site
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 
 D = Decimal
 
@@ -46,7 +46,7 @@ async def _headers(
     await user_factory(email=email, password="parola1234", role_key=role_key)
     if project is not None:
         user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
-        seeded_db.add(UserProjectAccess(user_id=user.id, project_id=project.id, all_projects=False))
+        seeded_db.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
         await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

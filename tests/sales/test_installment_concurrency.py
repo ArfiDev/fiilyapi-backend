@@ -42,7 +42,7 @@ from app.modules.sales.schemas import (
 )
 from app.modules.sites.models import Site
 from app.modules.units.models import Block, Unit, UnitKind
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 from tests._yaris import YARIS_TAVANI_SN, kilitte_bekleyen_sorgu
 from tests.conftest import test_engine
 
@@ -258,7 +258,7 @@ async def _kur() -> _Kurulum:
         project = Project(code="SL-CONC-001", name="Tahsilat Eşzamanlılık Projesi")
         session.add(project)
         await session.flush()
-        session.add(UserProjectAccess(user_id=user.id, project_id=project.id, all_projects=False))
+        session.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
 
         site = Site(project_id=project.id, code="SL-C-1", name="Merkez")
         session.add(site)
@@ -316,7 +316,7 @@ async def _temizle(kurulum: _Kurulum) -> None:
             await session.execute(delete(Block).where(Block.project_id == project_id))
             await session.execute(delete(Site).where(Site.project_id == project_id))
             await session.execute(
-                delete(UserProjectAccess).where(UserProjectAccess.project_id == project_id)
+                delete(ProjectMember).where(ProjectMember.project_id == project_id)
             )
             await session.execute(delete(Project).where(Project.id == project_id))
         await session.execute(delete(User).where(User.id == kurulum.user_id))

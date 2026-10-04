@@ -46,7 +46,7 @@ from app.modules.procurement.models import (
     PurchaseRequestStatus,
 )
 from app.modules.projects.models import Project
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import User
 from tests.modules.approvals.conftest import (
     PAROLA,
     adim_durumlari,
@@ -78,7 +78,7 @@ async def _aktor(
 ) -> tuple[User, dict[str, str]]:
     """Sistem rolü + onay rolleri AYRI verilir (K1); tüm projeler görünür."""
     user = await user_factory(email=email, password=PAROLA, role_key=role_key)
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await onay_rolu_ver(seeded_db, user, *approval_roles)
     yanit = await client.post("/auth/login", json={"email": email, "password": PAROLA})
     assert yanit.status_code == 200, yanit.text

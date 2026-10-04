@@ -36,7 +36,8 @@ from app.modules.roles.models import Module, ModuleGroup, Role, RolePagePermissi
 from app.modules.site_diary import guards, service
 from app.modules.site_diary.models import SiteDiaryEntry, SiteDiaryLine
 from app.modules.sites.models import Site
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
+from tests._proje_ekibi import modul_sayfa_hucreleri
 from tests._yaris import YARIS_TAVANI_SN, kilitte_bekleyen_sorgu
 from tests.conftest import test_engine
 
@@ -107,6 +108,7 @@ async def _kur() -> _Kurulum:
                 can_approve=False,
             )
         )
+        await modul_sayfa_hucreleri(session, role.id, service.PERMISSION_MODULE)
         user = User(
             email="gks-b1-yaris@sd.co",
             password_hash=hash_password("parola1234"),
@@ -116,7 +118,7 @@ async def _kur() -> _Kurulum:
         project = Project(code="GKS-B1-Y", name="GKS-B1 Yarış Projesi")
         session.add_all([user, project])
         await session.flush()
-        session.add(UserProjectAccess(user_id=user.id, project_id=project.id, all_projects=False))
+        session.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
         site = Site(project_id=project.id, code="GKS-B1-S", name="Yarış Şantiyesi")
         session.add(site)
         await session.flush()
