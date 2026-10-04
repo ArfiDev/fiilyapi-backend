@@ -33,8 +33,6 @@ from app.modules.sales.summary import late_fee_amount
 
 pytestmark = pytest.mark.asyncio
 
-BUGUN = timezone.today()  # YALNIZ saat noktalarini kurmak icin; _g() KULLANMAZ
-
 
 def _g(gun: int) -> str:
     # Her cagrida taze: uygulama da istek basina `timezone.today()` okur.
@@ -45,18 +43,15 @@ def _g(gun: int) -> str:
 # okur. CI'da import 20:59 UTC, test 21:00+ UTC (TR gece yarisi) olursa test "dun"u,
 # uygulama "bugun"u kullanir -> hepsi 1 gun kayar. Saat noktalari: TR ogle (12:00Z)
 # ve TR gece yarisini yeni asmis an (21:30Z = 00:30 TR ertesi gun).
-# Anlar, import anindaki TR gunune (`BUGUN`) gore kurulur: 21:30Z'de TR takvimi
-# BUGUN+1'dir -> CI'daki gece yarisi asimi birebir.
-_SAAT_NOKTALARI = {
-    "12:00Z": datetime.combine(BUGUN, time(12, 0), tzinfo=UTC),
-    "21:30Z": datetime.combine(BUGUN, time(21, 30), tzinfo=UTC),
-}
+# Anlar, fixture CAGRI ANINDAKI TR gunune gore kurulur: 21:30Z'de TR takvimi
+# bugun+1'dir -> CI'daki gece yarisi asimi birebir.
+_SAAT_NOKTALARI = {"12:00Z": time(12, 0), "21:30Z": time(21, 30)}
 
 
 @pytest.fixture(autouse=True, params=list(_SAAT_NOKTALARI))
 def _dondurulmus_saat(request, monkeypatch):
     """`timezone.today()`i verilen UTC aninda dondurur (uygulama + test ayni saat)."""
-    an = _SAAT_NOKTALARI[request.param]
+    an = datetime.combine(timezone.today(), _SAAT_NOKTALARI[request.param], tzinfo=UTC)
 
     class _SabitDatetime(datetime):
         @classmethod

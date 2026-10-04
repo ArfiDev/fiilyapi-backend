@@ -323,3 +323,121 @@ def test_agac_taramasi_geri_konan_bir_cagriyi_kirmizi_yapar(
     )
     bulunan, _ = tara(sahte_app, ts_alanlari)
     assert [(b.dosya, b.kalip) for b in bulunan] == [("app/modules/bozuk.py", KALIP_DATE_TODAY)]
+
+
+# --------------------------------------------------------------------------- #
+# TMP-FIX #167 dersi — TESTLERDE dondurulmus "bugun" ve yerel takvim
+# --------------------------------------------------------------------------- #
+#
+# `BUGUN = timezone.today()` modul duzeyinde IMPORT ANINDA donar: TR gece
+# yarisindan sonra (UTC 21:00+) uygulama ertesi gunu, test ise dunu gorur.
+# `date.today()` ve `datetime.utcnow()` ise sunucu yerel saatini (UTC) okur.
+# Cozum: "bugun" CAGRI ANINDA (fonksiyon/fixture icinde) `timezone.today()` ile hesaplanir.
+
+TESTLER_KOK = Path(__file__).resolve().parent
+
+KALIP_MODUL_DUZEYI_TODAY = "modul-duzeyinde-today()"
+
+
+def _today_cagrisi_mi(dugum: ast.Call) -> bool:
+    islev = dugum.func
+    if isinstance(islev, ast.Name):
+        return islev.id == "today"
+    return isinstance(islev, ast.Attribute) and islev.attr == "today"
+
+
+def _import_aninda_calisan_today(dugum: ast.AST) -> list[ast.Call]:
+    """Fonksiyon/sinif GOVDESINE girmeden `today()` cagrilarini toplar.
+
+    Dekorator ve varsayilan arguman ifadeleri import aninda calisir; onlar taranir.
+    """
+    if isinstance(dugum, ast.Lambda):
+        return []
+    bulunan: list[ast.Call] = []
+    if isinstance(dugum, ast.Call) and _today_cagrisi_mi(dugum):
+        bulunan.append(dugum)
+    if isinstance(dugum, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+        ozel: list[ast.AST] = list(dugum.decorator_list)
+        if isinstance(dugum, ast.ClassDef):
+            ozel += dugum.bases
+        else:
+            ozel += [*dugum.args.defaults, *[d for d in dugum.args.kw_defaults if d]]
+        for o in ozel:
+            bulunan.extend(_import_aninda_calisan_today(o))
+        return bulunan
+    for cocuk in ast.iter_child_nodes(dugum):
+        bulunan.extend(_import_aninda_calisan_today(cocuk))
+    return bulunan
+
+
+def bulgular_testler(kaynak: str, dosya: str) -> list[Bulgu]:
+    """Testler icin: `date.today()`/`utcnow()` HER YERDE + modul duzeyinde `today()`."""
+    agac = ast.parse(kaynak)
+    baglanti = _datetime_baglantilari(agac)
+    satirlar = kaynak.splitlines()
+    bulunan: list[Bulgu] = []
+
+    def _kaydet(dugum: ast.AST, kalip: str) -> None:
+        satir = getattr(dugum, "lineno", 0)
+        metin = satirlar[satir - 1].strip() if 0 < satir <= len(satirlar) else ""
+        bulunan.append(Bulgu(dosya=dosya, satir=satir, kalip=kalip, kaynak=metin))
+
+    for dugum in ast.walk(agac):
+        if isinstance(dugum, ast.Call):
+            if _date_today_mi(dugum, baglanti):
+                _kaydet(dugum, KALIP_DATE_TODAY)
+            elif _utcnow_mi(dugum):
+                _kaydet(dugum, KALIP_UTCNOW)
+    for dugum in _import_aninda_calisan_today(agac):
+        if not _date_today_mi(dugum, baglanti):  # date.today() zaten yukarida sayildi
+            _kaydet(dugum, KALIP_MODUL_DUZEYI_TODAY)
+    return bulunan
+
+
+def _testleri_tara() -> tuple[list[Bulgu], int]:
+    bulunan: list[Bulgu] = []
+    taranan = 0
+    for yol in sorted(TESTLER_KOK.rglob("*.py")):
+        if yol == Path(__file__).resolve():
+            continue  # bu dosyadaki sentetik kaynaklar dizedir, ama kendini taramak anlamsiz
+        taranan += 1
+        goreli = yol.relative_to(TESTLER_KOK.parent).as_posix()
+        bulunan.extend(bulgular_testler(yol.read_text(encoding="utf-8"), goreli))
+    return bulunan, taranan
+
+
+ASGARI_TARANAN_TEST_DOSYASI = 200
+
+
+def test_testler_agacinda_dondurulmus_bugun_ve_yerel_takvim_yok() -> None:
+    bulunan, taranan = _testleri_tara()
+    assert taranan >= ASGARI_TARANAN_TEST_DOSYASI, f"yalnizca {taranan} test dosyasi tarandi"
+    assert not bulunan, "Testlerde dondurulmus 'bugun' (TMP-FIX #167):\n" + "\n".join(
+        str(b) for b in bulunan
+    )
+
+
+_TEST_KACAKLARI = [
+    ("from app.core import timezone\n\nBUGUN = timezone.today()\n", KALIP_MODUL_DUZEYI_TODAY),
+    ("from app.core.timezone import today\n\n_G = today() - 1\n", KALIP_MODUL_DUZEYI_TODAY),
+    (
+        "from app.core import timezone\n\ndef f(x=timezone.today()):\n    return x\n",
+        KALIP_MODUL_DUZEYI_TODAY,
+    ),
+    ("from datetime import date\n\ndef f():\n    return date.today()\n", KALIP_DATE_TODAY),
+    ("from datetime import datetime\n\ndef f():\n    return datetime.utcnow()\n", KALIP_UTCNOW),
+]
+
+
+@pytest.mark.parametrize(("kaynak", "beklenen"), _TEST_KACAKLARI)
+def test_test_bekcisi_sentetik_kacagi_yakalar(kaynak: str, beklenen: str) -> None:
+    assert beklenen in {b.kalip for b in bulgular_testler(kaynak, "sentetik.py")}
+
+
+def test_test_bekcisi_cagri_aninda_today_icin_alarm_vermez() -> None:
+    kaynak = (
+        "from app.core import timezone\n\n"
+        "def f():\n    return timezone.today()\n\n"
+        "class T:\n    def g(self):\n        return timezone.today()\n"
+    )
+    assert bulgular_testler(kaynak, "sentetik.py") == []

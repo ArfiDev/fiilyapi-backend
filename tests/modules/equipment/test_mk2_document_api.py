@@ -4,7 +4,7 @@ Kapı `equipment` iznidir; okuma `view`, yazma `full`. Görünmeyen ekipmanın
 belgesi 404'tür (K9/K20 — `tests/modules/equipment/conftest.py` fixture'ları).
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -794,7 +794,7 @@ async def test_belge_ozeti_gorunmeyen_projenin_ekipmanini_SAYMAZ(
 ) -> None:
     types = await _seed_types(seeded_db)
     manual_id = types["manual"].id
-    today = date.today()
+    today = timezone.today()
 
     gorunen = await ekipman_fabrikasi("Görünen Vinç", site=gorunen_santiye)
     gizli = await ekipman_fabrikasi("Gizli Ekskavatör", site=gorunmeyen_santiye)

@@ -53,10 +53,20 @@ pytestmark = pytest.mark.asyncio
 
 _SessionFactory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
-_BUGUN = timezone.today()
-_YIL = _BUGUN.year
+
+def _bugun() -> date:
+    # Cagri aninda hesaplanir (TMP-FIX #167): import aninda dondurulmaz.
+    return timezone.today()
+
+
+def _yil() -> int:
+    return _bugun().year
+
+
 # ~2 yıl 2 ay kıdem → 4857 birinci kademe: yıllık hak 14 gün.
-_KIDEMLI_GIRIS = _BUGUN - timedelta(days=800)
+def _kidemli_giris() -> date:
+    return _bugun() - timedelta(days=800)
+
 
 #: Rol anahtarı TESTE ÖZELDİR: `seed_reference_data`'nın ürettiği üretim
 #: anahtarlarıyla (`system_admin`, `patron`) çakışmaz — bu dosya GERÇEKTEN
@@ -112,7 +122,7 @@ async def _kur(
         personnel = Personnel(
             full_name="Eşzamanlılık Personeli",
             source=WorkerSource.company,
-            hire_date=_KIDEMLI_GIRIS,
+            hire_date=_kidemli_giris(),
         )
         leave_type = LeaveType(
             name="Eşzamanlılık Tipi",
@@ -205,7 +215,7 @@ async def _onayla_ve_tut(
     (`flush` kilidi BIRAKMAZ, yalnız commit/rollback bırakır)."""
     async with _SessionFactory() as session:
         actor = await session.get(User, actor_id)
-        await service.approve_leave_request(session, actor, request_id, today=_BUGUN)
+        await service.approve_leave_request(session, actor, request_id, today=_bugun())
         kilit_alindi.set()
         await kilidi_birak.wait()
         await session.commit()
@@ -216,7 +226,7 @@ async def _onayla(request_id: uuid.UUID, actor_id: uuid.UUID) -> str:
     async with _SessionFactory() as session:
         actor = await session.get(User, actor_id)
         try:
-            await service.approve_leave_request(session, actor, request_id, today=_BUGUN)
+            await service.approve_leave_request(session, actor, request_id, today=_bugun())
             await session.commit()
             return "approved"
         except ConflictError:
@@ -264,8 +274,8 @@ async def test_iki_esZamanli_onay_hak_asimini_atlatamaz() -> None:
     kurulum = await _kur(
         deducts=True,
         araliklar=[
-            (date(_YIL, 3, 1), date(_YIL, 3, 10)),
-            (date(_YIL, 6, 1), date(_YIL, 6, 10)),
+            (date(_yil(), 3, 1), date(_yil(), 3, 10)),
+            (date(_yil(), 6, 1), date(_yil(), 6, 10)),
         ],
     )
     kilit_alindi = asyncio.Event()
@@ -307,7 +317,7 @@ async def test_iki_esZamanli_onay_hak_asimini_atlatamaz() -> None:
             )
             assert len(onayli) == 1, "hak aşımı eşiği atlatıldı: iki izin de onaylandı"
             kullanilan = await repository.sum_deductible_approved_days(
-                dogrula, kurulum.personnel_id, _YIL
+                dogrula, kurulum.personnel_id, _yil()
             )
             assert kullanilan == 10, f"kullanılan gün 14 günlük hakkı aştı: {kullanilan}"
     finally:
@@ -326,8 +336,8 @@ async def test_iki_esZamanli_onay_cakismayi_atlatamaz() -> None:
     kurulum = await _kur(
         deducts=False,
         araliklar=[
-            (date(_YIL, 4, 5), date(_YIL, 4, 12)),
-            (date(_YIL, 4, 8), date(_YIL, 4, 15)),
+            (date(_yil(), 4, 5), date(_yil(), 4, 12)),
+            (date(_yil(), 4, 8), date(_yil(), 4, 15)),
         ],
     )
     kilit_alindi = asyncio.Event()
@@ -381,7 +391,7 @@ async def test_ayni_talebe_esZamanli_onay_ve_red_tek_damga_birakir() -> None:
     üzerine yazardı. `populate_existing=True` ile durum kilit ALTINDA yeniden
     okunur — ikinci istek 409 alır.
     """
-    kurulum = await _kur(deducts=True, araliklar=[(date(_YIL, 5, 4), date(_YIL, 5, 8))])
+    kurulum = await _kur(deducts=True, araliklar=[(date(_yil(), 5, 4), date(_yil(), 5, 8))])
     talep_id = kurulum.request_ids[0]
     kilit_alindi = asyncio.Event()
     kilidi_birak = asyncio.Event()
@@ -444,7 +454,7 @@ async def test_ayni_talebe_esZamanli_onay_ve_geri_cekme_tek_damga_birakir() -> N
     """
     kurulum = await _kur(
         deducts=True,
-        araliklar=[(date(_YIL, 9, 1), date(_YIL, 9, 5))],
+        araliklar=[(date(_yil(), 9, 1), date(_yil(), 9, 5))],
         sahip_aktor=1,
     )
     talep_id = kurulum.request_ids[0]
@@ -514,7 +524,7 @@ async def test_onay_denetimlerden_ONCE_personel_ve_talep_satirini_kilitler() -> 
     Sıra (personel → talep) ayrıca `upsert_leave_balance` ile aynıdır; ters
     sırada kilitleyen bir yol eklenirse karşılıklı kilitlenme doğar.
     """
-    kurulum = await _kur(deducts=True, araliklar=[(date(_YIL, 7, 1), date(_YIL, 7, 3))])
+    kurulum = await _kur(deducts=True, araliklar=[(date(_yil(), 7, 1), date(_yil(), 7, 3))])
     ifadeler: list[str] = []
 
     def kaydet(conn, cursor, statement, parameters, context, executemany) -> None:  # noqa: ANN001
@@ -525,7 +535,7 @@ async def test_onay_denetimlerden_ONCE_personel_ve_talep_satirini_kilitler() -> 
         async with _SessionFactory() as session:
             actor = await session.get(User, kurulum.actor_ids[0])
             await service.approve_leave_request(
-                session, actor, kurulum.request_ids[0], today=_BUGUN
+                session, actor, kurulum.request_ids[0], today=_bugun()
             )
             await session.commit()
     finally:
@@ -554,7 +564,7 @@ async def test_iki_esZamanli_bakiye_putu_tek_satir_birakir() -> None:
     alırdı, oysa PUT'un sözleşmesi "gönderdiğin değer yazılır"dır. Personel
     kilidi ikinciyi UPDATE koluna düşürür: iki istek de başarılı, satır TEK.
     """
-    kurulum = await _kur(deducts=True, araliklar=[(date(_YIL, 8, 1), date(_YIL, 8, 2))])
+    kurulum = await _kur(deducts=True, araliklar=[(date(_yil(), 8, 1), date(_yil(), 8, 2))])
     kilit_alindi = asyncio.Event()
     kilidi_birak = asyncio.Event()
     task1: asyncio.Task | None = None
@@ -566,9 +576,9 @@ async def test_iki_esZamanli_bakiye_putu_tek_satir_birakir() -> None:
                 yanit, _ = await service.upsert_leave_balance(
                     session,
                     kurulum.personnel_id,
-                    _YIL,
+                    _yil(),
                     LeaveBalanceUpdate(carried_over=Decimal("3")),
-                    today=_BUGUN,
+                    today=_bugun(),
                 )
                 kilit_alindi.set()
                 await kilidi_birak.wait()
@@ -580,9 +590,9 @@ async def test_iki_esZamanli_bakiye_putu_tek_satir_birakir() -> None:
                 yanit, _ = await service.upsert_leave_balance(
                     session,
                     kurulum.personnel_id,
-                    _YIL,
+                    _yil(),
                     LeaveBalanceUpdate(carried_over=Decimal("5")),
-                    today=_BUGUN,
+                    today=_bugun(),
                 )
                 await session.commit()
                 return yanit.carried_over

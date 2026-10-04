@@ -53,10 +53,22 @@ from app.modules.users.models import User
 
 # ~2 yıl 2 ay kıdem → 4857 birinci kademe (14 gün). Bugüne göre TÜRETİLİR ki test
 # bir yıl sonra sessizce başka bir kıdem penceresine kaymasın (OK-1A dersi).
-_KIDEMLI_GIRIS = timezone.today() - timedelta(days=800)
-_YIL = timezone.today().year
-_BASLANGIC = date(_YIL, 9, 1)
-_BITIS = date(_YIL, 9, 3)
+
+
+def _kidemli_giris() -> date:
+    return timezone.today() - timedelta(days=800)
+
+
+def _yil() -> int:
+    return timezone.today().year
+
+
+def _baslangic() -> date:
+    return date(_yil(), 9, 1)
+
+
+def _bitis() -> date:
+    return date(_yil(), 9, 3)
 
 
 async def _login(
@@ -72,7 +84,7 @@ async def _personel(session: AsyncSession, full_name: str, user: User | None = N
     kayit = Personnel(
         full_name=full_name,
         source=WorkerSource.company,
-        hire_date=_KIDEMLI_GIRIS,
+        hire_date=_kidemli_giris(),
         user_id=None if user is None else user.id,
     )
     session.add(kayit)
@@ -86,11 +98,13 @@ async def _talep(
     tip: LeaveType,
     *,
     durum: LeaveStatus = LeaveStatus.pending,
-    baslangic: date = _BASLANGIC,
-    bitis: date = _BITIS,
+    baslangic: date | None = None,
+    bitis: date | None = None,
 ) -> LeaveRequest:
     """Talep DOĞRUDAN yazılır: bu dilim TALEP AÇMAYI değil GERİ ÇEKMEYİ sınar;
     talebi hangi ucun açtığı geri çekmenin davranışını değiştirmemelidir."""
+    baslangic = baslangic or _baslangic()
+    bitis = bitis or _bitis()
     kayit = LeaveRequest(
         personnel_id=personel.id,
         leave_type_id=tip.id,
@@ -370,7 +384,8 @@ async def test_denetim_satiri_dustu_ve_METNI_dogru(client, seeded_db, calisan, y
     satirlar = await _yeni_denetim_satirlari(seeded_db, onceki)
     assert len(satirlar) == 1, [s.detail for s in satirlar]
     assert satirlar[0].action is AuditAction.update
-    beklenen = f"İzin talebi geri çekildi: Mehmet Yılmaz · Yıllık İzin · {_BASLANGIC} - {_BITIS}"
+    ilk, son = _baslangic(), _bitis()
+    beklenen = f"İzin talebi geri çekildi: Mehmet Yılmaz · Yıllık İzin · {ilk} - {son}"
     assert satirlar[0].detail == beklenen
 
 
@@ -390,7 +405,7 @@ async def test_bakiye_DEGISMEZ_pending_zaten_dusulmuyordu(
     """
     _, headers, kayit = ik_calisan
     talep = await _talep(seeded_db, kayit, yillik)
-    yol = f"/leave-balances/{kayit.id}/{_YIL}"
+    yol = f"/leave-balances/{kayit.id}/{_yil()}"
 
     once = await client.get(yol, headers=ik_headers)
     assert once.status_code == 200, once.text
@@ -421,7 +436,7 @@ async def test_geri_cekilen_talep_bekleyen_kuyrugundan_DUSER(
     """
     _, headers, kayit = ik_calisan
     geri_cekilecek = await _talep(seeded_db, kayit, yillik)
-    await _talep(seeded_db, kayit, yillik, baslangic=date(_YIL, 11, 2), bitis=date(_YIL, 11, 4))
+    await _talep(seeded_db, kayit, yillik, baslangic=date(_yil(), 11, 2), bitis=date(_yil(), 11, 4))
 
     once = await client.get("/leave-requests?status=pending", headers=ik_headers)
     assert once.status_code == 200, once.text
