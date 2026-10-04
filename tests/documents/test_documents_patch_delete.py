@@ -26,12 +26,14 @@ aksiyonu YOKTUR. Frontend dilimi bu ucu bir düğmeye BAĞLAMAYACAK.
 
 import uuid
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.documents.models import Document, DocumentBlob
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 
 async def _audit_details(seeded_db: AsyncSession, action: AuditAction) -> list[str]:
@@ -404,6 +406,11 @@ async def test_tam_yetkili_rol_silemez_403(
     assert resp.status_code == 403
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
+    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
+)
 async def test_gorunmeyen_belge_silinemez_404(
     client: AsyncClient, seeded_db: AsyncSession, ikinci_proje, belge_fabrikasi, sef_headers
 ) -> None:
@@ -430,6 +437,7 @@ async def test_gorunmeyen_belge_silinemez_404(
     ).scalar_one()
     izin.access_level = AccessLevel.admin
     await seeded_db.flush()
+    await sync_page_cells(seeded_db, izin.role_id)
     belge = await belge_fabrikasi(ikinci_proje, "Gizli.pdf")
 
     gorunmeyen = await client.delete(f"/documents/{belge.id}", headers=sef_headers)

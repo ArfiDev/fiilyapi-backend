@@ -132,8 +132,8 @@ from decimal import Decimal
 from sqlalchemy import Date, Integer, cast, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, satisfies
 from app.core.config import settings
+from app.core.permissions import can_read
 from app.core.timezone import today
 from app.modules.contracts.models import SubcontractorContract
 from app.modules.invoicing import repository as invoicing_repository
@@ -142,7 +142,6 @@ from app.modules.payroll import payable
 from app.modules.payroll.guards import PERMISSION_MODULE as PAYROLL_PERMISSION_MODULE
 from app.modules.payroll.models import PayrollPeriod, PayrollPeriodStatus
 from app.modules.projects.service import visible_projects
-from app.modules.roles.repository import get_permission
 from app.modules.subcontractor_progress_payments import amounts
 from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
@@ -379,9 +378,7 @@ async def _payroll_visible(session: AsyncSession, actor: User) -> bool:
     ucun tamamına uygulansaydı (403 ya da boş liste) `treasury=_V` olan bir rol
     çalışan iki kaynağı da kaybederdi.
     """
-    permission = await get_permission(session, actor.role_id, PAYROLL_PERMISSION_MODULE)
-    level = permission.access_level if permission is not None else AccessLevel.none
-    return satisfies(level, AccessLevel.view)
+    return await can_read(session, actor, PAYROLL_PERMISSION_MODULE)
 
 
 async def _payroll_rows(

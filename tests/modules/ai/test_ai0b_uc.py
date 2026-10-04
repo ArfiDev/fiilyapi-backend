@@ -14,6 +14,7 @@ from app.core.access import AccessLevel, Scope
 from app.core.security import create_access_token
 from app.modules.roles.models import Module, ModuleGroup, RolePermission
 from app.modules.roles.seed_data import MATRIX, MODULES, ROLE_ORDER
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 pytestmark = pytest.mark.asyncio
 
@@ -109,6 +110,7 @@ async def test_ai_tools_ai_izni_YOKSA_403(client, user_factory, seeded_db) -> No
     ).scalar_one()
     izin.access_level = AccessLevel.none
     await seeded_db.flush()
+    await sync_page_cells(seeded_db, izin.role_id)
 
     yanit = await client.get("/ai/tools", headers=await _bearer(client, user))
     assert yanit.status_code == 403, yanit.text
@@ -293,7 +295,8 @@ async def test_ozel_rol_ai_hucresi_UPDATE_edilebilir(seeded_db, user_factory, cl
     ekranı o hücreyi hiç değiştiremez (`update_role_permission` 404 atar).
     """
     from app.modules.roles.schemas import RoleCreate
-    from app.modules.roles.service import create_custom_role, update_role_permission
+    from app.modules.roles.service import create_custom_role
+    from tests._legacy_permission_yardimcisi import update_role_permission
 
     rol = await create_custom_role(
         seeded_db, RoleCreate(key="ai_sonda", name="AI Sonda Rolü", emoji="🧪")
@@ -304,7 +307,8 @@ async def test_ozel_rol_ai_hucresi_UPDATE_edilebilir(seeded_db, user_factory, cl
     assert guncel.access_level is AccessLevel.view
 
 
-async def test_ozel_rol_olusturma_TUM_modullere_satir_yazar(seeded_db) -> None:
+async def test_ozel_rol_olusturma_eski_satir_yazmaz_100_sayfa_hucresi_yazar(seeded_db) -> None:
+    """IZN-B2: özel rol eski `role_permissions` satırı taşımaz; sayfa hücreleri (100) vardır."""
     from app.modules.roles.schemas import RoleCreate
     from app.modules.roles.service import create_custom_role
 
@@ -317,8 +321,7 @@ async def test_ozel_rol_olusturma_TUM_modullere_satir_yazar(seeded_db) -> None:
         .scalars()
         .all()
     )
-    modul_sayisi = len((await seeded_db.execute(select(Module))).scalars().all())
-    assert len(satirlar) == modul_sayisi == 23  # PLN-B1: +earned_value
+    assert satirlar == []
 
 
 async def test_roller_ve_moduller_ucu_22_modul_doner(client, user_factory) -> None:

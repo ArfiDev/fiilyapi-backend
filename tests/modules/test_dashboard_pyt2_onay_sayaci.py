@@ -434,7 +434,9 @@ async def test_onay_rolu_YOKSA_panel_TEK_ek_sorgu_oder(seeded_db, aktor, project
         ozet = await build_summary(seeded_db, rolsuz)
 
     assert ozet.pending_approvals.count == 0
-    assert len(sorgular) == 35, (
+    # IZN-B2: 35 → 37. Proje kartı izni artık İKİ okumadır (seviye: sayfa hücreleri `gate_ok`;
+    # kapsam: eski satır / `tum_tutarlar` hibriti `actor_scope`) + rolün tek seferlik okunması.
+    assert len(sorgular) == 37, (
         f"rolsüz aktörün panel maliyeti {len(sorgular)} sorgu — "
-        "taban 8 + onay rolü 1 + portföy 10 + risk 15 + proje kartı izin kapısı 1"
+        "taban 8 + onay rolü 1 + portföy 10 + risk 15 + proje kartı izin kapısı 3 (IZN-B2)"
     )

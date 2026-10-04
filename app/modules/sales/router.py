@@ -26,7 +26,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.permissions import kapsam_kapisi, require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit.models import AuditAction
@@ -62,6 +62,8 @@ router = APIRouter(
 # `projects` üzerinden gelir: izin "yetki", `user_project_access` "kapsam"dır.
 _VIEW = require_permission("sales", AccessLevel.view)
 _FULL = require_permission("sales", AccessLevel.full)
+#: IZN-B2: Aktif Et / Tapu Devri / İptal / Taksit Öde = Satış Yönetimi ONAYLAR (eşik eski `full`).
+_SALE_APPROVE = require_pages(("mali.satis",), "approve")
 # KALICI KARAR 2026-07-30: SİLME bir seviye yukarıdadır — `full` yazmayı
 # kapsar, SİLMEYİ KAPSAMAZ (`app/core/access.py` §5.0).
 _ADMIN = require_permission("sales", AccessLevel.admin)
@@ -209,7 +211,7 @@ async def save_sale_installments_endpoint(
 @router.post(
     "/sales/installments/{installment_id}/pay",
     response_model=SaleInstallmentResponse,
-    dependencies=[_FULL],
+    dependencies=[_SALE_APPROVE],
 )
 async def pay_sale_installment_endpoint(
     request: Request,
@@ -283,7 +285,9 @@ async def _transition(
     return result.response
 
 
-@router.post("/sales/{sale_id}/activate", response_model=UnitSaleResponse, dependencies=[_FULL])
+@router.post(
+    "/sales/{sale_id}/activate", response_model=UnitSaleResponse, dependencies=[_SALE_APPROVE]
+)
 async def activate_sale_endpoint(
     request: Request,
     sale_id: uuid.UUID,
@@ -299,7 +303,7 @@ async def activate_sale_endpoint(
 
 
 @router.post(
-    "/sales/{sale_id}/transfer-deed", response_model=UnitSaleResponse, dependencies=[_FULL]
+    "/sales/{sale_id}/transfer-deed", response_model=UnitSaleResponse, dependencies=[_SALE_APPROVE]
 )
 async def transfer_sale_deed_endpoint(
     request: Request,
@@ -311,7 +315,9 @@ async def transfer_sale_deed_endpoint(
     return await _transition(request, session, user, sale_id, transitions.SaleAction.transfer_deed)
 
 
-@router.post("/sales/{sale_id}/cancel", response_model=UnitSaleResponse, dependencies=[_FULL])
+@router.post(
+    "/sales/{sale_id}/cancel", response_model=UnitSaleResponse, dependencies=[_SALE_APPROVE]
+)
 async def cancel_sale_endpoint(
     request: Request,
     sale_id: uuid.UUID,

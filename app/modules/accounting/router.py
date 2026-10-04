@@ -65,7 +65,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.modules.accounting import (
     export,
@@ -95,6 +95,8 @@ router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES)
 
 _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(guards.PERMISSION_MODULE, AccessLevel.full)
+#: IZN-B2: fiş Kaydet (post) = Yevmiye sayfası ONAYLAR (eşik eski `full`).
+_POST_APPROVE = require_pages(("mali.yevmiye",), "approve")
 _ADMIN = require_permission(guards.PERMISSION_MODULE, AccessLevel.admin)
 
 # K7 sayfalama standardı: varsayılan 50, tavan 200 — tavan aşımı sessizce
@@ -362,7 +364,7 @@ async def replace_journal_lines_endpoint(
     "/journal-entries/{entry_id}/post",
     response_model=JournalEntryDetailResponse,
     responses={**_NOT_FOUND, **_DURUM_CAKISMASI, **_K1},
-    dependencies=[_FULL],
+    dependencies=[_POST_APPROVE],
 )
 async def post_journal_entry_endpoint(
     request: Request,

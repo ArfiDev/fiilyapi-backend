@@ -137,6 +137,11 @@ _SEVIYE_HARFI: Final[dict[str, AccessLevel]] = {
 # Onaylar eşiği = sayfadaki onay eylemini GERÇEKTEN açan düzey. Gerekçeler ve CEO kararları
 # (genişleme yok): yalnız-admin eylemler (proje oluştur, dönüştür, yeniden aç, dönem aç, onayı geri al,
 # bordro vergi dilimi, onay eşiği) `x`; yazması `full` olan uçlar `f`. "n" = bugün kapısız (herkes görür).
+# IZN-B2 DÜZELTMESİ (CEO, 2026-10-04): hakediş sayfalarında (50, 51, 65, 66, 72) Onaylar eşiği
+# `x`ten `a`ya (Onayla/Reddet/Ödendi = approve düzeyi; "Onayı Geri Al" admin kalır ve ONAYLAR'A
+# BAĞLANMAZ → yalnız Sistem Yöneticisi) ve Satın Alma Talepleri'nde (31) `r`den `a`ya (talebi
+# Onayla/Reddet = approve) çekildi: B1'in tek Onaylar biti Muhasebe/PM'de daralma yaratıyordu.
+# B1 migration'ı (`izn_b1`) DONMUŞ B1 değerleriyle kalır; `izn_b2` aynı sayfaları yeniden türetir.
 # fmt: off
 _ESIKLER: Final[dict[int, str]] = {
     1: "v|-|-", 2: "n|-|f", 3: "v|-|-", 5: "v|x|-", 6: "v|-|-",
@@ -145,13 +150,13 @@ _ESIKLER: Final[dict[int, str]] = {
     16: "v|-|-", 17: "v|d|a", 18: "v|-|a", 19: "v|-|-", 20: "v|f|-", 21: "v|f|-",
     22: "v|f|projects:x&f", 23: "v|f|-", 24: "v|f|-", 25: "v|f|-", 26: "v|f|-", 27: "v|f|-",
     28: "v|f|-", 29: "v|f|-",
-    30: "v|f|-", 31: "v|r|r", 32: "v|f|-", 33: "v|f|-", 34: "v|f|f",
+    30: "v|f|-", 31: "v|r|a", 32: "v|f|-", 33: "v|f|-", 34: "v|f|f",
     35: "v|f|f", 36: "d|f|-", 37: "d|f|-", 38: "f|f|-", 39: "d|f|-", 40: "d|f|-",
     41: "v|f|f", 42: "v|f|-", 43: "v|-|-", 44: "v|-|-", 45: "v|-|-", 46: "v|f|x",
-    47: "v|f|f", 48: "v|f|-", 49: "v|f|f", 50: "v|d|x", 51: "v|d|x",
+    47: "v|f|f", 48: "v|f|-", 49: "v|f|f", 50: "v|d|a", 51: "v|d|a",
     52: "v|-|-", 53: "v|-|-", 54: "v|-|-", 55: "v|f|f", 56: "v|-|-", 57: "v|f|f", 59: "v|f|-",
-    61: "v&sites:v|v&sites:f|-", 62: "v|-|-", 63: "v|-|-", 64: "v|f|-", 65: "v|d|x", 66: "v|d|x",
-    67: "v|f|-", 68: "v|f|-", 69: "v|f|-", 70: "v|f|-", 71: "v|f|-", 72: "v|d|x", 73: "v|f|x",
+    61: "v&sites:v|v&sites:f|-", 62: "v|-|-", 63: "v|-|-", 64: "v|f|-", 65: "v|d|a", 66: "v|d|a",
+    67: "v|f|-", 68: "v|f|-", 69: "v|f|-", 70: "v|f|-", 71: "v|f|-", 72: "v|d|a", 73: "v|f|x",
     74: "v|f|-", 75: "v|f|-", 76: "v|-|-", 77: "v|f|-", 78: "v|d|a", 79: "v|-|-", 80: "v|-|a",
     81: "v|-|-", 82: "v|f|-", 83: "v|-|-", 84: "v|-|-", 85: "v|-|-", 86: "v|-|-", 87: "v|-|-",
     88: "v|f|x",
@@ -159,6 +164,16 @@ _ESIKLER: Final[dict[int, str]] = {
     100: "v|-|-",
 }
 # fmt: on
+#: B1'in (donmuş `izn_b1` migration'ının) eşik metinleri: B2 düzeltmesinin DEĞİŞTİRDİĞİ sayfalar.
+#: Yalnız B1 migration eşitlik bekçisi ve B2 migration'ının "eski değer" kanıtı okur.
+ESIK_SPEC_B1_FARKLARI: Final[dict[int, str]] = {
+    31: "v|r|r",
+    50: "v|d|x",
+    51: "v|d|x",
+    65: "v|d|x",
+    66: "v|d|x",
+    72: "v|d|x",
+}
 #: Eşiği olmayan (modülsüz) yedi sayfa: Raporlar, Şirket Varlıkları, Geliştirme, Bildirimler,
 #: Görünüm, Entegrasyonlar, Yedekleme. Başlangıç düzeyleri `MODULSUZ_VARSAYILAN`.
 ESIK_SPEC_MODULSUZ: Final[str] = "-|-|-"

@@ -8,7 +8,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.permissions import kapsam_kapisi, require_page, require_permission
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.core.slug import parse_ref
@@ -82,7 +82,7 @@ async def list_employers_endpoint(
     "",
     response_model=EmployerResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[require_permission("projects", AccessLevel.admin)],
+    dependencies=[require_page("genel.projeler", "edit")],
 )
 async def create_employer_endpoint(
     request: Request,
@@ -245,7 +245,7 @@ async def list_land_share_units_endpoint(
     # olarak YETMEZ: olusturana otomatik UserProjectAccess yazilmadigi icin,
     # kapsamli bir `full` kullanicisi goremedigi bir proje yaratirdi. Admin
     # gorunurluk suzgecini zaten atlar (spec §5.2), boylece bu bosluk kapanir.
-    dependencies=[require_permission("projects", AccessLevel.admin)],
+    dependencies=[require_page("genel.projeler", "edit")],
 )
 async def create_project_endpoint(
     request: Request,

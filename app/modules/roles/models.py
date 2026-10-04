@@ -21,8 +21,8 @@ from app.core.sayfalar import HiddenCategory, PageLevel
 SYSTEM_ADMIN_KEY = "system_admin"
 
 #: IZN-B1'in eklediği 6 rolün anahtarları (`seed_data.IZN_ROLE_ORDER` ile eşitliği bekçide).
-#: Bu roller `role_permissions` satırı TAŞIMAZ (eski kapı onları 403 ile dışarıda tutar,
-#: fail-closed); B2 kapı köprüsü canlıya çıkana dek kullanıcıya ATANAMAZ (`users/service.py`).
+#: Bu roller `role_permissions` satırı TAŞIMAZ; B2'den itibaren kapılar sayfa hücrelerinden karar
+#: verir ve roller kullanıcıya atanabilir (B1 atama kilidi kalktı).
 IZN_ROLE_KEYS = frozenset(
     {
         "planning_engineer",

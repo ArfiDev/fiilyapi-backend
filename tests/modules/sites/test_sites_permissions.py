@@ -23,6 +23,7 @@ from app.core.access import AccessLevel, Scope
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import UserProjectAccess
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 # 2026-07-28 kullanici karariyla Satinalma da sites=view aldi; artik HICBIR
 # seed rolu sites=none tasimiyor. Bu yuzden 403 kapisi seed degerine
@@ -66,6 +67,7 @@ async def _set_permission(
     permission.access_level = level
     permission.scope = scope
     await session.flush()
+    await sync_page_cells(session, permission.role_id)
 
 
 def _auth(token: str) -> dict[str, str]:

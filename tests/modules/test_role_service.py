@@ -9,7 +9,8 @@ from app.core.field_scope import gizlenen_kova
 from app.modules.roles.models import SYSTEM_ADMIN_KEY, Module, Role, RolePermission
 from app.modules.roles.repository import get_permission
 from app.modules.roles.scope_wiring import kablolu_moduller
-from app.modules.roles.service import rename_role, update_role_permission
+from app.modules.roles.service import rename_role
+from tests._legacy_permission_yardimcisi import update_role_permission
 
 
 async def _role(session, key: str) -> Role:

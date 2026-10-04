@@ -300,6 +300,16 @@ class ApprovalValidationError(DomainError):
     """
 
 
+class RoleValidationError(DomainError):
+    """Rol sayfa izni gövde kuralı ihlali (IZN-B2) — 422.
+
+    DB `CHECK` yalnız "onay görünmeyen sayfada olmaz" der; "bu sayfada onay eylemi var mı"
+    kuralı katalogdadır (`onay_var`) ve DB'ye sığmaz — tek yazma yolunda (`PUT /roles/{id}/pages`)
+    servis korkuluğuyla tutulur. 403 DEĞİL: aktör yetkilidir, düzeltilecek şey GÖVDEDEDİR.
+    Mesaj Türkçe ve doğrudan kullanıcıya gösterilir.
+    """
+
+
 class OfferValidationError(DomainError):
     """Teklif gövde/iş kuralı ihlali (TKL-B4.2) — 422.
 

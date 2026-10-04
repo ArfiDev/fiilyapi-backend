@@ -66,7 +66,10 @@ _IKAME_UCLARI = frozenset(
 #: 🔴 BUGÜN ÖLÇÜLDÜ (2026-08-22, taban `d888591`): iki modülün izin kapısı
 #: taşıyan operasyon sayıları. İkame kapısı `require_permission`ın YERİNE
 #: geçtiği için bu sayılar T2'den sonra da AYNI kalmalıdır.
-_MODUL_OPERASYON_SAYISI = {"progress_payments": 28, "procurement": 23}
+#: IZN-B2: `mark-paid` ×2 ve `select-and-order` onay eylemi olarak sayfa ONAYLAR kapısına
+#: (`require_pages`) taşındı; MODÜL kapısı taşıyan uç sayısı 28→26 ve 23→22 oldu (zincir
+#: ikamesi aynı iki ucu — approve/reject — taşımaya devam eder).
+_MODUL_OPERASYON_SAYISI = {"progress_payments": 26, "procurement": 22}
 
 #: Ölçümün o günkü DÖKÜMÜ — yalnız hata mesajında farkı basmak için tutulur;
 #: iddia SAYIYA yapılır (aşağıda), kümeye değil.
@@ -86,7 +89,6 @@ _OLCULEN_UCLAR: dict[str, frozenset[tuple[str, str]]] = {
             ("PATCH", "/progress-payments/{payment_id}"),
             ("PATCH", "/subcontractor-progress-payments/{payment_id}"),
             ("POST", "/progress-payments/{payment_id}/approve"),
-            ("POST", "/progress-payments/{payment_id}/mark-paid"),
             ("POST", "/progress-payments/{payment_id}/refresh-prices"),
             ("POST", "/progress-payments/{payment_id}/reject"),
             ("POST", "/progress-payments/{payment_id}/submit"),
@@ -94,7 +96,6 @@ _OLCULEN_UCLAR: dict[str, frozenset[tuple[str, str]]] = {
             ("POST", "/projects/{project_id}/progress-payments"),
             ("POST", "/subcontractor-contracts/{contract_id}/progress-payments"),
             ("POST", "/subcontractor-progress-payments/{payment_id}/approve"),
-            ("POST", "/subcontractor-progress-payments/{payment_id}/mark-paid"),
             ("POST", "/subcontractor-progress-payments/{payment_id}/refresh-prices"),
             ("POST", "/subcontractor-progress-payments/{payment_id}/reject"),
             ("POST", "/subcontractor-progress-payments/{payment_id}/submit"),
@@ -124,7 +125,6 @@ _OLCULEN_UCLAR: dict[str, frozenset[tuple[str, str]]] = {
             ("POST", "/purchase-requests"),
             ("POST", "/purchase-requests/{request_id}/approve"),
             ("POST", "/purchase-requests/{request_id}/quotes"),
-            ("POST", "/purchase-requests/{request_id}/quotes/{quote_id}/select-and-order"),
             ("POST", "/purchase-requests/{request_id}/reject"),
             ("POST", "/purchase-requests/{request_id}/submit"),
             ("POST", "/suppliers"),
@@ -253,7 +253,7 @@ async def test_KALAN_KIRK_BES_operasyon_ikame_kapisi_TASIMAZ():
     )
     kalan = tum_modul_uclari - _IKAME_UCLARI
 
-    assert len(kalan) == 45, f"kalan operasyon sayısı 45 değil {len(kalan)}: {sorted(kalan)}"
+    assert len(kalan) == 42, f"kalan operasyon sayısı 42 değil {len(kalan)}: {sorted(kalan)}"
     sizanlar = kalan & _ikame_operasyonlari()
     assert not sizanlar, f"ikame kapısı onay/ret DIŞINDAKİ uçlara sızmış: {sorted(sizanlar)}"
 

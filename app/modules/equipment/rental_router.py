@@ -32,7 +32,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit.models import AuditAction
@@ -54,6 +54,8 @@ router = APIRouter(prefix="/equipment", tags=["equipment"], responses=COMMON_ERR
 
 _VIEW = require_permission(rental_service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(rental_service.PERMISSION_MODULE, AccessLevel.full)
+#: IZN-B2: kira Onayla / Öde / Reddet = Kira Hakedişi sayfası ONAYLAR (eşik eski `full`).
+_RENTAL_APPROVE = require_pages(("saha.makine_kira",), "approve")
 
 _STATUS_RESPONSES = {
     404: {"description": "Kira hakedişi bulunamadı (görünmeyen dahil)"},
@@ -207,7 +209,7 @@ async def reload_rental_invoice_endpoint(
     "/rental-invoices/{invoice_id}/approve",
     response_model=RentalInvoiceResponse,
     responses=_STATUS_RESPONSES,
-    dependencies=[_FULL],
+    dependencies=[_RENTAL_APPROVE],
 )
 async def approve_rental_invoice_endpoint(
     request: Request,
@@ -229,7 +231,7 @@ async def approve_rental_invoice_endpoint(
     "/rental-invoices/{invoice_id}/pay",
     response_model=RentalInvoiceResponse,
     responses=_STATUS_RESPONSES,
-    dependencies=[_FULL],
+    dependencies=[_RENTAL_APPROVE],
 )
 async def pay_rental_invoice_endpoint(
     request: Request,
@@ -250,7 +252,7 @@ async def pay_rental_invoice_endpoint(
     "/rental-invoices/{invoice_id}/reject",
     response_model=RentalInvoiceResponse,
     responses=_STATUS_RESPONSES,
-    dependencies=[_FULL],
+    dependencies=[_RENTAL_APPROVE],
 )
 async def reject_rental_invoice_endpoint(
     request: Request,

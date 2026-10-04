@@ -8,6 +8,7 @@ burada toplandi (`auth` 1 · `company` 3 · `projects` 6 · `users` 11 · `roles
 from decimal import Decimal
 
 from app.core.access import AccessLevel
+from app.core.sayfalar import HiddenCategory, PageLevel
 
 LOGIN_DETAIL = "Sisteme giriş yapıldı"
 COMPANY_UPDATED = "Şirket bilgileri güncellendi"
@@ -65,6 +66,50 @@ def role_deleted(name: str) -> str:
 def permission_changed(role_name: str, module_name: str, level: AccessLevel) -> str:
     """Modul ADI kullanilir (module_key degil) — denetim gunlugu dili insan-okur."""
     return f"İzin değişti: {role_name} · {module_name} → {ACCESS_LEVEL_LABELS[level]}"
+
+
+#: Sayfa İzinleri ekranındaki etiketler (onaylı mockup): denetim günlüğü enum değeri göstermez.
+PAGE_LEVEL_LABELS: dict[PageLevel, str] = {
+    PageLevel.none: "Görmez",
+    PageLevel.view: "Görür",
+    PageLevel.edit: "Düzenler",
+}
+HIDDEN_CATEGORY_LABELS: dict[HiddenCategory, str] = {
+    HiddenCategory.sozlesme_fiyat: "Sözleşme ve birim fiyatlar",
+    HiddenCategory.maliyet_kar: "Maliyet ve kâr",
+    HiddenCategory.maas_kisisel: "Maaş ve kişisel bilgiler",
+    HiddenCategory.banka_kasa: "Banka/kasa bakiyeleri",
+    HiddenCategory.satis_alici: "Satış bedeli ve alıcı bilgisi",
+    HiddenCategory.tum_tutarlar: "Tüm tutarlar",
+}
+
+#: Denetim metninde tek tek yazılan sayfa değişikliği sayısı; fazlası "ve N sayfa daha".
+ROLE_PAGES_CHANGES_SHOWN = 6
+
+
+def page_cell_label(page_name: str, level_label: str, approve: bool) -> str:
+    """`level_label` = `PAGE_LEVEL_LABELS[düzey]` (çağıran çevirir; bekçi için düz str)."""
+    onay = " + Onaylar" if approve else ""
+    return f"{page_name}: {level_label}{onay}"
+
+
+def role_pages_updated(role_name: str, changes: list[str]) -> str:
+    """`changes` = `page_cell_label` satırları (yalnız DEĞİŞENLER). İlk birkaçı yazılır."""
+    shown = changes[:ROLE_PAGES_CHANGES_SHOWN]
+    rest = len(changes) - len(shown)
+    tail = f" · ve {rest} sayfa daha" if rest > 0 else ""
+    baslik = f"Sayfa izinleri değişti: {role_name} ({len(changes)} sayfa) · "
+    return baslik + " · ".join(shown) + tail
+
+
+def role_hidden_fields_updated(role_name: str, hidden_labels: list[str]) -> str:
+    """`hidden_labels` = `HIDDEN_CATEGORY_LABELS` karşılıkları (boş = hiçbiri gizli değil)."""
+    gizli = ", ".join(hidden_labels) if hidden_labels else "hiçbiri"
+    return f"Gizli alanlar değişti: {role_name} · gizli: {gizli}"
+
+
+def role_copied(source_name: str, new_name: str) -> str:
+    return f"Rol kopyalandı: {source_name} → {new_name}"
 
 
 def employer_created(name: str) -> str:

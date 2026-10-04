@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import func, select
 
 from app.modules.audit.models import AuditLog
@@ -390,6 +391,10 @@ async def test_permission_matrix(
     assert (await client.post(_url(santiye, "/freeze"), headers=sef, json={})).status_code == 200
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE bütçe taslağı yalnız Sistem Yöneticisi (SIL hattında)",
+)
 async def test_delete_draft_requires_approve_and_only_draft(
     client, sef, saha, seeded_db, santiye, boq, disiplinler
 ) -> None:
@@ -517,7 +522,7 @@ async def test_F0_5_deleted_draft_number_is_reused(
     rev1 = (await client.post(_url(santiye, "/revisions"), headers=admin)).json()
     assert rev1["number"] == 1
     assert (
-        await client.delete(_url(santiye, f"/revisions/{rev1['id']}"), headers=sef)
+        await client.delete(_url(santiye, f"/revisions/{rev1['id']}"), headers=admin)
     ).status_code == 204
     again = (await client.post(_url(santiye, "/revisions"), headers=admin)).json()
     assert again["number"] == 1

@@ -31,7 +31,7 @@ from app.modules.audit.service import record_audit
 from app.modules.earned_value import audit_messages as msg
 from app.modules.earned_value import report_daily, report_panel, report_qurr
 from app.modules.earned_value.access import (
-    APPROVE,
+    DAILY_APPROVE,
     VIEW,
     SiteContext,
     completed_site_guard,
@@ -105,7 +105,7 @@ async def get_daily_report(
 @router.post(
     f"{_BASE}/daily/{{day}}/approve",
     response_model=ApprovalResult,
-    dependencies=[APPROVE, RequireUnrestricted],
+    dependencies=[DAILY_APPROVE, RequireUnrestricted],
     responses=_APPROVE_409,
 )
 async def approve_daily_report(

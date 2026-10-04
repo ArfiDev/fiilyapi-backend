@@ -23,11 +23,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.access import AccessLevel, Scope
 from app.core.errors import ConflictError
+from app.core.sayfalar import PageLevel
 from app.core.security import hash_password
 from app.modules.progress_payments import schemas, service, transitions
 from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
 from app.modules.projects.models import Project, ProjectContract
-from app.modules.roles.models import Module, ModuleGroup, Role, RolePermission
+from app.modules.roles.models import Module, ModuleGroup, Role, RolePagePermission, RolePermission
 from app.modules.users.models import User
 from tests._yaris import YARIS_TAVANI_SN, kilitte_bekleyen_sorgu
 from tests.conftest import test_engine
@@ -149,6 +150,13 @@ async def _referans_kur(session: AsyncSession) -> Role:
                 scope=Scope.all,
             )
         )
+    # IZN-B2: kapılar SAYFA hücrelerinden karar verir; `visible_projects` admin istisnası
+    # "Projeler" sayfası Düzenler'dir (eşik eski `projects:admin`).
+    session.add(
+        RolePagePermission(
+            role_id=role.id, page_key="genel.projeler", level=PageLevel.edit, can_approve=False
+        )
+    )
     await session.commit()
     return role
 

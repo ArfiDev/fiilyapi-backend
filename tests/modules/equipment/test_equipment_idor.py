@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 from app.core.access import AccessLevel, Scope
 from app.modules.roles.models import Module, Role, RolePermission
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 
 async def _set_permission(
@@ -35,6 +36,7 @@ async def _set_permission(
     permission.access_level = level
     permission.scope = scope
     await session.flush()
+    await sync_page_cells(session, permission.role_id)
 
 
 @pytest.mark.asyncio

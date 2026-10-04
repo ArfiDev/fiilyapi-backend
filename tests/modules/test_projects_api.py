@@ -8,6 +8,7 @@ from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.projects.models import ProjectContract
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.users.models import UserProjectAccess
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 
 async def _set_permission(
@@ -32,6 +33,7 @@ async def _set_permission(
     permission.access_level = level
     permission.scope = scope
     await session.flush()
+    await sync_page_cells(session, permission.role_id)
 
 
 async def _login(client, user_factory, role_key: str) -> str:

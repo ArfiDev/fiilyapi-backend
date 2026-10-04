@@ -105,7 +105,8 @@ async def test_delete_unknown_user_raises(seeded_db):
 async def test_full_actor_cannot_assign_system_role(seeded_db):
     from app.core.access import AccessLevel, Scope
     from app.modules.roles.schemas import RoleCreate
-    from app.modules.roles.service import create_custom_role, update_role_permission
+    from app.modules.roles.service import create_custom_role
+    from tests._legacy_permission_yardimcisi import update_role_permission
 
     mgr_role = await create_custom_role(
         seeded_db, RoleCreate(key="kul_yonetici", name="Kul", emoji="", description="")
@@ -159,7 +160,8 @@ async def _user_manager_actor(seeded_db, email: str = "yetkili@t.co"):
     """user_management=full, diğer TÜM hücreleri none olan özel rolde bir aktör."""
     from app.core.access import AccessLevel, Scope
     from app.modules.roles.schemas import RoleCreate
-    from app.modules.roles.service import create_custom_role, update_role_permission
+    from app.modules.roles.service import create_custom_role
+    from tests._legacy_permission_yardimcisi import update_role_permission
 
     mgr_role = await create_custom_role(
         seeded_db, RoleCreate(key="kul_yon_2", name="Kul2", emoji="", description="")

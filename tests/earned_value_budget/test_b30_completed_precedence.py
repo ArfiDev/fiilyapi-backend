@@ -123,8 +123,21 @@ _YAZMALAR: list[tuple[str, _Istek, int, str]] = [
     ),
 ]
 
+#: IZN-B2: bütçe taslağı SİL (DELETE) `(earned_value, approve)` modül kapısında kalır; Onaylar
+#: bayrağı modül kapısı açmadığı için yalnız Sistem Yöneticisi geçer (SIL hattı: SIL-B1 testi
+#: sysadmin aktörüne çevirecek).
+_SIL_HATTINDA = pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE bütçe taslağı yalnız Sistem Yöneticisi (SIL hattında)",
+)
 _HER_YAZMA = pytest.mark.parametrize(
-    ("ad", "istek", "aktifte", "metin"), _YAZMALAR, ids=[y[0] for y in _YAZMALAR]
+    ("ad", "istek", "aktifte", "metin"),
+    [
+        pytest.param(*y, id=y[0], marks=_SIL_HATTINDA)
+        if y[0] == "taslak-sil-olmayan"
+        else pytest.param(*y, id=y[0])
+        for y in _YAZMALAR
+    ],
 )
 
 #: Gövdesiz yazmalar: "geçersiz gövde" hâli yoktur ama sıra (404 → 409) yine geçerlidir.

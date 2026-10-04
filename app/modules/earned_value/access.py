@@ -44,7 +44,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import ConflictError, NotFoundError
-from app.core.permissions import require_permission
+from app.core.permissions import require_pages, require_permission
 from app.modules.projects.models import Project
 from app.modules.projects.service import visible_projects
 from app.modules.sites import repository as sites_repository
@@ -57,6 +57,23 @@ PERMISSION_MODULE = "earned_value"
 VIEW = require_permission(PERMISSION_MODULE, AccessLevel.view)
 WRITE = require_permission(PERMISSION_MODULE, AccessLevel.draft)
 APPROVE = require_permission(PERMISSION_MODULE, AccessLevel.approve)
+#: IZN-B2: ONAYLAR eylemleri sayfa bayrağından geçer (modül kapısı `APPROVE` yalnız DELETE
+#: bütçe taslağı ucunda kalır: SIL hattı). Eşikler eski `approve` ile aynıdır.
+BASELINE_FREEZE = require_pages(
+    ("planlama.adam_saat_butcesi", "santiye.adam_saat_butcesi"), "approve"
+)
+DAILY_APPROVE = require_pages(
+    ("planlama.gunluk_rapor", "santiye.gunluk_ilerleme_raporu"), "approve"
+)
+DAY_UNLOCK = require_pages(
+    (
+        "planlama.gunluk_rapor",
+        "santiye.gunluk_ilerleme_raporu",
+        "planlama.adam_saat_butcesi",
+        "santiye.adam_saat_butcesi",
+    ),
+    "approve",
+)
 CATALOG = require_permission(PERMISSION_MODULE, AccessLevel.full)
 ADMIN = require_permission(PERMISSION_MODULE, AccessLevel.admin)
 

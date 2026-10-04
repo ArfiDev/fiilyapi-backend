@@ -16,11 +16,11 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.approvals import service as approvals_service
-from app.modules.approvals.gate import require_permission_or_chain_step
+from app.modules.approvals.gate import require_pages_or_chain_step
 from app.modules.approvals.models import ApprovalDocumentType
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -52,14 +52,16 @@ last_price_provider.register()
 
 _VIEW = require_permission("progress_payments", AccessLevel.view)
 _DRAFT = require_permission("progress_payments", AccessLevel.draft)
-_APPROVE = require_permission("progress_payments", AccessLevel.approve)
+#: IZN-B2: Onayla/Reddet/Ödendi = hakediş sayfaları ONAYLAR (işveren + proje sekmesi + şantiye).
+_APPROVE_PAGES = ("mali.hakedis_isveren", "proje.isveren_hakedis", "santiye.hakedisler")
+_APPROVE = require_pages(_APPROVE_PAGES, "approve")
 _ADMIN = require_permission("progress_payments", AccessLevel.admin)
 #: OK-1C — `approve`/`reject`in kapısı. Modül seviyesi AYNEN `approve`tır;
 #: seviye yetmediğinde zincirin SIRADAKİ adımının onay rolü onu İKAME EDER
 #: (`approvals/gate.py`). `mark-paid`/`unapprove` DEĞİŞMEDİ — kapsam DAR.
-_CHAIN_APPROVE = require_permission_or_chain_step(
-    "progress_payments",
-    AccessLevel.approve,
+_CHAIN_APPROVE = require_pages_or_chain_step(
+    _APPROVE_PAGES,
+    module_key="progress_payments",
     document_type=ApprovalDocumentType.progress_payment,
     document_id_param="payment_id",
 )

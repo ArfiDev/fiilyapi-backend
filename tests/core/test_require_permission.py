@@ -2,9 +2,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from app.core.access import AccessLevel
 from app.core.db import get_db
-from app.core.permissions import require_permission
+from app.core.permissions import require_pages
 from app.modules.roles.models import Role
 
 
@@ -13,8 +12,15 @@ def guarded_app(db_session):
     """require_permission ile korunan tek uçlu bir test uygulaması."""
     test_app = FastAPI()
 
+    # IZN-B2: onay eylemi uçları sayfa ONAYLAR bayrağından geçer (`require_permission(…,
+    # approve)` hiçbir bayrağa bağlı değildir). Muhasebe/PM geçer, Şef (draft) geçemez.
     @test_app.get(
-        "/korumali", dependencies=[require_permission("progress_payments", AccessLevel.approve)]
+        "/korumali",
+        dependencies=[
+            require_pages(
+                ("mali.hakedis_isveren", "proje.isveren_hakedis", "santiye.hakedisler"), "approve"
+            )
+        ],
     )
     async def korumali() -> dict[str, bool]:
         return {"ok": True}

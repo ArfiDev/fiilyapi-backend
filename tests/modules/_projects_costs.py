@@ -26,6 +26,7 @@ from app.modules.subcontractor_progress_payments.models import (
 )
 from app.modules.units.models import Block, Unit, UnitKind, UnitSalesStatus
 from app.modules.users.models import User, UserProjectAccess
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 _TENTH = Decimal("0.1")
 
@@ -75,6 +76,7 @@ async def _set_permission(
     permission.access_level = level
     permission.scope = scope
     await session.flush()
+    await sync_page_cells(session, permission.role_id)
 
 
 def _set_budget_lines(project: Project, *, material="0", labor="0", sub="0", overhead="0") -> None:

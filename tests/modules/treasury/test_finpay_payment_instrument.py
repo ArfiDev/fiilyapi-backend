@@ -850,5 +850,9 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # IZN-B1: `GET /pages` (sayfa kataloğu; yeni yol, tek operasyon) = +1 yol / +1 operasyon
     # (320→321 · 456→457). `/auth/me`ye eklenen `pages`/`hidden_fields`/`is_system_admin`
     # alanları ne yol ne operasyon açar (sürüklenmeyi `tests/contract/` yakalar).
-    assert len(yollar) == 321
-    assert operasyonlar == 457
+    # IZN-B2: `GET`/`PUT /roles/{role_id}/pages` · `POST /roles/{role_id}/copy`
+    # = +2 yol / +3 operasyon (321→323 · 457→460). Eski
+    # `PUT /roles/{role_id}/permissions/{module_key}` 410 olarak YERİNDE kalır (yol/operasyon
+    # sayısı değişmez). Paralel SIL-B1 de sayıyı oynatabilir: ikinci merge yeniden ölçer.
+    assert len(yollar) == 323
+    assert operasyonlar == 460

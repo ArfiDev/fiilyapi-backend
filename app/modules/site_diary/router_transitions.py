@@ -23,7 +23,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_page, require_permission
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -35,7 +35,10 @@ from app.modules.users.models import User
 router = APIRouter(tags=["site-diary"], responses=COMMON_ERROR_RESPONSES)
 
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
-_ADMIN = require_permission(service.PERMISSION_MODULE, AccessLevel.admin)
+#: IZN-B2 §2.4: "günlüğü yeniden aç" = Günlük Kayıt sayfası ONAYLAR (eşik eski `admin` ile aynı).
+#: NOT: `santiye.gunluk_kayit` (73) ve `bolum.gunluk_kayit_detay` (88) sayfalarının Onaylar biti
+#: B3'e kadar HİÇBİR uca bağlı değildir; yalnız kök sayfa (12) "Yeniden Aç"ı açar.
+_ADMIN = require_page("saha.gunluk_kayit", "approve")
 
 
 @router.post("/diary/{entry_id}/submit", response_model=SiteDiaryEntryDetail, dependencies=[_FULL])

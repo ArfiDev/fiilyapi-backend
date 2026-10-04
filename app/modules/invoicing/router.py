@@ -50,7 +50,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit.models import AuditAction
@@ -74,6 +74,8 @@ router = APIRouter(tags=["invoicing"], responses=COMMON_ERROR_RESPONSES)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
+#: IZN-B2: Gelen faturada Onayla / Tahsil Edildi = Fatura Yönetimi sayfası ONAYLAR (eski `full`).
+_INVOICE_APPROVE = require_pages(("mali.fatura",), "approve")
 _ADMIN = require_permission(service.PERMISSION_MODULE, AccessLevel.admin)
 
 # TB3 sayfalama standardı: varsayılan 50, tavan 200 — tavan aşımı sessizce
@@ -420,7 +422,7 @@ async def send_invoice_endpoint(
     "/invoices/{invoice_id}/mark-collected",
     response_model=InvoiceDetailResponse,
     responses=_TAHSILAT_GECIS_YANITLARI,
-    dependencies=[_FULL],
+    dependencies=[_INVOICE_APPROVE],
 )
 async def mark_collected_invoice_endpoint(
     request: Request,
@@ -451,7 +453,7 @@ async def mark_collected_invoice_endpoint(
     "/invoices/{invoice_id}/approve",
     response_model=InvoiceDetailResponse,
     responses=_KAPILI_GECIS_YANITLARI,
-    dependencies=[_FULL],
+    dependencies=[_INVOICE_APPROVE],
 )
 async def approve_invoice_endpoint(
     request: Request,

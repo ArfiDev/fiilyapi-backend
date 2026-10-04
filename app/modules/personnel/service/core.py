@@ -10,12 +10,13 @@ from types import SimpleNamespace
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, satisfies
+from app.core.access import AccessLevel
 from app.core.errors import (
     DuplicateError,
     NotFoundError,
     PersonnelValidationError,
 )
+from app.core.page_gate import gate_ok
 from app.core.slug import allocate_slug
 from app.modules.personnel import guards, repository
 from app.modules.personnel.models import (
@@ -26,7 +27,6 @@ from app.modules.personnel.schemas import (
     PersonnelUpdate,
 )
 from app.modules.projects import repository as projects_repository
-from app.modules.roles.repository import get_permission
 from app.modules.sites import repository as sites_repository
 from app.modules.users.models import User
 
@@ -196,8 +196,7 @@ async def has_personnel_admin(session: AsyncSession, actor: User) -> bool:
     zorlar, oysa buradaki kurallar İKİ ayrı yoldan (seviye VEYA sahiplik) açılıp
     kapanır.
     """
-    permission = await get_permission(session, actor.role_id, PERMISSION_MODULE)
-    return permission is not None and satisfies(permission.access_level, AccessLevel.admin)
+    return await gate_ok(session, actor, PERMISSION_MODULE, AccessLevel.admin)
 
 
 def is_own_personnel_record(personnel: Personnel, actor: User) -> bool:

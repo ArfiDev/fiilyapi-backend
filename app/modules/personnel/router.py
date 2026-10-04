@@ -30,7 +30,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit import messages
@@ -67,6 +67,8 @@ router = APIRouter(tags=["personnel"], responses=COMMON_ERROR_RESPONSES)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
+#: IZN-B2: İzin Onayla/Reddet = İzin Yönetimi sayfası ONAYLAR (eşik eski `full`).
+_LEAVE_APPROVE = require_pages(("ik.izin_yonetimi",), "approve")
 # SİLME yazmadan BİR SEVİYE YUKARIDADIR (`documents`/`sites` deseni):
 # `app/core/access.py` "full yazmayı kapsar, SİLMEYİ KAPSAMAZ" der. Belge silme
 # İK kaydını yok eder (BC arşiv künyesi SET NULL ile durur) — yanlış açılan bir
@@ -581,7 +583,7 @@ async def delete_leave_request_endpoint(
 @router.post(
     "/leave-requests/{request_id}/approve",
     response_model=LeaveRequestResponse,
-    dependencies=[_FULL],
+    dependencies=[_LEAVE_APPROVE],
 )
 async def approve_leave_request_endpoint(
     request: Request,
@@ -613,7 +615,7 @@ async def approve_leave_request_endpoint(
 @router.post(
     "/leave-requests/{request_id}/reject",
     response_model=LeaveRequestResponse,
-    dependencies=[_FULL],
+    dependencies=[_LEAVE_APPROVE],
 )
 async def reject_leave_request_endpoint(
     request: Request,

@@ -24,6 +24,7 @@ import asyncpg
 
 from app.core.sayfalar import SAYFA_ANAHTARLARI
 from app.modules.roles import seed_data
+from tests._izn_b1_esikleri import b1_rows
 from tests.modules.approvals.test_ok1a_migration import (
     ALEMBIC_CMD,
     BACKEND_DIR,
@@ -137,7 +138,17 @@ async def _hidden(conn, role_key: str) -> set[str]:
 
 
 def _expected_pages(role_key: str) -> dict[str, tuple[str, bool]]:
-    return {k: (lvl.value, ap) for k, (lvl, ap) in seed_data.PAGE_MATRIX[role_key].items()}
+    """B1 migration'ının ÜRETTİĞİ hücreler (B1 eşikleriyle; B2 düzeltmesi `izn_b2`de)."""
+    if role_key in seed_data.IZN_ROLE_ORDER:
+        rows = b1_rows(seed_data.IZN_MATRIX, role_key)
+        rows.update(
+            {
+                k: (lv.value, ap)
+                for k, (lv, ap) in seed_data.IZN_SAYFA_ISTISNALARI.get(role_key, {}).items()
+            }
+        )
+        return rows
+    return b1_rows(seed_data.MATRIX, role_key)
 
 
 # ---------------------------------------------------------------------------

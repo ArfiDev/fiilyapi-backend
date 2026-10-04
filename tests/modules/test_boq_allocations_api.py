@@ -21,6 +21,7 @@ from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import UserProjectAccess
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 # --- Kurulum yardımcıları (test_boq_api.py deseniyle birebir) ---------------
 
@@ -42,6 +43,7 @@ async def _set_permission(
     permission.access_level = level
     permission.scope = scope
     await session.flush()
+    await sync_page_cells(session, permission.role_id)
 
 
 async def _login(client, session, user_factory, role_key: str, email: str) -> str:

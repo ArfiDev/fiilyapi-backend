@@ -224,7 +224,16 @@ from app.modules.audit.messages.core import (
     COMPANY_UPDATED as COMPANY_UPDATED,
 )
 from app.modules.audit.messages.core import (
+    HIDDEN_CATEGORY_LABELS as HIDDEN_CATEGORY_LABELS,
+)
+from app.modules.audit.messages.core import (
     LOGIN_DETAIL as LOGIN_DETAIL,
+)
+from app.modules.audit.messages.core import (
+    PAGE_LEVEL_LABELS as PAGE_LEVEL_LABELS,
+)
+from app.modules.audit.messages.core import (
+    ROLE_PAGES_CHANGES_SHOWN as ROLE_PAGES_CHANGES_SHOWN,
 )
 from app.modules.audit.messages.core import (
     WORK_ITEMS_BULK_DISCIPLINES_SHOWN as WORK_ITEMS_BULK_DISCIPLINES_SHOWN,
@@ -234,6 +243,9 @@ from app.modules.audit.messages.core import (
 )
 from app.modules.audit.messages.core import (
     employer_created as employer_created,
+)
+from app.modules.audit.messages.core import (
+    page_cell_label as page_cell_label,
 )
 from app.modules.audit.messages.core import (
     password_reset as password_reset,
@@ -251,10 +263,19 @@ from app.modules.audit.messages.core import (
     project_updated as project_updated,
 )
 from app.modules.audit.messages.core import (
+    role_copied as role_copied,
+)
+from app.modules.audit.messages.core import (
     role_created as role_created,
 )
 from app.modules.audit.messages.core import (
     role_deleted as role_deleted,
+)
+from app.modules.audit.messages.core import (
+    role_hidden_fields_updated as role_hidden_fields_updated,
+)
+from app.modules.audit.messages.core import (
+    role_pages_updated as role_pages_updated,
 )
 from app.modules.audit.messages.core import (
     role_renamed as role_renamed,

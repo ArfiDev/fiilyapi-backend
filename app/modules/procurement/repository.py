@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Subquery
 
 from app.core.access import AccessLevel
+from app.core.page_gate import effective_level
 from app.modules.inventory import balance as stock_balance
 from app.modules.inventory import repository as inventory_repository
 from app.modules.inventory.models import StockItem
@@ -46,7 +47,6 @@ from app.modules.procurement.models import (
     PurchaseRequestStatus,
     Supplier,
 )
-from app.modules.roles.repository import get_permission
 from app.modules.users.models import User
 
 
@@ -391,8 +391,7 @@ async def actor_level(session: AsyncSession, actor: User) -> AccessLevel:
     (`service.can_delete_request` ve `transitions._assert_approver_level`) ve
     `transitions` → `service` ithalati donguye girerdi.
     """
-    permission = await get_permission(session, actor.role_id, PERMISSION_MODULE)
-    return permission.access_level if permission is not None else AccessLevel.none
+    return await effective_level(session, actor, PERMISSION_MODULE)
 
 
 async def request_estimated_total(session: AsyncSession, request_id: uuid.UUID) -> Decimal:

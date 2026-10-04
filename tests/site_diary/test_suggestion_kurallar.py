@@ -21,6 +21,7 @@ from app.core.access import AccessLevel
 from app.modules.audit.models import AuditLog
 from app.modules.roles.repository import get_permission
 from app.modules.site_diary import guards
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 from ._suggestion import (
     DONEM,
@@ -364,6 +365,7 @@ async def test_hakedis_izni_KALDIRILMIS_gunluk_rolu_403(
     assert izin is not None
     izin.access_level = AccessLevel.none
     await seeded_db.flush()
+    await sync_page_cells(seeded_db, izin.role_id)
 
     assert (await _isveren_onerisi(client, sef_headers, project.id, **DONEM)).status_code == 403
     assert (

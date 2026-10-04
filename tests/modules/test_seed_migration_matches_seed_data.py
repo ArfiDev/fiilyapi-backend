@@ -230,7 +230,14 @@ def test_migration_module_keys_match_seed_data():
 
 def test_migration_role_rows_match_seed_data():
     captured = _captured_bulk_inserts(_load_seed_migration())
-    assert _roles_set_from_app() == _roles_set_from_migration(captured)
+    # IZN-B2 (`671436c0b42a`): ilk seed migration'ı DONMUŞ kalır (Patron `is_system=true` yazar);
+    # `izn_b2` migration'ı `patron.is_system=false` yapar (plan §8b) ve `seed_data.ROLES` yeni
+    # durumu taşır. Bilinen tek fark burada açıkça uygulanır.
+    migration_roles = {
+        (key, emoji, False if key == "patron" else is_system, description)
+        for key, emoji, is_system, description in _roles_set_from_migration(captured)
+    }
+    assert _roles_set_from_app() == migration_roles
 
 
 def test_migration_module_rows_match_seed_data():

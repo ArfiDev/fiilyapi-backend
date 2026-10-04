@@ -54,6 +54,7 @@ from app.modules.ai.result import AracSonucu, Empty, Ok, Restricted, ToolError, 
 from app.modules.ai.stream import sse_kodla
 from app.modules.ai.tools.catalog import NAVIGATE_TO, REGISTRY, YETKILERIM
 from app.modules.roles.models import Module, RolePermission
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 pytestmark = pytest.mark.asyncio
 
@@ -650,6 +651,7 @@ async def test_TAZE_kimlik_tur_ortasinda_yetki_iptalini_GORUR(
             if len(self.cagrilar) == 1:
                 izin.access_level = AccessLevel.none
                 await seeded_db.flush()
+                await sync_page_cells(seeded_db, izin.role_id)
             async for olay in super().tur(**kwargs):
                 yield olay
 
@@ -735,6 +737,7 @@ async def test_chat_ai_izni_YOKSA_403(client, user_factory, seeded_db) -> None:
     ).scalar_one()
     izin.access_level = AccessLevel.none
     await seeded_db.flush()
+    await sync_page_cells(seeded_db, izin.role_id)
     seeded_db.expunge(user)
     basliklar = {"Authorization": f"Bearer {create_access_token(user.id, user.token_version)}"}
 

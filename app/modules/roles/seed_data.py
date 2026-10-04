@@ -38,7 +38,7 @@ ROLES: list[dict] = [
         "key": "patron",
         "name": "Patron",
         "emoji": "👔",
-        "is_system": True,
+        "is_system": False,
         "description": "Tüm modüller · Tüm projeler (ayarlar hariç)",
     },
     {
@@ -349,6 +349,12 @@ async def seed_reference_data(session: AsyncSession) -> None:
                 )
             )
     await session.flush()
+    # IZN-B2: kapılar SAYFA HÜCRELERİNDEN karar verir → 7 eski rolün hücreleri de burada kurulur
+    # (üretimde `izn_b1`/`izn_b2` migration'ları CANLI satırlardan türetir; bu, `create_all`
+    # şemasıyla çalışan testler ve boş-DB kurulumu içindir). Idempotent.
+    await _seed_page_cells(
+        session, roles_by_key, tuple(r for r in ROLE_ORDER if r != SYSTEM_ADMIN_KEY)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -533,12 +539,21 @@ async def seed_izn_reference_data(session: AsyncSession) -> None:
             roles_by_key[row["key"]] = role
     await session.flush()
 
+    await _seed_page_cells(session, roles_by_key, tuple(PAGE_MATRIX))
+    await session.flush()
+
+
+async def _seed_page_cells(
+    session: AsyncSession, roles_by_key: dict[str, Role], role_keys: tuple[str, ...]
+) -> None:
+    """`PAGE_MATRIX` hücrelerini ve `HIDDEN_FIELDS` bayraklarını yükler (idempotent)."""
     existing_pages = set(
         (
             await session.execute(select(RolePagePermission.role_id, RolePagePermission.page_key))
         ).all()
     )
-    for role_key, cells in PAGE_MATRIX.items():
+    for role_key in role_keys:
+        cells = PAGE_MATRIX[role_key]
         role = roles_by_key.get(role_key)
         if role is None:
             continue
@@ -554,7 +569,8 @@ async def seed_izn_reference_data(session: AsyncSession) -> None:
     existing_hidden = set(
         (await session.execute(select(RoleHiddenField.role_id, RoleHiddenField.category))).all()
     )
-    for role_key, categories in HIDDEN_FIELDS.items():
+    for role_key in role_keys:
+        categories = HIDDEN_FIELDS[role_key]
         role = roles_by_key.get(role_key)
         if role is None:
             continue

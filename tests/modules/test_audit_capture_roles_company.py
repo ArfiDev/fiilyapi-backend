@@ -87,31 +87,33 @@ async def test_rol_silme_silinen_adi_icerir(client, user_factory, seeded_db):
     assert rows[0].detail == "Rol silindi: Geçici Rol"
 
 
-async def test_izin_degisikligi_modul_adini_ve_seviyeyi_icerir(client, user_factory, seeded_db):
+async def test_sayfa_izni_degisikligi_sayfa_adini_ve_duzeyi_icerir(client, user_factory, seeded_db):
     headers = await _auth(client, user_factory, "system_admin")
     rid = await _role_id(seeded_db, "field_engineer")  # seed adi: "Saha Mühendisi"
+    mevcut = (await client.get(f"/roles/{rid}/pages", headers=headers)).json()["pages"]
+    mevcut["mali.yevmiye"] = {"level": "edit", "approve": True}
 
     resp = await client.put(
-        f"/roles/{rid}/permissions/accounting",
-        json={"access_level": "full", "scope": "all"},
-        headers=headers,
+        f"/roles/{rid}/pages", json={"pages": mevcut, "hidden_fields": []}, headers=headers
     )
     assert resp.status_code == 200
 
     rows = await _rows(seeded_db, AuditAction.update)
-    assert len(rows) == 1
-    # Modul ADI kullanilir (module_key degil) — mockup dili insan-okur.
-    assert rows[0].detail == "İzin değişti: Saha Mühendisi · Muhasebe → Tam"
+    # Sayfa degisikligi ve gizli alan degisikligi AYRI satirlardir (saha muh. `limited` -> bayrak).
+    assert rows[0].detail == (
+        "Sayfa izinleri değişti: Saha Mühendisi (1 sayfa) · Muhasebe › Yevmiye: Düzenler + Onaylar"
+    )
 
 
-async def test_kilitli_izin_degisikligi_denetim_satiri_yazmaz(client, user_factory, seeded_db):
+async def test_kilitli_sayfa_izni_degisikligi_denetim_satiri_yazmaz(
+    client, user_factory, seeded_db
+):
     headers = await _auth(client, user_factory, "system_admin")
     rid = await _role_id(seeded_db, "system_admin")
+    mevcut = (await client.get(f"/roles/{rid}/pages", headers=headers)).json()["pages"]
 
     resp = await client.put(
-        f"/roles/{rid}/permissions/accounting",
-        json={"access_level": "none", "scope": "all"},
-        headers=headers,
+        f"/roles/{rid}/pages", json={"pages": mevcut, "hidden_fields": []}, headers=headers
     )
     assert resp.status_code == 403
 

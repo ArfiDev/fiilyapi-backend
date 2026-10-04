@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from app.core.access import AccessLevel, Scope
 from app.modules.roles.models import Module, Role, RolePermission
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 
 async def _set_permission(
@@ -42,6 +43,7 @@ async def _set_permission(
     permission.access_level = level
     permission.scope = scope
     await session.flush()
+    await sync_page_cells(session, permission.role_id)
 
 
 @pytest.mark.asyncio
@@ -95,6 +97,11 @@ async def test_gorunmeyen_depo_patchte_404_ve_govde_ayirt_edilemez(
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
+    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
+)
 async def test_yetki_gorunurlugun_onune_gecmez_silmede_404(
     client, seeded_db, satinalma_headers, gorunmeyen_santiye, depo_fabrikasi
 ):
