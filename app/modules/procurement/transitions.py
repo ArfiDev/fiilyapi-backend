@@ -397,7 +397,7 @@ async def apply_request_transition(
     decision = await _chain_decision(session, actor, request, action, reason)
     if action is RequestAction.approve and decision is not None and not decision.is_complete:
         # ARA ADIM: durum ve damga DEĞİŞMEZ. Koşul YALNIZ `approve` içindir —
-        # `reject` de `is_complete=False` döner ama zinciri SİLER ve talebi
+        # `reject` de `is_complete=False` döner ama zinciri DAMGALAR (silmez) ve talebi
         # `rejected`a taşıması GEREKİR.
         await session.flush()
         return decision

@@ -195,7 +195,7 @@ async def test_SATINALMA_adim3_ACCOUNTING_sistem_rolu_ile_ONAYLANIR_ve_ZINCIR_BI
 # imzalayabilir ama "revize edilsin" diyemezdi.
 
 
-async def test_RET_de_ikame_edilir_TASERON_zincir_SILINIR(
+async def test_RET_de_ikame_edilir_TASERON_zincir_DAMGALANIR(
     client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
 ):
     yaratan = await aktor_fabrikasi("ikame-t3a-yaratan@ok1c.co")
@@ -212,10 +212,12 @@ async def test_RET_de_ikame_edilir_TASERON_zincir_SILINIR(
 
     assert yanit.status_code == 200, yanit.text
     assert yanit.json()["status"] == "draft"
-    assert await zincir_getir(seeded_db, _TASERON, document_id) is None, "ret zinciri SİLMELİ"
+    # OKT-B1: ret zinciri SİLMEZ, damgalar (eski K2'nin yerini aldı).
+    zincir = await zincir_getir(seeded_db, _TASERON, document_id)
+    assert zincir is not None and zincir.rejected_at is not None
 
 
-async def test_RET_de_ikame_edilir_SATINALMA_zincir_SILINIR(
+async def test_RET_de_ikame_edilir_SATINALMA_zincir_DAMGALANIR(
     client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
 ):
     yaratan = await aktor_fabrikasi("ikame-t3b-yaratan@ok1c.co")
@@ -242,7 +244,8 @@ async def test_RET_de_ikame_edilir_SATINALMA_zincir_SILINIR(
 
     assert yanit.status_code == 200, yanit.text
     assert yanit.json()["status"] == "rejected"
-    assert await zincir_getir(seeded_db, _SATINALMA, document_id) is None, "ret zinciri SİLMELİ"
+    zincir = await zincir_getir(seeded_db, _SATINALMA, document_id)
+    assert zincir is not None and zincir.rejected_at is not None
 
 
 # --------------------------------------------------------------------------- #

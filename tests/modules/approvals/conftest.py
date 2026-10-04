@@ -118,11 +118,16 @@ async def adim_rolleri(session: AsyncSession, chain_id: uuid.UUID) -> list[Appro
 async def zincir_getir(
     session: AsyncSession, document_type: ApprovalDocumentType, document_id: uuid.UUID
 ) -> ApprovalChain | None:
+    """Evrağın EN YENİ zinciri (OKT-B1: ret zinciri silmediği için bir evrağın
+    birden çok kaydı olabilir; açık zincir hep en yenisidir)."""
     return await session.scalar(
-        select(ApprovalChain).where(
+        select(ApprovalChain)
+        .where(
             ApprovalChain.document_type == document_type,
             ApprovalChain.document_id == document_id,
         )
+        .order_by(ApprovalChain.created_at.desc())
+        .limit(1)
     )
 
 
