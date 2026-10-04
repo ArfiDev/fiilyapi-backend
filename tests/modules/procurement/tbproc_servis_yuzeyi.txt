@@ -63,7 +63,7 @@ async def _visible_project_ids(session: sqlalchemy.ext.asyncio.session.AsyncSess
 async def _visible_quote(session: sqlalchemy.ext.asyncio.session.AsyncSession, request: app.modules.procurement.models.PurchaseRequest, quote_id: uuid.UUID) -> app.modules.procurement.models.PurchaseQuote
 module approvals_service -> app.modules.approvals.service
 async def build_request_detail(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, request: app.modules.procurement.models.PurchaseRequest) -> app.modules.procurement.schemas.PurchaseRequestResponse
-def can_delete_request(actor: app.modules.users.models.User) -> bool
+async def can_delete_request(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User) -> bool
 async def create_order(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, data: app.modules.procurement.schemas.PurchaseOrderCreate) -> tuple[app.modules.procurement.schemas.PurchaseOrderResponse, str]
 async def create_quote(session: sqlalchemy.ext.asyncio.session.AsyncSession, request: app.modules.procurement.models.PurchaseRequest, data: app.modules.procurement.schemas.PurchaseQuoteCreate) -> tuple[app.modules.procurement.schemas.PurchaseQuoteResponse, str]
 async def create_request(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, data: app.modules.procurement.schemas.PurchaseRequestCreate) -> tuple[app.modules.procurement.models.PurchaseRequest, str]

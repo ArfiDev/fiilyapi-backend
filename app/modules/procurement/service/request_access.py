@@ -13,8 +13,8 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import is_system_admin
 from app.core.errors import ConflictError, NotFoundError
+from app.core.page_gate import is_admin_role
 from app.modules.procurement import guards, repository
 from app.modules.procurement.models import PurchaseRequest, PurchaseRequestStatus
 from app.modules.procurement.schemas import PurchaseRequestLineCreate
@@ -120,8 +120,13 @@ def _assert_draft(request: PurchaseRequest) -> None:
         raise ConflictError(guards.REQUEST_NOT_DRAFT)
 
 
-def can_delete_request(actor: User) -> bool:
+async def can_delete_request(session: AsyncSession, actor: User) -> bool:
     """Yanıttaki `can_delete` bayrağı ile SİLME UCU AYNI kuraldan beslenir (SIL-B1, K4): silme
     YALNIZ Sistem Yöneticisi'nindir; "talebi açan kendi taslağını siler" istisnası KALDIRILDI.
-    Ekran düğmeyi gösterip sonra 403 yemesin."""
-    return is_system_admin(actor)
+    Ekran düğmeyi gösterip sonra 403 yemesin.
+
+    🔴 `is_admin_role` (async) kullanılır, senkron `access.is_system_admin` DEĞİL: onay/ret
+    yolunda aktör servis içinde süresi dolmuş (expired) olarak gelir ve `User.role`
+    `lazy="raise"` olduğu için senkron okuma 500 atardı (PR #172 CI). `require_system_admin`
+    kapısıyla aynı tek kaynak."""
+    return await is_admin_role(session, actor)

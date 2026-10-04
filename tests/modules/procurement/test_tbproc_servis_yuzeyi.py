@@ -45,9 +45,11 @@ OKUMA uclarini anahtara acar.
 
 `can_delete` (`app.core.access`), `DeleteNotAllowedError` ve `_DeletableRequest` koprusu KALDIRILDI
 (K4: silme YALNIZ Sistem Yoneticisi'nin, "talebi acan kendi taslagini siler" istisnasi YOK).
-`can_delete_request(session, actor, request)` -> `can_delete_request(actor)` oldu (yanittaki
-`can_delete` bayragi = `is_system_admin`). Referans ELLE guncellendi (yeniden uretim
-bolme-oncesi tabani bozardi): yalniz bu satirlar dustu/degisti, `diff` ile dogrulandi.
+`can_delete_request(session, actor, request)` -> `async can_delete_request(session, actor)` oldu
+(yanittaki `can_delete` bayragi = `page_gate.is_admin_role`; senkron `is_system_admin` onay
+yolunda suresi dolmus aktorde `User.role` lazy=raise ile 500 atiyordu, PR #172 CI).
+Referans ELLE guncellendi (yeniden uretim bolme-oncesi tabani bozardi): yalniz bu
+satirlar dustu/degisti, `diff` ile dogrulandi.
 
 ## Yeniden uretim
 

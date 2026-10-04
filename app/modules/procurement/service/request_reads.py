@@ -80,7 +80,7 @@ async def build_request_detail(
     return PurchaseRequestResponse(
         **_base_fields(request),
         estimated_total=toplam,
-        can_delete=can_delete_request(actor),
+        can_delete=await can_delete_request(session, actor),
         lines=satirlar,
     )
 
@@ -142,6 +142,7 @@ async def list_requests(
         session, project_ids, totals, limit=limit, offset=offset, **suzgec
     )
     total = await repository.count_requests(session, project_ids, **suzgec)
+    can_delete = await can_delete_request(session, actor)
 
     return PurchaseRequestListResponse(
         items=[
@@ -149,7 +150,7 @@ async def list_requests(
                 **_base_fields(row[0]),
                 estimated_total=row.estimated_total,
                 line_count=row.line_count,
-                can_delete=can_delete_request(actor),
+                can_delete=can_delete,
             )
             for row in rows
         ],
