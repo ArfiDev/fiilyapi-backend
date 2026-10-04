@@ -29,7 +29,7 @@ dönüşürdü. İstisna denetim günlüğüne `messages.APPROVAL_ON_BEHALF_MARK
 geçer — 🔴 yeni `AuditAction` üyesi AÇILMADI, ayrım METİNDEDİR.
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -45,9 +45,11 @@ from app.modules.site_diary.models import WorkerSource
 from app.modules.users.models import User
 from tests.personnel._ik2_leave_decision import _yeni_denetim_metinleri
 
+
 # ~2 yıl 2 ay kıdem → 4857 birinci kademe (14 gün). Bugüne göre türetilir ki
 # test bir yıl sonra sessizce başka bir kıdem penceresine kaymasın.
-_KIDEMLI_GIRIS = timezone.today() - timedelta(days=800)
+def _kidemli_giris() -> date:
+    return timezone.today() - timedelta(days=800)
 
 
 async def _login(
@@ -63,7 +65,7 @@ async def _personel(session: AsyncSession, full_name: str, user: User | None = N
     kayit = Personnel(
         full_name=full_name,
         source=WorkerSource.company,
-        hire_date=_KIDEMLI_GIRIS,
+        hire_date=_kidemli_giris(),
         user_id=None if user is None else user.id,
     )
     session.add(kayit)

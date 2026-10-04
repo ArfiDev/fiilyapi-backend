@@ -13,7 +13,7 @@ SUNUCU damgasıdır — istemci gönderemez (`extra="forbid"`).
   tiplerde; **kalan bilinmiyorsa (kıdem<1, `hire_date` NULL) onay ENGELLİ**
   (🔴 NULL-eşik kanonu, fail-closed).
 
-Tarihler BUGÜNE GÖRE türetilir (`_YIL`): sabit takvim yılı yazmak testi bir yıl
+Tarihler BUGÜNE GÖRE türetilir (`_yil()`): sabit takvim yılı yazmak testi bir yıl
 sonra sessizce başka bir kıdem/bakiye penceresine kaydırırdı.
 """
 
@@ -30,11 +30,11 @@ from app.modules.personnel.models import (
 )
 from app.modules.users.models import User
 from tests.personnel._ik2_leave_decision import (
-    _YIL,
     _gun,
     _post_talep,
     _talep,
     _yeni_denetim_metinleri,
+    _yil,
     arsiv_belgesi_fixture,
     hastalik_fixture,
     kidemsiz_personel_fixture,
@@ -139,8 +139,8 @@ async def test_approve_baska_personelin_izni_cakismaz(
         seeded_db,
         kidemsiz_personel,
         yillik,
-        date(_YIL, 3, 2),
-        date(_YIL, 3, 6),
+        date(_yil(), 3, 2),
+        date(_yil(), 3, 6),
         LeaveStatus.approved,
     )
     talep_id = await _post_talep(client, ik_headers, personel, yillik, _gun(3, 2), _gun(3, 6))
@@ -181,7 +181,7 @@ async def test_approve_haktan_bir_gun_fazla_409(client, ik_headers, personel, yi
 @pytest.mark.asyncio
 async def test_approve_devreden_hakki_buyutur(client, ik_headers, seeded_db, personel, yillik):
     """Devreden (İZ 137) kalana EKLENİR: 14 + 3 = 17 → 15 günlük talep GEÇER."""
-    seeded_db.add(LeaveBalance(personnel_id=personel.id, year=_YIL, carried_over=3))
+    seeded_db.add(LeaveBalance(personnel_id=personel.id, year=_yil(), carried_over=3))
     await seeded_db.flush()
     talep_id = await _post_talep(client, ik_headers, personel, yillik, _gun(4, 1), _gun(4, 15))
     yanit = await client.post(f"/leave-requests/{talep_id}/approve", headers=ik_headers)
@@ -283,7 +283,7 @@ async def test_approve_devreden_tek_basina_hak_acmaz(
     client, ik_headers, seeded_db, kidemsiz_personel, yillik
 ):
     """🔴 Kıdem yoksa DEVREDEN de kapıyı AÇMAZ: `None + 3` iyimserliği yasaktır."""
-    seeded_db.add(LeaveBalance(personnel_id=kidemsiz_personel.id, year=_YIL, carried_over=5))
+    seeded_db.add(LeaveBalance(personnel_id=kidemsiz_personel.id, year=_yil(), carried_over=5))
     await seeded_db.flush()
     talep_id = await _post_talep(
         client, ik_headers, kidemsiz_personel, yillik, _gun(4, 1), _gun(4, 1)
@@ -313,17 +313,17 @@ async def test_yil_sinirini_asan_talep_baslangic_yilina_sayilir(
         ik_headers,
         personel,
         yillik,
-        date(_YIL, 12, 30).isoformat(),
-        date(_YIL + 1, 1, 2).isoformat(),
+        date(_yil(), 12, 30).isoformat(),
+        date(_yil() + 1, 1, 2).isoformat(),
     )
     yanit = await client.post(f"/leave-requests/{asan}/approve", headers=ik_headers)
     assert yanit.status_code == 200, yanit.text
 
-    bakiye = await client.get(f"/leave-balances/{personel.id}/{_YIL}", headers=ik_headers)
+    bakiye = await client.get(f"/leave-balances/{personel.id}/{_yil()}", headers=ik_headers)
     assert bakiye.status_code == 200, bakiye.text
     # 10 + 4 = 14 — dört günün TAMAMI başlangıç yılına yazıldı.
     assert bakiye.json()["used"] == 14
-    ertesi = await client.get(f"/leave-balances/{personel.id}/{_YIL + 1}", headers=ik_headers)
+    ertesi = await client.get(f"/leave-balances/{personel.id}/{_yil() + 1}", headers=ik_headers)
     assert ertesi.json()["used"] == 0
 
 

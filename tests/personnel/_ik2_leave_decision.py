@@ -33,16 +33,25 @@ from app.modules.personnel.models import (
 from app.modules.projects.models import Project
 from app.modules.site_diary.models import WorkerSource
 
-_BUGUN = timezone.today()
-_YIL = _BUGUN.year
-# ~2 yıl 2 ay kıdem → 4857 birinci kademe (14 gün). Bugüne göre türetilir.
-_KIDEMLI_GIRIS = _BUGUN - timedelta(days=800)
-# ~4 ay kıdem → 1 yıl DOLMADI → hak YOK (İZ 163).
-_YENI_GIRIS = _BUGUN - timedelta(days=120)
+
+def _yil() -> int:
+    # Cagri aninda hesaplanir: import aninda donan "bugun" TR gece yarisindan sonra geride kalir
+    # (TMP-FIX #167).
+    return timezone.today().year
+
+
+def _kidemli_giris() -> date:
+    # ~2 yıl 2 ay kıdem → 4857 birinci kademe (14 gün). Bugüne göre türetilir.
+    return timezone.today() - timedelta(days=800)
+
+
+def _yeni_giris() -> date:
+    # ~4 ay kıdem → 1 yıl DOLMADI → hak YOK (İZ 163).
+    return timezone.today() - timedelta(days=120)
 
 
 def _gun(ay: int, gun: int) -> str:
-    return date(_YIL, ay, gun).isoformat()
+    return date(_yil(), ay, gun).isoformat()
 
 
 @pytest.fixture(name="proje")
@@ -58,7 +67,7 @@ async def personel_fixture(seeded_db: AsyncSession, proje: Project) -> Personnel
         trade="Büro Şefi",
         source=WorkerSource.company,
         assigned_project_id=proje.id,
-        hire_date=_KIDEMLI_GIRIS,
+        hire_date=_kidemli_giris(),
     )
     seeded_db.add(kayit)
     await seeded_db.flush()
@@ -71,7 +80,7 @@ async def kidemsiz_personel_fixture(seeded_db: AsyncSession) -> Personnel:
     kayit = Personnel(
         full_name="Sercan Öztürk",
         source=WorkerSource.company,
-        hire_date=_YENI_GIRIS,
+        hire_date=_yeni_giris(),
     )
     seeded_db.add(kayit)
     await seeded_db.flush()
