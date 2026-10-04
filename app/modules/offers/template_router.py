@@ -27,7 +27,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
@@ -226,7 +226,9 @@ async def copy_template_endpoint(
 
 
 @router.delete(
-    _BASE + "/{template_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_WRITE
+    _BASE + "/{template_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[require_system_admin()],
 )
 async def delete_template_endpoint(
     request: Request, template_id: _TemplateId, user: _User, session: DbSession

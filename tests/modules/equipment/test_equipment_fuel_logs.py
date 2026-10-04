@@ -185,10 +185,13 @@ async def test_patch_dokunulmamis_alan_ezilmez(client, sef_headers, makine):
 
 
 @pytest.mark.asyncio
-async def test_delete_kaydi_siler(client, sef_headers, makine):
-    """Yakıt kaydı MALİ İZ DEĞİLDİR: kayıt hatası silinebilir."""
+async def test_delete_kaydi_siler(client, sef_headers, admin_headers, makine):
+    """Yakıt kaydı MALİ İZ DEĞİLDİR: kayıt hatası silinebilir — YALNIZ Sistem Yöneticisi (SIL-B1;
+    `full` yazar şef silemez)."""
     kayit = await _kayit_ac(client, sef_headers, makine.id)
-    silme = await client.delete(f"/equipment/fuel-logs/{kayit['id']}", headers=sef_headers)
+    yasak = await client.delete(f"/equipment/fuel-logs/{kayit['id']}", headers=sef_headers)
+    assert yasak.status_code == 403, yasak.text
+    silme = await client.delete(f"/equipment/fuel-logs/{kayit['id']}", headers=admin_headers)
     assert silme.status_code == 204, silme.text
 
     okuma = await client.get(f"/equipment/fuel-logs/{kayit['id']}", headers=sef_headers)
@@ -196,8 +199,8 @@ async def test_delete_kaydi_siler(client, sef_headers, makine):
 
 
 @pytest.mark.asyncio
-async def test_delete_olmayan_kayit_404(client, sef_headers):
-    yanit = await client.delete(f"/equipment/fuel-logs/{uuid.uuid4()}", headers=sef_headers)
+async def test_delete_olmayan_kayit_404(client, admin_headers):
+    yanit = await client.delete(f"/equipment/fuel-logs/{uuid.uuid4()}", headers=admin_headers)
     assert yanit.status_code == 404, yanit.text
 
 
@@ -280,7 +283,8 @@ async def test_k20_gorunmeyen_kayit_delete_404(
     gizli = await ekipman_fabrikasi("Gizli Vinç", site=gorunmeyen_santiye)
     kayit = await _kayit_ac(client, admin_headers, gizli.id)
     yanit = await client.delete(f"/equipment/fuel-logs/{kayit['id']}", headers=sef_headers)
-    assert yanit.status_code == 404, yanit.text
+    # SIL-B1: kapı handler'dan önce koşar → görünmeyen kayıt için de 403 (varlık sızmaz)
+    assert yanit.status_code == 403, yanit.text
 
 
 @pytest.mark.asyncio

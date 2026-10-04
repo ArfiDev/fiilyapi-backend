@@ -1,5 +1,4 @@
 import enum
-import uuid
 from typing import Protocol
 
 
@@ -61,25 +60,6 @@ _LEVEL_ORDER: dict[AccessLevel, int] = {
 def satisfies(actual: AccessLevel, required: AccessLevel) -> bool:
     """actual seviyesi, required seviyesini karşılıyor mu?"""
     return _LEVEL_ORDER[actual] >= _LEVEL_ORDER[required]
-
-
-class Deletable(Protocol):
-    """Silinebilirliği değerlendirilecek kaydın taşıması gereken asgari alanlar."""
-
-    created_by: uuid.UUID
-    is_draft: bool
-
-
-def can_delete(actor_id: uuid.UUID, level: AccessLevel, record: Deletable) -> bool:
-    """Spec §5.0 silme kuralı.
-
-    admin seviyesi her şeyi siler. Bunun dışında yalnızca taslak istisnası geçerlidir:
-    kaydı aktör oluşturmuş + kayıt hâlâ taslak + aktörün en az draft seviyesi var.
-    """
-    if satisfies(level, AccessLevel.admin):
-        return True
-
-    return record.created_by == actor_id and record.is_draft and satisfies(level, AccessLevel.draft)
 
 
 #: `roles.models.SYSTEM_ADMIN_KEY` ile AYNI değer: `app/core` bir ürün modülünü ithal etmez, bu

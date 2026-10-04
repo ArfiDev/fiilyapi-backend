@@ -11,10 +11,10 @@
   Zincir adımı ikamesi (`require_permission_or_chain_step`) modül kapısı yönünden değerlendirilir
   (ikame OK-1C bekçilerindedir).
 
-KAPSAM: 8 seed rol × TÜM rotalar (DELETE dahil; DELETE'ler ayrıca "SIL hattında" listesinde
-raporlanır) + her modül × her düzey için "ekrandan değiştirilmiş" özel roller + çok modüllü
-kombinasyonlar. Kasıtlı farklar AŞAĞIDAKİ LİSTEDEDİR ve test o listeyi BİREBİR bekler: listede
-olmayan her fark KIRMIZI.
+KAPSAM: 8 seed rol × TÜM rotalar (DELETE'ler SIL-B1 sonrası `require_system_admin` kapısındadır:
+parite DIŞI, ayrı karar testiyle — yalnız Sistem Yöneticisi geçer) + her modül × her düzey için
+"ekrandan değiştirilmiş" özel roller + çok modüllü kombinasyonlar. Kasıtlı farklar AŞAĞIDAKİ
+LİSTEDEDİR ve test o listeyi BİREBİR bekler: listede olmayan her fark KIRMIZI.
 
 KASITLI FARKLAR (hepsi `admin` düzeyi / silme anlamlı; seed rollerinde SIFIR fark):
 1. `POST /progress-payments/{id}/unapprove`, `POST /subcontractor-progress-payments/{id}/unapprove`
@@ -23,9 +23,10 @@ KASITLI FARKLAR (hepsi `admin` düzeyi / silme anlamlı; seed rollerinde SIFIR f
 2. `PATCH /users/{id}/password` ve `PUT /roles/{id}/permissions/{module}` (410): `user_management=
    admin` verilmiş özel rol artık geçmez (parola sıfırlama yalnız Sistem Yöneticisi; plan §2.4 KUL-D
    önerisi parite için uygulanmadı — CEO'ya soruldu).
-3. SİL HATTINDA: her DELETE ucu `(modül, admin)` kapısındadır; köprüde genel `admin` = yalnız Sistem
-   Yöneticisi (IZN-PLAN §4: "silme yalnız Sistem Yöneticisi"; SIL-B1 aynı kuralı kodlar). `admin`
-   verilmiş özel rolün silmesi daralır. Seed rollerinde fark yok.
+3. SİL (KESİNLEŞTİ, SIL-B1): her DELETE ucu `require_system_admin` kapısındadır (yeni kapı türü
+   `sa`): YALNIZ Sistem Yöneticisi geçer (KARARLAR §1.7 K4, istisna yok). Eski `(modül, düzey)`
+   kararıyla KARŞILAŞTIRILMAZ; "eski ≠ yeni" farkı bilinçlidir ve `test_her_delete_ucu_*`
+   testleri kapıyı doğrudan sınar (yalnız `system_admin` geçer, diğer 7 seed rol 403).
 """
 
 import uuid
@@ -105,11 +106,8 @@ PAGE_GATE_OLD: dict[tuple[frozenset[str], str], list[tuple[str, AccessLevel]]] =
     ): [("earned_value", L.approve)],
 }
 
-#: Kasıtlı fark listesi (yukarıdaki docstring). `(yöntem, yol)` kümeleri.
-#: Onay eylemi uçları sayfa ONAYLAR bayrağına taşınınca `(earned_value, approve)` modül kapısını
-#: taşıyan TEK uç kalır: bütçe taslağı sil (DELETE; SIL-B1). Seed rollerinde (Şef `approve`) karar
-#: daralır → "SİL HATTINDA" kasıtlı fark.
-SIL_HATTI_ONAY_DELETE = ("DELETE", "/sites/{site_id}/earned-value/budget/revisions/{revision_id}")
+#: Kasıtlı fark listesi (yukarıdaki docstring). `(yöntem, yol)` kümeleri. DELETE'ler listede YOK:
+#: SIL-B1 sonrası `sa` kapısı parite dışıdır (ayrı karar testi).
 UNAPPROVE_ROTALARI = {
     ("POST", "/progress-payments/{payment_id}/unapprove"),
     ("POST", "/subcontractor-progress-payments/{payment_id}/unapprove"),
@@ -127,7 +125,7 @@ ADMIN_USER_MGMT_ROTALARI = {
 
 @dataclass(frozen=True)
 class Gate:
-    kind: str  # perm | chain | any | page
+    kind: str  # perm | chain | any | page | sa (SIL-B1: yalnız Sistem Yöneticisi)
     spec: tuple  # perm/chain: (modül, düzey) · any: ((modül, düzey), ...) · page: (sayfa, bayrak)
     fn: object = None  # çağrılabilir kapı (perm/any/page) — chain'de None
 
@@ -150,7 +148,9 @@ def _walk(dependant, out: list[Gate], seen: set[int]) -> None:
         fn = sub.call
         if hasattr(fn, "__code__"):
             c = _closure(fn)
-            if "module_key" in c and "min_level" in c and "document_type" in c:
+            if fn.__qualname__.startswith("require_system_admin."):
+                out.append(Gate("sa", ("system_admin",), fn))
+            elif "module_key" in c and "min_level" in c and "document_type" in c:
                 out.append(Gate("chain", (frozenset(c["page_keys"]), "approve")))
             elif "module_key" in c and "min_level" in c:
                 out.append(Gate("perm", (c["module_key"], c["min_level"]), fn))
@@ -186,6 +186,8 @@ DELETE_ROTALARI = sorted(r for r in ROTALAR if r[0] == "DELETE")
 
 
 def old_gate(levels: dict[str, AccessLevel], gate: Gate) -> bool:
+    if gate.kind == "sa":
+        raise AssertionError("`sa` kapısı parite DIŞIDIR (route_decisions atlar)")
     if gate.kind == "perm":
         module, level = gate.spec
         return satisfies(levels.get(module, L.none), level)
@@ -215,9 +217,11 @@ async def route_decisions(session, user: User, levels: dict[str, AccessLevel]):
         eski = True
         yeni = True
         for gate in gates:
-            eski = eski and old_gate(levels, gate)
             if gate.key not in cache:
                 cache[gate.key] = await new_gate(session, user, gate)
+            if gate.kind == "sa":
+                continue  # SIL-B1: eski kararla karşılaştırılmaz; ayrı karar testi sınar
+            eski = eski and old_gate(levels, gate)
             yeni = yeni and cache[gate.key]
         if eski != yeni:
             farklar.append(route)
@@ -269,20 +273,34 @@ async def _ozel_rol(session, levels: dict[str, AccessLevel], tag: str) -> User:
 
 
 def test_rota_tablosu_okundu_ve_kapi_turleri_tanindi() -> None:
-    assert len(ROTALAR) == 460
+    assert len(ROTALAR) == 462  # SIL-B1: +2 (`/admin/silme/...` önizleme ve DELETE)
     turler = {g.kind for gates in ROTALAR.values() for g in gates}
-    assert turler == {"perm", "chain", "any", "page"}
+    assert turler == {"perm", "chain", "any", "page", "sa"}
     sayfa_kapilari = {
         g.spec for gates in ROTALAR.values() for g in gates if g.kind in ("page", "chain")
     }
     assert sayfa_kapilari == set(PAGE_GATE_OLD), "her require_page kapısının ESKİ karşılığı tabloda"
 
 
-def test_sil_hattindaki_delete_rotalari_listelenir_ve_hepsi_modul_kapisi_tasir() -> None:
-    # SIL-B1 hattının işi: bu dilimde bu uçların SATIRLARINA dokunulmadı; köprüden geçerler.
-    assert len(DELETE_ROTALARI) >= 30
+def test_her_delete_ucu_yalniz_sistem_yoneticisi_kapisini_tasir() -> None:
+    """SIL-B1: DELETE uçları `sa` kapısındadır ve başka MODÜL kapısı taşımaz (karar kesinleşti)."""
+    assert len(DELETE_ROTALARI) >= 47
     for route in DELETE_ROTALARI:
-        assert ROTALAR[route], f"DELETE ucu kapısız: {route}"
+        turler = {g.kind for g in ROTALAR[route]}
+        assert "sa" in turler, f"DELETE ucu Sistem Yöneticisi kapısız: {route}"
+        assert not turler & {"perm", "any", "page", "chain"}, (route, turler)
+
+
+@pytest.mark.parametrize("role_key", SEED_ROLES)
+async def test_delete_kapisinda_yalniz_sistem_yoneticisi_gecer(seeded_db, role_key) -> None:
+    user = await _kullanici(seeded_db, role_key, f"{role_key}@sa-kapi.co")
+    for route in DELETE_ROTALARI:
+        for gate in ROTALAR[route]:
+            if gate.kind == "sa":
+                assert await new_gate(seeded_db, user, gate) is (role_key == "system_admin"), (
+                    role_key,
+                    route,
+                )
 
 
 def test_admin_duzeyi_genel_kapida_yalniz_sistem_yoneticisi_bayraksiz() -> None:
@@ -304,14 +322,8 @@ def test_her_kullanilan_modul_duzey_kapisinin_bayragi_var_ya_da_admin() -> None:
             elif g.kind == "any":
                 kullanilan.update(g.spec)
     bayraksiz = {(m, lv) for m, lv in kullanilan if lv is not L.admin and not gate_flags(m, lv)}
-    # Tek istisna: DELETE bütçe taslağı ucunun `(earned_value, approve)` modül kapısı. Onaylar
-    # bayrağı modül kapısı AÇMAZ; uç SİL HATTINDA (SIL-B1 Sistem Yöneticisi'ne daraltır).
-    assert bayraksiz == {("earned_value", L.approve)}, sorted(bayraksiz)
-    assert [
-        route
-        for route, gates in ROTALAR.items()
-        if any(g.kind == "perm" and g.spec == ("earned_value", L.approve) for g in gates)
-    ] == [SIL_HATTI_ONAY_DELETE]
+    # SIL-B1: bütçe taslağı sil artık `sa` kapısında; bayraksız modül kapısı KALMADI.
+    assert bayraksiz == set(), sorted(bayraksiz)
 
 
 # ---------------------------------------------------------------------------
@@ -323,8 +335,6 @@ def test_her_kullanilan_modul_duzey_kapisinin_bayragi_var_ya_da_admin() -> None:
 async def test_seed_rolu_tum_rotalarda_eski_karar_eşittir_yeni_karar(seeded_db, role_key) -> None:
     user = await _kullanici(seeded_db, role_key, f"{role_key}@parite.co")
     farklar = await route_decisions(seeded_db, user, _seed_levels(role_key))
-    # Tek kasıtlı fark: DELETE bütçe taslağı (SİL HATTINDA; `earned_value ≥ approve` rollerinde).
-    farklar = [r for r in farklar if r != SIL_HATTI_ONAY_DELETE]
     assert farklar == [], f"{role_key}: eski ≠ yeni kapı kararı: {farklar}"
 
 
@@ -354,18 +364,12 @@ async def test_ekrandan_degistirilmis_hucre_her_duzeyde_parite(seeded_db, module
         tag = f"sc_{module}_{level.value}"
         user = await _ozel_rol(seeded_db, {module: level}, tag)
         farklar = await route_decisions(seeded_db, user, {module: level})
-        delete_farklari = {r for r in farklar if r[0] == "DELETE"}
-        diger = {r for r in farklar if r[0] != "DELETE"}
-        assert diger == _kasitli_fark_beklenen(module, level), (module, level, sorted(diger))
-        if level is not L.admin:
-            beklenen_delete = (
-                {SIL_HATTI_ONAY_DELETE}
-                if module == "earned_value" and level in (L.approve, L.full)
-                else set()
-            )
-            assert delete_farklari == beklenen_delete, (module, level, sorted(delete_farklari))
-        else:
-            assert delete_farklari <= set(DELETE_ROTALARI)  # SİL HATTINDA (kasıtlı, madde 3)
+        # DELETE'ler `sa` kapısındadır: parite dışı (route_decisions atlar), fark üretmez.
+        assert set(farklar) == _kasitli_fark_beklenen(module, level), (
+            module,
+            level,
+            sorted(farklar),
+        )
 
 
 async def test_cok_modullu_kombinasyonlarda_parite_ve_donustur_kapisi(seeded_db) -> None:
@@ -381,18 +385,8 @@ async def test_cok_modullu_kombinasyonlarda_parite_ve_donustur_kapisi(seeded_db)
     for tag, levels in senaryolar.items():
         user = await _ozel_rol(seeded_db, levels, f"cm_{tag}")
         farklar = await route_decisions(seeded_db, user, levels)
-        diger = {r for r in farklar if r[0] != "DELETE" and r not in ADMIN_USER_MGMT_ROTALARI}
+        diger = {r for r in farklar if r not in ADMIN_USER_MGMT_ROTALARI}
         assert diger == set(), (tag, sorted(diger))
-        delete_farki = {r for r in farklar if r[0] == "DELETE"}
-        if L.admin in levels.values():
-            assert delete_farki <= set(DELETE_ROTALARI), tag  # SİL HATTINDA (kasıtlı, madde 3)
-        else:
-            sil = (
-                {SIL_HATTI_ONAY_DELETE}
-                if levels.get("earned_value") in (L.approve, L.full)
-                else set()
-            )
-            assert delete_farki == sil, tag
     # Dönüştür (teklif "Onaylar"): yalnız İKİ koşulun birleşimi.
     convert = ("POST", "/offers/{offer_id}/convert")
     for tag, beklenen in (

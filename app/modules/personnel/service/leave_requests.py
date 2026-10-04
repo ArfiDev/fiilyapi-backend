@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import (
     ConflictError,
-    DeleteNotAllowedError,
     NotFoundError,
     PersonnelValidationError,
 )
@@ -27,8 +26,6 @@ from app.modules.personnel.schemas import (
 )
 from app.modules.personnel.service.core import (
     get_personnel,
-    has_personnel_admin,
-    is_own_personnel_record,
 )
 from app.modules.personnel.service.documents import _assert_document_visible
 from app.modules.users.models import User
@@ -317,24 +314,17 @@ async def update_leave_request(
 
 
 async def delete_leave_request(session: AsyncSession, actor: User, request_id: uuid.UUID) -> str:
-    """Talebi siler — YALNIZ `pending` (409) ve YALNIZ `admin` YA DA SAHİBİ (403).
+    """Talebi siler — YALNIZ `pending` (409). Kapı router'da: YALNIZ Sistem Yöneticisi.
 
-    Spec §3 "pending, sahibi ya da admin": `full` TEK BAŞINA yetmez
-    (`app/core/access.py`: full silmeyi KAPSAMAZ — İK-1 belge silme emsali), ama
-    kişinin KENDİ bekleyen talebini geri çekmesi meşrudur. Sahiplik personelin
-    `user_id` köprüsünden okunur (işçilerin çoğunun login'i yoktur; o hâlde tek
-    kapı `admin`dir).
+    SIL-B1 (K4): eski "talebin sahibi kendi bekleyen talebini siler" istisnası KALDIRILDI.
+    Kişinin kendi talebinden vazgeçmesi silme değil GERİ ÇEKMEdir (`withdraw`, durum geçişi).
 
-    Sıra: kayıt (404) → durum (409) → yetki (403). Var olmayan kayıt için önce
-    404 dönmek kimlik sızdırmaz — talep kimliği zaten tahmin edilemez UUID'dir ve
-    yetkiyi önce denetlemek `view` sahibine "bu kayıt VAR" bilgisini verirdi.
+    Sıra: kayıt (404) → durum (409).
 
     Denetim metni `session.delete`ten ÖNCE kurulur (`site_deleted` dersi).
     """
     request, personnel, leave_type = await get_leave_request_row(session, request_id)
     _assert_pending(request)
-    if not await _can_delete_leave_request(session, actor, personnel):
-        raise DeleteNotAllowedError(guards.LEAVE_DELETE_NOT_ALLOWED)
 
     detail = messages.leave_request_deleted(
         personnel.full_name, leave_type.name, request.start_date, request.end_date
@@ -342,20 +332,3 @@ async def delete_leave_request(session: AsyncSession, actor: User, request_id: u
     await session.delete(request)
     await session.flush()
     return detail
-
-
-async def _can_delete_leave_request(
-    session: AsyncSession, actor: User, personnel: Personnel
-) -> bool:
-    """`admin` seviyesi YA DA talebin sahibi (personelin bağlı kullanıcısı).
-
-    İKİ ayrı yoldan açılır (seviye VEYA sahiplik) — kapıyı `admin`e çekmek sahibi
-    dışarıda bırakır, `view`de bırakmak yabancıya silme verirdi.
-
-    Her iki yordam da `core`un TEK yazımıdır: aynı iki soruyu OK-1A T5'in onay
-    kapısı da sorar ve ikinci bir yazım açılsaydı biri gevşerken öteki katı
-    kalabilirdi.
-    """
-    if await has_personnel_admin(session, actor):
-        return True
-    return is_own_personnel_record(personnel, actor)

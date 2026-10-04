@@ -138,12 +138,12 @@ async def test_gorunmeyen_gunluge_patch_404(
     assert yanit.json()["detail"] == guards.ENTRY_MISSING
 
 
-async def test_gorunmeyen_gunluge_delete_404(
+async def test_gorunmeyen_gunluge_delete_403_kapi_once_kosar(
     client: AsyncClient, sef_headers: dict[str, str], gorunmeyen_gunluk: uuid.UUID
 ) -> None:
     yanit = await client.delete(f"/diary/{gorunmeyen_gunluk}", headers=sef_headers)
-    assert yanit.status_code == 404, yanit.text
-    assert yanit.json()["detail"] == guards.ENTRY_MISSING
+    # SIL-B1: DELETE kapısı (yalnız Sistem Yöneticisi) önce koşar → 403, varlık sızmaz.
+    assert yanit.status_code == 403, yanit.text
 
 
 async def test_izin_kapisi_kapsamdan_ONCE_kosar(

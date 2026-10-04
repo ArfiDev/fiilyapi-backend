@@ -26,14 +26,12 @@ aksiyonu YOKTUR. Frontend dilimi bu ucu bir düğmeye BAĞLAMAYACAK.
 
 import uuid
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.documents.models import Document, DocumentBlob
-from tests._legacy_permission_yardimcisi import sync_page_cells
 
 
 async def _audit_details(seeded_db: AsyncSession, action: AuditAction) -> list[str]:
@@ -406,42 +404,19 @@ async def test_tam_yetkili_rol_silemez_403(
     assert resp.status_code == 403
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
-async def test_gorunmeyen_belge_silinemez_404(
-    client: AsyncClient, seeded_db: AsyncSession, ikinci_proje, belge_fabrikasi, sef_headers
+async def test_gorunmeyen_belge_silinemez_403_kapi_once_kosar(
+    client: AsyncClient, ikinci_proje, belge_fabrikasi, sef_headers
 ) -> None:
-    """DELETE ucunun IDOR yüzeyi.
-
-    ⚠️ TESTİN KURULUMU NEDEN OLAĞAN DIŞI: seed matrisinde `documents:admin`
-    YALNIZ `system_admin`dedir ve o rol `projects:admin` sayesinde
-    `visible_projects` süzgecini ATLAR (tüm projeleri görür — Ayarlar kilitlenme
-    koruması). Yani "silme yetkisi olan ama projeyi göremeyen" bir kullanıcı
-    matrisle KURULAMAZ. Korkuluğun kendisi rolden bağımsız olduğu için, kapsamı
-    tek projeye kısıtlı `site_chief`in `documents` hücresi bu test için `admin`e
-    yükseltilir ve uç o kullanıcıyla denenir.
-    """
-    from app.core.access import AccessLevel
-    from app.modules.roles.models import Module, Role, RolePermission
-
-    izin = (
-        await seeded_db.execute(
-            select(RolePermission)
-            .join(Module, Module.id == RolePermission.module_id)
-            .join(Role, Role.id == RolePermission.role_id)
-            .where(Module.key == "documents", Role.key == "site_chief")
-        )
-    ).scalar_one()
-    izin.access_level = AccessLevel.admin
-    await seeded_db.flush()
-    await sync_page_cells(seeded_db, izin.role_id)
+    """DELETE ucunun IDOR yüzeyi (SIL-B1 sonrası): kapı (yalnız Sistem Yöneticisi) handler'dan
+    ÖNCE koşar. Projeyi görmeyen `site_chief` için görünmeyen belge ile var olmayan kimlik AYNI
+    403'ü alır; belgenin varlığı sızmaz. (Eskiden `documents` hücresi `admin`e yükseltilip 404
+    sınanırdı; silme kapısı artık seviye değil rol anahtarıdır.)"""
     belge = await belge_fabrikasi(ikinci_proje, "Gizli.pdf")
 
     gorunmeyen = await client.delete(f"/documents/{belge.id}", headers=sef_headers)
     yok = await client.delete(f"/documents/{uuid.uuid4()}", headers=sef_headers)
 
-    assert gorunmeyen.status_code == yok.status_code == 404
+    # SIL-B1: kapı (yalnız Sistem Yöneticisi) handler'dan ÖNCE koşar; görünmeyen ve var olmayan
+    # belge AYNI 403'ü alır (varlık sızmaz).
+    assert gorunmeyen.status_code == yok.status_code == 403
     assert gorunmeyen.json() == yok.json()

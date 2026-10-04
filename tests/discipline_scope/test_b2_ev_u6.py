@@ -7,7 +7,6 @@ davranışı her router'dan (catalog · budget · day · report) temsilciyle kil
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 
 from tests._disiplin_dunyasi import GUN2, Dunya, _kimlik
@@ -84,9 +83,10 @@ async def test_disiplin_ve_katalog_yazmalari_kisitliya_403(
     )
 
 
-async def test_disiplin_silme_admin_kisitliya_403_atamasiz_es_204(
+async def test_disiplin_silme_disiplin_atanmis_sistem_yoneticisi_de_siler(
     client: AsyncClient, dunya: Dunya, admin_kisitli, atamasiz
 ) -> None:
+    """SIL-B1: DELETE'te disiplin kısıtı UYGULANMAZ; kısıtlı (atanmış) Sistem Yöneticisi 204."""
     yeni = {
         "code": "SIL",
         "name": "Silinecek",
@@ -96,7 +96,8 @@ async def test_disiplin_silme_admin_kisitliya_403_atamasiz_es_204(
     kimlik = (await client.post("/earned-value/disciplines", headers=atamasiz, json=yeni)).json()[
         "id"
     ]
-    await _iki_yon(client, "DELETE", f"/earned-value/disciplines/{kimlik}", admin_kisitli, atamasiz)
+    resp = await client.delete(f"/earned-value/disciplines/{kimlik}", headers=admin_kisitli)
+    assert resp.status_code == 204, resp.text
 
 
 # ------------------------------------------------------------------ router (bütçe)
@@ -116,18 +117,17 @@ async def test_butce_yapisal_yazmalar_kisitliya_403(
     await _iki_yon(client, "POST", f"{taban}/fill-from-catalog", civil_yazar, yazar_atamasiz)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
-async def test_revizyon_ac_sil_kisitliya_403(
-    client: AsyncClient, dunya: Dunya, civil_yazar, yazar_atamasiz, atamasiz
+async def test_revizyon_ac_kisitliya_403_sil_yalniz_sistem_yoneticisi(
+    client: AsyncClient, dunya: Dunya, civil_yazar, yazar_atamasiz, atamasiz, admin_kisitli
 ) -> None:
     taban = _ev(dunya, "/budget")
     revizyonlar = (await client.get(f"{taban}/revisions", headers=atamasiz)).json()
     taslak = next(r["id"] for r in revizyonlar if r["status"] == "draft")
-    await _iki_yon(client, "DELETE", f"{taban}/revisions/{taslak}", civil_yazar, yazar_atamasiz)
+    # SIL-B1: taslak silme yalnız Sistem Yöneticisi (disiplin kısıtı DELETE'te uygulanmaz)
+    yasak = await client.delete(f"{taban}/revisions/{taslak}", headers=civil_yazar)
+    assert yasak.status_code == 403
+    silme = await client.delete(f"{taban}/revisions/{taslak}", headers=admin_kisitli)
+    assert silme.status_code == 204, silme.text
     await _iki_yon(client, "POST", f"{taban}/revisions", civil_yazar, yazar_atamasiz)
 
 

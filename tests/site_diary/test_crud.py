@@ -399,15 +399,23 @@ async def test_patch_status_alanini_kabul_etmez(
     assert yanit.status_code == 422, yanit.text
 
 
-# --- DELETE (draft + can_delete) ---
+# --- DELETE (yalnız Sistem Yöneticisi — SIL-B1, K4: istisna yok) ---
 
 
-async def test_delete_kendi_taslagini_siler(
-    client: AsyncClient, sef_headers: dict[str, str], santiye, seeded_db: AsyncSession
+async def test_delete_kendi_taslagini_da_silemez_sistem_yoneticisi_siler(
+    client: AsyncClient,
+    sef_headers: dict[str, str],
+    admin_headers: dict[str, str],
+    santiye,
+    seeded_db: AsyncSession,
 ) -> None:
+    """Eski `can_delete` "kendi taslağını sahibi siler" istisnası KALDIRILDI."""
     site, _, _ = santiye
     entry_id = (await _olustur(client, sef_headers, site.id)).json()["id"]
-    yanit = await client.delete(f"/diary/{entry_id}", headers=sef_headers)
+    yasak = await client.delete(f"/diary/{entry_id}", headers=sef_headers)
+    assert yasak.status_code == 403, yasak.text
+    assert await seeded_db.get(SiteDiaryEntry, uuid.UUID(entry_id)) is not None
+    yanit = await client.delete(f"/diary/{entry_id}", headers=admin_headers)
     assert yanit.status_code == 204, yanit.text
     assert await seeded_db.get(SiteDiaryEntry, uuid.UUID(entry_id)) is None
 
@@ -415,12 +423,12 @@ async def test_delete_kendi_taslagini_siler(
 async def test_delete_baskasinin_taslagini_reddeder(
     client: AsyncClient, sef_headers: dict[str, str], saha_headers: dict[str, str], santiye
 ) -> None:
-    """`can_delete`: seviye yeter (`full` ≥ `draft`) ama kaydı O AÇMAMIŞTIR → 403."""
+    """Başkasının taslağı da 403 (kapı: Sistem Yöneticisi)."""
     site, _, _ = santiye
     entry_id = (await _olustur(client, sef_headers, site.id)).json()["id"]
     yanit = await client.delete(f"/diary/{entry_id}", headers=saha_headers)
     assert yanit.status_code == 403, yanit.text
-    assert yanit.json()["detail"] == guards.DELETE_NOT_ALLOWED
+    assert yanit.json()["detail"] == "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
 
 
 async def test_delete_submitted_kaydi_admin_dahil_reddeder(
@@ -455,12 +463,16 @@ async def _audit_detaylari(session: AsyncSession) -> list[str]:
 
 
 async def test_audit_create_update_delete_yazilir(
-    client: AsyncClient, sef_headers: dict[str, str], santiye, seeded_db: AsyncSession
+    client: AsyncClient,
+    sef_headers: dict[str, str],
+    admin_headers: dict[str, str],
+    santiye,
+    seeded_db: AsyncSession,
 ) -> None:
     site, proje, _ = santiye
     entry_id = (await _olustur(client, sef_headers, site.id)).json()["id"]
     await client.patch(f"/diary/{entry_id}", json={"work_done": "x"}, headers=sef_headers)
-    await client.delete(f"/diary/{entry_id}", headers=sef_headers)
+    await client.delete(f"/diary/{entry_id}", headers=admin_headers)
 
     detaylar = await _audit_detaylari(seeded_db)
     etiket = f"{proje.name} · {site.name} · {VARSAYILAN_TARIH.isoformat()}"

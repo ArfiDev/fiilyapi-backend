@@ -16,9 +16,7 @@ from types import SimpleNamespace
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, can_delete
 from app.core.errors import (
-    DeleteNotAllowedError,
     DuplicateError,
     NotFoundError,
     SiteValidationError,
@@ -45,7 +43,6 @@ from app.modules.contracts.schemas import (
 from app.modules.contracts.service import _subcontractor_amount, _visible_project
 from app.modules.projects.models import Project
 from app.modules.projects.service import visible_projects
-from app.modules.roles.repository import get_permission
 from app.modules.sites import repository as sites_repository
 from app.modules.users.models import User
 
@@ -689,23 +686,10 @@ async def to_subcontract_detail(
 async def delete_subcontractor_contract(
     session: AsyncSession, actor: User, contract_id: uuid.UUID
 ) -> tuple[str, str | None, str | None]:
-    """`can_delete` (`app/core/access.py`) taslak istisnasının GEÇERLİ olduğu
-
-    TEK uç (spec §5.0, §7). Kapı router'da `_ADMIN` DEĞİL `_FULL`'dir — kararı
-    burada `can_delete` verir: `admin` her şeyi siler, aksi hâlde yalnız
-    kaydı AÇAN aktör + kayıt hâlâ TASLAK + aktörün en az `draft` seviyesi
-    varsa silinebilir. `boq`/`sites` DELETE uçlarının hiçbiri `can_delete`
-    KULLANMAZ (saf `_ADMIN` kapısı yeterlidir) — bu uçtaki taslak istisnası
-    P5'e özgüdür (spec §5.0, C1'in `created_by`/`is_draft` alanlarını bu yüzden
-    eklediği yer). Aktörün gerçek erişim seviyesi `projects/service.py.
-    visible_projects`in `get_permission` çağrısı deseninin aynısıyla okunur —
-    router bağımlılığı yalnız YETKİ TABANI verir, kesin karar burada.
+    """Taşeron sözleşmesini siler. Kapı router'da yalnız Sistem Yöneticisi'dir (SIL-B1, K4):
+    eski "kendi taslağını sahibi siler" (`can_delete`) istisnası KALDIRILDI.
     """
     contract, project = await _visible_contract(session, actor, contract_id)
-    permission = await get_permission(session, actor.role_id, "contracts")
-    level = permission.access_level if permission is not None else AccessLevel.none
-    if not can_delete(actor.id, level, contract):
-        raise DeleteNotAllowedError(guards.DELETE_NOT_ALLOWED)
     project_name = project.name
     contract_no, subcontractor_name = contract.contract_no, contract.subcontractor_name
     await session.delete(contract)

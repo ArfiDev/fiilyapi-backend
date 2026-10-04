@@ -32,7 +32,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_pages, require_permission
+from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit.models import AuditAction
@@ -298,7 +298,7 @@ async def update_rental_invoice_line_endpoint(
     "/rental-invoice-lines/{line_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={409: {"description": "Satır yalnız taslak hakedişte silinebilir"}},
-    dependencies=[_FULL],
+    dependencies=[require_system_admin()],
 )
 async def delete_rental_invoice_line_endpoint(
     request: Request,

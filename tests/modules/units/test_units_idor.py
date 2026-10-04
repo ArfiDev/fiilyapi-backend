@@ -28,6 +28,7 @@ from openpyxl import Workbook
 from sqlalchemy import func, select
 
 from app.modules.units.models import Block, Unit, UnitOwnerSide
+from tests._silme_yardimci import sil_aile
 from tests.modules.units._units_api import (
     _auth,
     _block,
@@ -721,8 +722,8 @@ async def test_idor_error_bodies_do_not_leak_record_existence(
     # yanit 404 degil 403'tur. Sizinti olcutu DEGISMEZ — ayni `_assert_no_leak`
     # suzgecinden gecerler, yalnizca beklenen kod farklidir.
     delete_responses = [
-        await client.delete(f"/blocks/{block.id}", headers=_auth(token)),
-        await client.delete(f"/units/{unit.id}", headers=_auth(token)),
+        await sil_aile(client, _auth(token), "block", block.id),
+        await sil_aile(client, _auth(token), "unit", unit.id),
     ]
 
     assert [r.status_code for r in responses] == [404] * len(responses)

@@ -27,7 +27,6 @@ carpar. PATCH'te yalniz tutarlilik kurallari, `is_draft: true -> false`
 gecisinde ise BIRLESIK kayit uzerinde tum kurallar kosar.
 """
 
-from datetime import date
 from typing import Protocol
 
 from app.core.errors import SiteValidationError
@@ -112,55 +111,6 @@ SAFETY_OFFICER_CONFLICT = "İSG uzmanı ya sistem kullanıcısı ya dış kaynak
 # `{n}` 1-TABANLIDIR: kullanici 2. satiri goruyor, 1 indeksini degil.
 SECTION_END_BEFORE_START = "{n}. bölüm: bitiş tarihi başlangıçtan önce olamaz."
 SECTION_NAME_REQUIRED = "{n}. bölüm: bölüm adı zorunludur."
-
-# 409 — silme korkuluklari (spec §7.1/§7.2). Yeni istisna sinifi ACILMAZ: mevcut
-# `RelatedRecordsExistError`. `DeleteNotAllowedError` KULLANILMAZ — o YETKI
-# engelidir (403), bu ise kaydin DURUMUNDAN dogan bir cakismadir (409).
-#
-# Metinlerde ADET VERILMEZ (`BLOCK_HAS_UNITS` dersi): kullanici sayiyi zaten GET
-# ile goruyor, hata govdesi gorunurluk disi bilgi tasimaz. Metinler EYLEME
-# DONUKTUR ("once ... silin"), cunku korkulugun tek amaci kullaniciyi silmeden
-# vazgecirmek degil, dogru siraya yonlendirmektir.
-SITE_HAS_SECTIONS = "Bu şantiyede bölüm var, önce bölümleri silin"
-SITE_HAS_BOQ = "Bu şantiyede iş kalemi var, önce iş kalemlerini silin"
-SITE_HAS_BLOCKS = "Bu şantiyede blok var, önce blokları silin"
-# Alt-Proje 2 P5 (Sözleşmeler, task C12, spec §7) — dördüncü korkuluk:
-# `subcontractor_contracts.site_id` FK'si RESTRICT'tir (DB seviyesinde de
-# korunur), ama korkuluksuz bırakılırsa kullanıcı anlaşılmaz "Veri bütünlüğü
-# hatası" (`IntegrityError` → 409) görür — diğer üç kontrolle AYNI eyleme
-# dönük Türkçe metin burada erken karşılanır.
-SITE_HAS_CONTRACTS = "Bu şantiyede taşeron sözleşmesi var, önce sözleşmeleri silin"
-# Alt-Proje 2 P7 (İşveren Hakedişi, task H8, spec §4.2/§7.1) — beşinci korkuluk:
-# `progress_payment_lines.site_id` FK'si de RESTRICT'tir (`SITE_HAS_CONTRACTS`
-# gerekçesinin aynısı: DB zaten korur ama korkuluksuz bırakılırsa kullanıcı
-# `IntegrityError` → 409 emniyet ağının eyleme dönük OLMAYAN metnini görür).
-SITE_HAS_PROGRESS_PAYMENTS = "Bu şantiyede hakediş satırı var, önce hakedişleri silin"
-# 59/60 — ALTINCI-DOKUZUNCU korkuluk. İlk beşi `sites.id`'ye bağlı FK'lerin
-# yarısını kapsıyordu; CASCADE'li yedi bacak (`timesheet_entries`,
-# `site_diary_entries`, `documents`, `document_folders`, `site_plan_rows`,
-# `site_plan_goals`, `site_plan_sprints`) korkuluksuzdu. Bu tabloların hepsinde
-# `section_id` NULLABLE'dır, yani BÖLÜMSÜZ bir şantiye ilk beş korkuluğun
-# beşini de geçer ve tek `DELETE` onları sessizce yok eder.
-SITE_HAS_TIMESHEET = "Bu şantiyede puantaj kaydı var, önce puantaj kayıtlarını silin"
-SITE_HAS_DIARY = "Bu şantiyede şantiye günlüğü var, önce günlükleri silin"
-SITE_HAS_DOCUMENTS = "Bu şantiyede belge arşivi kaydı var, önce belge ve klasörleri silin"
-SITE_HAS_PLAN = "Bu şantiyede plan ızgarası var, önce planı temizleyin"
-
-
-def section_has_diary_lines(entry_count: int, line_count: int, first_date: date) -> str:
-    """PLN-B2.10 — bölüme yazılmış günlük MİKTAR satırı varken bölüm silinemez (409).
-
-    🔴 Yukarıdaki "metinde adet verilmez" kuralının BİLİNÇLİ istisnası (CEO kararı,
-    PLN-B2.10): gönderilmiş günlük miktarı hakedişin kaynağıdır ve kullanıcı hangi
-    günlükleri düzelteceğini bilmeden bu engeli aşamaz — metin o yüzden kaç
-    günlükte kaç satır olduğunu ve İLK tarihi söyler. Aynı şantiyenin verisidir;
-    silme ucu admin kapılıdır, görünürlük dışı bilgi taşımaz.
-    """
-    return (
-        f"Bölümün {entry_count} günlükte {line_count} miktar satırı var "
-        f"(ilk: {first_date:%d.%m.%Y}); silinemez"
-    )
-
 
 # GPS BICIM HATASI SABITI YOKTUR (§3.5 revize karari): sunucu GPS metnini
 # dogrulamaz, dolayisiyla boyle bir hata uretmez.

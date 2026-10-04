@@ -409,17 +409,17 @@ async def test_sef_baskasinin_taslagini_silemez_403(
     admin_kullanicisi,
     hakedis_fabrikasi,
 ) -> None:
-    """K8 katman 2: `can_delete` — admin değilse yalnız KENDİ taslağı."""
+    """SIL-B1 (K4): silme YALNIZ Sistem Yöneticisi'nindir; başkasının taslağı 403."""
     contract, _, _ = await taseron_sozlesmesi_fabrikasi("THK-301", project=kisitli_proje)
     payment = await hakedis_fabrikasi(contract, admin_kullanicisi)
     yanit = await client.delete(
         f"/subcontractor-progress-payments/{payment.id}", headers=sef_headers
     )
     assert yanit.status_code == 403, yanit.text
-    assert yanit.json()["detail"] == guards.DELETE_NOT_ALLOWED
+    assert yanit.json()["detail"] == "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
 
 
-async def test_sef_kendi_taslagini_siler(
+async def test_sef_kendi_taslagini_da_silemez_istisna_yok(
     client: AsyncClient,
     sef_headers: dict[str, str],
     kisitli_proje,
@@ -432,7 +432,8 @@ async def test_sef_kendi_taslagini_siler(
     yanit = await client.delete(
         f"/subcontractor-progress-payments/{payment.id}", headers=sef_headers
     )
-    assert yanit.status_code == 204, yanit.text
+    # SIL-B1 (K4): eski "kendi taslağını sahibi siler" istisnası KALDIRILDI.
+    assert yanit.status_code == 403, yanit.text
 
 
 async def test_silme_denetim_gunlugune_yazar(

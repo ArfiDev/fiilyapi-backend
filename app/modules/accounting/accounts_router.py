@@ -55,7 +55,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.accounting import accounts_service, export, guards
 from app.modules.accounting.models import ChartAccountType
@@ -73,7 +73,6 @@ router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES)
 
 _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(guards.PERMISSION_MODULE, AccessLevel.full)
-_ADMIN = require_permission(guards.PERMISSION_MODULE, AccessLevel.admin)
 
 # K7 sayfalama standardı: varsayılan 50, tavan 200 — tavan aşımı sessizce
 # KIRPILMAZ, 422 döner (ST/SA/`invoicing`/`treasury` ile birebir).
@@ -287,7 +286,7 @@ async def update_chart_account_endpoint(
         **_NOT_FOUND,
         409: {"description": "Hesaba bağlı yevmiye kaydı ya da alt hesap var"},
     },
-    dependencies=[_ADMIN],
+    dependencies=[require_system_admin()],
 )
 async def delete_chart_account_endpoint(
     request: Request,

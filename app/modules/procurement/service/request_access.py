@@ -13,7 +13,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import can_delete
+from app.core.access import is_system_admin
 from app.core.errors import ConflictError, NotFoundError
 from app.modules.procurement import guards, repository
 from app.modules.procurement.models import PurchaseRequest, PurchaseRequestStatus
@@ -120,25 +120,8 @@ def _assert_draft(request: PurchaseRequest) -> None:
         raise ConflictError(guards.REQUEST_NOT_DRAFT)
 
 
-class _DeletableRequest:
-    """`app.core.access.Deletable` protokolune KOPRU.
-
-    Kural KOPYALANMAZ: silme kosulu repoda tek yerdedir (`can_delete`), ama o
-    fonksiyon `created_by`/`is_draft` adlarini bekler; talebin karsiliklari
-    `created_by_user_id` ve `status is draft`tir. Kopru olmasaydi ayni kural
-    burada ikinci kez yazilir ve zamanla sapardi.
-    """
-
-    __slots__ = ("created_by", "is_draft")
-
-    def __init__(self, request: PurchaseRequest) -> None:
-        self.created_by = request.created_by_user_id
-        self.is_draft = request.status is PurchaseRequestStatus.draft
-
-
-async def can_delete_request(session: AsyncSession, actor: User, request: PurchaseRequest) -> bool:
-    """Yanittaki `can_delete` bayragi ile SILME UCU AYNI fonksiyondan beslenir —
-    ekran dugmeyi gosterip sonra 403 yemesin."""
-    return can_delete(
-        actor.id, await repository.actor_level(session, actor), _DeletableRequest(request)
-    )
+def can_delete_request(actor: User) -> bool:
+    """Yanıttaki `can_delete` bayrağı ile SİLME UCU AYNI kuraldan beslenir (SIL-B1, K4): silme
+    YALNIZ Sistem Yöneticisi'nindir; "talebi açan kendi taslağını siler" istisnası KALDIRILDI.
+    Ekran düğmeyi gösterip sonra 403 yemesin."""
+    return is_system_admin(actor)

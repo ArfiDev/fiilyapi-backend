@@ -25,6 +25,15 @@ bekçiyi hiçliğe çevirir; bir metni bilerek değiştiren dilim referansı
 `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazeler ve
 **farkı incelemede görünür kılar** — sessizce değil.
 
+## 🔴 REFERANSA EKLENEN SEMBOL (SIL-B1, 2026-10-04)
+
+`deleted_with_dependents` — silme motorunun mevcut silme metnine eklediği TAM dökümü:
+"N bağlı kayıtla birlikte silindi (tür sayı, …) · bağı kopan (silinmedi): …" (plan §4). Onarım
+turunda "ilk 5 + …" kesmesi KALDIRILDI, `detached` parametresi EKLENDİ ve `SILME_OZETI_TUR_SAYISI`
+sabiti düştü. Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi;
+yalnız bu sembolün satırları DEĞİŞTİ, mevcut `site_deleted` … metinleri DEĞİŞMEDİ (`diff` ile
+doğrulandı). Bağlı kaydı olmayan silmenin metni eskisiyle birebir aynıdır.
+
 ## 🔴 REFERANSA EKLENEN TEK SEMBOL (PUAN-SAAT, 2026-08-28)
 
 `timesheet_week_saved` — puantaj aylıktan haftalığa geçti ve kaydetme olayı
@@ -310,9 +319,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 250, f"sembol sayısı 250 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 251, f"sembol sayısı 251 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 231, f"fonksiyon sayısı 231 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 232, f"fonksiyon sayısı 232 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

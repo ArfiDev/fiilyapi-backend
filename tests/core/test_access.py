@@ -1,6 +1,4 @@
-import uuid
-
-from app.core.access import AccessLevel, Scope, can_delete, satisfies
+from app.core.access import AccessLevel, Scope, satisfies
 
 
 def test_access_exports_pure_domain_without_fastapi():
@@ -23,22 +21,12 @@ def test_scope_values():
     assert {s.value for s in Scope} == {"all", "own", "project", "finance", "stock", "limited"}
 
 
-class _Rec:
-    def __init__(self, created_by: uuid.UUID, is_draft: bool):
-        self.created_by = created_by
-        self.is_draft = is_draft
+def test_can_delete_soekuldu_silme_yalniz_sistem_yoneticisi():
+    """SIL-B1 (K4: istisna YOK): `can_delete` ve taslak istisnası kaldırıldı."""
+    import app.core.access as access_module
 
-
-def test_can_delete_admin_always():
-    rec = _Rec(uuid.uuid4(), is_draft=False)
-    assert can_delete(uuid.uuid4(), AccessLevel.admin, rec) is True
-
-
-def test_can_delete_draft_exception_only_for_owner():
-    owner = uuid.uuid4()
-    rec = _Rec(owner, is_draft=True)
-    assert can_delete(owner, AccessLevel.draft, rec) is True
-    assert can_delete(uuid.uuid4(), AccessLevel.draft, rec) is False
+    assert not hasattr(access_module, "can_delete")
+    assert not hasattr(access_module, "Deletable")
 
 
 def test_permissions_module_has_no_function_level_domain_imports():

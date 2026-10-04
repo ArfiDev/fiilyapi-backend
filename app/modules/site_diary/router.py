@@ -23,10 +23,10 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
+from app.core.discipline_deps import DisciplineScoped
 from app.core.errors import SiteValidationError
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -265,7 +265,7 @@ async def save_site_diary_lines_endpoint(
 @router.delete(
     "/diary/{entry_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_FULL, RequireUnrestricted],
+    dependencies=[require_system_admin()],
 )
 async def delete_site_diary_entry_endpoint(
     request: Request,

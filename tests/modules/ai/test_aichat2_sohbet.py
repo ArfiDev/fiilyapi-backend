@@ -137,15 +137,29 @@ async def test_KIKIZ1_baskasinin_sohbetine_MESAJ_EKLENEMEZ(client, seeded_db, us
     assert [m.content for m in mesajlar] == ["A'nın sorusu"]
 
 
-async def test_KIKIZ1_baskasinin_sohbeti_SILINEMEZ(client, seeded_db, user_factory) -> None:
-    a = await user_factory("a4@fiil.test", "Parola123!", "patron")
-    b = await user_factory("b4@fiil.test", "Parola123!", "patron")
-    kimlik = await _sohbet_ac(seeded_db, a, "A'nın sorusu")
+async def test_KIKIZ1_sohbet_silme_yalniz_sistem_yoneticisi_baskasinin_sohbetini_de_siler(
+    client, seeded_db, user_factory
+) -> None:
+    """SIL-B1 (KARARLAR 7034741): silme YALNIZ Sistem Yöneticisi'nindir ve başkasının sohbetini de
+    kapsar. SAHİBİ Sistem Yöneticisi değilse kendi sohbetini DE silemez (403, istisna yok)."""
+    sahip = await user_factory("a4@fiil.test", "Parola123!", "patron")
+    baska = await user_factory("b4@fiil.test", "Parola123!", "patron")
+    yonetici = await user_factory("c4@fiil.test", "Parola123!", "system_admin")
+    kimlik = await _sohbet_ac(seeded_db, sahip, "A'nın sorusu")
 
     yol = f"/ai/conversations/{kimlik}"
-    assert (await client.delete(yol, headers=_bearer(b))).status_code == 404
+    assert (await client.delete(yol, headers=_bearer(baska))).status_code == 403
+    assert (await client.delete(yol, headers=_bearer(sahip))).status_code == 403  # kendi sohbeti DE
     assert await seeded_db.get(AiConversation, kimlik) is not None
-    assert (await client.delete(yol, headers=_bearer(a))).status_code == 204
+    # Sistem Yöneticisi BAŞKASININ sohbetini siler; mesajlar CASCADE ile gider
+    assert (await client.delete(yol, headers=_bearer(yonetici))).status_code == 204
+    seeded_db.expunge_all()
+    assert await seeded_db.get(AiConversation, kimlik) is None
+    assert (
+        await seeded_db.scalars(select(AiMessage).where(AiMessage.conversation_id == kimlik))
+    ).all() == []
+    # ikinci silme: sohbet yok
+    assert (await client.delete(yol, headers=_bearer(yonetici))).status_code == 404
 
 
 async def test_POZITIF_KONTROL_kendi_sohbetini_OKUYABILIR(client, seeded_db, user_factory) -> None:
@@ -187,7 +201,9 @@ async def test_MUTASYON_sahiplik_kosulu_TEK_YERDE_ve_KALDIRILAMAZ(seeded_db, use
     assert await conversations.sohbetim(seeded_db, user_id=a.id, conversation_id=kimlik) is not None
     assert await conversations.sohbetim(seeded_db, user_id=b.id, conversation_id=kimlik) is None
     assert await conversations.mesajlarim(seeded_db, user_id=b.id, conversation_id=kimlik) is None
-    assert await conversations.sohbet_sil(seeded_db, user_id=b.id, conversation_id=kimlik) is False
+    # `sohbet_sil` sahiplik süzgeci TAŞIMAZ (SIL-B1): okuma yolları sahiplik kapılıdır, silme değil.
+    assert await conversations.sohbet_sil(seeded_db, conversation_id=kimlik) is True
+    assert await conversations.sohbet_sil(seeded_db, conversation_id=kimlik) is False
 
 
 # --------------------------------------------------------------------------- #

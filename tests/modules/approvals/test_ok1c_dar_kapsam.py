@@ -69,15 +69,15 @@ _IKAME_UCLARI = frozenset(
 #: IZN-B2: `mark-paid` ×2 ve `select-and-order` onay eylemi olarak sayfa ONAYLAR kapısına
 #: (`require_pages`) taşındı; MODÜL kapısı taşıyan uç sayısı 28→26 ve 23→22 oldu (zincir
 #: ikamesi aynı iki ucu — approve/reject — taşımaya devam eder).
-_MODUL_OPERASYON_SAYISI = {"progress_payments": 26, "procurement": 22}
+#: SIL-B1: DELETE uçları (hakediş ×2, talep, teklif) `require_system_admin` kapısına taşındı (MODÜL
+#: kapısı taşımaz): 26→24 ve 22→20.
+_MODUL_OPERASYON_SAYISI = {"progress_payments": 24, "procurement": 20}
 
 #: Ölçümün o günkü DÖKÜMÜ — yalnız hata mesajında farkı basmak için tutulur;
 #: iddia SAYIYA yapılır (aşağıda), kümeye değil.
 _OLCULEN_UCLAR: dict[str, frozenset[tuple[str, str]]] = {
     "progress_payments": frozenset(
         {
-            ("DELETE", "/progress-payments/{payment_id}"),
-            ("DELETE", "/subcontractor-progress-payments/{payment_id}"),
             ("GET", "/progress-payments"),
             ("GET", "/progress-payments/{payment_id}"),
             ("GET", "/projects/{project_id}/progress-payments/diary-suggestion"),
@@ -106,8 +106,6 @@ _OLCULEN_UCLAR: dict[str, frozenset[tuple[str, str]]] = {
     ),
     "procurement": frozenset(
         {
-            ("DELETE", "/purchase-requests/{request_id}"),
-            ("DELETE", "/purchase-requests/{request_id}/quotes/{quote_id}"),
             ("GET", "/purchase-orders"),
             ("GET", "/purchase-orders/{order_id}"),
             ("GET", "/purchase-requests"),
@@ -253,7 +251,7 @@ async def test_KALAN_KIRK_BES_operasyon_ikame_kapisi_TASIMAZ():
     )
     kalan = tum_modul_uclari - _IKAME_UCLARI
 
-    assert len(kalan) == 42, f"kalan operasyon sayısı 42 değil {len(kalan)}: {sorted(kalan)}"
+    assert len(kalan) == 38, f"kalan operasyon sayısı 38 değil {len(kalan)}: {sorted(kalan)}"
     sizanlar = kalan & _ikame_operasyonlari()
     assert not sizanlar, f"ikame kapısı onay/ret DIŞINDAKİ uçlara sızmış: {sorted(sizanlar)}"
 
@@ -310,7 +308,6 @@ async def test_MUHASEBE_satinalmada_YALNIZ_onay_ucunu_acar(
         ("GET", f"/purchase-requests/{document_id}", None),
         ("POST", "/purchase-requests", {"project_id": str(proje.id)}),
         ("PATCH", f"/purchase-requests/{document_id}", {"priority": "normal"}),
-        ("DELETE", f"/purchase-requests/{document_id}", None),
         ("POST", f"/purchase-requests/{document_id}/submit", None),
         ("GET", f"/purchase-requests/{document_id}/quotes", None),
     ]
@@ -318,6 +315,11 @@ async def test_MUHASEBE_satinalmada_YALNIZ_onay_ucunu_acar(
         yanit = await client.request(metot, yol, json=govde, headers=basliklar)
         assert yanit.status_code == 403, f"{metot} {yol} → {yanit.status_code}: {yanit.text}"
         assert yanit.json()["detail"] == _MODUL_KAPISI, f"{metot} {yol}: {yanit.text}"
+
+    # SIL-B1: DELETE modül kapısı değil Sistem Yöneticisi kapısıdır (farklı 403 gövdesi).
+    silme = await client.delete(f"/purchase-requests/{document_id}", headers=basliklar)
+    assert silme.status_code == 403
+    assert silme.json()["detail"] == "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
 
     acik = await client.post(f"/purchase-requests/{document_id}/approve", headers=basliklar)
     assert acik.status_code == 200, acik.text

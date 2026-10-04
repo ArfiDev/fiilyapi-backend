@@ -32,8 +32,11 @@ from app.modules.audit.messages import (
     site_updated,
 )
 from app.modules.audit.models import AuditAction, AuditLog
+from app.modules.progress_payments.models import ProgressPaymentStatus
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import UserProjectAccess
+from tests._silme_yardimci import sil_aile
+from tests.modules.silme import _dunya as d
 
 _IP = "203.0.113.42"
 _IP_HEADER = {"x-forwarded-for": _IP}
@@ -205,7 +208,7 @@ async def test_delete_site_writes_site_deleted(client, db_session, user_factory,
     site = await _site(db_session, project)
     headers = await _admin(client, db_session, user_factory)
 
-    resp = await client.delete(f"/sites/{site.id}", headers=headers)
+    resp = await sil_aile(client, headers, "site", site.id)
 
     assert resp.status_code == 204
     assert await _details(db_session, AuditAction.delete) == [
@@ -226,7 +229,7 @@ async def test_delete_site_audit_text_contains_deleted_site_name(
     site = await _site(db_session, project, name="Kuzey Şantiyesi")
     headers = await _admin(client, db_session, user_factory)
 
-    resp = await client.delete(f"/sites/{site.id}", headers=headers)
+    resp = await sil_aile(client, headers, "site", site.id)
 
     assert resp.status_code == 204
     detail = (await _details(db_session, AuditAction.delete))[0]
@@ -245,7 +248,7 @@ async def test_delete_section_writes_section_deleted(
     await db_session.flush()
     headers = await _admin(client, db_session, user_factory)
 
-    resp = await client.delete(f"/sections/{section.id}", headers=headers)
+    resp = await sil_aile(client, headers, "section", section.id)
 
     assert resp.status_code == 204
     assert await _details(db_session, AuditAction.delete) == [
@@ -258,16 +261,21 @@ async def test_delete_section_writes_section_deleted(
 
 
 async def test_failed_delete_writes_no_audit(client, db_session, user_factory, project_factory):
-    """S7 — 409 ile reddedilen silme denemesi gunluge HICBIR SEY yazmaz."""
+    """S7 — reddedilen silme (mali bağlı → 409 `financial_pending`) günlüğe HİÇBİR ŞEY yazmaz."""
     project = await project_factory("AU-9")
     site = await _site(db_session, project)
-    db_session.add(Section(site_id=site.id, name="Kaba İnşaat"))
-    await db_session.flush()
+    olusturan = await user_factory(
+        email="olusturan@au9.co", password="parola1234", role_key="site_chief"
+    )
+    await d.hakedis_satiri(
+        db_session, project, site, olusturan, durum=ProgressPaymentStatus.approved
+    )
     headers = await _admin(client, db_session, user_factory)
 
-    resp = await client.delete(f"/sites/{site.id}", headers=headers)
+    resp = await sil_aile(client, headers, "site", site.id)
 
     assert resp.status_code == 409
+    assert resp.json()["code"] == "financial_pending"
     assert await _rows(db_session, AuditAction.delete) == []
 
 
@@ -309,7 +317,7 @@ async def test_audit_rows_carry_actor_and_ip(client, db_session, user_factory, p
     site = await _site(db_session, project)
     headers = await _admin(client, db_session, user_factory)
 
-    resp = await client.delete(f"/sites/{site.id}", headers=headers)
+    resp = await sil_aile(client, headers, "site", site.id)
 
     assert resp.status_code == 204
     rows = await _rows(db_session, AuditAction.delete)

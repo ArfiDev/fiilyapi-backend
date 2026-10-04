@@ -117,11 +117,6 @@ LEAVE_FIELD_NOT_NULL = "İzin tipi, başlangıç ve bitiş tarihi boş bırakıl
 # etkilemiştir — geriye dönük düzenlemesi bakiyeyi sessizce kaydırırdı.
 LEAVE_NOT_PENDING = "Yalnız bekleyen (onaylanmamış) izin talebi düzenlenebilir ya da silinebilir"
 
-# 403 — silme yetkisi (spec §3: "pending, sahibi ya da admin"). `full` TEK BAŞINA
-# YETMEZ: `app/core/access.py` "full silmeyi KAPSAMAZ" der. İki kapıdan biri açar —
-# `admin` seviyesi YA DA talebin sahibi olmak (personelin `user_id`si aktör).
-LEAVE_DELETE_NOT_ALLOWED = "Bu izin talebini silme yetkiniz yok"
-
 # --- İK-2 T3: onay/red + bakiye korkulukları (spec §2, §5 K3/K4/K5) --------
 
 # 409 — karara BAĞLANMIŞ talep yeniden karara bağlanamaz. `LEAVE_NOT_PENDING`ten

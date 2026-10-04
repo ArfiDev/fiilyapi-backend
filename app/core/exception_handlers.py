@@ -10,7 +10,6 @@ from app.core.errors import (
     BoqGroupSiteMismatchError,
     ConflictError,
     CustomerValidationError,
-    DeleteNotAllowedError,
     DocumentValidationError,
     DomainError,
     DuplicateError,
@@ -33,14 +32,48 @@ from app.core.errors import (
     TreasuryValidationError,
     UnitValidationError,
 )
+from app.core.silme.hatalar import (
+    CODE_FINANCIAL_PENDING,
+    CODE_PREVIEW_REQUIRED,
+    CODE_PREVIEW_STALE,
+    DeleteFinancialPendingError,
+    DeletePreviewRequiredError,
+    DeletePreviewStaleError,
+)
 
 
 async def _permission_locked_handler(request: Request, exc: PermissionLockedError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content={"detail": str(exc)})
 
 
-async def _delete_not_allowed_handler(request: Request, exc: DeleteNotAllowedError) -> JSONResponse:
-    return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content={"detail": str(exc)})
+async def _delete_preview_required_handler(
+    request: Request, exc: DeletePreviewRequiredError
+) -> JSONResponse:
+    """428 + `code` — silme önizlemesiz çalışmaz (SIL-B1)."""
+    return JSONResponse(
+        status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+        content={"detail": str(exc), "code": CODE_PREVIEW_REQUIRED},
+    )
+
+
+async def _delete_preview_stale_handler(
+    request: Request, exc: DeletePreviewStaleError
+) -> JSONResponse:
+    """409 + `code` — istemci "önizlemeyi yenile" akışını metne bakmadan seçer (SIL-B1)."""
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": str(exc), "code": CODE_PREVIEW_STALE},
+    )
+
+
+async def _delete_financial_pending_handler(
+    request: Request, exc: DeleteFinancialPendingError
+) -> JSONResponse:
+    """409 + `code=financial_pending` — mali bağlı kayıt var, silme SIL-B2'ye kadar kapalı."""
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": str(exc), "code": CODE_FINANCIAL_PENDING},
+    )
 
 
 async def _approval_not_allowed_handler(
@@ -313,8 +346,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     en sonda kalmalıdır.
     """
     app.add_exception_handler(PermissionLockedError, _permission_locked_handler)
-    app.add_exception_handler(DeleteNotAllowedError, _delete_not_allowed_handler)
     app.add_exception_handler(ApprovalNotAllowedError, _approval_not_allowed_handler)
+    app.add_exception_handler(DeletePreviewRequiredError, _delete_preview_required_handler)
+    app.add_exception_handler(DeletePreviewStaleError, _delete_preview_stale_handler)
+    app.add_exception_handler(DeleteFinancialPendingError, _delete_financial_pending_handler)
     app.add_exception_handler(NotFoundError, _not_found_handler)
     app.add_exception_handler(ProjectTypeMismatchError, _project_type_mismatch_handler)
     app.add_exception_handler(ProjectValidationError, _project_validation_handler)

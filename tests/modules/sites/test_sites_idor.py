@@ -21,7 +21,6 @@ YENI bir yuzeydir ve ayni tuzagi tasir — ustelik orada hata GERI ALINAMAZ.
 
 import uuid
 
-import pytest
 from sqlalchemy import func, select
 
 from app.core.access import AccessLevel, Scope
@@ -29,8 +28,10 @@ from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import UserProjectAccess
 from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._silme_yardimci import sil_aile
 
 SITE_MISSING = "Şantiye bulunamadı"
+SYSTEM_ADMIN_ONLY = "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
 SECTION_MISSING = "Bölüm bulunamadı"
 PROJECT_MISSING = "Proje bulunamadı"
 USER_MISSING = "Seçilen kullanıcı bulunamadı"
@@ -293,32 +294,23 @@ async def test_random_manager_user_uuid_returns_422_and_writes_nothing(
 # --- 27/28: gorunmeyen kayda DELETE ---
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
 async def test_delete_site_invisible_returns_404_and_record_survives(
     client, db_session, user_factory, project_factory
 ):
-    """27. Silme yetkisi VAR, proje gorunur DEGIL -> 404 + kayit YERINDE."""
+    """27. `sites:admin` VAR ama Sistem Yoneticisi DEGIL -> 403 (SIL-B1: kapi once kosar);
+    gorunmeyen ve var olmayan kimlik AYNI yaniti alir (varlik sizmaz) + kayit YERINDE."""
     site, _ = await _tree(db_session, project_factory, "IDOR-27")
     await _set_permission(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=False)
 
-    invisible = await client.delete(f"/sites/{site.id}", headers=_auth(token))
-    unknown = await client.delete(f"/sites/{uuid.uuid4()}", headers=_auth(token))
+    invisible = await sil_aile(client, _auth(token), "site", site.id)
+    unknown = await sil_aile(client, _auth(token), "site", uuid.uuid4())
 
-    assert invisible.status_code == unknown.status_code == 404
-    assert invisible.json() == unknown.json() == {"detail": SITE_MISSING}
+    assert invisible.status_code == unknown.status_code == 403
+    assert invisible.json() == unknown.json() == {"detail": SYSTEM_ADMIN_ONLY}
     assert await _exists(db_session, Site, site.id)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
 async def test_delete_section_invisible_returns_404_and_record_survives(
     client, db_session, user_factory, project_factory
 ):
@@ -327,11 +319,11 @@ async def test_delete_section_invisible_returns_404_and_record_survives(
     await _set_permission(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=False)
 
-    invisible = await client.delete(f"/sections/{section.id}", headers=_auth(token))
-    unknown = await client.delete(f"/sections/{uuid.uuid4()}", headers=_auth(token))
+    invisible = await sil_aile(client, _auth(token), "section", section.id)
+    unknown = await sil_aile(client, _auth(token), "section", uuid.uuid4())
 
-    assert invisible.status_code == unknown.status_code == 404
-    assert invisible.json() == unknown.json() == {"detail": SECTION_MISSING}
+    assert invisible.status_code == unknown.status_code == 403
+    assert invisible.json() == unknown.json() == {"detail": SYSTEM_ADMIN_ONLY}
     assert await _exists(db_session, Section, section.id)
 
 
@@ -358,7 +350,7 @@ async def test_delete_site_with_full_permission_returns_403(
     )
     assert writable.status_code == 200, writable.text
 
-    resp = await client.delete(f"/sites/{site.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "site", site.id)
 
     assert resp.status_code == 403, resp.text
     assert await _exists(db_session, Site, site.id)
@@ -377,7 +369,7 @@ async def test_delete_section_with_full_permission_returns_403(
     )
     assert writable.status_code == 200, writable.text
 
-    resp = await client.delete(f"/sections/{section.id}", headers=_auth(token))
+    resp = await sil_aile(client, _auth(token), "section", section.id)
 
     assert resp.status_code == 403, resp.text
     assert await _exists(db_session, Section, section.id)
@@ -393,8 +385,8 @@ async def test_delete_both_with_view_permission_returns_403(
     site, section = await _tree(db_session, project_factory, "IDOR-31")
     token = await _login(client, db_session, user_factory, VIEW_ROLE, grant_all=True)
 
-    site_delete = await client.delete(f"/sites/{site.id}", headers=_auth(token))
-    section_delete = await client.delete(f"/sections/{section.id}", headers=_auth(token))
+    site_delete = await sil_aile(client, _auth(token), "site", site.id)
+    section_delete = await sil_aile(client, _auth(token), "section", section.id)
 
     assert site_delete.status_code == section_delete.status_code == 403
     assert await _exists(db_session, Site, site.id)
@@ -408,8 +400,8 @@ async def test_delete_both_with_no_permission_returns_403(
     site, section = await _tree(db_session, project_factory, "IDOR-32")
     token = await _login(client, db_session, user_factory, NONE_ROLE, grant_all=True)
 
-    site_delete = await client.delete(f"/sites/{site.id}", headers=_auth(token))
-    section_delete = await client.delete(f"/sections/{section.id}", headers=_auth(token))
+    site_delete = await sil_aile(client, _auth(token), "site", site.id)
+    section_delete = await sil_aile(client, _auth(token), "section", section.id)
 
     assert site_delete.status_code == section_delete.status_code == 403
     assert await _exists(db_session, Site, site.id)
@@ -419,31 +411,24 @@ async def test_delete_both_with_no_permission_returns_403(
 # --- 33: yetki gorunurlugun ONUNE GECMEZ ---
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
 async def test_admin_without_project_access_delete_returns_404(
     client, db_session, user_factory, project_factory
 ):
-    """33 — `sites:admin` VAR, proje erisimi YOK -> 404 (403 DEGIL).
+    """33 — `sites:admin` VAR, proje erisimi YOK, Sistem Yoneticisi DEGIL -> 403 (SIL-B1).
 
-    403 donmek "boyle bir kayit var ama senin degil" demek olurdu; yetkili hesap
-    o anda bir kesif aracina donusurdu. Sira sabittir: once gorunurluk, sonra
-    korkuluk. Kayit YERINDE kalmalidir.
+    Eskiden 404'tu (once gorunurluk). Artik kapi (Sistem Yoneticisi) handler'dan ONCE kosar ve
+    gorunmeyen / var olmayan kayit AYNI 403'u alir: varlik yine sizmaz. Kayit YERINDE kalir.
     """
     await _set_permission(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
     site, section = await _tree(db_session, project_factory, "IDOR-33")
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=False)
 
-    site_delete = await client.delete(f"/sites/{site.id}", headers=_auth(token))
-    section_delete = await client.delete(f"/sections/{section.id}", headers=_auth(token))
+    site_delete = await sil_aile(client, _auth(token), "site", site.id)
+    section_delete = await sil_aile(client, _auth(token), "section", section.id)
 
-    assert site_delete.status_code == 404, site_delete.text
-    assert section_delete.status_code == 404, section_delete.text
-    assert site_delete.json() == {"detail": SITE_MISSING}
-    assert section_delete.json() == {"detail": SECTION_MISSING}
+    assert site_delete.status_code == 403, site_delete.text
+    assert section_delete.status_code == 403, section_delete.text
+    assert site_delete.json() == section_delete.json() == {"detail": SYSTEM_ADMIN_ONLY}
     assert await _exists(db_session, Site, site.id)
     assert await _exists(db_session, Section, section.id)
 
@@ -451,11 +436,6 @@ async def test_admin_without_project_access_delete_returns_404(
 # --- Govde sizinti taramasi ---
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
 async def test_error_bodies_do_not_leak_record_existence(
     client, db_session, user_factory, project_factory
 ):
@@ -474,8 +454,8 @@ async def test_error_bodies_do_not_leak_record_existence(
         await client.get(f"/projects/{site.project_id}/sites", headers=_auth(token)),
         await client.patch(f"/sites/{site.id}", json={"name": "X"}, headers=_auth(token)),
         await client.patch(f"/sections/{section.id}", json={"name": "X"}, headers=_auth(token)),
-        await client.delete(f"/sites/{site.id}", headers=_auth(token)),
-        await client.delete(f"/sections/{section.id}", headers=_auth(token)),
+        await sil_aile(client, _auth(token), "site", site.id),
+        await sil_aile(client, _auth(token), "section", section.id),
     ]
 
     forbidden = (
@@ -486,8 +466,9 @@ async def test_error_bodies_do_not_leak_record_existence(
         section.name,
         site.code,
     )
-    for response in responses:
-        assert response.status_code == 404, response.text
+    for sira, response in enumerate(responses):
+        # ilk bes uc 404 (gorunurluk), son iki silme ucu 403 (Sistem Yoneticisi kapisi)
+        assert response.status_code == (404 if sira < 5 else 403), response.text
         body = response.text
         for needle in forbidden:
             assert needle not in body, (needle, body)

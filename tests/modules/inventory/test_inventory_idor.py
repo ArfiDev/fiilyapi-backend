@@ -97,22 +97,18 @@ async def test_gorunmeyen_depo_patchte_404_ve_govde_ayirt_edilemez(
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
-async def test_yetki_gorunurlugun_onune_gecmez_silmede_404(
+async def test_silmede_kapi_gorunurlukten_once_kosar_403(
     client, seeded_db, satinalma_headers, gorunmeyen_santiye, depo_fabrikasi
 ):
-    """`inventory:admin` TAŞIYAN ama projeyi görmeyen kullanıcı da 404 alır.
+    """`inventory:admin` TAŞIYAN ama Sistem Yöneticisi OLMAYAN kullanıcı 403 alır (SIL-B1).
 
-    "Yetkiliyse söyleyebiliriz" kestirmesi yetkili hesabı bir keşif aracına
-    çevirirdi (`sites` IDOR dersi, 33 numaralı vaka). Yetki seviyesi testte
-    açıkça yükseltilir ki 404'ün kaynağı YETKİ değil KAPSAM olsun.
+    Kapı handler'dan ÖNCE koşar: görünmeyen ve var olmayan depo AYNI 403'ü alır, yani varlık
+    sızmaz ("yetkiliyse söyleyebiliriz" kestirmesi yetkili hesabı keşif aracına çevirirdi).
     """
     gizli = await depo_fabrikasi("D-9 Gizli Ambar", site=gorunmeyen_santiye)
     await _set_permission(seeded_db, "procurement", "inventory", AccessLevel.admin)
 
     yanit = await client.delete(f"/warehouses/{gizli.id}", headers=satinalma_headers)
-    assert yanit.status_code == 404, yanit.text
+    olmayan = await client.delete(f"/warehouses/{uuid.uuid4()}", headers=satinalma_headers)
+    assert yanit.status_code == olmayan.status_code == 403, yanit.text
+    assert yanit.json() == olmayan.json()

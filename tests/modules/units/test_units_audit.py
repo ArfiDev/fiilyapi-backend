@@ -24,6 +24,7 @@ from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.projects.models import LandShareShareholder
 from app.modules.units.models import Unit, UnitKind, UnitOwnerSide
 from app.modules.units.schemas import UnitNumberingPattern
+from tests._silme_yardimci import sil_aile
 from tests.modules.units._units_api import _block, _login, _site, _unit
 
 _IP = "203.0.113.42"
@@ -121,7 +122,7 @@ async def test_block_delete_writes_audit_with_delete_action(
     block = await _block(db_session, project, site, name="A Blok")
     headers = await _admin(client, db_session, user_factory)
 
-    resp = await client.delete(f"/blocks/{block.id}", headers=headers)
+    resp = await sil_aile(client, headers, "block", block.id)
 
     assert resp.status_code == 204
     rows = await _rows(db_session, AuditAction.delete)
@@ -176,7 +177,7 @@ async def test_unit_delete_writes_audit_with_delete_action(
     unit = await _unit(db_session, project, block, "1")
     headers = await _admin(client, db_session, user_factory)
 
-    resp = await client.delete(f"/units/{unit.id}", headers=headers)
+    resp = await sil_aile(client, headers, "unit", unit.id)
 
     assert resp.status_code == 204
     rows = await _rows(db_session, AuditAction.delete)

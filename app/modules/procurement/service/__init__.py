@@ -71,9 +71,7 @@ from decimal import Decimal as Decimal
 from sqlalchemy import Row as Row
 from sqlalchemy.ext.asyncio import AsyncSession as AsyncSession
 
-from app.core.access import can_delete as can_delete
 from app.core.errors import ConflictError as ConflictError
-from app.core.errors import DeleteNotAllowedError as DeleteNotAllowedError
 from app.core.errors import NotFoundError as NotFoundError
 from app.core.errors import ProcurementValidationError as ProcurementValidationError
 from app.core.timezone import today as today
@@ -148,7 +146,6 @@ from app.modules.procurement.service.request_access import _assert_scope as _ass
 from app.modules.procurement.service.request_access import (
     _assert_stock_items_exist as _assert_stock_items_exist,
 )
-from app.modules.procurement.service.request_access import _DeletableRequest as _DeletableRequest
 from app.modules.procurement.service.request_access import can_delete_request as can_delete_request
 from app.modules.procurement.service.request_access import visible_request as visible_request
 from app.modules.procurement.service.request_access import (

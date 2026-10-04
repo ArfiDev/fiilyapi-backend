@@ -21,7 +21,7 @@ from fastapi.responses import StreamingResponse
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_permission, require_system_admin
 from app.modules.ai import context, conversations, guards
 from app.modules.ai.actor import aktor_baglami
 from app.modules.ai.audit import record_ai_turn
@@ -495,20 +495,18 @@ async def get_ai_conversation_endpoint(
 @router.delete(
     "/conversations/{conversation_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_VIEW],
+    dependencies=[require_system_admin()],
 )
 async def delete_ai_conversation_endpoint(
     conversation_id: uuid.UUID,
-    user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Kendi sohbetini siler. Mesajlar FK CASCADE ile gider.
+    """Sohbeti siler (kimin olursa olsun). Mesajlar FK CASCADE ile gider.
 
-    🔴 Bu uç bir **KVKK gereğidir**, süs değil: kullanıcı kendi sorularını
-    silebilmelidir. `ai_tool_calls` izi SİLİNMEZ — o tablo atfedilebilirlik
-    için değişmezdir ve içinde araç sonuç gövdesi yoktur.
+    SIL-B1 (KARARLAR 7034741, kullanıcı kararı): silme YALNIZ Sistem Yöneticisi'nindir ve
+    başkasının sohbetini de kapsar; sahibi (Sistem Yöneticisi değilse) kendi sohbetini SİLEMEZ
+    (403). Eski "kendi sohbetini sahibi siler (KVKK)" kuralı kaldırıldı. `ai_tool_calls` izi
+    SİLİNMEZ — o tablo atfedilebilirlik için değişmezdir ve içinde araç sonuç gövdesi yoktur.
     """
-    if not await conversations.sohbet_sil(
-        session, user_id=user.id, conversation_id=conversation_id
-    ):
+    if not await conversations.sohbet_sil(session, conversation_id=conversation_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=guards.BULUNAMADI)

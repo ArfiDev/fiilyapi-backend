@@ -41,6 +41,14 @@ cagiran (`visible_request_locked` dahil) aynen calisir. `visible_request_locked`
 BILEREK `uuid.UUID` KALDI — yazma yollarinin girisidir ve URL-2 karari 3 yalniz
 OKUMA uclarini anahtara acar.
 
+## 🔴 SIL-B1 (2026-10-04) — anlik goruntuden BILEREK dusen satirlar
+
+`can_delete` (`app.core.access`), `DeleteNotAllowedError` ve `_DeletableRequest` koprusu KALDIRILDI
+(K4: silme YALNIZ Sistem Yoneticisi'nin, "talebi acan kendi taslagini siler" istisnasi YOK).
+`can_delete_request(session, actor, request)` -> `can_delete_request(actor)` oldu (yanittaki
+`can_delete` bayragi = `is_system_admin`). Referans ELLE guncellendi (yeniden uretim
+bolme-oncesi tabani bozardi): yalniz bu satirlar dustu/degisti, `diff` ile dogrulandi.
+
 ## Yeniden uretim
 
     python -c "import importlib.util as u; \
@@ -321,11 +329,6 @@ def _davranis_satirlari() -> list[str]:
         talep.status = durum
         taslak_sonuc = _hata_metni(lambda t=talep: service._assert_draft(t))
         satirlar.append(f"_assert_draft({durum.value}) -> {taslak_sonuc}")
-        kopru = service._DeletableRequest(talep)
-        satirlar.append(
-            f"_DeletableRequest({durum.value}) = "
-            f"created_by={kopru.created_by!r} is_draft={kopru.is_draft!r}"
-        )
         satirlar.append(
             f"_assert_quote_wait({durum.value}) -> "
             f"{_hata_metni(lambda t=talep: service._assert_quote_wait(t))}"

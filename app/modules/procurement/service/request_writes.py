@@ -11,10 +11,9 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import DeleteNotAllowedError
 from app.core.timezone import today
 from app.modules.audit import messages
-from app.modules.procurement import guards, numbering, repository
+from app.modules.procurement import numbering, repository
 from app.modules.procurement.models import (
     PurchaseRequest,
     PurchaseRequestLine,
@@ -30,7 +29,6 @@ from app.modules.procurement.service.request_access import (
     _assert_draft,
     _assert_scope,
     _assert_stock_items_exist,
-    can_delete_request,
 )
 from app.modules.users.models import User
 
@@ -146,18 +144,13 @@ async def update_request(
 
 
 async def delete_request(session: AsyncSession, actor: User, request: PurchaseRequest) -> str:
-    """Sira sabittir: durum (409) → yetki (403).
-
-    Once yetkiye bakilsaydi, taslak OLMAYAN bir talebi silmeye calisan sahibi
-    "yetkiniz yok" mesaji alir ve asil sebebi (kayit artik taslak degil)
-    ogrenemezdi.
+    """Yalniz taslak talep silinir (409). Yetki kapisi router'dadir: YALNIZ Sistem Yoneticisi
+    (SIL-B1, K4); "kendi taslagini sahibi siler" istisnasi KALDIRILDI.
 
     Kalemler `ON DELETE CASCADE` ile gider (T1 semasi). Denetim metni satir YOK
     OLMADAN once kurulur (`warehouse_deleted` dersi).
     """
     _assert_draft(request)
-    if not await can_delete_request(session, actor, request):
-        raise DeleteNotAllowedError(guards.DELETE_NOT_ALLOWED)
     detail = messages.purchase_request_deleted(request.request_no)
     await session.delete(request)
     await session.flush()

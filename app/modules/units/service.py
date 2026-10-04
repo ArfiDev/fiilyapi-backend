@@ -8,7 +8,6 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import RelatedRecordsExistError
 from app.modules.audit import messages
 from app.modules.projects import costs
 from app.modules.projects import repository as projects_repository
@@ -52,8 +51,6 @@ __all__ = [
     "block_response",
     "create_block",
     "create_unit",
-    "delete_block",
-    "delete_unit",
     "list_blocks",
     "list_units",
     "to_block",
@@ -473,52 +470,3 @@ async def update_unit(
     return unit, messages.unit_updated(
         project.name, await _block_name(session, unit.block_id), unit.unit_no
     )
-
-
-# --- Silme uclari (spec §7.9) — VERI KAYBI SINIFI ---
-
-
-async def delete_unit(session: AsyncSession, actor: User, unit_id: uuid.UUID) -> str:
-    """Spec §7.9. Unite silme KOSULSUZDUR: P3'te uniteye baglanan hicbir tablo
-    yoktur (spec §1.3). P8 (satis) geldiginde satisi olan unite icin korkuluk
-    O DILIMDE eklenecektir — bugun var olmayan bir bag icin kontrol yazilmaz.
-
-    Gorunurluk yine yukari cozumlenir: gorunmeyen projenin unitesi 404'tur ve
-    var olmayan unite ile ayni mesaji verir (IDOR-6/IDOR-7).
-
-    Denetim metni SILMEDEN ONCE kurulur: satir gittikten sonra blok adi ve
-    unite numarasi hicbir sorguyla geri getirilemez.
-    """
-    unit, project = await guards.visible_unit(session, actor, unit_id)
-    detail = messages.unit_deleted(
-        project.name, await _block_name(session, unit.block_id), unit.unit_no
-    )
-    await session.delete(unit)
-    await session.flush()
-    return detail
-
-
-async def delete_block(session: AsyncSession, actor: User, block_id: uuid.UUID) -> str:
-    """Spec §7.9. CASCADE YOKTUR — bu fonksiyonun tek isi cascade'i ENGELLEMEKTIR.
-
-    Blokta en az bir unite varsa silme 409 ile reddedilir. Uc katman birden
-    korur ve UCU DE bilincli olarak yerinde birakilmistir:
-
-    1. Buradaki `block_has_units` on kontrolu — kullaniciya Turkce, eyleme
-       donuk mesaj verir ("once uniteleri silin").
-    2. `units.block_id` uzerindeki `ON DELETE RESTRICT` (B1, spec §4.2) — servis
-       atlanirsa DB reddeder; `IntegrityError → 409` handler'i yaris-durumu agidir.
-    3. Modelde `relationship(cascade=...)` TANIMLI DEGIL — ORM'in kendiliginden
-       unite silecek bir yolu yoktur.
-
-    Mesajda unite ADEDI VERILMEZ (spec §7.9): kullanici sayiyi zaten GET ile
-    goruyor, hata govdesi gorunurluk disi bilgi tasimaz.
-    """
-    block, project = await guards.visible_block(session, actor, block_id)
-    if await repository.block_has_units(session, block.id):
-        raise RelatedRecordsExistError(guards.BLOCK_HAS_UNITS)
-    # `delete_unit` ile ayni gerekce: metin satir yok olmadan ONCE kurulur.
-    detail = messages.block_deleted(project.name, block.name)
-    await session.delete(block)
-    await session.flush()
-    return detail

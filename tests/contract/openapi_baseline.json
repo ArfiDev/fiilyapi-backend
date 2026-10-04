@@ -7294,6 +7294,189 @@
         "title": "DeedCondition",
         "type": "string"
       },
+      "DeleteDetachedGroup": {
+        "description": "SilinMEYEN ama köke bağı KOPACAK kayıtların bir türü (SET NULL).",
+        "properties": {
+          "count": {
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "table": {
+            "title": "Table",
+            "type": "string"
+          }
+        },
+        "required": [
+          "table",
+          "label",
+          "count"
+        ],
+        "title": "DeleteDetachedGroup",
+        "type": "object"
+      },
+      "DeleteErrorResponse": {
+        "description": "409 ve 428 gövdesi. `code` yalnız silme önkoşullarında dolar: 428 `preview_required`,\n409 `preview_stale` (önizleme eskidi) ya da `financial_pending` (ağaçta mali kayıt var; mali\nsilme sonraki sürümde açılacak). Başka 409'lar (ör. beklenmeyen veri bütünlüğü hatası)\nyalnız `detail` taşır, `code` boştur.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "preview_required",
+                  "preview_stale",
+                  "financial_pending"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "DeleteErrorResponse",
+        "type": "object"
+      },
+      "DeleteKind": {
+        "description": "Önizleme/silme motorunun tanıdığı kayıt türleri. Her dilim yeni üye ekler (SIL-B2…).\n\nÜye adı = URL parçası. Motorun kayıt defteri (`core/silme`) ile üye kümesi birebir eşit\nolmak ZORUNDADIR; `tests/modules/silme/test_silme_tur_bekcisi.py` çakar.",
+        "enum": [
+          "site",
+          "section",
+          "block",
+          "unit"
+        ],
+        "title": "DeleteKind",
+        "type": "string"
+      },
+      "DeletePreviewGroup": {
+        "description": "Silinecek bağlı kayıtların bir türü.",
+        "properties": {
+          "count": {
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "is_financial": {
+            "description": "Mali kayıt (hakediş, fatura, ödeme, muhasebe fişi): onay penceresi vurgular.",
+            "title": "Is Financial",
+            "type": "boolean"
+          },
+          "label": {
+            "description": "Türkçe tür adı (ör. `Günlük kaydı`).",
+            "title": "Label",
+            "type": "string"
+          },
+          "relation": {
+            "$ref": "#/components/schemas/DeleteRelation"
+          },
+          "samples": {
+            "description": "İlk birkaç kaydın adı (en çok 5; adı olmayan türlerde boş). Sayı `count`tur.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Samples",
+            "type": "array"
+          },
+          "table": {
+            "description": "Teknik tablo anahtarı (ör. `site_diary_entries`); yalnız anahtar.",
+            "title": "Table",
+            "type": "string"
+          }
+        },
+        "required": [
+          "table",
+          "label",
+          "count",
+          "relation",
+          "is_financial",
+          "samples"
+        ],
+        "title": "DeletePreviewGroup",
+        "type": "object"
+      },
+      "DeletePreviewResponse": {
+        "properties": {
+          "dependent_count": {
+            "description": "Kök HARİÇ, birlikte silinecek toplam kayıt sayısı (`groups` toplamı).",
+            "minimum": 0.0,
+            "title": "Dependent Count",
+            "type": "integer"
+          },
+          "detached": {
+            "description": "Silinmeyecek, yalnız bağı kopacak kayıtlar (ör. bölümü boşalan personel).",
+            "items": {
+              "$ref": "#/components/schemas/DeleteDetachedGroup"
+            },
+            "title": "Detached",
+            "type": "array"
+          },
+          "groups": {
+            "description": "Birlikte silinecek kayıtlar: `count` azalan, sonra `label`. Boş = bağlı yok.",
+            "items": {
+              "$ref": "#/components/schemas/DeletePreviewGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DeleteKind"
+          },
+          "kind_label": {
+            "description": "Kök türün Türkçe adı (ör. `Şantiye`).",
+            "title": "Kind Label",
+            "type": "string"
+          },
+          "label": {
+            "description": "Kök kaydın görünen adı (ör. `Kule Şantiyesi`).",
+            "title": "Label",
+            "type": "string"
+          },
+          "preview_token": {
+            "description": "Bu ağacın karması. DELETE'e `preview_token` olarak AYNEN verilir; ağaç arada değişirse DELETE 409 `preview_stale` döner.",
+            "title": "Preview Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "kind_label",
+          "label",
+          "dependent_count",
+          "groups",
+          "detached",
+          "preview_token"
+        ],
+        "title": "DeletePreviewResponse",
+        "type": "object"
+      },
+      "DeleteRelation": {
+        "description": "Bağlı kaydın kökle ilişkisi. Bir tablo birden çok yoldan bağlıysa EN GÜÇLÜSÜ yazılır\n(restrict > linked > cascade).",
+        "enum": [
+          "cascade",
+          "restrict",
+          "linked"
+        ],
+        "title": "DeleteRelation",
+        "type": "string"
+      },
       "DiaryStatus": {
         "description": "Günlük kaydın durumu (spec §2). İKİ durum: hakediş evrakının dört durumlu\nonay makinesi burada YOKTUR — günlük ya taslaktır ya gönderilmiştir.\n\nE7'nin iki butonu (Taslak Kaydet / Gönder) bu ikiliyi birebir karşılar;\nGK'nin tek \"Kaydet & Gönder\" butonu ikisinin bileşimidir.",
         "enum": [
@@ -49210,6 +49393,164 @@
         ]
       }
     },
+    "/admin/silme/{kind}/{record_id}": {
+      "delete": {
+        "description": "Yalnız Sistem Yöneticisi, HER KOŞULDA. Kök kaydı ve bağlı ağacını TEK işlemde siler.\n\nKök `FOR UPDATE` kilitlenir, ağaç yeniden hesaplanır; karması `preview_token`la\nuyuşmazsa HİÇBİR ŞEY silinmez ve 409 `preview_stale` döner. Denetim günlüğüne tek satır\nyazılır (kim, ne, kaç bağlı kayıt).",
+        "operationId": "delete_with_dependents_endpoint_admin_silme__kind___record_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/DeleteKind"
+            }
+          },
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Record Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`GET /admin/silme/{kind}/{id}/onizleme` yanıtındaki `preview_token`, AYNEN. Eksikse 428 `preview_required`; silme anındaki ağaçla uyuşmazsa 409 `preview_stale`.",
+            "in": "query",
+            "name": "preview_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`GET /admin/silme/{kind}/{id}/onizleme` yanıtındaki `preview_token`, AYNEN. Eksikse 428 `preview_required`; silme anındaki ağaçla uyuşmazsa 409 `preview_stale`.",
+              "title": "Preview Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı (ör. `Şantiye bulunamadı`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteErrorResponse"
+                }
+              }
+            },
+            "description": "`code=preview_stale`: `Silinecek kayıtlar değişti; önizlemeyi yenileyin`. `code=financial_pending`: `Bu kaydın bağlı mali kayıtları var; mali kayıt silme bir sonraki sürümde açılacak` (ağaçta `is_financial` grup var; HİÇBİR ŞEY silinmez)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteErrorResponse"
+                }
+              }
+            },
+            "description": "`code=preview_required`: `Silmeden önce önizleme alınmalı; önizlemeyi açıp onaylayın`"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Kaydı bağlı kayıtlarıyla birlikte sil",
+        "tags": [
+          "silme"
+        ]
+      }
+    },
+    "/admin/silme/{kind}/{record_id}/onizleme": {
+      "get": {
+        "description": "Yalnız Sistem Yöneticisi. SİLMEZ; yazma yapmaz.\n\nÖnizleme ile `DELETE` AYNI çözücüyü kullanır: burada sayılan ağaç, silinecek ağaçtır.\n`groups` boşsa kaydın bağlı kaydı yoktur (yine de onay istenir).",
+        "operationId": "preview_delete_endpoint_admin_silme__kind___record_id__onizleme_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/DeleteKind"
+            }
+          },
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Record Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletePreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı (ör. `Şantiye bulunamadı`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Silme önizlemesi: kayıtla birlikte silinecek bağlı kayıtlar",
+        "tags": [
+          "silme"
+        ]
+      }
+    },
     "/ai/chat": {
       "post": {
         "description": "Tek bir kullanıcı mesajı için ajan turunu akıtır.\n\nKapı: `ai:view` (`_VIEW`). 🔴 `ai:full` diye bir şey YOKTUR.\n\n🔴 Sağlayıcı yapılandırılmamışsa **503 + dürüst mesaj** döner, genel bir 500\nDEĞİL: \"sistem hatası\" cümlesi operatörü yanlış yerde arattırır. Hata akış\nBAŞLAMADAN verilir; yarısı akmış bir yanıtın içine hata gömmek, istemciye\n\"cevap geldi ama eksik\" hissi verirdi.\n\n🔴 KAPI SIRASI (AI-BAĞLAM): görünürlük → sahiplik → sağlayıcı. Üçü de akış\nbaşlamadan koşar ve ilk ikisi **aynı** 404 gövdesini üretir.",
@@ -49369,7 +49710,7 @@
     },
     "/ai/conversations/{conversation_id}": {
       "delete": {
-        "description": "Kendi sohbetini siler. Mesajlar FK CASCADE ile gider.\n\n🔴 Bu uç bir **KVKK gereğidir**, süs değil: kullanıcı kendi sorularını\nsilebilmelidir. `ai_tool_calls` izi SİLİNMEZ — o tablo atfedilebilirlik\niçin değişmezdir ve içinde araç sonuç gövdesi yoktur.",
+        "description": "Sohbeti siler (kimin olursa olsun). Mesajlar FK CASCADE ile gider.\n\nSIL-B1 (KARARLAR 7034741, kullanıcı kararı): silme YALNIZ Sistem Yöneticisi'nindir ve\nbaşkasının sohbetini de kapsar; sahibi (Sistem Yöneticisi değilse) kendi sohbetini SİLEMEZ\n(403). Eski \"kendi sohbetini sahibi siler (KVKK)\" kuralı kaldırıldı. `ai_tool_calls` izi\nSİLİNMEZ — o tablo atfedilebilirlik için değişmezdir ve içinde araç sonuç gövdesi yoktur.",
         "operationId": "delete_ai_conversation_endpoint_ai_conversations__conversation_id__delete",
         "parameters": [
           {
@@ -50630,7 +50971,7 @@
     },
     "/blocks/{block_id}": {
       "delete": {
-        "description": "Spec §7.9. CASCADE YOK: unitesi olan blok 409 ile reddedilir — 24 daireyi\ntek istekte silmek geri alinamaz veri kaybidir.\n\nKULLANICI KARARI 2026-07-30: kapi `_ADMIN`'dir (bkz. `delete_unit_endpoint`\ngerekcesi) — `app/core/access.py`: \"full silmeyi KAPSAMAZ\". Yetki kapisi\n409 korkulugundan ONCE calisir: yetkisiz aktor 403 alir, blogun unite\ntasiyip tasimadigini OGRENEMEZ.",
+        "description": "Spec §7.9 (SIL-B1 ile degisti). YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.\n\nBlok, UNITELERI ve onlarin bagli kayitlari ile BIRLIKTE silinir (eski \"unitesi olan blok 409\"\nkorkulugu Sistem Yoneticisi icin kalkti: uniteler once, blok sonra silinir). Once\n`GET /admin/silme/block/{id}/onizleme`, onay, sonra bu uc `preview_token` ile cagrilir\n(eksikse 428, agac degistiyse 409 `preview_stale`, mali bagli kayit varsa 409\n`financial_pending`). Yetki kapisi her seyden ONCE calisir.",
         "operationId": "delete_block_endpoint_blocks__block_id__delete",
         "parameters": [
           {
@@ -50641,6 +50982,25 @@
               "format": "uuid",
               "title": "Block Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "`GET /admin/silme/{kind}/{id}/onizleme` yanıtındaki `preview_token`, AYNEN. Eksikse 428 `preview_required`; silme anındaki ağaçla uyuşmazsa 409 `preview_stale`.",
+            "in": "query",
+            "name": "preview_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`GET /admin/silme/{kind}/{id}/onizleme` yanıtındaki `preview_token`, AYNEN. Eksikse 428 `preview_required`; silme anındaki ağaçla uyuşmazsa 409 `preview_stale`.",
+              "title": "Preview Token"
             }
           }
         ],
@@ -50654,6 +51014,16 @@
           "404": {
             "description": "Kayıt bulunamadı"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteErrorResponse"
+                }
+              }
+            },
+            "description": "`code=preview_stale`: `Silinecek kayıtlar değişti; önizlemeyi yenileyin`. `code=financial_pending`: `Bu kaydın bağlı mali kayıtları var; mali kayıt silme bir sonraki sürümde açılacak` (ağaçta `is_financial` grup var; HİÇBİR ŞEY silinmez)."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -50663,6 +51033,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteErrorResponse"
+                }
+              }
+            },
+            "description": "`code=preview_required`: `Silmeden önce önizleme alınmalı; önizlemeyi açıp onaylayın`"
           }
         },
         "security": [
@@ -50741,7 +51121,7 @@
     },
     "/boq/groups/{group_id}": {
       "delete": {
-        "description": "TB3-C: YALNIZ BOS grup silinir; kalemi olan grup 409 doner.\n\nKapi `_ADMIN`'dir — `delete_boq_item_endpoint` ile BIREBIR ayni gerekce\n(`full` silmeyi KAPSAMAZ). F-SD smoke'unda canlida bos test grubu 405\naldigi icin acildi.",
+        "description": "TB3-C: YALNIZ BOS grup silinir; kalemi olan grup 409 doner.\n\nKapi `require_system_admin`dir (SIL-B1; `delete_boq_item_endpoint` ile ayni). F-SD smoke'unda\ncanlida bos test grubu 405 aldigi icin acildi.",
         "operationId": "delete_boq_group_endpoint_boq_groups__group_id__delete",
         "parameters": [
           {
@@ -52204,7 +52584,7 @@
     },
     "/contracts/employer/groups/{group_id}": {
       "delete": {
-        "description": "Spec §7. 409 `GROUP_HAS_ITEMS`: grupta poz varsa silinmez. Kapı `_ADMIN`\n\n(`boq/router.py.delete_boq_item_endpoint` deseninin birebiri).",
+        "description": "Spec §7. 409 `GROUP_HAS_ITEMS`: grupta poz varsa silinmez. Kapı: yalnız Sistem Yöneticisi\n(SIL-B1; `require_system_admin`).",
         "operationId": "delete_employer_contract_group_endpoint_contracts_employer_groups__group_id__delete",
         "parameters": [
           {
@@ -52314,7 +52694,7 @@
     },
     "/contracts/employer/items/{item_id}": {
       "delete": {
-        "description": "Spec §7. Engel YOK: bağlı `boq_items.contract_item_id` DB'de `ON DELETE\n\nSET NULL` ile serbest kalır, satır SİLİNMEZ. Kapı `_ADMIN`\n(`boq/router.py.delete_boq_item_endpoint` deseninin birebiri).",
+        "description": "Spec §7. Engel YOK: bağlı `boq_items.contract_item_id` DB'de `ON DELETE\n\nSET NULL` ile serbest kalır, satır SİLİNMEZ. Kapı: yalnız Sistem Yöneticisi (SIL-B1).",
         "operationId": "delete_employer_contract_item_endpoint_contracts_employer_items__item_id__delete",
         "parameters": [
           {
@@ -69731,7 +70111,7 @@
     },
     "/sections/{section_id}": {
       "delete": {
-        "description": "Spec §7.1. 🔴 **BU CUMLE BAYATTI VE DUZELTILDI (BC-3, 2026-09-05).**\n\nEski metin *\"`sections.id`'yi hedefleyen FK yok\"* diyordu; `deletes.py`nin\nservis docstring'i bunu zaten curutmustu ama router'daki kopya duruyordu.\nÖLÇÜLDÜ (`Base.metadata` uzerinden, kelime aramasiyla DEGIL): `sections.id`yi\n**ON BIR** FK hedefliyor — ikisi CASCADE (`boq_item_section_allocations`,\n`section_milestones` ve BC-3'un `section_documents`i), kalani SET NULL\n(`personnel`, `purchase_requests`, `sections.depends_on_section_id`,\n`site_diary_entries`, `site_plan_rows`, `stock_entry_lines`,\n`subcontractor_progress_payments`, `timesheet_entries`).\nSilme yine de kosulsuzdur cunku hicbiri RESTRICT DEGIL; kosulsuzlugun\ngerekcesi \"FK yok\" DEGIL, \"engelleyen FK yok\"tur.\n\nKapi `_ADMIN`'dir — bolum santiyenin ic kirilimi oldugu icin `sites`\nmodulunun seviyeleri kullanilir, AYRI izin modulu acilmaz.\n\nYanit `204 No Content`, GOVDESIZ. Denetim metni servis icinde, satir yok\nolmadan ONCE kurulur.",
+        "description": "Spec §7.1 (SIL-B1 ile degisti). YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.\n\nBolum, bagli kayitlariyla BIRLIKTE silinir: kilometre tasi, dagitim, belge ve bolume yazilmis\ngunluk miktar satirlari (`site_diary_lines`, eski PLN-B2.10 409 korkulugu kalkti). Bagi kopan\nkayitlar (personel, puantaj, satinalma talebi…) SILINMEZ, yalniz bolum bagi kopar; onizlemede\n`detached` olarak gorunur. Once `GET /admin/silme/section/{id}/onizleme`, sonra bu uc\n`preview_token` ile (eksikse 428, agac degistiyse 409 `preview_stale`, mali bagli kayit varsa\n409 `financial_pending`). Kalan bolumlerin `sort_order` degerleri yeniden numaralanmaz.\n\nYanit `204 No Content`, GOVDESIZ. Denetim satiri tam dokumle yazilir.",
         "operationId": "delete_section_endpoint_sections__section_id__delete",
         "parameters": [
           {
@@ -69742,6 +70122,25 @@
               "format": "uuid",
               "title": "Section Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "`GET /admin/silme/{kind}/{id}/onizleme` yanıtındaki `preview_token`, AYNEN. Eksikse 428 `preview_required`; silme anındaki ağaçla uyuşmazsa 409 `preview_stale`.",
+            "in": "query",
+            "name": "preview_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`GET /admin/silme/{kind}/{id}/onizleme` yanıtındaki `preview_token`, AYNEN. Eksikse 428 `preview_required`; silme anındaki ağaçla uyuşmazsa 409 `preview_stale`.",
+              "title": "Preview Token"
             }
           }
         ],
@@ -69755,6 +70154,16 @@
           "404": {
             "description": "Kayıt bulunamadı"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteErrorResponse"
+                }
+              }
+            },
+            "description": "`code=preview_stale`: `Silinecek kayıtlar değişti; önizlemeyi yenileyin`. `code=financial_pending`: `Bu kaydın bağlı mali kayıtları var; mali kayıt silme bir sonraki sürümde açılacak` (ağaçta `is_financial` grup var; HİÇBİR ŞEY silinmez)."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -69764,6 +70173,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteErrorResponse"
+                }
+              }
+            },
+            "description": "`code=preview_required`: `Silmeden önce önizleme alınmalı; önizlemeyi açıp onaylayın`"
           }
         },
         "security": [
@@ -70243,7 +70662,7 @@
     },
     "/sites/{site_id}": {
       "delete": {
-        "description": "Spec §7.1. CASCADE KORKULUGU servistedir — bolum/poz/blok varsa 409.\n\nYetki kapisi korkuluktan ONCE calisir: yetkisiz aktor 403 alir ve santiyenin\nbagli kayit tasiyip tasimadigini OGRENEMEZ. Gorunmeyen santiye 404 doner ve\ngovdesi var olmayan UUID'ninkiyle BIREBIR AYNIDIR.\n\nYanit `204 No Content`, GOVDESIZ. Denetim metni servis icinde, satir yok\nolmadan ONCE kurulur; engellenen silme (409) istisna attigi icin buraya hic\ngelmez ve gunluge satir dusmez.",
+        "description": "Spec §7.1 (SIL-B1 ile degisti). YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.\n\nSantiye; bolum, poz, blok, unite, puantaj, gunluk, belge, plan, sozlesme ve diger bagli\nkayitlariyla BIRLIKTE silinir (eski dokuz \"bagli kayit var\" 409 korkulugu Sistem Yoneticisi\nicin kalkti). Once `GET /admin/silme/site/{id}/onizleme`, onay, sonra bu uc `preview_token`\nile cagrilir (eksikse 428, agac degistiyse 409 `preview_stale`, mali bagli kayit varsa 409\n`financial_pending`: mali silme sonraki surumde acilacak).\n\nYetki kapisi her seyden ONCE calisir: yetkisiz aktor 403 alir; gorunmeyen ve var olmayan\nsantiye ayni yaniti verir. Yanit `204 No Content`, GOVDESIZ. Denetim satirina silinen ve bagi\nkopan kayitlarin tam dokumu yazilir; reddedilen silme gunluge satir dusurmez.",
         "operationId": "delete_site_endpoint_sites__site_id__delete",
         "parameters": [
           {
@@ -70254,6 +70673,25 @@
               "format": "uuid",
               "title": "Site Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "`GET /admin/silme/{kind}/{id}/onizleme` yanıtındaki `preview_token`, AYNEN. Eksikse 428 `preview_required`; silme anındaki ağaçla uyuşmazsa 409 `preview_stale`.",
+            "in": "query",
+            "name": "preview_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`GET /admin/silme/{kind}/{id}/onizleme` yanıtındaki `preview_token`, AYNEN. Eksikse 428 `preview_required`; silme anındaki ağaçla uyuşmazsa 409 `preview_stale`.",
+              "title": "Preview Token"
             }
           }
         ],
@@ -70267,6 +70705,16 @@
           "404": {
             "description": "Kayıt bulunamadı"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteErrorResponse"
+                }
+              }
+            },
+            "description": "`code=preview_stale`: `Silinecek kayıtlar değişti; önizlemeyi yenileyin`. `code=financial_pending`: `Bu kaydın bağlı mali kayıtları var; mali kayıt silme bir sonraki sürümde açılacak` (ağaçta `is_financial` grup var; HİÇBİR ŞEY silinmez)."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -70276,6 +70724,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteErrorResponse"
+                }
+              }
+            },
+            "description": "`code=preview_required`: `Silmeden önce önizleme alınmalı; önizlemeyi açıp onaylayın`"
           }
         },
         "security": [
@@ -75025,7 +75483,7 @@
     },
     "/subcontractor-contracts/items/{item_id}": {
       "delete": {
-        "description": "Spec §7. Engel YOK. Kapı `_ADMIN` — `can_delete` istisnası burada YOK,\n\nyalnız `DELETE /subcontractor-contracts/{contract_id}` ucunda geçerlidir\n(task brief kararı).",
+        "description": "Spec §7. Engel YOK. Kapı: yalnız Sistem Yöneticisi (SIL-B1).",
         "operationId": "delete_subcontract_item_endpoint_subcontractor_contracts_items__item_id__delete",
         "parameters": [
           {
@@ -75135,7 +75593,7 @@
     },
     "/subcontractor-contracts/{contract_id}": {
       "delete": {
-        "description": "Spec §7, §5.0. KAPI KARARI (task C12, belirsizlik notu): bu ucun dısındaki\n\nDÖRT DELETE ucu (`subcontractors`, kalemler, işveren grup/kalem) `boq`/\n`sites` deseninin BİREBİRİ — saf `_ADMIN` kapısı, servis katmanında ek\nkontrol YOK. Bu uç TEK istisna: kapı `_FULL`'dir, kesin yetki kararını\n`subcontracts.delete_subcontractor_contract` içindeki `can_delete`\n(`app/core/access.py`, spec §5.0 taslak istisnası) verir. Gerekçe: `boq`/\n`sites` DELETE uçlarının HİÇBİRİ `can_delete`'i KULLANMIYOR (kod taraması\ndoğrulandı) — saf `_ADMIN` kapısı proje müdürünün KENDİ taslağını silmesini\nde engellerdi, bu da spec §5.0'ın taslak istisnasını uçta ANLAMSIZ\nbırakırdı. En yakın emsal `projects/service.py.visible_projects`'in\n`get_permission` ile aktörün gerçek erişim seviyesini SERVİSTE okuma\ndeseni — o da router kapısının (`_VIEW`) ötesinde ek bir servis içi karar\nörneğidir.",
+        "description": "Spec §7. Taşeron sözleşmesini (kalemleri ve hakedişleri CASCADE) siler. Kapı: yalnız Sistem\nYöneticisi (SIL-B1, K4); eski \"kendi taslağını sahibi siler\" istisnası KALDIRILDI.",
         "operationId": "delete_subcontractor_contract_endpoint_subcontractor_contracts__contract_id__delete",
         "parameters": [
           {
@@ -76695,7 +77153,7 @@
     },
     "/subcontractors/{subcontractor_id}": {
       "delete": {
-        "description": "Spec §7. 409 `SUBCONTRACTOR_HAS_CONTRACTS`: taşeronun sözleşmesi varsa\n\nsilinmez. Kapı `_ADMIN` — `boq/router.py.delete_boq_item_endpoint`/\n`sites/router.py.delete_site_endpoint` deseninin BİREBİRİ, `can_delete`\nistisnası YOK (yalnız `subcontractor-contracts` silme ucunda geçerli).",
+        "description": "Spec §7. 409 `SUBCONTRACTOR_HAS_CONTRACTS`: taşeronun sözleşmesi varsa\n\nsilinmez. Kapı: yalnız Sistem Yöneticisi (SIL-B1; `can_delete` istisnası hiçbir uçta yok).",
         "operationId": "delete_subcontractor_endpoint_subcontractors__subcontractor_id__delete",
         "parameters": [
           {
@@ -77596,7 +78054,7 @@
     },
     "/units/{unit_id}": {
       "delete": {
-        "description": "Spec §7.9. Unite silme kosulsuzdur (P3'te uniteye bagli tablo yok, §1.3).\n\nKULLANICI KARARI 2026-07-30: kapi `_ADMIN`'dir, PATCH'ten (`_FULL`) BIR\nSEVIYE YUKARI — `app/core/access.py`: \"full silmeyi KAPSAMAZ — silme\nyalnizca admin seviyesindedir\". `users`/`roles`/sirket logosu DELETE\nuclariyla tutarlilik saglanir.\n\nBILINEN SONUC (kabul edildi): seed matrisinde `projects:admin` yalniz\n`system_admin`'dedir; proje muduru dahil kimse silemez.\n\nGorunurluk kurali DEGISMEDI (gorunmeyen projenin unitesi 404, 403 degil)\nfakat `projects:admin` gorunurluk suzgecini zaten atladigindan (spec §5.2)\nbu dalin HTTP uzerinden ULASILABILIR bir senaryosu kalmamistir; kural\n`guards.visible_unit`'te ve PATCH ucunda (hâlâ `full`) yerinde durur.",
+        "description": "Spec §7.9 (SIL-B1 ile degisti). YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.\n\nUnitenin bagli kayitlari (satis, taksit, belge…) ile BIRLIKTE silinir. Once\n`GET /admin/silme/unit/{id}/onizleme`, onay, sonra bu uc `preview_token` ile cagrilir\n(eksikse 428, ağac degistiyse 409 `preview_stale`, mali bagli kayit varsa 409\n`financial_pending`). Denetim satirina silinen ve bagi kopan kayitlarin tam dokumu yazilir.",
         "operationId": "delete_unit_endpoint_units__unit_id__delete",
         "parameters": [
           {
@@ -77607,6 +78065,25 @@
               "format": "uuid",
               "title": "Unit Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "`GET /admin/silme/{kind}/{id}/onizleme` yanıtındaki `preview_token`, AYNEN. Eksikse 428 `preview_required`; silme anındaki ağaçla uyuşmazsa 409 `preview_stale`.",
+            "in": "query",
+            "name": "preview_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`GET /admin/silme/{kind}/{id}/onizleme` yanıtındaki `preview_token`, AYNEN. Eksikse 428 `preview_required`; silme anındaki ağaçla uyuşmazsa 409 `preview_stale`.",
+              "title": "Preview Token"
             }
           }
         ],
@@ -77620,6 +78097,16 @@
           "404": {
             "description": "Kayıt bulunamadı"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteErrorResponse"
+                }
+              }
+            },
+            "description": "`code=preview_stale`: `Silinecek kayıtlar değişti; önizlemeyi yenileyin`. `code=financial_pending`: `Bu kaydın bağlı mali kayıtları var; mali kayıt silme bir sonraki sürümde açılacak` (ağaçta `is_financial` grup var; HİÇBİR ŞEY silinmez)."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -77629,6 +78116,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteErrorResponse"
+                }
+              }
+            },
+            "description": "`code=preview_required`: `Silmeden önce önizleme alınmalı; önizlemeyi açıp onaylayın`"
           }
         },
         "security": [

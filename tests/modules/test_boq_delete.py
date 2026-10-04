@@ -13,8 +13,6 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-import pytest
-
 from app.core.access import AccessLevel
 from app.modules.audit.models import AuditAction
 from app.modules.boq.models import BoqGroup, BoqItem
@@ -143,15 +141,10 @@ async def test_delete_boq_item_full_level_role_forbidden(
     assert await db_session.get(BoqItem, item.id) is not None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
-async def test_delete_boq_item_admin_level_role_allowed(
+async def test_delete_boq_item_admin_seviyesi_yetmez_yalniz_sistem_yoneticisi(
     client, db_session, user_factory, project_factory
 ):
-    """`boq:admin` seviyesi siler — kapi `admin`de, rol adinda DEGIL."""
+    """SIL-B1: `boq:admin` seviyesi silmeye YETMEZ — kapi rol ANAHTARI `system_admin`dir."""
     project = await project_factory("BOQ-API-42C")
     site = await _site(db_session, project)
     group = await _group(db_session, site)
@@ -163,21 +156,15 @@ async def test_delete_boq_item_admin_level_role_allowed(
 
     resp = await client.delete(f"/boq/items/{item.id}", headers=_auth(token))
 
-    assert resp.status_code == 204
-    assert await db_session.get(BoqItem, item.id) is None
+    assert resp.status_code == 403
+    assert await db_session.get(BoqItem, item.id) is not None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
-async def test_delete_boq_item_invisible_returns_404_not_403(
+async def test_delete_boq_item_invisible_returns_403_not_404(
     client, db_session, user_factory, project_factory
 ):
-    """IDOR (spec §5.5): kalem->santiye->proje suzgecinden gecmeyen kayit 404 doner,
-
-    403 DEGIL — ve kayit SILINMEZ.
+    """IDOR (spec §5.5, SIL-B1 sonrasi): kapi (Sistem Yoneticisi) handler'dan ONCE kosar; gorunmeyen
+    kayit 403 alir (eskiden 404) ve kayit SILINMEZ. Var olmayan kimlik ile AYNI yanit.
 
     Aktorun `boq` izni testte acikca `admin`e cekilir (2026-07-30 karari): aksi
     hâlde 403 yetki kapisindan doner ve bu test gorunurluk suzgecini HIC sinamaz.
@@ -193,16 +180,11 @@ async def test_delete_boq_item_invisible_returns_404_not_403(
 
     resp = await client.delete(f"/boq/items/{item.id}", headers=_auth(token))
 
-    assert resp.status_code == 404
-    assert resp.json()["detail"] == "İş kalemi bulunamadı"
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
     assert await db_session.get(BoqItem, item.id) is not None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
 async def test_delete_boq_item_missing_is_indistinguishable_from_invisible(
     client, db_session, user_factory, project_factory
 ):
@@ -217,7 +199,7 @@ async def test_delete_boq_item_missing_is_indistinguishable_from_invisible(
     invisible = await client.delete(f"/boq/items/{item.id}", headers=_auth(token))
     missing = await client.delete(f"/boq/items/{uuid.uuid4()}", headers=_auth(token))
 
-    assert invisible.status_code == missing.status_code == 404
+    assert invisible.status_code == missing.status_code == 403
     assert invisible.json() == missing.json()
 
 
@@ -305,12 +287,7 @@ async def test_delete_boq_group_full_level_role_forbidden(
     assert await db_session.get(BoqGroup, group.id) is not None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
-async def test_delete_boq_group_admin_level_role_allowed(
+async def test_delete_boq_group_admin_seviyesi_yetmez_yalniz_sistem_yoneticisi(
     client, db_session, user_factory, project_factory
 ):
     project = await project_factory("BOQ-API-50")
@@ -323,19 +300,14 @@ async def test_delete_boq_group_admin_level_role_allowed(
 
     resp = await client.delete(f"/boq/groups/{group.id}", headers=_auth(token))
 
-    assert resp.status_code == 204
-    assert await db_session.get(BoqGroup, group.id) is None
+    assert resp.status_code == 403
+    assert await db_session.get(BoqGroup, group.id) is not None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
-async def test_delete_boq_group_invisible_returns_404_not_403(
+async def test_delete_boq_group_invisible_returns_403_not_404(
     client, db_session, user_factory, project_factory
 ):
-    """IDOR: gorunurluk suzgecinden gecmeyen grup 404 doner, 403 DEGIL."""
+    """IDOR (SIL-B1): kapi once kosar; gorunmeyen grup 403 alir (eskiden 404)."""
     project = await project_factory("BOQ-API-51")
     site = await _site(db_session, project)
     group = await _group(db_session, site)
@@ -344,16 +316,11 @@ async def test_delete_boq_group_invisible_returns_404_not_403(
 
     resp = await client.delete(f"/boq/groups/{group.id}", headers=_auth(token))
 
-    assert resp.status_code == 404
-    assert resp.json()["detail"] == "İş kalemi grubu bulunamadı"
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
     assert await db_session.get(BoqGroup, group.id) is not None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
-    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
-)
 async def test_delete_boq_group_missing_is_indistinguishable_from_invisible(
     client, db_session, user_factory, project_factory
 ):
@@ -366,7 +333,7 @@ async def test_delete_boq_group_missing_is_indistinguishable_from_invisible(
     invisible = await client.delete(f"/boq/groups/{group.id}", headers=_auth(token))
     missing = await client.delete(f"/boq/groups/{uuid.uuid4()}", headers=_auth(token))
 
-    assert invisible.status_code == missing.status_code == 404
+    assert invisible.status_code == missing.status_code == 403
     assert invisible.json() == missing.json()
 
 

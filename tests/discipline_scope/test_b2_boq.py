@@ -54,9 +54,14 @@ async def test_grup_silmek_kisitli_admine_403_atamasiz_admine_serbest(
         f"/sites/{dunya.santiye.id}/boq/groups", headers=atamasiz, json={"name": "Silinecek"}
     )
     gid = grup.json()["id"]
+    # SIL-B1: DELETE'te disiplin kisiti UYGULANMAZ ("her kosulda Sistem Yoneticisi"); kisitli
+    # (disiplin atanmis) Sistem Yoneticisi de siler. Sistem Yoneticisi olmayan 403 alir.
     resp = await client.delete(f"/boq/groups/{gid}", headers=admin_kisitli)
-    assert (resp.status_code, resp.json()) == (403, YETKI_YOK)
-    pozitif = await client.delete(f"/boq/groups/{gid}", headers=atamasiz)
+    assert resp.status_code == 204, resp.text
+    grup2 = await client.post(
+        f"/sites/{dunya.santiye.id}/boq/groups", headers=atamasiz, json={"name": "Silinecek 2"}
+    )
+    pozitif = await client.delete(f"/boq/groups/{grup2.json()['id']}", headers=atamasiz)
     assert pozitif.status_code == 204, pozitif.text
 
 

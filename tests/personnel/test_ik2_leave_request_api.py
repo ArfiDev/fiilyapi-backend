@@ -565,15 +565,18 @@ async def test_delete_onaylanmis_409(client, admin_headers, seeded_db, personel,
 async def test_delete_yabanci_view_kullanicisi_403(
     client, ik_headers, sef_headers, personel, yillik
 ):
-    """`site_chief` (`view`) ne yetkili ne SAHİP → silemez (403)."""
+    """`site_chief` (`view`) Sistem Yöneticisi değil → silemez (403)."""
     talep_id = await _talep_olustur(client, ik_headers, personel, yillik)
     yanit = await client.delete(f"/leave-requests/{talep_id}", headers=sef_headers)
     assert yanit.status_code == 403, yanit.text
 
 
 @pytest.mark.asyncio
-async def test_delete_sahibi_204(client, seeded_db, ik_headers, sef_headers, yillik):
-    """Talebin SAHİBİ (personelin `user_id`si aktörse) `view` seviyesiyle de siler."""
+async def test_delete_sahibi_de_silemez_istisna_yok_geri_cekebilir(
+    client, seeded_db, ik_headers, sef_headers, yillik
+):
+    """SIL-B1 (K4): talebin SAHİBİ de silemez (403) — silme YALNIZ Sistem Yöneticisi'nindir.
+    Vazgeçmenin yolu silme değil GERİ ÇEKMEdir (`withdraw`, durum geçişi)."""
     sef = (
         await seeded_db.execute(select(User).where(User.email == "sef@personnel.co"))
     ).scalar_one()
@@ -583,12 +586,14 @@ async def test_delete_sahibi_204(client, seeded_db, ik_headers, sef_headers, yil
     talep_id = await _talep_olustur(client, ik_headers, kendi, yillik)
 
     yanit = await client.delete(f"/leave-requests/{talep_id}", headers=sef_headers)
-    assert yanit.status_code == 204, yanit.text
+    assert yanit.status_code == 403, yanit.text
+    geri = await client.post(f"/leave-requests/{talep_id}/withdraw", headers=sef_headers)
+    assert geri.status_code == 200, geri.text
 
 
 @pytest.mark.asyncio
-async def test_delete_yok_404(client, ik_headers):
-    yanit = await client.delete(f"/leave-requests/{uuid.uuid4()}", headers=ik_headers)
+async def test_delete_yok_404(client, admin_headers):
+    yanit = await client.delete(f"/leave-requests/{uuid.uuid4()}", headers=admin_headers)
     assert yanit.status_code == 404, yanit.text
 
 

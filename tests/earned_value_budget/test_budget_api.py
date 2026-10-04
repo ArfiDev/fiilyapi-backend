@@ -391,20 +391,18 @@ async def test_permission_matrix(
     assert (await client.post(_url(santiye, "/freeze"), headers=sef, json={})).status_code == 200
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE bütçe taslağı yalnız Sistem Yöneticisi (SIL hattında)",
-)
-async def test_delete_draft_requires_approve_and_only_draft(
-    client, sef, saha, seeded_db, santiye, boq, disiplinler
+async def test_delete_draft_requires_system_admin_and_only_draft(
+    client, admin, sef, saha, seeded_db, santiye, boq, disiplinler
 ) -> None:
+    """SIL-B1: taslak silme `approve` seviyesi DEĞİL, YALNIZ Sistem Yöneticisi'nindir."""
     view = await _map(client, santiye, saha, boq, disiplinler)
     rev_id = view["revision"]["id"]
+    for baslik in (saha, sef):  # şef (approve) bile silemez
+        assert (
+            await client.delete(_url(santiye, f"/revisions/{rev_id}"), headers=baslik)
+        ).status_code == 403
     assert (
-        await client.delete(_url(santiye, f"/revisions/{rev_id}"), headers=saha)
-    ).status_code == 403
-    assert (
-        await client.delete(_url(santiye, f"/revisions/{rev_id}"), headers=sef)
+        await client.delete(_url(santiye, f"/revisions/{rev_id}"), headers=admin)
     ).status_code == 204
     assert await seeded_db.get(EvRevision, rev_id) is None
 
@@ -419,7 +417,6 @@ async def test_one_draft_per_site_is_enforced_by_db(seeded_db, santiye) -> None:
     seeded_db.add(EvRevision(site_id=santiye.id, number=0, status=RevisionStatus.DRAFT))
     await seeded_db.flush()
     seeded_db.add(EvRevision(site_id=santiye.id, number=1, status=RevisionStatus.DRAFT))
-    import pytest
     from sqlalchemy.exc import IntegrityError
 
     with pytest.raises(IntegrityError):

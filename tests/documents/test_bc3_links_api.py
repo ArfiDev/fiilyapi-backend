@@ -426,6 +426,7 @@ async def test_detach_204_dosyayi_SILMEZ_ikinci_silme_404(
     client: AsyncClient,
     seeded_db: AsyncSession,
     pm_headers,
+    admin_headers,
     sahip: SahipDurumu,
     slot_katalogu,
     proje,
@@ -435,14 +436,16 @@ async def test_detach_204_dosyayi_SILMEZ_ikinci_silme_404(
     govde = await _bagla(client, pm_headers, sahip, _ilk_slot(slot_katalogu, sahip), belge)
     link = _link_path(sahip, govde["id"])
 
-    assert (await client.delete(link, headers=pm_headers)).status_code == 204
+    # SIL-B1: bağ kaldırma (DELETE) YALNIZ Sistem Yöneticisi'nindir (`pm` 403 alır).
+    assert (await client.delete(link, headers=pm_headers)).status_code == 403
+    assert (await client.delete(link, headers=admin_headers)).status_code == 204
     liste = await client.get(_owner_path(sahip, sahip.owner_id), headers=pm_headers)
     assert liste.json() == {"items": []}
     # Arşiv kaydı ayakta (GET detay ucu yok; künye DB'den okunur).
     seeded_db.expunge_all()
     assert await seeded_db.get(Document, belge.id) is not None
 
-    tekrar = await client.delete(link, headers=pm_headers)
+    tekrar = await client.delete(link, headers=admin_headers)
     assert tekrar.status_code == 404
     assert tekrar.json()["detail"] == guards.LINK_MISSING
 
@@ -480,8 +483,8 @@ async def test_gorunmeyen_sahibin_bagi_404_BAGIN_cumlesi(
     ikinci_proje: Project,
     belge_fabrikasi,
 ) -> None:
-    """Admin ikinci projede bağ açar; kapsamlı PM o bağı PATCH/DELETE edemez — 404,
-    cümle BAĞIN cümlesi (sahibin varlığı sızmaz)."""
+    """Admin ikinci projede bağ açar; kapsamlı PM o bağı PATCH edemez — 404, cümle BAĞIN
+    cümlesi (sahibin varlığı sızmaz). DELETE: PM'e kapı 403 (SIL-B1, yalnız Sistem Yöneticisi)."""
     yabanci_belge = await belge_fabrikasi(ikinci_proje, "y.pdf")
     resp = await client.post(
         _owner_path(sahip, sahip.yabanci_owner_id),
@@ -493,12 +496,11 @@ async def test_gorunmeyen_sahibin_bagi_404_BAGIN_cumlesi(
     )
     assert resp.status_code == 201, resp.text
     link = _link_path(sahip, resp.json()["id"])
-    for yanit in (
-        await client.patch(link, json={"note": "x"}, headers=pm_headers),
-        await client.delete(link, headers=pm_headers),
-    ):
-        assert yanit.status_code == 404
-        assert yanit.json()["detail"] == guards.LINK_MISSING
+    yanit = await client.patch(link, json={"note": "x"}, headers=pm_headers)
+    assert yanit.status_code == 404
+    assert yanit.json()["detail"] == guards.LINK_MISSING
+    silme = await client.delete(link, headers=pm_headers)
+    assert silme.status_code == 403
     # Pozitif kontrol: admin aynı bağı güncelleyebilir.
     assert (await client.patch(link, json={"note": "x"}, headers=admin_headers)).status_code == 200
 
@@ -600,6 +602,7 @@ async def test_yazmalar_denetim_satiri_uretir_okuma_URETMEZ(
     client: AsyncClient,
     seeded_db: AsyncSession,
     pm_headers,
+    admin_headers,
     sahip: SahipDurumu,
     slot_katalogu,
     proje,
@@ -617,7 +620,7 @@ async def test_yazmalar_denetim_satiri_uretir_okuma_URETMEZ(
 
     govde = await _bagla(client, pm_headers, sahip, slot, belge)
     await client.patch(_link_path(sahip, govde["id"]), json={"note": "x"}, headers=pm_headers)
-    await client.delete(_link_path(sahip, govde["id"]), headers=pm_headers)
+    await client.delete(_link_path(sahip, govde["id"]), headers=admin_headers)
     # FIX-B1: `[onceki:]` dilimi yeni satırların SONDA geldiğini varsayıyordu (ORDER BY yok).
     detaylar = [
         k.detail

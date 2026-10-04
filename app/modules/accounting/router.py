@@ -65,7 +65,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_pages, require_permission
+from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.accounting import (
     export,
@@ -97,7 +97,6 @@ _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(guards.PERMISSION_MODULE, AccessLevel.full)
 #: IZN-B2: fiş Kaydet (post) = Yevmiye sayfası ONAYLAR (eşik eski `full`).
 _POST_APPROVE = require_pages(("mali.yevmiye",), "approve")
-_ADMIN = require_permission(guards.PERMISSION_MODULE, AccessLevel.admin)
 
 # K7 sayfalama standardı: varsayılan 50, tavan 200 — tavan aşımı sessizce
 # KIRPILMAZ, 422 döner (ST/SA/`invoicing`/`treasury` ile birebir).
@@ -298,7 +297,7 @@ async def update_journal_entry_endpoint(
     "/journal-entries/{entry_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={**_NOT_FOUND, 409: {"description": "Yalnızca taslak fiş silinebilir"}},
-    dependencies=[_ADMIN],
+    dependencies=[require_system_admin()],
 )
 async def delete_journal_entry_endpoint(
     request: Request,

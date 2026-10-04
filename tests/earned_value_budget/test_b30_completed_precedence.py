@@ -98,12 +98,6 @@ _YAZMALAR: list[tuple[str, _Istek, int, str]] = [
         guards.SITE_COMPLETED_BUDGET_READ_ONLY,
     ),
     (
-        "taslak-sil-olmayan",
-        lambda c, h, s, _: c.delete(_budget(s, f"/revisions/{uuid.uuid4()}"), headers=h),
-        404,
-        guards.SITE_COMPLETED_BUDGET_READ_ONLY,
-    ),
-    (
         "freeze",
         lambda c, h, s, _: c.post(_budget(s, "/freeze"), headers=h, json={"name": "x" * 151}),
         422,
@@ -123,22 +117,9 @@ _YAZMALAR: list[tuple[str, _Istek, int, str]] = [
     ),
 ]
 
-#: IZN-B2: bütçe taslağı SİL (DELETE) `(earned_value, approve)` modül kapısında kalır; Onaylar
-#: bayrağı modül kapısı açmadığı için yalnız Sistem Yöneticisi geçer (SIL hattı: SIL-B1 testi
-#: sysadmin aktörüne çevirecek).
-_SIL_HATTINDA = pytest.mark.xfail(
-    strict=True,
-    reason="IZN-B2: DELETE bütçe taslağı yalnız Sistem Yöneticisi (SIL hattında)",
-)
-_HER_YAZMA = pytest.mark.parametrize(
-    ("ad", "istek", "aktifte", "metin"),
-    [
-        pytest.param(*y, id=y[0], marks=_SIL_HATTINDA)
-        if y[0] == "taslak-sil-olmayan"
-        else pytest.param(*y, id=y[0])
-        for y in _YAZMALAR
-    ],
-)
+#: SIL-B1: bütçe taslağı SİL (DELETE) YALNIZ Sistem Yöneticisi'nindir; `sef` (Onaylar) 403 alır.
+#: Bu yüzden `sef` ile koşan ortak yazma matrisinde değil, aşağıdaki özel testte (SA aktörüyle).
+_HER_YAZMA = pytest.mark.parametrize(("ad", "istek", "aktifte", "metin"), _YAZMALAR)
 
 #: Gövdesiz yazmalar: "geçersiz gövde" hâli yoktur ama sıra (404 → 409) yine geçerlidir.
 _GOVDESIZ: list[tuple[str, _Istek]] = [
@@ -164,6 +145,20 @@ async def _tamamla(seeded_db, *sites: Site) -> None:  # noqa: ANN001
 async def zemin(santiye, gorunmeyen_santiye, boq, disiplinler) -> dict:
     """`sef` (earned_value APPROVE, yalnız `proje`ye atanmış) her yazma ucunu çağırabilir."""
     return boq
+
+
+async def test_B30_taslak_sil_yalniz_sistem_yoneticisi_tamamlanmis_santiyede_409(
+    client, sef, admin, seeded_db, santiye, zemin
+) -> None:
+    """DELETE bütçe taslağı: kapı (Sistem Yöneticisi) önce; `sef` 403. Sistem Yöneticisi için
+    aktif şantiyede olmayan revizyon 404, TAMAMLANMIŞ şantiyede 409 (ekran metni)."""
+    url = _budget(santiye, f"/revisions/{uuid.uuid4()}")
+    assert (await client.delete(url, headers=sef)).status_code == 403
+    assert (await client.delete(url, headers=admin)).status_code == 404
+    await _tamamla(seeded_db, santiye)
+    resp = await client.delete(url, headers=admin)
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"] == guards.SITE_COMPLETED_BUDGET_READ_ONLY
 
 
 @_HER_YAZMA

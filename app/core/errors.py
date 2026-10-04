@@ -9,10 +9,6 @@ class PermissionLockedError(DomainError):
     """system_admin rolünün izinleri değiştirilemez (kilitlenme koruması, spec §5.0)."""
 
 
-class DeleteNotAllowedError(DomainError):
-    """Silme koşulları sağlanmadı (spec §5.0)."""
-
-
 class NotFoundError(DomainError):
     """İstenen kayıt bulunamadı — router katmanı 404'e çevirir."""
 
@@ -109,9 +105,8 @@ class PersonnelValidationError(DomainError):
 class RelatedRecordsExistError(DomainError):
     """Silinmek istenen kayda bağlı alt kayıtlar var (Alt-Proje 2 P3 spec §7.9) — 409.
 
-    `DeleteNotAllowedError` (403) YETKİ engelidir; bu ise ÇAKIŞMA'dır: kullanıcının
-    yetkisi vardır ama kaydın durumu silmeye elverişli değildir. İkisini tek sınıfta
-    toplamak, "yetkin yok" ile "önce alt kayıtları sil" mesajlarını aynı koda düşürür.
+    Bu bir ÇAKIŞMA'dır: kullanıcının yetkisi vardır ama kaydın durumu silmeye elverişli
+    değildir ("yetkin yok" 403'ünden ayrı kod).
 
     Cascade'e KAYILMAZ: ünitesi olan blok silinirse 24 daire tek istekte gider ve
     geri alınamaz. DB tarafındaki `ON DELETE RESTRICT` (spec §4.2) ikinci katmandır.
@@ -162,10 +157,7 @@ class ProcurementValidationError(DomainError):
 class ApprovalNotAllowedError(DomainError):
     """Onay YETKİSİ tutar eşiğini karşılamıyor (SA spec §3, §7 S2) — 403.
 
-    `DeleteNotAllowedError`in kardeşi ve aynı sebeple ondan AYRI: ikisi de
-    yetki engelidir ama biri silmeye, öteki onaya bakar; tek sınıfta
-    toplanırlarsa mesajlar da tek yerde toplanır ve "silme yetkiniz yok"
-    cümlesi bir onay ucundan dönerdi.
+    Yetki engelidir ama onaya bakar (silme kapısı `require_system_admin`dir).
 
     409 DEĞİL: kayıt DOĞRU durumdadır (`pending_approval`), engelleyen şey
     AKTÖRÜN SEVİYESİDİR — başka bir kullanıcı aynı anda onaylayabilir. 422 da

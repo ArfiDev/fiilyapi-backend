@@ -20,7 +20,7 @@ from app.core.discipline_deps import require_unrestricted
 from app.main import app
 from tests._disiplin_dunyasi import _kimlik
 from tests.core.test_disiplin_rota_bekcisi import _bagimlilik_agacinda
-from tests.discipline_scope._b2_yardim import YETKI_YOK
+from tests.discipline_scope._b2_yardim import SISYON_ONLY, YETKI_YOK
 from tests.discipline_scope._b4_dunya import DunyaB4
 
 D = Decimal
@@ -40,7 +40,6 @@ SENARYOLAR: dict[str, tuple[tuple[str, str], str, str, dict | None, tuple[int, .
     "isv_satirlar": (PATRON, "PUT", f"/progress-payments/{ODEME}/lines", {"lines": []}, (409,)),
     "isv_guncelle": (PATRON, "PATCH", f"/progress-payments/{ODEME}", {"description": "x"}, (409,)),
     "isv_gecis_submit": (PATRON, "POST", f"/progress-payments/{ODEME}/submit", None, (409,)),
-    "isv_sil": (PATRON, "DELETE", f"/progress-payments/{ODEME}", None, (409,)),
     "isv_olmayan_kimlik": (PM, "GET", f"/progress-payments/{YOK}", None, (404,)),
     "tas_liste": (PM, "GET", "/subcontractor-progress-payments", None, (200,)),
     "tas_ozet": (PM, "GET", "/subcontractor-progress-payments/summary", None, (200,)),
@@ -66,7 +65,6 @@ SENARYOLAR: dict[str, tuple[tuple[str, str], str, str, dict | None, tuple[int, .
         None,
         (404,),
     ),
-    "tas_sil_olmayan": (PATRON, "DELETE", f"/subcontractor-progress-payments/{YOK}", None, (404,)),
     "oneri_isveren": (
         PM,
         "GET",
@@ -115,6 +113,25 @@ async def test_atamasiz_es_403_almaz_pozitif_kontrol(
     )
     assert ret.status_code != 403, (ad, ret.text)
     assert ret.status_code in kabul, (ad, ret.status_code, ret.text)
+
+
+@pytest.mark.parametrize(
+    ("yol", "beklenen"),
+    [
+        (f"/progress-payments/{ODEME}", 409),  # onaylı/ödenmiş: iş kuralı, ASLA 403
+        (f"/subcontractor-progress-payments/{YOK}", 404),
+    ],
+)
+async def test_silmede_disiplin_kisiti_uygulanmaz_sistem_yoneticisi_atanmis_olsa_da_siler(
+    client: AsyncClient, dunya_b4: DunyaB4, yol: str, beklenen: int
+) -> None:
+    """SIL-B1: DELETE'te disiplin kısıtı YOK. Disiplin atanmış Sistem Yöneticisi 403 DEĞİL iş
+    kuralı sonucunu alır; Sistem Yöneticisi olmayan kısıtlı rol sistem yöneticisi kapısında 403."""
+    baslik = dunya_b4.d.baslik
+    kisitli_admin = await client.delete(yol, headers=baslik["admin_kisitli"])
+    assert kisitli_admin.status_code == beklenen, kisitli_admin.text
+    sirada = await client.delete(yol, headers=baslik["civil_yazar"])
+    assert sirada.status_code == 403 and sirada.json() == SISYON_ONLY
 
 
 async def test_admin_kisitli_da_403(client: AsyncClient, dunya_b4: DunyaB4) -> None:

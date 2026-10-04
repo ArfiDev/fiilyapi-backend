@@ -28,7 +28,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
@@ -214,7 +214,11 @@ async def update_offer_endpoint(
     return await offer_queries.build_offer_detail(session, offer)
 
 
-@router.delete("/offers/{offer_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_WRITE)
+@router.delete(
+    "/offers/{offer_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[require_system_admin()],
+)
 async def delete_offer_endpoint(
     request: Request, offer_id: _OfferId, user: _User, session: DbSession
 ) -> None:
@@ -402,7 +406,9 @@ async def update_group_endpoint(
 
 
 @router.delete(
-    _REV + "/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_WRITE
+    _REV + "/groups/{group_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[require_system_admin()],
 )
 async def delete_group_endpoint(
     offer_id: _OfferId, rev_no: _RevNo, group_id: _GroupId, session: DbSession
@@ -476,7 +482,9 @@ async def update_item_endpoint(
 
 
 @router.delete(
-    _REV + "/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_WRITE
+    _REV + "/items/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[require_system_admin()],
 )
 async def delete_item_endpoint(
     offer_id: _OfferId, rev_no: _RevNo, item_id: _ItemId, session: DbSession

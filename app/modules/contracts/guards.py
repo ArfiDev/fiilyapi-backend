@@ -118,12 +118,6 @@ def subcontractor_has_diary_rows(entry_count: int, row_count: int, first_date: d
     )
 
 
-# 403 — `DELETE /subcontractor-contracts/{id}` `can_delete` (app/core/access.py)
-# taslak istisnasını sağlamayan aktöre döner. `require_permission`in ürettiği
-# metinle AYNI: bu da bir YETKİ engelidir (`DeleteNotAllowedError`), yalnız
-# kararı router kapısı DEĞİL servis katmanı verir (spec §5.0).
-DELETE_NOT_ALLOWED = "Bu işlem için yetkiniz yok"
-
 # 422 — `load-from-employer` (spec §6.5): işveren sözleşmesi ya da kalemi yoksa.
 NO_EMPLOYER_ITEMS = "Bu projenin işveren sözleşmesinde poz yok"
 

@@ -21,6 +21,7 @@ from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.permissions import require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -31,7 +32,6 @@ from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import budget_service as svc
 from app.modules.earned_value import contract_rates
 from app.modules.earned_value.access import (
-    APPROVE,
     BASELINE_FREEZE,
     VIEW,
     WRITE,
@@ -151,7 +151,7 @@ async def open_budget_draft(
 @router.delete(
     f"{_BASE}/revisions/{{revision_id}}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[APPROVE, RequireUnrestricted],
+    dependencies=[require_system_admin()],
 )
 async def delete_budget_draft(
     request: Request,

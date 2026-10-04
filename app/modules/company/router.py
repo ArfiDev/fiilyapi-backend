@@ -17,7 +17,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -130,7 +130,7 @@ async def get_logo_endpoint(
 @router.delete(
     "/logo",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[require_permission("settings", AccessLevel.full)],
+    dependencies=[require_system_admin()],
 )
 async def delete_logo_endpoint(
     request: Request,

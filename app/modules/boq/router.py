@@ -9,7 +9,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku, kapsamla_maskele
 from app.modules.audit import messages
@@ -345,7 +345,7 @@ async def save_section_distribution_endpoint(
 @router.delete(
     "/boq/groups/{group_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_ADMIN, RequireUnrestricted],
+    dependencies=[require_system_admin()],
 )
 async def delete_boq_group_endpoint(
     request: Request,
@@ -355,11 +355,10 @@ async def delete_boq_group_endpoint(
 ) -> None:
     """TB3-C: YALNIZ BOS grup silinir; kalemi olan grup 409 doner.
 
-    Kapi `_ADMIN`'dir — `delete_boq_item_endpoint` ile BIREBIR ayni gerekce
-    (`full` silmeyi KAPSAMAZ). F-SD smoke'unda canlida bos test grubu 405
-    aldigi icin acildi.
+    Kapi `require_system_admin`dir (SIL-B1; `delete_boq_item_endpoint` ile ayni). F-SD smoke'unda
+    canlida bos test grubu 405 aldigi icin acildi.
     """
-    # DSC-B2 (Ü6): grup silme yapisal islemdir → kisitliya 403 (`RequireUnrestricted`).
+    # SIL-B1: grup silme YALNIZ Sistem Yoneticisi'nindir; disiplin kisiti DELETE'te uygulanmaz.
     name = await service.delete_group(session, user, group_id)
     await record_audit(
         session,
@@ -373,7 +372,7 @@ async def delete_boq_group_endpoint(
 @router.delete(
     "/boq/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_ADMIN],
+    dependencies=[require_system_admin()],
 )
 async def delete_boq_item_endpoint(
     request: Request,

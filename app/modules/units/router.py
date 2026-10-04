@@ -10,11 +10,13 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import UnitValidationError
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku, kapsamla_maskele
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
+from app.modules.silme import service as silme_service
+from app.modules.silme.params import DELETE_WITH_PREVIEW_RESPONSES, PreviewTokenQuery
 from app.modules.units import batch, export, guards, importer, service
 from app.modules.units.export import build_units_workbook
 from app.modules.units.models import UnitKind, UnitSalesStatus
@@ -72,9 +74,7 @@ router = APIRouter(
 _VIEW = require_permission("projects", AccessLevel.view)
 # Yazma uclari `full` ister (spec §8): `view` yetmez (IDOR-13).
 _FULL = require_permission("projects", AccessLevel.full)
-# KULLANICI KARARI 2026-07-30: SILME uclari bir seviye yukaridadir. `full`
-# yazmayi kapsar, SILMEYI KAPSAMAZ (`app/core/access.py` §5.0).
-_ADMIN = require_permission("projects", AccessLevel.admin)
+# SILME uclari `require_system_admin` ile kapilidir (SIL-B1): modul seviyesi degil rol ANAHTARI.
 
 
 async def _audit(
@@ -209,46 +209,50 @@ async def update_unit_endpoint(
     return await service.unit_response(session, unit)
 
 
-@router.delete("/units/{unit_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_ADMIN])
+@router.delete(
+    "/units/{unit_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=DELETE_WITH_PREVIEW_RESPONSES,
+    dependencies=[require_system_admin()],
+)
 async def delete_unit_endpoint(
     request: Request,
     unit_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Spec §7.9. Unite silme kosulsuzdur (P3'te uniteye bagli tablo yok, §1.3).
+    """Spec §7.9 (SIL-B1 ile degisti). YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.
 
-    KULLANICI KARARI 2026-07-30: kapi `_ADMIN`'dir, PATCH'ten (`_FULL`) BIR
-    SEVIYE YUKARI — `app/core/access.py`: "full silmeyi KAPSAMAZ — silme
-    yalnizca admin seviyesindedir". `users`/`roles`/sirket logosu DELETE
-    uclariyla tutarlilik saglanir.
-
-    BILINEN SONUC (kabul edildi): seed matrisinde `projects:admin` yalniz
-    `system_admin`'dedir; proje muduru dahil kimse silemez.
-
-    Gorunurluk kurali DEGISMEDI (gorunmeyen projenin unitesi 404, 403 degil)
-    fakat `projects:admin` gorunurluk suzgecini zaten atladigindan (spec §5.2)
-    bu dalin HTTP uzerinden ULASILABILIR bir senaryosu kalmamistir; kural
-    `guards.visible_unit`'te ve PATCH ucunda (hâlâ `full`) yerinde durur."""
-    detail = await service.delete_unit(session, user, unit_id)
+    Unitenin bagli kayitlari (satis, taksit, belge…) ile BIRLIKTE silinir. Once
+    `GET /admin/silme/unit/{id}/onizleme`, onay, sonra bu uc `preview_token` ile cagrilir
+    (eksikse 428, ağac degistiyse 409 `preview_stale`, mali bagli kayit varsa 409
+    `financial_pending`). Denetim satirina silinen ve bagi kopan kayitlarin tam dokumu yazilir."""
+    detail = await silme_service.sil(session, "unit", unit_id, preview_token)
     await _audit(request, session, user, AuditAction.delete, detail)
 
 
-@router.delete("/blocks/{block_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_ADMIN])
+@router.delete(
+    "/blocks/{block_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=DELETE_WITH_PREVIEW_RESPONSES,
+    dependencies=[require_system_admin()],
+)
 async def delete_block_endpoint(
     request: Request,
     block_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Spec §7.9. CASCADE YOK: unitesi olan blok 409 ile reddedilir — 24 daireyi
-    tek istekte silmek geri alinamaz veri kaybidir.
+    """Spec §7.9 (SIL-B1 ile degisti). YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.
 
-    KULLANICI KARARI 2026-07-30: kapi `_ADMIN`'dir (bkz. `delete_unit_endpoint`
-    gerekcesi) — `app/core/access.py`: "full silmeyi KAPSAMAZ". Yetki kapisi
-    409 korkulugundan ONCE calisir: yetkisiz aktor 403 alir, blogun unite
-    tasiyip tasimadigini OGRENEMEZ."""
-    detail = await service.delete_block(session, user, block_id)
+    Blok, UNITELERI ve onlarin bagli kayitlari ile BIRLIKTE silinir (eski "unitesi olan blok 409"
+    korkulugu Sistem Yoneticisi icin kalkti: uniteler once, blok sonra silinir). Once
+    `GET /admin/silme/block/{id}/onizleme`, onay, sonra bu uc `preview_token` ile cagrilir
+    (eksikse 428, agac degistiyse 409 `preview_stale`, mali bagli kayit varsa 409
+    `financial_pending`). Yetki kapisi her seyden ONCE calisir."""
+    detail = await silme_service.sil(session, "block", block_id, preview_token)
     await _audit(request, session, user, AuditAction.delete, detail)
 
 

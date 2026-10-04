@@ -42,7 +42,6 @@ PERMISSION_MODULE` geriye donuk takma addir.
 __all__ = [
     "APPROVAL_THRESHOLD_EXCEEDED",
     "PERMISSION_MODULE",
-    "DELETE_NOT_ALLOWED",
     "INVALID_ORDER_TRANSITION",
     "INVALID_REQUEST_TRANSITION",
     "ORDER_MISSING",
@@ -93,12 +92,6 @@ REQUEST_STOCK_ITEM_INVALID = "Seçilen malzeme kartı bulunamadı"
 # atlatmanin da en kisa yolu budur: dusuk tutarla onaylat, sonra sisir).
 REQUEST_NOT_DRAFT = "Yalnızca taslak talep düzenlenebilir veya silinebilir"
 
-# 403 — `can_delete` (`app/core/access.py`) reddi: `admin` her seyi siler, aksi
-# halde yalniz talebi ACAN aktor kendi TASLAGINI siler. `full` silmeyi
-# KAPSAMAZ (spec §5.0), yani satinalma sorumlusu bile bir baskasinin taslagini
-# dusuremez.
-DELETE_NOT_ALLOWED = "Bu talebi silme yetkiniz yok"
-
 # --- T3: onay akisi, teklif ve siparis ---
 
 # 409 — talebin gecis matrisinde (`transitions.REQUEST_TRANSITIONS`) OLMAYAN her
@@ -114,8 +107,8 @@ INVALID_REQUEST_TRANSITION = "Satın alma talebinin durumu bu işleme uygun değ
 INVALID_ORDER_TRANSITION = "Siparişin durumu bu işleme uygun değil"
 
 # 403 — ₺500K ve ustu talep `full` seviyesi ister (FST 166 "Patron").
-# `DELETE_NOT_ALLOWED`tan AYRI metin: kullanici hangi kapinin kapali oldugunu
-# bilmeli, "yetkiniz yok" cumlesi onu izin ekranina degil bosluga gonderirdi.
+# Kullanici hangi kapinin kapali oldugunu bilmeli: "yetkiniz yok" cumlesi onu izin
+# ekranina degil bosluga gonderirdi.
 APPROVAL_THRESHOLD_EXCEEDED = "Bu tutardaki bir talebi onaylamak için üst seviye yetki gerekir"
 
 # 409 — teklif YAZMA yalniz `quote_wait`te acik (OKUMA her durumda serbesttir:

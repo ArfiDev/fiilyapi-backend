@@ -50,7 +50,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_pages, require_permission
+from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit.models import AuditAction
@@ -76,7 +76,6 @@ _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
 #: IZN-B2: Gelen faturada Onayla / Tahsil Edildi = Fatura Yönetimi sayfası ONAYLAR (eski `full`).
 _INVOICE_APPROVE = require_pages(("mali.fatura",), "approve")
-_ADMIN = require_permission(service.PERMISSION_MODULE, AccessLevel.admin)
 
 # TB3 sayfalama standardı: varsayılan 50, tavan 200 — tavan aşımı sessizce
 # KIRPILMAZ, 422 döner (ST/SA ile birebir).
@@ -295,7 +294,7 @@ async def update_invoice_endpoint(
         404: {"description": "Fatura bulunamadı"},
         409: {"description": "Yalnızca taslak fatura silinebilir"},
     },
-    dependencies=[_ADMIN],
+    dependencies=[require_system_admin()],
 )
 async def delete_invoice_endpoint(
     request: Request,
@@ -584,7 +583,7 @@ async def create_invoice_payment_endpoint(
     "/payments/{payment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={404: {"description": "Ödeme kaydı bulunamadı"}},
-    dependencies=[_ADMIN],
+    dependencies=[require_system_admin()],
 )
 async def delete_payment_endpoint(
     request: Request,

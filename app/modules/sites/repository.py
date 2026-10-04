@@ -1,10 +1,8 @@
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
-from datetime import date
-from typing import NamedTuple
 
-from sqlalchemy import func, inspect, or_, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
@@ -12,11 +10,6 @@ from sqlalchemy.orm.attributes import set_committed_value
 # `boq/models` ve `units/models` yalniz `app.core.db.Base`e baglidir — sites'a
 # geri bakmazlar, dolayisiyla dongusel import RISKI YOKTUR (olcum: iki dosyanin
 # da tek `app.` importu `Base`). Fonksiyon ici import'a gerek kalmadi.
-from app.modules.boq.models import BoqGroup, BoqItem
-from app.modules.contracts.models import SubcontractorContract
-from app.modules.documents.models.core import Document, DocumentFolder
-from app.modules.progress_payments.models import ProgressPaymentLine
-
 # Duz `GET /sites` proje adini JOIN'le okur. Dongusel import YOKTUR: ölçüldü —
 # `projects/models.py` yalniz `app.core.db.Base` ve `contracts.models`a bakar,
 # sites'a geri BAKMAZ.
@@ -25,11 +18,7 @@ from app.modules.projects.models import Project
 # 59/60 — `sites.id`'ye CASCADE ile bagli ama KORKULUKSUZ kalan tablolar.
 # Dongusel import RISKI YOKTUR (olcum: dordunun de tek `app.` importu `Base`).
 # `documents.models.core` DOGRUDAN alinir (paket `__init__`i `links`i de ceker).
-from app.modules.site_diary.models import SiteDiaryEntry, SiteDiaryLine
-from app.modules.site_planning.models import SitePlanGoal, SitePlanRow, SitePlanSprint
 from app.modules.sites.models import Section, SectionMilestone, SectionType, Site
-from app.modules.timesheet.models import TimesheetEntry
-from app.modules.units.models import Block
 from app.modules.users.models import User, UserStatus
 
 
@@ -292,221 +281,6 @@ async def next_section_type_sort_order(session: AsyncSession) -> int:
     degeri alabilir; siralama `id` ile tamamlandigi icin zararsizdir."""
     current = (await session.execute(select(func.max(SectionType.sort_order)))).scalar_one()
     return (current or 0) + 1
-
-
-# --- Silme korkuluklari (spec §7.1) ---
-#
-# ⚠️ `sites.id`'yi hedefleyen DORT FK'nin da `ON DELETE CASCADE` oldugu koddan
-# dogrulandi (`sections`, `boq_groups`, `boq_items`, `blocks`). Yani DB
-# KENDILIGINDEN KORUMAZ: korkuluksuz tek bir DELETE bu dort tabloyu SESSIZCE
-# bosaltir ve geri alinamaz. Asagidaki uc sorgu, T10'un acacagi silme ucunun
-# TEK guvencesidir — biri delinirse o dalda cascade tetiklenir.
-#
-# Ucu de `units/repository.py:97 block_has_units` deseninin birebiridir:
-# `select(<altsorgu>.exists())` — SATIR CEKMEZ. `count(*)` KULLANILMAZ: kac
-# bolum/poz/blok oldugu hicbir yerde kullanilmaz (hata mesajinda adet
-# verilmez, §7.1) ve saymak bos yere satir tarar.
-
-
-async def site_has_sections(session: AsyncSession, site_id: uuid.UUID) -> bool:
-    """Santiyede bolum var mi (`sections.site_id` -> CASCADE)."""
-    result = await session.execute(
-        select(select(Section.id).where(Section.site_id == site_id).exists())
-    )
-    return bool(result.scalar_one())
-
-
-async def site_has_boq(session: AsyncSession, site_id: uuid.UUID) -> bool:
-    """Santiyede is kalemi (poz) var mi — `boq_items` **VEYA** `boq_groups`.
-
-    IKI tablo da sorulur (spec §7.1): ikisi de `sites.id`'ye CASCADE ile
-    baglidir ve GRUP TEK BASINA da engeldir. Yalniz kalemlere bakmak, kalemsiz
-    gruplari olan bir santiyenin silinmesinde o gruplari sessizce yok ederdi.
-    Tek `SELECT`te `OR`'lanir: iki ayri gidis-donusun anlami yok.
-    """
-    result = await session.execute(
-        select(
-            or_(
-                select(BoqItem.id).where(BoqItem.site_id == site_id).exists(),
-                select(BoqGroup.id).where(BoqGroup.site_id == site_id).exists(),
-            )
-        )
-    )
-    return bool(result.scalar_one())
-
-
-async def site_has_blocks(session: AsyncSession, site_id: uuid.UUID) -> bool:
-    """Santiyede blok var mi (`blocks.site_id` -> CASCADE).
-
-    Uniteler AYRICA sorulmaz: `units.block_id` `RESTRICT`tir ve unite her zaman
-    bir bloga baglidir, dolayisiyla uniteli bir santiyenin bloklu olmasi
-    zorunludur — blok kontrolu uniteleri de kapsar.
-    """
-    result = await session.execute(
-        select(select(Block.id).where(Block.site_id == site_id).exists())
-    )
-    return bool(result.scalar_one())
-
-
-async def site_has_contracts(session: AsyncSession, site_id: uuid.UUID) -> bool:
-    """Santiyede taseron sozlesmesi var mi (`subcontractor_contracts.site_id`
-
-    -> RESTRICT, Alt-Proje 2 P5 spec §7, task C12). Ilk uc kontrolun aksine bu
-    FK RESTRICT'tir (CASCADE DEGIL) — sozlesme silinmeden santiye silinemez;
-    korkuluk yine de burada erken calisir, aksi halde kullanici DB'nin
-    `IntegrityError` -> 409 emniyet agina duser ve "Veri butunlugu hatasi" gibi
-    eyleme donuk OLMAYAN bir metin gorur.
-    """
-    result = await session.execute(
-        select(
-            select(SubcontractorContract.id)
-            .where(SubcontractorContract.site_id == site_id)
-            .exists()
-        )
-    )
-    return bool(result.scalar_one())
-
-
-async def site_has_progress_payment_lines(session: AsyncSession, site_id: uuid.UUID) -> bool:
-    """Santiyede hakedis satiri var mi (`progress_payment_lines.site_id` ->
-
-    RESTRICT, Alt-Proje 2 P7 spec §4.2/§7.1, task H8). `site_has_contracts`
-    deseninin BIREBIRI: FK RESTRICT'tir (CASCADE DEGIL), korkuluk yine de
-    burada erken calisir — aksi halde kullanici DB'nin `IntegrityError` -> 409
-    emniyet agina duser ve "Veri butunlugu hatasi" gibi eyleme donuk OLMAYAN
-    generic bir metin gorur (bu servis korkulugu SPESIFIK, EYLEME DONUK metni
-    erken doner).
-    """
-    result = await session.execute(
-        select(
-            select(ProgressPaymentLine.id).where(ProgressPaymentLine.site_id == site_id).exists()
-        )
-    )
-    return bool(result.scalar_one())
-
-
-# --- 59/60: CASCADE'li ama korkuluksuz kalan DORT dal ---
-#
-# Yukaridaki bes sorgu `sites.id`'ye bagli FK'lerin YARISINI kapsiyordu.
-# Olcum (`command grep -rn 'ForeignKey("sites.id"' app/`): CASCADE olan on
-# bacaktan yedisi korkuluksuzdu — `site_plan_rows`, `site_plan_goals`,
-# `site_plan_sprints`, `site_diary_entries`, `timesheet_entries`,
-# `documents`, `document_folders`.
-#
-# 🔴 `site_has_sections` bunlari KAPSAMAZ: dordunde de `section_id` NULLABLE'dir
-# (ya SET NULL'dur ya da — plan ekipman satirinda — zaten NULL), yani bolumu
-# olmayan bir santiye bes korkulugun besini de gecer ve tek `DELETE` bu
-# tablolari sessizce bosaltir. `documents` gidince `document_blobs.document_id`
-# CASCADE'i BAYTLARI da goturur.
-#
-# Desen yukaridakinin birebiri: `select(<altsorgu>.exists())`, SATIR CEKMEZ,
-# `count(*)` KULLANILMAZ (hata metninde adet verilmez, §7.1).
-
-
-async def site_has_timesheet(session: AsyncSession, site_id: uuid.UUID) -> bool:
-    """Santiyede puantaj hucresi var mi (`timesheet_entries.site_id` -> CASCADE).
-
-    Bu dal zincirin EN AGIRIDIR: puantaj bordronun girdisidir, sessizce gitmesi
-    odenen ucretin kanit tabanini yok eder.
-    """
-    result = await session.execute(
-        select(select(TimesheetEntry.id).where(TimesheetEntry.site_id == site_id).exists())
-    )
-    return bool(result.scalar_one())
-
-
-async def site_has_diary(session: AsyncSession, site_id: uuid.UUID) -> bool:
-    """Santiyede gunluk kaydi var mi (`site_diary_entries.site_id` -> CASCADE).
-
-    Satir alti tablolari (`site_diary_lines`, `site_diary_worker_counts`) AYRICA
-    sorulmaz: ikisi de gunluk kaydina baglidir ve gunluksuz var olamazlar.
-    """
-    result = await session.execute(
-        select(select(SiteDiaryEntry.id).where(SiteDiaryEntry.site_id == site_id).exists())
-    )
-    return bool(result.scalar_one())
-
-
-class DiaryUsage(NamedTuple):
-    """Silme korkuluğunun metni için günlük kullanım özeti (PLN-B2.10)."""
-
-    entry_count: int
-    row_count: int
-    first_date: date
-
-
-async def section_has_diary_lines(
-    session: AsyncSession, section_id: uuid.UUID
-) -> DiaryUsage | None:
-    """Bölüme yazılmış günlük MİKTAR satırı var mı (`site_diary_lines.section_id`
-    -> RESTRICT, PLN-B2.1). Varsa kaç günlükte kaç satır + ilk tarih; yoksa `None`.
-
-    DB zaten korur (RESTRICT ikinci katmandır); korkuluk olmadan kullanıcı opak
-    "Veri bütünlüğü hatası" görürdü. TEK toplu sorgu. Başlık etiketi
-    (`site_diary_entries.section_id`, SET NULL) SAYILMAZ: o bir bilgi alanıdır,
-    bölümle birlikte gitmesi veri kaybı değildir.
-    """
-    stmt = (
-        select(
-            func.count(func.distinct(SiteDiaryLine.entry_id)),
-            func.count(SiteDiaryLine.id),
-            func.min(SiteDiaryEntry.entry_date),
-        )
-        .join(SiteDiaryEntry, SiteDiaryEntry.id == SiteDiaryLine.entry_id)
-        .where(SiteDiaryLine.section_id == section_id)
-    )
-    entry_count, row_count, first_date = (await session.execute(stmt)).one()
-    if not row_count:
-        return None
-    return DiaryUsage(int(entry_count), int(row_count), first_date)
-
-
-async def site_has_documents(session: AsyncSession, site_id: uuid.UUID) -> bool:
-    """Santiyede belge **VEYA** klasor var mi — ikisi de `sites.id`'ye CASCADE.
-
-    `site_has_boq`nun grup dali dersinin birebiri: BOS KLASOR de tek basina
-    engeldir, yoksa klasorleri olan bir santiyenin silinmesi o agaci sessizce
-    yok ederdi. Tek `SELECT`te `OR`'lanir.
-    """
-    result = await session.execute(
-        select(
-            or_(
-                select(Document.id).where(Document.site_id == site_id).exists(),
-                select(DocumentFolder.id).where(DocumentFolder.site_id == site_id).exists(),
-            )
-        )
-    )
-    return bool(result.scalar_one())
-
-
-async def site_has_plan(session: AsyncSession, site_id: uuid.UUID) -> bool:
-    """Santiyede plan izgarasi / hedefi / AKTIF sprinti var mi — uc tablo da CASCADE.
-
-    Ucu birden sorulur: satiri olmayan ama hedefi ya da sprinti olan bir santiye
-    de planlama gecmisi tasir. `site_plan_cells` AYRICA sorulmaz — hucre satira
-    baglidir, satirsiz var olamaz.
-
-    🔴 SPRINT dalinda `is_active` SUZGECI ZORUNLUDUR — olculdu: `write.py:274-304
-    save_sprint` sprint satirini ASLA SILMEZ, yalniz `is_active`i false'a ceker
-    ("Kayit SILINMEZ" docstring'i) ve sprint silen BASKA bir uc YOKTUR
-    (`openapi.json`: `/sites/{site_id}/plan/sprint` yalniz PUT). Suzgec olmasa
-    bir kez sprint adi yazilip sonra seridi bosaltilan santiye BIR DAHA ASLA
-    silinemezdi ve hata metni ("once plani temizleyin") UI'da GORUNMEYEN bir
-    satiri isaret ettigi icin eyleme DONUK OLMAZDI. Kapali sprint arsivlenmis
-    bir ETIKETTIR; izgara satiri, hucre ya da hedef tasimaz.
-    """
-    result = await session.execute(
-        select(
-            or_(
-                select(SitePlanRow.id).where(SitePlanRow.site_id == site_id).exists(),
-                select(SitePlanGoal.id).where(SitePlanGoal.site_id == site_id).exists(),
-                select(SitePlanSprint.id)
-                .where(SitePlanSprint.site_id == site_id, SitePlanSprint.is_active)
-                .exists(),
-            )
-        )
-    )
-    return bool(result.scalar_one())
 
 
 async def list_sites_by_slug(
