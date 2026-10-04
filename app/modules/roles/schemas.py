@@ -14,6 +14,9 @@ class RoleResponse(BaseModel):
     emoji: str
     description: str
     is_system: bool
+    # IZN-B1: kullanıcıya atanabilir mi? `false` = henüz etkin olmayan yeni rol (B2 kapı köprüsüne
+    # dek). FE rol seçicilerinde bu alanla süzer; rol anahtarı elle kodlanmaz.
+    is_assignable: bool
 
 
 class RoleCreate(BaseModel):

@@ -6,10 +6,42 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import DROPPED_SCOPES, AccessLevel, Scope, satisfies
 from app.core.errors import DomainError, NotFoundError, PermissionLockedError
 from app.core.field_scope import gizlenen_kova
-from app.modules.roles.models import SYSTEM_ADMIN_KEY, Module, Role, RolePermission
-from app.modules.roles.repository import get_module, get_permission
-from app.modules.roles.schemas import RoleCreate
+from app.core.sayfalar import SAYFA_ANAHTARLARI, PageLevel
+from app.modules.roles.models import (
+    IZN_ROLE_KEYS,
+    SYSTEM_ADMIN_KEY,
+    Module,
+    Role,
+    RolePagePermission,
+    RolePermission,
+)
+from app.modules.roles.page_sync import sync_page_cells
+from app.modules.roles.repository import (
+    get_module,
+    get_permission,
+    has_legacy_cells,
+    legacy_cell_role_ids,
+    role_assignable,
+)
+from app.modules.roles.schemas import RoleCreate, RoleResponse
 from app.modules.roles.scope_wiring import kablolu_moduller
+
+
+async def role_responses(session: AsyncSession, roles: list[Role]) -> list[RoleResponse]:
+    """Rol yanıtları; `is_assignable` TEK sorguyla (N+1 yok) ve atama kilidiyle AYNI kuraldan."""
+    with_cells = await legacy_cell_role_ids(session, [role.id for role in roles])
+    return [
+        RoleResponse(
+            id=role.id,
+            key=role.key,
+            name=role.name,
+            emoji=role.emoji,
+            description=role.description,
+            is_system=role.is_system,
+            is_assignable=role_assignable(role.key, role.id in with_cells),
+        )
+        for role in roles
+    ]
 
 
 async def update_role_permission(
@@ -29,6 +61,13 @@ async def update_role_permission(
 
     if role.key == SYSTEM_ADMIN_KEY:
         raise PermissionLockedError("Sistem Yöneticisi rolünün izinleri değiştirilemez")
+
+    # IZN-B1: yeni roller eski modül matrisinden YÖNETİLMEZ. Tek bir eski hücre yazmak onu
+    # `_has_legacy_cells` atama kilidinden "kurtarırdı" (ve downgrade'in "migration'ın eklediği
+    # rol = role_permissions satırı yok" tanımını bozardı). Eski hücreleri OLAN (elle açılmış
+    # çakışan anahtarlı) rol etkilenmez.
+    if role.key in IZN_ROLE_KEYS and not await has_legacy_cells(session, role.id):
+        raise PermissionLockedError("Bu rol yeni Sayfa İzinleri ekranından yönetilecek")
 
     permission = await get_permission(session, role_id, module_key)
     if permission is None:
@@ -124,6 +163,9 @@ async def update_role_permission(
     permission.access_level = level
     permission.scope = scope
     await session.flush()
+    # IZN-B1 WRITE-THROUGH: eski hücre değişince o rolün sayfa hücreleri ve `tum_tutarlar`
+    # bayrağı AYNI transaction'da yeniden türetilir (B2'ye dek iki model ayrışmasın).
+    await sync_page_cells(session, role_id)
     return permission
 
 
@@ -146,7 +188,12 @@ async def rename_role(
 
 
 async def create_custom_role(session: AsyncSession, data: RoleCreate) -> Role:
-    """Yeni özel rol oluşturur; tüm modüller için none/all izin satırı seedler."""
+    """Yeni özel rol oluşturur; tüm modüller için none/all izin satırı seedler.
+
+    IZN-B1: sayfa matrisinde de her sayfa için "Görmez" hücre açılır — "hücre sayısı =
+    rol × 100" değişmezi (migration testi) migration SONRASI açılan rollerde de geçerli kalır
+    ve `/auth/me.pages` boş harita yerine açık "Görmez" döner. Eski kapının davranışı değişmez.
+    """
     existing = (
         await session.execute(select(Role).where(Role.key == data.key))
     ).scalar_one_or_none()
@@ -173,6 +220,8 @@ async def create_custom_role(session: AsyncSession, data: RoleCreate) -> Role:
                 scope=Scope.all,
             )
         )
+    for page_key in SAYFA_ANAHTARLARI:
+        session.add(RolePagePermission(role_id=role.id, page_key=page_key, level=PageLevel.none))
     await session.flush()
     return role
 

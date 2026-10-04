@@ -80,3 +80,26 @@ def can_delete(actor_id: uuid.UUID, level: AccessLevel, record: Deletable) -> bo
         return True
 
     return record.created_by == actor_id and record.is_draft and satisfies(level, AccessLevel.draft)
+
+
+#: `roles.models.SYSTEM_ADMIN_KEY` ile AYNI değer: `app/core` bir ürün modülünü ithal etmez, bu
+#: yüzden literal burada yaşar; eşitliği `tests/core/test_is_system_admin.py` çakar.
+SYSTEM_ADMIN_ROLE_KEY = "system_admin"
+
+
+class _HasRoleKey(Protocol):
+    key: str
+
+
+class _HasRole(Protocol):
+    role: _HasRoleKey
+
+
+def is_system_admin(user: _HasRole) -> bool:
+    """Kullanıcı Sistem Yöneticisi mi? Rol ANAHTARINA bakar (IZN-PLAN §1.1).
+
+    `Role.is_system` bu soruyu cevaplamaz: Patron'da da `True`'dur (IZN-OLCUM §9). Silme,
+    kilit ve "her yere evet" kuralı yalnız bu anahtarla tanınır. `user.role` yüklenmiş olmalıdır
+    (`User.role` `lazy="raise"`dır; `get_current_user` onu yükler).
+    """
+    return user.role.key == SYSTEM_ADMIN_ROLE_KEY

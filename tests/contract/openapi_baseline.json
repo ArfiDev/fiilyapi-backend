@@ -12540,6 +12540,19 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HiddenCategory": {
+        "description": "Rol başına gizlenen hassas alan kategorisi. Satır var = o kategori bu rolde gizli.",
+        "enum": [
+          "sozlesme_fiyat",
+          "maliyet_kar",
+          "maas_kisisel",
+          "banka_kasa",
+          "satis_alici",
+          "tum_tutarlar"
+        ],
+        "title": "HiddenCategory",
+        "type": "string"
+      },
       "HistogramWeek": {
         "properties": {
           "actual_people": {
@@ -17910,10 +17923,31 @@
             "title": "Full Name",
             "type": "string"
           },
+          "hidden_fields": {
+            "items": {
+              "$ref": "#/components/schemas/HiddenCategory"
+            },
+            "title": "Hidden Fields",
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "is_system_admin": {
+            "title": "Is System Admin",
+            "type": "boolean"
+          },
+          "pages": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PageGrant"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/PageKey"
+            },
+            "title": "Pages",
+            "type": "object"
           },
           "permissions": {
             "additionalProperties": {
@@ -17940,9 +17974,12 @@
           "full_name",
           "title",
           "role_key",
+          "is_system_admin",
           "status",
           "permissions",
-          "disciplines"
+          "disciplines",
+          "pages",
+          "hidden_fields"
         ],
         "title": "MeResponse",
         "type": "object"
@@ -20541,6 +20578,229 @@
           "hours"
         ],
         "title": "OwnCrewFromTimesheet",
+        "type": "object"
+      },
+      "PageGrant": {
+        "description": "Bir sayfadaki erişim: düzey + onay eylemi. Silme düzey DEĞİLDİR (`is_system_admin`).",
+        "properties": {
+          "approve": {
+            "title": "Approve",
+            "type": "boolean"
+          },
+          "level": {
+            "$ref": "#/components/schemas/PageLevel"
+          }
+        },
+        "required": [
+          "level",
+          "approve"
+        ],
+        "title": "PageGrant",
+        "type": "object"
+      },
+      "PageGroup": {
+        "enum": [
+          "genel",
+          "saha",
+          "ik",
+          "planlama",
+          "teklif",
+          "stok",
+          "mali",
+          "proje_ici",
+          "ayarlar"
+        ],
+        "title": "PageGroup",
+        "type": "string"
+      },
+      "PageKey": {
+        "enum": [
+          "genel.gosterge_paneli",
+          "genel.onay_kutusu",
+          "genel.fiil_ai",
+          "genel.raporlar",
+          "genel.projeler",
+          "genel.proje_takvimi",
+          "saha.puantaj",
+          "saha.makine_ekipman",
+          "saha.makine_calisma",
+          "saha.makine_yakit",
+          "saha.makine_kira",
+          "saha.gunluk_kayit",
+          "ik.personel",
+          "ik.izin_yonetimi",
+          "ik.belge_sertifika",
+          "planlama.panel",
+          "planlama.adam_saat_butcesi",
+          "planlama.gunluk_rapor",
+          "planlama.haftalik_qurr",
+          "planlama.birim_oran_katalogu",
+          "planlama.disiplin_yonetimi",
+          "teklif.teklif_hazirlama",
+          "teklif.sablonlar",
+          "teklif.sozlesmeler",
+          "teklif.taseron_firmalar",
+          "teklif.isveren_sozlesme",
+          "teklif.poz_dagilimi",
+          "teklif.taseron_sozlesme",
+          "teklif.is_kalemi_katalogu",
+          "stok.stok_depo",
+          "stok.satinalma_talepleri",
+          "stok.siparisler",
+          "stok.tedarikciler",
+          "stok.teklif_karsilastirma",
+          "mali.satis",
+          "mali.satis_blok",
+          "mali.satis_unite",
+          "mali.satis_toplu_uretim",
+          "mali.satis_excel",
+          "mali.satis_paylasim",
+          "mali.yevmiye",
+          "mali.hesap_plani",
+          "mali.mizan",
+          "mali.kdv_beyani",
+          "mali.banka_mutabakati",
+          "mali.donem_kapanisi",
+          "mali.fatura",
+          "mali.hazine",
+          "mali.cek_odeme",
+          "mali.hakedis_isveren",
+          "mali.hakedis_taseron",
+          "mali.gelir_tablosu",
+          "mali.bilanco",
+          "mali.nakit_akisi",
+          "mali.bordro",
+          "mali.bordro_gecmis",
+          "mali.sgk_bildirimi",
+          "mali.sirket_varliklari",
+          "mali.belge_arsivi",
+          "proje.santiyeler",
+          "proje.ozet",
+          "proje.paylasim_tablosu",
+          "proje.is_kalemleri",
+          "proje.isveren_hakedis",
+          "proje.taseron_hakedis",
+          "proje.belgeler",
+          "santiye.bolumler",
+          "santiye.is_kalemleri",
+          "santiye.puantaj",
+          "santiye.stok",
+          "santiye.hakedisler",
+          "santiye.gunluk_kayit",
+          "santiye.belgeler",
+          "santiye.bolum_dagilimi",
+          "santiye.gunluk_ozet",
+          "santiye.gunluk_planlama",
+          "santiye.adam_saat_butcesi",
+          "santiye.planlama_paneli",
+          "santiye.gunluk_ilerleme_raporu",
+          "santiye.haftalik_qurr",
+          "bolum.detay",
+          "bolum.is_kalemleri",
+          "bolum.puantaj",
+          "bolum.malzeme",
+          "bolum.hakedis",
+          "bolum.gunluk_kayit",
+          "bolum.gunluk_kayit_detay",
+          "ayarlar.sirket_bilgileri",
+          "ayarlar.bildirimler",
+          "ayarlar.gorunum",
+          "ayarlar.planlama",
+          "ayarlar.kullanicilar",
+          "ayarlar.rol_yonetimi",
+          "ayarlar.sayfa_izinleri",
+          "ayarlar.onay_rolleri",
+          "ayarlar.bordro_oranlari",
+          "ayarlar.entegrasyonlar",
+          "ayarlar.yedekleme",
+          "ayarlar.denetim_gunlugu",
+          "ayarlar.gelistirme"
+        ],
+        "title": "PageKey",
+        "type": "string"
+      },
+      "PageKind": {
+        "enum": [
+          "sirket",
+          "proje"
+        ],
+        "title": "PageKind",
+        "type": "string"
+      },
+      "PageLevel": {
+        "description": "Sayfa erişim düzeyi: Görmez / Görür / Düzenler. Silme düzey DEĞİLDİR (yalnız Sistem Yöneticisi);\n\"Onaylar\" ayrı bir bayraktır (`can_approve`).",
+        "enum": [
+          "none",
+          "view",
+          "edit"
+        ],
+        "title": "PageLevel",
+        "type": "string"
+      },
+      "PageResponse": {
+        "description": "Katalogdaki bir sayfa. `key` bir ENUM'dur: OpenAPI'den TS birleşik tipi (union) üretilir.",
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/PageGroup"
+          },
+          "group_name": {
+            "title": "Group Name",
+            "type": "string"
+          },
+          "has_approval": {
+            "title": "Has Approval",
+            "type": "boolean"
+          },
+          "key": {
+            "$ref": "#/components/schemas/PageKey"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PageKind"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "subgroup": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subgroup"
+          },
+          "twins": {
+            "items": {
+              "$ref": "#/components/schemas/PageKey"
+            },
+            "title": "Twins",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "group",
+          "group_name",
+          "subgroup",
+          "route",
+          "kind",
+          "has_approval",
+          "source",
+          "twins"
+        ],
+        "title": "PageResponse",
         "type": "object"
       },
       "PanelDiscipline": {
@@ -31217,6 +31477,10 @@
             "title": "Id",
             "type": "string"
           },
+          "is_assignable": {
+            "title": "Is Assignable",
+            "type": "boolean"
+          },
           "is_system": {
             "title": "Is System",
             "type": "boolean"
@@ -31236,7 +31500,8 @@
           "name",
           "emoji",
           "description",
-          "is_system"
+          "is_system",
+          "is_assignable"
         ],
         "title": "RoleResponse",
         "type": "object"
@@ -61482,6 +61747,43 @@
         "summary": "Withdraw Revision Endpoint",
         "tags": [
           "offers"
+        ]
+      }
+    },
+    "/pages": {
+      "get": {
+        "description": "Sayfa kataloğu: 100 sayfa, menü sırasıyla.\n\nKapı: yalnız oturum (`get_current_user`) — modül izni DEĞİL. Katalog bir kod sabitidir\n(kiracı verisi taşımaz) ve her oturumun frontend'i `nav-config`i bu anahtarlarla çakıştırır;\nizin ekranı (B2/F2) zaten kendi yazma kapısını taşır. `GET /company` ve `/auth/me` ile aynı\ndesen. DB'ye dokunmaz.",
+        "operationId": "list_pages_endpoint_pages_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PageResponse"
+                  },
+                  "title": "Response List Pages Endpoint Pages Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Pages Endpoint",
+        "tags": [
+          "pages"
         ]
       }
     },
