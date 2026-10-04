@@ -187,17 +187,15 @@ async def delete_site_endpoint(
     session: DbSession,
     preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Spec §7.1 (SIL-B1 ile degisti). YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.
+    """Santiyeyi bagli kayitlariyla birlikte siler. YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.
 
-    Santiye; bolum, poz, blok, unite, puantaj, gunluk, belge, plan, sozlesme ve diger bagli
-    kayitlariyla BIRLIKTE silinir (eski dokuz "bagli kayit var" 409 korkulugu Sistem Yoneticisi
-    icin kalkti). Once `GET /admin/silme/site/{id}/onizleme`, onay, sonra bu uc `preview_token`
-    ile cagrilir (eksikse 428, agac degistiyse 409 `preview_stale`, mali bagli kayit varsa 409
-    `financial_pending`: mali silme sonraki surumde acilacak).
+    Bolum, poz, blok, unite, puantaj, gunluk, belge, plan, sozlesme ve diger bagli kayitlar
+    birlikte silinir. Once `GET /admin/silme/site/{id}/onizleme`, onay, sonra bu uc `preview_token`
+    ile cagrilir: eksikse 428 `preview_required`; agac degistiyse 409 `preview_stale`; agacta
+    mali kayit varsa 409 `financial_pending` (mali silme sonraki surumde acilacak).
 
-    Yetki kapisi her seyden ONCE calisir: yetkisiz aktor 403 alir; gorunmeyen ve var olmayan
-    santiye ayni yaniti verir. Yanit `204 No Content`, GOVDESIZ. Denetim satirina silinen ve bagi
-    kopan kayitlarin tam dokumu yazilir; reddedilen silme gunluge satir dusurmez.
+    Gorunmeyen ve var olmayan santiye ayni yaniti verir. Yanit `204 No Content`, govdesiz. Denetim
+    satirina silinen ve bagi kopan kayitlarin tam dokumu yazilir.
     """
     detail = await silme_service.sil(session, "site", site_id, preview_token)
     await _audit(request, session, current_user, AuditAction.delete, detail)
@@ -284,16 +282,14 @@ async def delete_section_endpoint(
     session: DbSession,
     preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Spec §7.1 (SIL-B1 ile degisti). YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.
+    """Bolumu bagli kayitlariyla birlikte siler. YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.
 
-    Bolum, bagli kayitlariyla BIRLIKTE silinir: kilometre tasi, dagitim, belge ve bolume yazilmis
-    gunluk miktar satirlari (`site_diary_lines`, eski PLN-B2.10 409 korkulugu kalkti). Bagi kopan
-    kayitlar (personel, puantaj, satinalma talebi…) SILINMEZ, yalniz bolum bagi kopar; onizlemede
-    `detached` olarak gorunur. Once `GET /admin/silme/section/{id}/onizleme`, sonra bu uc
-    `preview_token` ile (eksikse 428, agac degistiyse 409 `preview_stale`, mali bagli kayit varsa
-    409 `financial_pending`). Kalan bolumlerin `sort_order` degerleri yeniden numaralanmaz.
-
-    Yanit `204 No Content`, GOVDESIZ. Denetim satiri tam dokumle yazilir.
+    Kilometre tasi, dagitim, belge ve bolume yazilmis gunluk miktar satirlari birlikte silinir.
+    Bagi kopan kayitlar (personel, puantaj, satinalma talebi…) SILINMEZ, yalniz bolum bagi
+    kopar; onizlemede `detached` olarak gorunur. Once `GET /admin/silme/section/{id}/onizleme`,
+    sonra bu uc `preview_token` ile: eksikse 428 `preview_required`; agac degistiyse 409
+    `preview_stale`; mali kayit varsa 409 `financial_pending`. Kalan bolumlerin `sort_order`
+    degerleri yeniden numaralanmaz. Yanit `204 No Content`, govdesiz.
     """
     detail = await silme_service.sil(session, "section", section_id, preview_token)
     await _audit(request, session, current_user, AuditAction.delete, detail)

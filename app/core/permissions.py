@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel, Scope
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.openapi import SYSTEM_ADMIN_ONLY_DETAIL
 from app.core.page_gate import Flag, gate_ok, is_admin_role, page_ok, pages_ok
 from app.core.scoped_route import kapsam_bagimligi_kur
 from app.modules.roles.repository import get_permission, role_mask_basis
@@ -37,10 +38,6 @@ def require_permission(module_key: str, min_level: AccessLevel):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_DENIED)
 
     return Depends(_check)
-
-
-#: Silme kapısının 403 gövdesi. TEK metin: istemci bunu olduğu gibi gösterir.
-SYSTEM_ADMIN_ONLY_DETAIL = "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
 
 
 def require_system_admin():

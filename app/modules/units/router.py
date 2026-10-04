@@ -222,12 +222,13 @@ async def delete_unit_endpoint(
     session: DbSession,
     preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Spec §7.9 (SIL-B1 ile degisti). YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.
+    """Uniteyi bagli kayitlariyla (satis, taksit, belge…) birlikte siler. YALNIZ Sistem Yoneticisi;
+    ONIZLEME ZORUNLU.
 
-    Unitenin bagli kayitlari (satis, taksit, belge…) ile BIRLIKTE silinir. Once
-    `GET /admin/silme/unit/{id}/onizleme`, onay, sonra bu uc `preview_token` ile cagrilir
-    (eksikse 428, ağac degistiyse 409 `preview_stale`, mali bagli kayit varsa 409
-    `financial_pending`). Denetim satirina silinen ve bagi kopan kayitlarin tam dokumu yazilir."""
+    Once `GET /admin/silme/unit/{id}/onizleme`, onay, sonra bu uc `preview_token` ile: eksikse 428
+    `preview_required`; agac degistiyse 409 `preview_stale`; mali kayit (kaporali rezervasyon,
+    tahsilatli taksit, sozlesmeli satis…) varsa 409 `financial_pending`.
+    """
     detail = await silme_service.sil(session, "unit", unit_id, preview_token)
     await _audit(request, session, user, AuditAction.delete, detail)
 
@@ -245,13 +246,13 @@ async def delete_block_endpoint(
     session: DbSession,
     preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Spec §7.9 (SIL-B1 ile degisti). YALNIZ Sistem Yoneticisi; ONIZLEME ZORUNLU.
+    """Blogu uniteleri ve onlarin bagli kayitlariyla birlikte siler. YALNIZ Sistem Yoneticisi;
+    ONIZLEME ZORUNLU.
 
-    Blok, UNITELERI ve onlarin bagli kayitlari ile BIRLIKTE silinir (eski "unitesi olan blok 409"
-    korkulugu Sistem Yoneticisi icin kalkti: uniteler once, blok sonra silinir). Once
-    `GET /admin/silme/block/{id}/onizleme`, onay, sonra bu uc `preview_token` ile cagrilir
-    (eksikse 428, agac degistiyse 409 `preview_stale`, mali bagli kayit varsa 409
-    `financial_pending`). Yetki kapisi her seyden ONCE calisir."""
+    Once `GET /admin/silme/block/{id}/onizleme`, onay, sonra bu uc `preview_token` ile: eksikse 428
+    `preview_required`; agac degistiyse 409 `preview_stale`; mali kayit varsa 409
+    `financial_pending`. Yetki kapisi her seyden ONCE calisir.
+    """
     detail = await silme_service.sil(session, "block", block_id, preview_token)
     await _audit(request, session, user, AuditAction.delete, detail)
 

@@ -17,7 +17,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
@@ -296,6 +296,10 @@ async def refresh_subcontractor_progress_payment_prices_endpoint(
 @router.delete(
     "/subcontractor-progress-payments/{payment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Onaylanmış veya ödenmiş hakediş silinemez"},
+    },
     dependencies=[require_system_admin()],
 )
 async def delete_subcontractor_progress_payment_endpoint(
@@ -304,9 +308,11 @@ async def delete_subcontractor_progress_payment_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Kapı `_DRAFT`tir (işveren silme ucunun aynı gerekçesi): `_ADMIN` olsaydı
-    taslağı üreten şef/saha rollerinin KENDİ taslağını silme istisnası ölü kural
-    olurdu. Kesin karar `service.delete_payment`tadır."""
+    """Taşeron hakedişini siler. YALNIZ Sistem Yöneticisi.
+
+    `approved`/`paid` hakediş **409** (iş kuralı, Sistem Yöneticisi'ni de durdurur). Taslağı açan
+    kişi kendi taslağını da silemez. Disiplin kısıtı DELETE'te uygulanmaz.
+    """
     summary = await service.delete_payment(session, user, payment_id)
     await record_audit(
         session,

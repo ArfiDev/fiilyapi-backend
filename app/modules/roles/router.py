@@ -7,7 +7,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_page, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
@@ -240,6 +240,13 @@ async def copy_role_endpoint(
 @router.delete(
     "/roles/{role_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **DELETE_403_YANITI,
+        403: {
+            "description": "Yalnız Sistem Yöneticisi silebilir; Sistem Yöneticisi rolü silinemez"
+        },
+        409: {"description": "Role atanmış kullanıcılar var"},
+    },
     dependencies=[require_system_admin()],
 )
 async def delete_role_endpoint(
@@ -249,6 +256,11 @@ async def delete_role_endpoint(
     session: DbSession,
 ) -> None:
     # Ad silmeden ONCE okunmali; sonra okunursa satir yoktur.
+    """Rolü siler. YALNIZ Sistem Yöneticisi.
+
+    Sistem Yöneticisi rolü silinemez (**403**, `Sistem Yöneticisi rolü silinemez`); kullanıcısı olan
+    rol **409** (`Bu role atanmış kullanıcılar var; önce onları başka role taşıyın`).
+    """
     existing = await repository.get_role(session, role_id)
     deleted_name = existing.name if existing is not None else ""
     await service.delete_role(session, role_id)  # rol yoksa/kilitliyse istisna firlatir

@@ -46,7 +46,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
@@ -328,6 +328,7 @@ async def update_work_log_endpoint(
 @router.delete(
     "/work-logs/{log_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**DELETE_403_YANITI},
     dependencies=[require_system_admin()],
 )
 async def delete_work_log_endpoint(
@@ -336,9 +337,10 @@ async def delete_work_log_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> Response:
-    """🔴 Çalışma kaydı MALİ İZ DEĞİLDİR (maliyet ondan türev) — silinebilir.
+    """Ekipman çalışma kaydını siler. YALNIZ Sistem Yöneticisi.
 
-    Ekipmanın KENDİSİ silinemez: orada iz `RESTRICT`lidir ve DELETE ucu yoktur.
+    Çalışma kaydı MALİ İZ DEĞİLDİR (maliyet ondan türev) — silinebilir. Ekipmanın KENDİSİ silinemez:
+    orada iz `RESTRICT`lidir ve DELETE ucu yoktur.
     """
     detail = await service.delete_work_log(session, user, log_id)
     await _audit(request, session, user, AuditAction.delete, detail)
@@ -440,6 +442,7 @@ async def update_fuel_log_endpoint(
 @router.delete(
     "/fuel-logs/{log_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**DELETE_403_YANITI},
     dependencies=[require_system_admin()],
 )
 async def delete_fuel_log_endpoint(
@@ -448,7 +451,9 @@ async def delete_fuel_log_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> Response:
-    """🔴 Yakıt kaydı MALİ İZ DEĞİLDİR (maliyet ondan türev) — silinebilir."""
+    """Ekipman yakıt kaydını siler. YALNIZ Sistem Yöneticisi. Yakıt kaydı MALİ İZ DEĞİLDİR
+    (maliyet ondan türev) — silinebilir.
+    """
     detail = await service.delete_fuel_log(session, user, log_id)
     await _audit(request, session, user, AuditAction.delete, detail)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -8,6 +8,7 @@ from typing import Annotated, Any
 
 from fastapi import Query
 
+from app.core.openapi import DELETE_403_YANITI
 from app.core.silme.hatalar import (
     FINANCIAL_PENDING_DETAIL,
     PREVIEW_REQUIRED_DETAIL,
@@ -25,6 +26,7 @@ PreviewTokenQuery = Annotated[
 ]
 
 DELETE_WITH_PREVIEW_RESPONSES: dict[int | str, dict[str, Any]] = {
+    **DELETE_403_YANITI,
     409: {
         "model": DeleteErrorResponse,
         "description": f"`code=preview_stale`: `{PREVIEW_STALE_DETAIL}`. "

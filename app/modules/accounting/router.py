@@ -64,7 +64,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.accounting import (
@@ -296,7 +296,11 @@ async def update_journal_entry_endpoint(
 @router.delete(
     "/journal-entries/{entry_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={**_NOT_FOUND, 409: {"description": "Yalnızca taslak fiş silinebilir"}},
+    responses={
+        **DELETE_403_YANITI,
+        **_NOT_FOUND,
+        409: {"description": "Yalnızca taslak fiş silinebilir; kapalı dönemdeki fiş de silinemez"},
+    },
     dependencies=[require_system_admin()],
 )
 async def delete_journal_entry_endpoint(
@@ -305,13 +309,11 @@ async def delete_journal_entry_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """**YALNIZ `admin`** → 204; `posted`/`reversed` fiş **409**.
+    """Yevmiye fişini siler. YALNIZ Sistem Yöneticisi.
 
-    `full` seviyesi (muhasebe) 403 alır — gerekçe modül docstring'indedir.
-    Bacaklar açıkça silinir (DB'de CASCADE de vardır). Yanıt gövdesizdir.
-
-    🔴 Kapalı dönemde **409** (MU-2 T3): `admin` bile silemez, çünkü engel YETKİ
-    değil DÖNEMDİR. Silinebilseydi kapalı dönemin mizanı geçmişe dönük değişirdi.
+    Yalnız `draft` fiş silinir; `posted`/`reversed` fiş **409**. Kapalı muhasebe döneminde de
+    **409** (engel yetki değil DÖNEMDİR: silinebilseydi kapalı dönemin mizanı geçmişe dönük
+    değişirdi). Bacaklar fişle birlikte silinir. Yanıt gövdesizdir.
     """
     entry = await service.entry_for_write(session, entry_id)
     detail = await service.delete_entry(session, entry)

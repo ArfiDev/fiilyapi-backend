@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
@@ -297,7 +297,10 @@ async def update_rental_invoice_line_endpoint(
 @router.delete(
     "/rental-invoice-lines/{line_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={409: {"description": "Satır yalnız taslak hakedişte silinebilir"}},
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Satır yalnız taslak hakedişte silinebilir"},
+    },
     dependencies=[require_system_admin()],
 )
 async def delete_rental_invoice_line_endpoint(
@@ -306,8 +309,11 @@ async def delete_rental_invoice_line_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> Response:
-    """YALNIZ `draft` (spec §4): doğrulama aşamasında bir satırın yok olması,
-    firmanın faturasıyla karşılaştırılan kümeyi sessizce küçültürdü."""
+    """Kira hakedişi satırını siler. YALNIZ Sistem Yöneticisi.
+
+    YALNIZ `draft` hakedişte (spec §4): doğrulama aşamasında bir satırın yok olması, firmanın
+    faturasıyla karşılaştırılan kümeyi sessizce küçültürdü; aksi hâlde **409**.
+    """
     detail = await rental_service.delete_line(session, user, line_id)
     await _audit(request, session, user, AuditAction.delete, detail)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

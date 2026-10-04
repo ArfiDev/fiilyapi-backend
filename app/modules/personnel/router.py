@@ -29,7 +29,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
@@ -327,6 +327,7 @@ async def update_personnel_document_endpoint(
 @router.delete(
     "/personnel/documents/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**DELETE_403_YANITI},
     dependencies=[require_system_admin()],
 )
 async def delete_personnel_document_endpoint(
@@ -335,8 +336,10 @@ async def delete_personnel_document_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """İK takip kaydını siler (`admin`; `full` silmeyi KAPSAMAZ). SET NULL: bağlı
-    BC arşiv künyesi DURUR (dosya arşivde kalır). Yanıt 204, gövdesiz."""
+    """İK takip kaydını (personel belgesi) siler. YALNIZ Sistem Yöneticisi.
+
+    SET NULL: bağlı BC arşiv künyesi DURUR (dosya arşivde kalır). Yanıt 204, gövdesiz.
+    """
     detail = await service.delete_personnel_document(session, document_id)
     await record_audit(
         session,
@@ -542,6 +545,10 @@ async def update_leave_request_endpoint(
 @router.delete(
     "/leave-requests/{request_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Yalnız bekleyen izin talebi silinebilir"},
+    },
     dependencies=[require_system_admin()],
 )
 async def delete_leave_request_endpoint(
@@ -550,10 +557,11 @@ async def delete_leave_request_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Bekleyen talebi siler. Kapı BİLİNÇLİ olarak `_VIEW`dir: gerçek kural İKİ
-    yoldan açılır (`admin` seviyesi YA DA talebin SAHİBİ olmak, spec §3) ve tek
-    seviyeli bir router kapısı bunu ifade edemez — karar serviste verilir, yetkisiz
-    aktör 403 alır. `procurement` (`personnel=none`) zaten bu kapıda durur."""
+    """Bekleyen izin talebini siler. YALNIZ Sistem Yöneticisi.
+
+    Karara bağlanmış (onaylı/reddedilmiş) talep **409** (iş kuralı). Talebi açan kişi talebi
+    SİLEMEZ; vazgeçmenin yolu silme değil GERİ ÇEKMEdir (`POST /leave-requests/{id}/withdraw`).
+    """
     detail = await service.delete_leave_request(session, user, request_id)
     await record_audit(
         session,

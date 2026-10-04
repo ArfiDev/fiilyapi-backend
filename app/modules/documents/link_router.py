@@ -74,7 +74,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -224,7 +224,7 @@ def _register(spec: OwnerSpec) -> None:
     @router.delete(
         link_path,
         status_code=status.HTTP_204_NO_CONTENT,
-        responses=_LINK_404,
+        responses={**_LINK_404, **DELETE_403_YANITI},
         dependencies=[require_system_admin()],
         operation_id=f"detach_{spec.key}_document",
         summary=f"{spec.label} belgesi bağını kaldır",

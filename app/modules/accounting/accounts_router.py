@@ -54,7 +54,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.accounting import accounts_service, export, guards
@@ -283,8 +283,9 @@ async def update_chart_account_endpoint(
     "/chart-of-accounts/{account_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
+        **DELETE_403_YANITI,
         **_NOT_FOUND,
-        409: {"description": "Hesaba bağlı yevmiye kaydı ya da alt hesap var"},
+        409: {"description": "Hesaba bağlı yevmiye satırı ya da alt hesap var"},
     },
     dependencies=[require_system_admin()],
 )
@@ -294,11 +295,10 @@ async def delete_chart_account_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """**YALNIZ `admin`** → 204; fiş satırı ya da alt hesabı olan hesap **409**.
+    """Hesabı siler. YALNIZ Sistem Yöneticisi.
 
-    `full` seviyesi (muhasebe) 403 alır — gerekçe modül docstring'indedir.
-    409 SERVİSTEN gelir: ham FK ihlalinin 500'ü ya da ayrımsız "Veri bütünlüğü
-    hatası" kullanıcıya SIZMAZ. Yanıt gövdesizdir.
+    Fiş satırı (`journal_lines`) ya da alt hesabı olan hesap silinmez: **409** (iş kuralı,
+    Sistem Yöneticisi'ni de durdurur). Yanıt gövdesizdir.
     """
     detail = await accounts_service.delete_account(session, account_id)
     await _audit(request, session, user, AuditAction.delete, detail)

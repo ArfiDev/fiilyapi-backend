@@ -50,7 +50,7 @@ from app.core.access import AccessLevel
 from app.core.config import settings
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -170,7 +170,7 @@ async def rename_document_folder_endpoint(
 @router.delete(
     "/document-folders/{folder_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={409: {"description": "Klasör boş değil"}},
+    responses={**DELETE_403_YANITI, 409: {"description": "Klasörde belge ya da alt klasör var"}},
     dependencies=[require_system_admin()],
 )
 async def delete_document_folder_endpoint(
@@ -179,12 +179,10 @@ async def delete_document_folder_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """YALNIZ BOŞ klasör silinir; belge ya da alt klasör varsa 409.
+    """Belge klasörünü siler. YALNIZ Sistem Yöneticisi.
 
-    Yetki kapısı korkuluktan ÖNCE koşar: yetkisiz aktör 403 alır ve klasörün
-    dolu olup olmadığını ÖĞRENEMEZ. Görünmeyen klasör 404 döner.
-
-    Yanıt `204 No Content`, gövdesizdir.
+    YALNIZ BOŞ klasör silinir; belge ya da alt klasör varsa **409** (iş kuralı). Yanıt
+    `204 No Content`, gövdesizdir.
     """
     context = await service.visible_folder(session, user, folder_id)
     detail = await service.delete_folder(session, context)
@@ -385,6 +383,7 @@ async def update_document_endpoint(
 @router.delete(
     "/documents/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**DELETE_403_YANITI},
     dependencies=[require_system_admin()],
 )
 async def delete_document_endpoint(
@@ -394,12 +393,10 @@ async def delete_document_endpoint(
     session: DbSession,
     storage: Annotated[StorageBackend, Depends(get_storage_backend)],
 ) -> None:
-    """Künye + baytlar silinir (`admin`; `full` silmeyi KAPSAMAZ).
+    """Belgeyi (künye + baytlar) siler. YALNIZ Sistem Yöneticisi.
 
-    ⚠️ BU UÇ EKRANDA BASILMAZ (modül docstring'i): mockup'ta belge silme
-    aksiyonu yoktur; uç yalnız yanlış yüklenen dosyayı temizlemek içindir.
-
-    Yanıt `204 No Content`, gövdesizdir.
+    ⚠️ BU UÇ EKRANDA BASILMAZ (modül docstring'i): mockup'ta belge silme aksiyonu yoktur; uç yalnız
+    yanlış yüklenen dosyayı temizlemek içindir. Yanıt `204 No Content`, gövdesizdir.
     """
     context = await service.visible_document(session, user, document_id)
     detail = await service.delete_document(session, storage, context)

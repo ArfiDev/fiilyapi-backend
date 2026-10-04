@@ -47,7 +47,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -247,7 +247,7 @@ async def rename_warehouse_endpoint(
 @router.delete(
     "/warehouses/{warehouse_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={409: {"description": "Depoda stok hareketi var"}},
+    responses={**DELETE_403_YANITI, 409: {"description": "Depoda stok hareketi var"}},
     dependencies=[require_system_admin()],
 )
 async def delete_warehouse_endpoint(
@@ -256,12 +256,10 @@ async def delete_warehouse_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """YALNIZ HAREKETSİZ depo silinir; hareketi varsa 409.
+    """Depoyu siler. YALNIZ Sistem Yöneticisi.
 
-    Yetki kapısı korkuluktan ÖNCE koşar: yetkisiz aktör 403 alır ve deponun
-    hareketli olup olmadığını ÖĞRENEMEZ. Görünmeyen depo 404 döner.
-
-    Yanıt `204 No Content`, gövdesizdir.
+    YALNIZ HAREKETSİZ depo silinir; hareketi varsa **409** (iş kuralı). Yanıt `204 No Content`,
+    gövdesizdir.
     """
     warehouse, site = await service.visible_warehouse(session, user, warehouse_id)
     detail = await service.delete_warehouse(session, warehouse, site)

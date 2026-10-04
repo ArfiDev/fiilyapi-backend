@@ -15,7 +15,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
@@ -459,6 +459,10 @@ async def unapprove_progress_payment_endpoint(
 @router.delete(
     "/progress-payments/{payment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Onaylanmış veya ödenmiş hakediş silinemez"},
+    },
     dependencies=[require_system_admin()],
 )
 async def delete_progress_payment_endpoint(
@@ -467,18 +471,11 @@ async def delete_progress_payment_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """K8 iki katmanlı kural (spec §7.1). Kapı `_DRAFT`dir — `_ADMIN` olsaydı
+    """İşveren hakedişini siler. YALNIZ Sistem Yöneticisi.
 
-    taslağı üreten şef/saha rollerinin (draft seviyesi) KENDİ taslaklarını
-    silme istisnası ölü kural olurdu (`subcontracts.delete_subcontractor_
-    contract`in `_FULL` kapı kararının aynı gerekçesi, spec §7.1 girişi).
-    Kesin karar `service.delete_payment`'tadır: `approved`/`paid` ADMİN DAHİL
-    kimseye açık değildir; kalanında `can_delete` (admin koşulsuz, aksi hâlde
-    yalnız kaydı açan aktörün KENDİ taslağı).
-
-    H8'den devredilen not (plan H10, spec §11): `service.delete_payment`
-    kaydın özetini (`sequence_no`/durum/tutar) `session.delete`den ÖNCE
-    çıkarıp döner — kayıt gittiğinde bunlar bir daha okunamaz.
+    `approved`/`paid` hakediş **409** (iş kuralı, Sistem Yöneticisi'ni de durdurur): önce
+    `unapprove` ile geri çekilir. Taslağı açan kişi kendi taslağını da silemez. Satırlar birlikte
+    gider. Disiplin kısıtı DELETE'te uygulanmaz.
     """
     summary = await service.delete_payment(session, user, payment_id)
     await record_audit(

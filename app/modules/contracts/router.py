@@ -14,7 +14,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
@@ -235,6 +235,7 @@ async def update_employer_contract_group_endpoint(
 @router.delete(
     "/contracts/employer/groups/{group_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**DELETE_403_YANITI, 409: {"description": "Grupta poz var; önce pozları silin"}},
     dependencies=[require_system_admin()],
 )
 async def delete_employer_contract_group_endpoint(
@@ -243,8 +244,10 @@ async def delete_employer_contract_group_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §7. 409 `GROUP_HAS_ITEMS`: grupta poz varsa silinmez. Kapı: yalnız Sistem Yöneticisi
-    (SIL-B1; `require_system_admin`)."""
+    """İşveren sözleşme grubunu siler. YALNIZ Sistem Yöneticisi.
+
+    Pozu olan grup **409** (iş kuralı).
+    """
     project_name, group_name = await service.delete_employer_group(session, user, group_id)
     await record_audit(
         session,
@@ -343,6 +346,7 @@ async def update_employer_contract_item_endpoint(
 @router.delete(
     "/contracts/employer/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**DELETE_403_YANITI},
     dependencies=[require_system_admin()],
 )
 async def delete_employer_contract_item_endpoint(
@@ -351,9 +355,10 @@ async def delete_employer_contract_item_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §7. Engel YOK: bağlı `boq_items.contract_item_id` DB'de `ON DELETE
+    """İşveren sözleşme kalemini (poz) siler. YALNIZ Sistem Yöneticisi.
 
-    SET NULL` ile serbest kalır, satır SİLİNMEZ. Kapı: yalnız Sistem Yöneticisi (SIL-B1).
+    Engel yok: bağlı `boq_items.contract_item_id` DB'de `ON DELETE SET NULL` ile serbest kalır,
+    satır SİLİNMEZ.
     """
     project_name, code, description = await service.delete_employer_item(session, user, item_id)
     await record_audit(
@@ -436,6 +441,10 @@ async def update_subcontractor_endpoint(
 @router.delete(
     "/subcontractors/{subcontractor_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Taşeronun sözleşmesi ya da günlük işçi kaydı var; önce onları silin"},
+    },
     dependencies=[require_system_admin()],
 )
 async def delete_subcontractor_endpoint(
@@ -444,9 +453,9 @@ async def delete_subcontractor_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §7. 409 `SUBCONTRACTOR_HAS_CONTRACTS`: taşeronun sözleşmesi varsa
+    """Taşeron firmasını siler. YALNIZ Sistem Yöneticisi.
 
-    silinmez. Kapı: yalnız Sistem Yöneticisi (SIL-B1; `can_delete` istisnası hiçbir uçta yok).
+    Sözleşmesi (ya da günlük işçi sayısı kaydı) olan taşeron **409** (iş kuralı).
     """
     name = await subcontractors.delete_subcontractor(session, subcontractor_id)
     await record_audit(
@@ -603,6 +612,10 @@ async def update_subcontractor_contract_endpoint(
 @router.delete(
     "/subcontractor-contracts/{contract_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Faturaya bağlı hakedişi olan sözleşme silinemez (veri bütünlüğü)"},
+    },
     dependencies=[require_system_admin()],
 )
 async def delete_subcontractor_contract_endpoint(
@@ -611,8 +624,11 @@ async def delete_subcontractor_contract_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §7. Taşeron sözleşmesini (kalemleri ve hakedişleri CASCADE) siler. Kapı: yalnız Sistem
-    Yöneticisi (SIL-B1, K4); eski "kendi taslağını sahibi siler" istisnası KALDIRILDI."""
+    """Taşeron sözleşmesini siler. YALNIZ Sistem Yöneticisi.
+
+    Kalemleri ve hakedişleri CASCADE ile birlikte gider. Hakedişi faturaya bağlıysa DB kısıtı
+    nedeniyle **409** (`Veri bütünlüğü hatası`, `code` yok).
+    """
     (
         project_name,
         contract_no,
@@ -685,6 +701,7 @@ async def update_subcontract_item_endpoint(
 @router.delete(
     "/subcontractor-contracts/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**DELETE_403_YANITI},
     dependencies=[require_system_admin()],
 )
 async def delete_subcontract_item_endpoint(
@@ -693,7 +710,7 @@ async def delete_subcontract_item_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §7. Engel YOK. Kapı: yalnız Sistem Yöneticisi (SIL-B1)."""
+    """Taşeron sözleşme kalemini siler. YALNIZ Sistem Yöneticisi. Engel yok."""
     contract_no, code = await subcontracts.delete_subcontract_item(session, user, item_id)
     await record_audit(
         session,

@@ -25,7 +25,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped
 from app.core.errors import SiteValidationError
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
@@ -265,6 +265,12 @@ async def save_site_diary_lines_endpoint(
 @router.delete(
     "/diary/{entry_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **DELETE_403_YANITI,
+        409: {
+            "description": "Gönderilmiş günlük kayıt silinemez; kilitli gündeki kayıt da silinemez"
+        },
+    },
     dependencies=[require_system_admin()],
 )
 async def delete_site_diary_entry_endpoint(
@@ -273,10 +279,11 @@ async def delete_site_diary_entry_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Kapı `_FULL`dur, `_ADMIN` DEĞİL (taşeron silme ucunun aynı gerekçesi):
-    admin kapısı olsaydı taslağı üreten şef/saha rollerinin KENDİ taslağını
-    silme istisnası (`can_delete`) ölü kural olurdu. Kesin karar
-    `service.delete_entry`tedir."""
+    """Günlük kaydı siler. YALNIZ Sistem Yöneticisi.
+
+    Gönderilmiş kayıt ve kilitli gündeki kayıt **409** (iş kuralı, Sistem Yöneticisi'ni de
+    durdurur). Taslağı açan kişi kendi taslağını da silemez. Disiplin kısıtı DELETE'te uygulanmaz.
+    """
     # DSC-B2 (Ü5): günü silmek yalnız kısıtsız kullanıcıya (403).
     summary = await service.delete_entry(session, user, entry_id)
     await record_audit(

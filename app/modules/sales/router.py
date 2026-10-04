@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import (
     kapsam_kapisi,
     require_pages,
@@ -155,6 +155,10 @@ async def update_sale_endpoint(
 @router.delete(
     "/sales/{sale_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **DELETE_403_YANITI,
+        409: {"description": "Yalnızca rezervasyon kaydı silinebilir; satış iptal edilmelidir"},
+    },
     dependencies=[require_system_admin()],
 )
 async def delete_sale_endpoint(
@@ -163,12 +167,11 @@ async def delete_sale_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> None:
-    """Spec §4: YALNIZ `reservation` silinir; `active`/`deed_transferred` 409 ile
+    """Satış kaydını siler. YALNIZ Sistem Yöneticisi.
 
-    reddedilir ve iptal edilerek (T5 `cancel`) kapatılır. Kapı `_ADMIN`dir —
-    `units`/`blocks` DELETE uçlarıyla tutarlı (kalıcı karar 2026-07-30). Yetki
-    kapısı durum korkuluğundan ÖNCE çalışır: yetkisiz aktör 403 alır ve kaydın
-    hangi durumda olduğunu ÖĞRENEMEZ.
+    YALNIZ `reservation` silinir; `active`/`deed_transferred` **409** ile reddedilir ve iptal
+    edilerek (T5 `cancel`) kapatılır (iş kuralı, Sistem Yöneticisi'ni de durdurur). Silinen
+    rezervasyon ünitenin `sales_status`unu `listed`e döndürür. Yanıt `204 No Content`, gövdesiz.
     """
     detail = await service.delete_sale(session, user, sale_id)
     await _audit(request, session, user, AuditAction.delete, detail)
