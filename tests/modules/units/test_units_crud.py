@@ -11,6 +11,8 @@ sayısını SIZDIRMAZ.
 import uuid
 from decimal import Decimal
 
+import pytest
+
 from app.core.access import AccessLevel
 
 from ._units_api import (
@@ -501,6 +503,11 @@ async def test_delete_unit_full_permission_forbidden(
     assert await _count_units_in_block(db_session, block.id) == 1
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
+    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
+)
 async def test_delete_unit_admin_permission_allowed(
     client, db_session, user_factory, project_factory
 ):
@@ -673,6 +680,11 @@ async def test_delete_block_full_permission_forbidden(
     assert await _block_exists(db_session, block.id) is True
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
+    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
+)
 async def test_delete_block_admin_permission_allowed(
     client, db_session, user_factory, project_factory
 ):

@@ -368,8 +368,12 @@ async def test_sorgu_sayisi_BOLUM_SAYISINDAN_bagimsizdir(seeded_db, user_factory
     # bölüm sayısından bağımsız. Tavan 16'dır: sessiz bir kayma yakalansın diye
     # dar, kimlik/yetki katmanının bir ifade eklemesi türü boşuna kırmasın diye
     # de bir parmak paylı. Sayıyı DÜŞÜRMEK serbesttir; YÜKSELTMEK gerekçelidir.
-    assert sekiz_bolum <= 16, (
-        f"bölüm listesi sıcak yolu {sekiz_bolum} sorguya çıktı (tavan 16) — "
+    # IZN-B2: tavan 16 → 18. Kapı köprüsü (`core/page_gate`) servis içi `can_read` kapılarında
+    # rolü bir kez okur (`session.get(Role)`, kimlik haritasında kalır) ve hücreleri sayfa
+    # tablosundan çeker: sıcak yola SABİT +2 sorgu (bölüm sayısından bağımsız; üstteki eşitlik
+    # iddiası bunu çakar).
+    assert sekiz_bolum <= 18, (
+        f"bölüm listesi sıcak yolu {sekiz_bolum} sorguya çıktı (tavan 18) — "
         "eşitlik iddiası SABİT bir artışı GÖREMEZ, tavan görür"
     )
 

@@ -45,17 +45,19 @@ YAZMA_YOK = {
     100,
 }  # fmt: skip
 # --- ONAY (Onaylar): sayfadaki onay eylemini GERÇEKTEN açan eşik ---
-ONAY_REQUEST = {31}
-ONAY_APPROVE = {17, 18, 78, 80}
+# IZN-B2 DÜZELTMESİ (CEO): hakediş sayfaları (50, 51, 65, 66, 72) admin → approve, talep (31)
+# request → approve. "Onayı Geri Al" (admin) Onaylar'a BAĞLI DEĞİL: yalnız Sistem Yöneticisi.
+ONAY_REQUEST: set[int] = set()
+ONAY_APPROVE = {17, 18, 31, 50, 51, 65, 66, 72, 78, 80}
 ONAY_FULL = {2, 11, 14, 34, 35, 41, 47, 49, 55, 57}
 # yeniden aç · dönemi yeniden aç · onayı geri al = yalnız admin
-ONAY_ADMIN = {12, 46, 50, 51, 65, 66, 72, 73, 88}
+ONAY_ADMIN = {12, 46, 73, 88}
 ONAY_ISTISNA = {22: [("projects", L.admin), ("contracts", L.full)]}  # dönüştür
 
 #: Eski sade eşlemeye ("approve/full/admin → Onaylar, draft+ → Düzenler") göre eşiği DEĞİŞEN
 #: sayfa sayıları (modüllü 93 sayfa içinde) — rapora yazılan özet.
 YAZMA_ESIGI_DRAFTTAN_FARKLI = 85
-ONAY_ESIGI_APPROVE_DISI = 21
+ONAY_ESIGI_APPROVE_DISI = 15
 GORME_ESIGI_VIEW_DISI = 9
 
 
@@ -189,11 +191,13 @@ def test_seed_rollerinin_hucreleri_esik_tablosuyla_BIREBIR_ve_GENISLEME_SIFIR() 
         ("patron", "bolum.gunluk_kayit_detay", ("edit", False)),
         ("accounting", "mali.donem_kapanisi", ("edit", False)),
         ("patron", "mali.donem_kapanisi", ("edit", False)),
-        ("accounting", "mali.hakedis_isveren", ("edit", False)),
-        ("project_manager", "mali.hakedis_taseron", ("edit", False)),
-        ("patron", "proje.isveren_hakedis", ("edit", False)),
-        ("patron", "proje.taseron_hakedis", ("edit", False)),
-        ("patron", "santiye.hakedisler", ("edit", False)),
+        ("accounting", "mali.hakedis_isveren", ("edit", True)),  # IZN-B2: Onayla/Ödendi = approve
+        ("project_manager", "mali.hakedis_taseron", ("edit", True)),
+        ("patron", "proje.isveren_hakedis", ("edit", True)),
+        ("patron", "proje.taseron_hakedis", ("edit", True)),
+        ("patron", "santiye.hakedisler", ("edit", True)),
+        ("site_chief", "mali.hakedis_isveren", ("edit", False)),  # draft: onaylayamaz
+        ("project_manager", "stok.satinalma_talepleri", ("edit", True)),  # procurement approve
         # (A) Ayarlar yazma
         ("patron", "ayarlar.onay_rolleri", ("view", False)),
         ("patron", "ayarlar.bordro_oranlari", ("view", False)),

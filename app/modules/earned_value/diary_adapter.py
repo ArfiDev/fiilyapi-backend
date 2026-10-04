@@ -36,10 +36,11 @@ from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import day_hooks
-from app.core.access import AccessLevel, satisfies
+from app.core.access import AccessLevel
 from app.core.day_hooks import SubmitContext, SubmitReason
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, user_scope
 from app.core.errors import ConflictError, EarnedValueValidationError
+from app.core.page_gate import gate_ok
 from app.modules.contracts.models import Subcontractor
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import guards
@@ -66,7 +67,6 @@ from app.modules.earned_value.models import (
     EvRevision,
     RevisionStatus,
 )
-from app.modules.roles.repository import get_permission
 from app.modules.site_diary.models import (
     DiaryStatus,
     SiteDiaryEntry,
@@ -704,8 +704,7 @@ async def submit_blockers(session: AsyncSession, ctx: SubmitContext) -> list[Sub
         return []
     reasons: list[SubmitReason] = []
     actor = await session.get(User, ctx.actor_id)
-    perm = await get_permission(session, actor.role_id, PERMISSION_MODULE) if actor else None
-    if perm is None or not satisfies(perm.access_level, AccessLevel.draft):
+    if actor is None or not await gate_ok(session, actor, PERMISSION_MODULE, AccessLevel.draft):
         reasons.append(
             SubmitReason(
                 SUBMIT_NO_PERMISSION,

@@ -4,7 +4,8 @@ from pydantic import BaseModel, EmailStr
 
 from app.core.access import AccessLevel
 from app.core.discipline_ref import DisciplineRef
-from app.core.sayfalar import HiddenCategory, PageKey, PageLevel
+from app.core.sayfalar import HiddenCategory, PageKey
+from app.modules.pages.schemas import PageGrant
 from app.modules.users.models import UserStatus
 
 
@@ -21,13 +22,6 @@ class TokenPair(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-
-
-class PageGrant(BaseModel):
-    """Bir sayfadaki erişim: düzey + onay eylemi. Silme düzey DEĞİLDİR (`is_system_admin`)."""
-
-    level: PageLevel
-    approve: bool
 
 
 class MeResponse(BaseModel):

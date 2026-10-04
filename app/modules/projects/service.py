@@ -5,7 +5,6 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel
 from app.core.discipline_scope import DisciplineScope
 from app.core.errors import (
     ConflictError,
@@ -14,6 +13,7 @@ from app.core.errors import (
     ProjectTypeMismatchError,
     ProjectValidationError,
 )
+from app.core.page_gate import page_ok
 from app.core.slug import allocate_slug, slugify, unique_slug
 from app.core.timezone import today
 from app.modules.projects import cost_cards, messages, progress_cards, repository
@@ -51,7 +51,6 @@ from app.modules.projects.schemas import (
     ProjectUpdate,
     ShareholderInput,
 )
-from app.modules.roles.repository import get_permission
 
 # Project.sites ters iliskisi sites.models icinde backref ile tanimlanir; sayaci
 # okuyabilmek icin o modulun yuklenmis olmasi sarttir. Dongusel import YOK:
@@ -177,8 +176,8 @@ async def visible_projects(session: AsyncSession, actor: User) -> list[Project]:
     PUBLIC: P2 santiye/bolum uclari da bu suzgecten gecer (P2 spec §5.2) ve
     kendi kopya gorunurluk mantigini YAZMAZ. Tek kaynak burasidir.
     """
-    permission = await get_permission(session, actor.role_id, "projects")
-    if permission is not None and permission.access_level is AccessLevel.admin:
+    # IZN-B2: `projects:admin` = "Projeler" sayfası Düzenler (§2.4; eşik eski admin ile AYNI).
+    if await page_ok(session, actor, "genel.projeler", "edit"):
         return await repository.list_projects(session)
     return await repository.list_projects_for_user(session, actor.id)
 

@@ -1,6 +1,13 @@
 from pydantic import BaseModel
 
-from app.core.sayfalar import PageGroup, PageKey, PageKind
+from app.core.sayfalar import PageGroup, PageKey, PageKind, PageLevel
+
+
+class PageGrant(BaseModel):
+    """Bir sayfadaki erişim: düzey + onay eylemi. Silme düzey DEĞİLDİR (`is_system_admin`)."""
+
+    level: PageLevel
+    approve: bool
 
 
 class PageResponse(BaseModel):

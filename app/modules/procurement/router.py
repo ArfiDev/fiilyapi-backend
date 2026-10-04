@@ -57,10 +57,10 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
-from app.modules.approvals.gate import require_permission_or_chain_step
+from app.modules.approvals.gate import require_pages_or_chain_step
 from app.modules.approvals.models import ApprovalDocumentType
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -102,12 +102,14 @@ _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
 #: onun TEK çağıranıydı ve ölü sabit bırakmak yanıltıcı olurdu. Modül seviyesi
 #: AYNEN `approve`tır; seviye yetmediğinde zincirin SIRADAKİ adımının onay rolü
 #: onu İKAME EDER (`approvals/gate.py`). Diğer 21 uç DEĞİŞMEDİ.
-_CHAIN_APPROVE = require_permission_or_chain_step(
-    service.PERMISSION_MODULE,
-    AccessLevel.approve,
+_CHAIN_APPROVE = require_pages_or_chain_step(
+    ("stok.satinalma_talepleri",),
+    module_key=service.PERMISSION_MODULE,
     document_type=ApprovalDocumentType.purchase_request,
     document_id_param="request_id",
 )
+#: IZN-B2: "Seç ve Sipariş Ver" = Teklif Karşılaştırma sayfası ONAYLAR (eşik eski `full`).
+_QUOTE_SELECT = require_pages(("stok.teklif_karsilastirma",), "approve")
 
 # TB3 sayfalama standardı: varsayılan 50, tavan 200 — tavan aşımı sessizce
 # KIRPILMAZ, 422 döner (ST T2 ile birebir).
@@ -619,7 +621,7 @@ async def delete_quote_endpoint(
         404: {"description": "Talep ya da teklif bulunamadı"},
         409: {"description": "Talep bu işleme uygun durumda değil"},
     },
-    dependencies=[_FULL],
+    dependencies=[_QUOTE_SELECT],
 )
 async def select_and_order_endpoint(
     request: Request,

@@ -12,15 +12,15 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel
+from app.core.access import AccessLevel, Scope
 from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value.models import UserDiscipline
 from app.modules.roles import service as roles_service
-from app.modules.roles.models import Module, Role, RolePermission
+from app.modules.roles.models import Role
 from app.modules.roles.schemas import RoleCreate
+from tests._legacy_permission_yardimcisi import update_role_permission
 
 PASSWORD = "parola1234"
 URL = "/earned-value/disciplines"
@@ -33,15 +33,7 @@ async def _rol(session: AsyncSession, key: str, izinler: dict[str, AccessLevel])
         session, RoleCreate(key=key, name=key, emoji="", description="")
     )
     for module_key, level in izinler.items():
-        satir = (
-            await session.execute(
-                select(RolePermission)
-                .join(Module, Module.id == RolePermission.module_id)
-                .where(RolePermission.role_id == role.id, Module.key == module_key)
-            )
-        ).scalar_one()
-        satir.access_level = level
-    await session.flush()
+        await update_role_permission(session, role.id, module_key, level, Scope.all)
     return role
 
 

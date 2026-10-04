@@ -32,6 +32,7 @@ from app.modules.earned_value import budget_service as svc
 from app.modules.earned_value import contract_rates
 from app.modules.earned_value.access import (
     APPROVE,
+    BASELINE_FREEZE,
     VIEW,
     WRITE,
     SiteContext,
@@ -449,7 +450,9 @@ async def preview_budget(
 
 
 @router.post(
-    f"{_BASE}/freeze", response_model=RevisionOut, dependencies=[APPROVE, RequireUnrestricted]
+    f"{_BASE}/freeze",
+    response_model=RevisionOut,
+    dependencies=[BASELINE_FREEZE, RequireUnrestricted],
 )
 async def freeze_budget(
     request: Request,

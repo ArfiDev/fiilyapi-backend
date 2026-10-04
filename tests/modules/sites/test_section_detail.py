@@ -31,6 +31,7 @@ from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, SectionStatus, Site
 from app.modules.users.models import UserProjectAccess
+from tests._legacy_permission_yardimcisi import sync_page_cells
 from tests._section_types import seed_section_types
 
 SECTION_MISSING = "Bölüm bulunamadı"
@@ -90,6 +91,7 @@ async def _set_permission(
     permission.access_level = level
     permission.scope = scope
     await session.flush()
+    await sync_page_cells(session, permission.role_id)
 
 
 async def _tree(session, project_factory, slug: str, **section_fields) -> tuple[Site, Section]:

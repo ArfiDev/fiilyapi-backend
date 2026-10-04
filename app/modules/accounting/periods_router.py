@@ -46,7 +46,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_page, require_permission
 from app.core.ratelimit import client_ip
 from app.modules.accounting import guards, periods_service
 from app.modules.accounting.periods_schemas import (
@@ -63,7 +63,8 @@ router = APIRouter(
 
 _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(guards.PERMISSION_MODULE, AccessLevel.full)
-_ADMIN = require_permission(guards.PERMISSION_MODULE, AccessLevel.admin)
+#: IZN-B2 §2.4: "dönemi yeniden aç" = Dönem Kapanışı sayfası ONAYLAR (eşik eski `admin` ile aynı).
+_ADMIN = require_page("mali.donem_kapanisi", "approve")
 
 # K7 sayfalama standardı: varsayılan 50, tavan 200 — tavan aşımı sessizce
 # KIRPILMAZ, 422 döner (`router.py` ve ST/SA/`invoicing`/`treasury` ile birebir).

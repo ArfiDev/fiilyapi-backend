@@ -21,12 +21,14 @@ YENI bir yuzeydir ve ayni tuzagi tasir — ustelik orada hata GERI ALINAMAZ.
 
 import uuid
 
+import pytest
 from sqlalchemy import func, select
 
 from app.core.access import AccessLevel, Scope
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import UserProjectAccess
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 SITE_MISSING = "Şantiye bulunamadı"
 SECTION_MISSING = "Bölüm bulunamadı"
@@ -75,6 +77,7 @@ async def _set_permission(
     permission.access_level = level
     permission.scope = scope
     await session.flush()
+    await sync_page_cells(session, permission.role_id)
 
 
 async def _tree(session, project_factory, code: str = "IDOR") -> tuple[Site, Section]:
@@ -290,6 +293,11 @@ async def test_random_manager_user_uuid_returns_422_and_writes_nothing(
 # --- 27/28: gorunmeyen kayda DELETE ---
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
+    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
+)
 async def test_delete_site_invisible_returns_404_and_record_survives(
     client, db_session, user_factory, project_factory
 ):
@@ -306,6 +314,11 @@ async def test_delete_site_invisible_returns_404_and_record_survives(
     assert await _exists(db_session, Site, site.id)
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
+    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
+)
 async def test_delete_section_invisible_returns_404_and_record_survives(
     client, db_session, user_factory, project_factory
 ):
@@ -406,6 +419,11 @@ async def test_delete_both_with_no_permission_returns_403(
 # --- 33: yetki gorunurlugun ONUNE GECMEZ ---
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
+    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
+)
 async def test_admin_without_project_access_delete_returns_404(
     client, db_session, user_factory, project_factory
 ):
@@ -433,6 +451,11 @@ async def test_admin_without_project_access_delete_returns_404(
 # --- Govde sizinti taramasi ---
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
+    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
+)
 async def test_error_bodies_do_not_leak_record_existence(
     client, db_session, user_factory, project_factory
 ):

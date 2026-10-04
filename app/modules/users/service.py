@@ -4,17 +4,12 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, satisfies
 from app.core.errors import DomainError, NotFoundError, PermissionLockedError
+from app.core.page_gate import is_admin_role, load_cells, page_ok
+from app.core.sayfalar import PageLevel
 from app.core.security import hash_password
 from app.modules.projects.models import Project
 from app.modules.roles.models import SYSTEM_ADMIN_KEY, Role
-from app.modules.roles.repository import (
-    get_permission,
-    get_role_matrix,
-    has_legacy_cells,
-    role_assignable,
-)
 from app.modules.users import repository
 from app.modules.users.models import User, UserProjectAccess, UserStatus
 from app.modules.users.schemas import ProjectAccessInput, UserCreate, UserUpdate
@@ -34,27 +29,40 @@ async def _is_last_active_system_admin(session: AsyncSession, user: User) -> boo
     return count <= 1
 
 
+_PAGE_RANK = {PageLevel.none: 0, PageLevel.view: 1, PageLevel.edit: 2}
+
+
+def _grant_covers(actor: tuple[PageLevel, bool], target: tuple[PageLevel, bool]) -> bool:
+    """Aktörün sayfa hücresi, hedef rolün hücresini (düzey + onay) KARŞILIYOR mu?"""
+    actor_level, actor_approve = actor
+    target_level, target_approve = target
+    return _PAGE_RANK[actor_level] >= _PAGE_RANK[target_level] and (
+        actor_approve or not target_approve
+    )
+
+
 async def _require_assignable_role(session: AsyncSession, actor: User, role_id: uuid.UUID) -> Role:
     """Aktörün bu rolü atamaya yetkisi var mı?
 
-    `user_management=admin` (Sistem Yöneticisi) her rolü atar. Onun altındaki bir aktör
-    (1) sistem rollerini atayamaz ve (2) KENDİ seviyesini herhangi bir modülde aşan bir
-    rolü atayamaz — yoksa `is_system=False` güçlü bir rolü kendine ya da açtığı
-    kullanıcıya vererek sahip olmadığı yetkiyi kendine basar (spec §5.0).
+    "Rol Yönetimi" sayfasında Düzenler (eski `user_management=admin`; Sistem Yöneticisi) her rolü
+    atar. Onun altındaki bir aktör (1) sistem rolünü (Sistem Yöneticisi) atayamaz ve (2) KENDİ
+    sayfa hücrelerini (düzey + onay) herhangi bir sayfada aşan bir rolü atayamaz — yoksa güçlü
+    bir rolü kendine ya da açtığı kullanıcıya vererek sahip olmadığı yetkiyi kendine basar
+    (spec §5.0). IZN-B2: karşılaştırma eski modül matrisi yerine SAYFA HÜCRELERİ üzerindendir;
+    yeni roller artık atanabilir (B1 atama kilidi kalktı).
     """
     role = (await session.execute(select(Role).where(Role.id == role_id))).scalar_one_or_none()
     if role is None:
         raise NotFoundError("Rol bulunamadı")
 
-    # IZN-B1: yeni roller B2 kapı köprüsüne dek atanamaz (kural `roles.repository.role_assignable`).
-    if not role_assignable(role.key, await has_legacy_cells(session, role.id)):
-        raise DomainError(
-            f'"{role.name}" rolü henüz kullanılamıyor: sayfa bazlı izin sistemi devreye '
-            "alınana kadar kullanıcıya atanamaz."
+    # Sistem Yöneticisi rolünü YALNIZ Sistem Yöneticisi atayabilir: "Rol Yönetimi Düzenler"
+    # sahibi (özel rol) de dahil kimse kendine/başkasına bu rolü veremez.
+    if role.key == SYSTEM_ADMIN_KEY and not await is_admin_role(session, actor):
+        raise PermissionLockedError(
+            "Sistem Yöneticisi rolü yalnızca Sistem Yöneticisi tarafından atanabilir"
         )
 
-    perm = await get_permission(session, actor.role_id, "user_management")
-    if perm is not None and satisfies(perm.access_level, AccessLevel.admin):
+    if await page_ok(session, actor, "ayarlar.rol_yonetimi", "edit"):
         return role
 
     if role.is_system:
@@ -62,13 +70,10 @@ async def _require_assignable_role(session: AsyncSession, actor: User, role_id: 
             "Sistem rolleri yalnızca Sistem Yöneticisi tarafından atanabilir"
         )
 
-    actor_levels = {
-        module.key: permission.access_level
-        for module, permission in await get_role_matrix(session, actor.role_id)
-    }
-    for module, permission in await get_role_matrix(session, role_id):
-        actor_level = actor_levels.get(module.key, AccessLevel.none)
-        if not satisfies(actor_level, permission.access_level):
+    actor_cells = await load_cells(session, actor.role_id)
+    none_cell = (PageLevel.none, False)
+    for page_key, target in (await load_cells(session, role_id)).items():
+        if not _grant_covers(actor_cells.get(page_key, none_cell), target):
             raise PermissionLockedError("Sahip olmadığınız yetkileri içeren bir rol atayamazsınız")
     return role
 

@@ -19,6 +19,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import func, select
 
 from app.core.access import AccessLevel
@@ -38,6 +39,7 @@ from app.modules.site_planning.models import (
 from app.modules.sites.models import Section, Site
 from app.modules.timesheet.models import TimesheetEntry
 from app.modules.units.models import Block, Unit, UnitKind
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 # Spec §7.2 — silme korkuluklarinin Turkce metinleri (testte BIREBIR beklenir).
 SECTION_BLOCKER = "Bu şantiyede bölüm var, önce bölümleri silin"
@@ -486,6 +488,11 @@ async def test_delete_missing_site_returns_404(client, user_factory):
     assert resp.json()["detail"] == SITE_MISSING
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
+    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
+)
 async def test_delete_invisible_site_returns_same_404_body(
     client, db_session, user_factory, project_factory
 ):
@@ -511,6 +518,7 @@ async def test_delete_invisible_site_returns_same_404_body(
     ).scalar_one()
     permission.access_level = AccessLevel.admin
     await db_session.flush()
+    await sync_page_cells(db_session, permission.role_id)
     await user_factory(email="patron-del@t.co", password="parola1234", role_key="patron")
     login = await client.post(
         "/auth/login", json={"email": "patron-del@t.co", "password": "parola1234"}

@@ -30,8 +30,9 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, satisfies
+from app.core.access import AccessLevel
 from app.core.errors import ApprovalNotAllowedError, ApprovalValidationError, ConflictError
+from app.core.page_gate import gate_ok
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.approvals import definitions, guards, inbox, repository
 from app.modules.approvals.definitions import HistoryDecision, HistoryFilter
@@ -44,7 +45,6 @@ from app.modules.approvals.models import (
 from app.modules.audit import messages
 from app.modules.company import repository as company_repository
 from app.modules.projects.service import visible_projects
-from app.modules.roles.repository import get_permission
 from app.modules.users.models import User
 
 __all__ = [
@@ -325,10 +325,12 @@ async def _has_document_admin(
     istisna ona acilsaydi "tek kisilik ekipte kilitlenmeyi onle" gerekcesi,
     kendi evragini onaylayan ikinci bir sinifa donusurdu.
     """
-    permission = await get_permission(
-        session, actor.role_id, definitions.DOCUMENT_PERMISSION_MODULE[document_type]
+    return await gate_ok(
+        session,
+        actor,
+        definitions.DOCUMENT_PERMISSION_MODULE[document_type],
+        AccessLevel.admin,
     )
-    return permission is not None and satisfies(permission.access_level, AccessLevel.admin)
 
 
 async def _assert_can_decide(
@@ -589,10 +591,7 @@ async def _admin_document_types(session: AsyncSession, actor: User) -> list[Appr
     tipler: list[ApprovalDocumentType] = []
     for tip, modul in definitions.DOCUMENT_PERMISSION_MODULE.items():
         if modul not in seviyeler:
-            permission = await get_permission(session, actor.role_id, modul)
-            seviyeler[modul] = permission is not None and satisfies(
-                permission.access_level, AccessLevel.admin
-            )
+            seviyeler[modul] = await gate_ok(session, actor, modul, AccessLevel.admin)
         if seviyeler[modul]:
             tipler.append(tip)
     return tipler

@@ -27,7 +27,8 @@ from app.main import app
 from app.modules.roles import seed_data
 from app.modules.roles.models import Role, RoleHiddenField, RolePagePermission, RolePermission
 from app.modules.roles.schemas import RoleCreate
-from app.modules.roles.service import create_custom_role, update_role_permission
+from app.modules.roles.service import create_custom_role
+from tests._legacy_permission_yardimcisi import update_role_permission
 from tests.conftest import test_engine
 
 SIFRE = "parola1234"
@@ -202,8 +203,10 @@ async def test_me_yeni_roller_kendi_baslangic_matrisini_alir(client, izn_db, rol
     assert me["role_key"] == role_key
     assert me["pages"] == _beklenen_pages(role_key)
     assert me["hidden_fields"] == sorted(c.value for c in seed_data.HIDDEN_FIELDS[role_key])
-    # Eski kapı onları dışarıda tutar: izin haritası HER modülde `none` (fail-closed).
-    assert set(me["permissions"].values()) == {"none"}
+    # IZN-B2: izin haritası SAYFA HÜCRELERİNDEN türetilir (kapı artık onları geçirir).
+    assert set(me["permissions"].values()) - {"none"}
+    if role_key == "viewer":
+        assert set(me["permissions"].values()) <= {"none", "view"}
 
 
 async def test_me_gorunteleyici_her_yeri_gorur_hicbir_yerde_duzenlemez(client, izn_db):
@@ -253,11 +256,17 @@ async def test_me_hucresi_olmayan_rol_bos_harita_alir_bilinmezlik_kurali(
     client, seeded_db, user_factory
 ):
     """Sayfa hücresi hiç yoksa `pages` boştur (FE: bilinmez = görünür; sınır backend'dedir)."""
-    # `seeded_db` YALNIZ eski seed: sayfa hücresi hiç yok.
+    muhasebe = await _rol(seeded_db, "accounting")
+    await seeded_db.execute(
+        delete(RolePagePermission).where(RolePagePermission.role_id == muhasebe.id)
+    )
+    await seeded_db.execute(delete(RoleHiddenField).where(RoleHiddenField.role_id == muhasebe.id))
+    await seeded_db.flush()
     me = await _me(client, await _giris(client, user_factory, "accounting"))
     assert me["pages"] == {}
     assert me["hidden_fields"] == []
-    assert me["permissions"]["accounting"] == "full"
+    # IZN-B2: kapılar hücreden karar verir → hücresiz rol HER modülde `none` (fail-closed).
+    assert me["permissions"]["accounting"] == "none"
 
 
 async def test_me_katalogda_olmayan_bayat_anahtar_yanita_girmez(client, izn_db, user_factory):
@@ -286,12 +295,17 @@ async def test_me_pages_ROLDEN_gelir_sabit_degerden_degil(client, izn_db, user_f
     assert muhasebe["pages"] == _beklenen_pages("accounting")
 
 
-async def test_me_eski_permissions_haritasi_degismedi(client, izn_db, user_factory):
+async def test_me_permissions_haritasi_sayfa_hucrelerinden_turetilmis_eskiyle_ayni(
+    client, izn_db, user_factory
+):
+    """IZN-B2: `permissions` salt-okur TÜRETİLMİŞ görünümdür. Eski harita ile tek fark: sayfa
+    hücresinde ayrışmayan ara düzey (Proje Müdürü `dashboard`: eski `full`, görünen `view`)."""
     me = await _me(client, await _giris(client, user_factory, "project_manager"))
     beklenen = {
         module_key: cells[seed_data.ROLE_ORDER.index("project_manager")][0].value
         for module_key, cells in seed_data.MATRIX.items()
     }
+    beklenen["dashboard"] = "view"
     assert me["permissions"] == beklenen
 
 
@@ -325,9 +339,10 @@ async def test_me_sorgu_sayisi_hucre_sayisindan_BAGIMSIZ(client, izn_db, user_fa
     with _sorgu_sayaci() as yonetici:
         assert (await client.get("/auth/me", headers=admin)).status_code == 200
 
-    # Sayfa verisi: TAM İKİ sorgu (hücreler + gizli alanlar), hücre sayısından bağımsız.
-    assert len(_sayfa_sorgulari(dolu)) == 2
-    assert len(_sayfa_sorgulari(bos)) == 2
+    # Sayfa verisi: SABİT üç sorgu (hücreler + gizli alanlar + alan maskesi özeti), hücre
+    # sayısından bağımsız (türetilmiş `permissions` hücreleri YENİDEN okumaz).
+    assert len(_sayfa_sorgulari(dolu)) == 3
+    assert len(_sayfa_sorgulari(bos)) == 3
     # Toplam sorgu sayısı hücre sayısına bağlı DEĞİL (satır başına sorgu yok).
     assert len(dolu) == len(bos)
     # Sistem Yöneticisi katalogdan türer: sayfa tablolarına HİÇ sormaz.
@@ -335,11 +350,11 @@ async def test_me_sorgu_sayisi_hucre_sayisindan_BAGIMSIZ(client, izn_db, user_fa
 
 
 # ---------------------------------------------------------------------------
-# Yeni rollerin atama kilidi (B2 kapı köprüsüne dek)
+# Yeni roller ARTIK atanabilir (B1 atama kilidi IZN-B2'de kalktı)
 # ---------------------------------------------------------------------------
 
 
-async def test_yeni_rol_kullaniciya_ATANAMAZ_post_users(client, izn_db, user_factory):
+async def test_yeni_rol_kullaniciya_atanabilir_post_users(client, izn_db, user_factory):
     admin = await _giris(client, user_factory, "system_admin")
     rol = (await izn_db.execute(select(Role).where(Role.key == "viewer"))).scalar_one()
     cevap = await client.post(
@@ -352,44 +367,17 @@ async def test_yeni_rol_kullaniciya_ATANAMAZ_post_users(client, izn_db, user_fac
         },
         headers=admin,
     )
-    assert cevap.status_code == 400
-    assert cevap.json()["detail"] == (
-        '"Görüntüleyici" rolü henüz kullanılamıyor: sayfa bazlı izin sistemi devreye '
-        "alınana kadar kullanıcıya atanamaz."
-    )
+    assert cevap.status_code == 201, cevap.text
 
 
-async def test_yeni_rol_kullaniciya_ATANAMAZ_patch_users(client, izn_db, user_factory):
+async def test_yeni_rol_kullaniciya_atanabilir_patch_users(client, izn_db, user_factory):
     admin = await _giris(client, user_factory, "system_admin")
     hedef = await user_factory(email="hedef@izn.co", password=SIFRE, role_key="site_chief")
     rol = (await izn_db.execute(select(Role).where(Role.key == "finance_manager"))).scalar_one()
     cevap = await client.patch(f"/users/{hedef.id}", json={"role_id": str(rol.id)}, headers=admin)
-    assert cevap.status_code == 400
+    assert cevap.status_code == 200, cevap.text
     await izn_db.refresh(hedef)
-    assert hedef.role_id != rol.id
-
-
-async def test_ayni_anahtarli_ELLE_acilmis_rol_eski_hucreleri_varsa_atanabilir(
-    client, seeded_db, user_factory
-):
-    """Kilit anahtara DEĞİL, 'eski kapıda hücresi yok' olgusuna bakar: kendi 23 hücresini taşıyan
-    elle açılmış `viewer` rolü atanabilir (eski kapı onu zaten doğru yönetir)."""
-    admin = await _giris(client, user_factory, "system_admin")
-    rol = await create_custom_role(
-        seeded_db, RoleCreate(key="viewer", name="Elle Viewer", emoji="", description="")
-    )
-    assert (
-        await seeded_db.scalar(
-            select(func.count()).select_from(RolePermission).where(RolePermission.role_id == rol.id)
-        )
-        > 0
-    )
-    cevap = await client.post(
-        "/users",
-        json={"email": "elle@izn.co", "password": SIFRE, "full_name": "E", "role_id": str(rol.id)},
-        headers=admin,
-    )
-    assert cevap.status_code == 201, cevap.text
+    assert hedef.role_id == rol.id
 
 
 # ---------------------------------------------------------------------------
@@ -507,15 +495,9 @@ async def test_write_through_limited_ac_kapa_tum_tutarlar_bayragi(izn_db):
 
 
 async def test_write_through_me_yanitina_ve_endpointe_yansir(client, izn_db, user_factory):
-    admin = await _giris(client, user_factory, "system_admin")
     sef_headers = await _giris(client, user_factory, "site_chief")
     sef = await _rol(izn_db, "site_chief")
-    cevap = await client.put(
-        f"/roles/{sef.id}/permissions/accounting",
-        json={"access_level": "full", "scope": "all"},
-        headers=admin,
-    )
-    assert cevap.status_code == 200, cevap.text
+    await update_role_permission(izn_db, sef.id, "accounting", AccessLevel.full, Scope.all)
     me = await _me(client, sef_headers)
     assert me["pages"]["mali.yevmiye"] == {"level": "edit", "approve": True}
     assert me["permissions"]["accounting"] == "full"  # eski harita da aynı yönde
@@ -526,14 +508,10 @@ async def test_write_through_hucresi_olmayan_rolde_100_hucreyi_kurar(
 ):
     """Sayfa hücresi hiç yokken (migration öncesi/elle satırsız) ilk yazma 100 hücreyi türetir."""
     muhasebe = await _rol(seeded_db, "accounting")
-    assert (
-        await seeded_db.scalar(
-            select(func.count())
-            .select_from(RolePagePermission)
-            .where(RolePagePermission.role_id == muhasebe.id)
-        )
-        == 0
+    await seeded_db.execute(
+        delete(RolePagePermission).where(RolePagePermission.role_id == muhasebe.id)
     )
+    await seeded_db.flush()
     await update_role_permission(seeded_db, muhasebe.id, "treasury", AccessLevel.view, Scope.all)
     adet = await seeded_db.scalar(
         select(func.count())
@@ -549,62 +527,10 @@ async def test_write_through_hucresi_olmayan_rolde_100_hucreyi_kurar(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("role_key", sorted(seed_data.IZN_ROLE_ORDER))
-async def test_yeni_rolde_eski_hucre_yazimi_REDDEDILIR_403(client, izn_db, user_factory, role_key):
-    admin = await _giris(client, user_factory, "system_admin")
-    rol = await _rol(izn_db, role_key)
-    cevap = await client.put(
-        f"/roles/{rol.id}/permissions/inventory",
-        json={"access_level": "view", "scope": "all"},
-        headers=admin,
-    )
-    assert cevap.status_code == 403
-    assert cevap.json()["detail"] == "Bu rol yeni Sayfa İzinleri ekranından yönetilecek"
-    # Hiçbir eski hücre doğmadı → atama kilidi ve downgrade tanımı bozulmadı.
-    assert (
-        await izn_db.scalar(
-            select(func.count()).select_from(RolePermission).where(RolePermission.role_id == rol.id)
-        )
-        == 0
-    )
-
-
 async def test_yeni_rolde_servis_dogrudan_PermissionLockedError(izn_db):
     rol = await _rol(izn_db, "viewer")
     with pytest.raises(PermissionLockedError, match="yeni Sayfa İzinleri ekranından"):
         await update_role_permission(izn_db, rol.id, "inventory", AccessLevel.view, Scope.all)
-
-
-async def test_reddedilen_yazim_sonrasi_yeni_rol_hala_atanamaz(client, izn_db, user_factory):
-    """Çürütücünün atlatması: `viewer`a tek eski hücre yazıp `_has_legacy_cells` kilidini kırmak."""
-    admin = await _giris(client, user_factory, "system_admin")
-    rol = await _rol(izn_db, "viewer")
-    await client.put(
-        f"/roles/{rol.id}/permissions/inventory",
-        json={"access_level": "view", "scope": "all"},
-        headers=admin,
-    )
-    cevap = await client.post(
-        "/users",
-        json={"email": "atlat@izn.co", "password": SIFRE, "full_name": "A", "role_id": str(rol.id)},
-        headers=admin,
-    )
-    assert cevap.status_code == 400
-
-
-async def test_ayni_anahtarli_elle_acilmis_rolun_eski_hucresi_yazilabilir(
-    client, seeded_db, user_factory
-):
-    admin = await _giris(client, user_factory, "system_admin")
-    rol = await create_custom_role(
-        seeded_db, RoleCreate(key="viewer", name="Elle Viewer", emoji="", description="")
-    )
-    cevap = await client.put(
-        f"/roles/{rol.id}/permissions/inventory",
-        json={"access_level": "view", "scope": "all"},
-        headers=admin,
-    )
-    assert cevap.status_code == 200, cevap.text
 
 
 # ---------------------------------------------------------------------------
@@ -612,9 +538,7 @@ async def test_ayni_anahtarli_elle_acilmis_rolun_eski_hucresi_yazilabilir(
 # ---------------------------------------------------------------------------
 
 
-async def test_roles_is_assignable_eski_8_ve_ozel_roller_true_yeni_6_false(
-    client, izn_db, user_factory
-):
+async def test_roles_is_assignable_HER_rol_true_atama_kilidi_kalkti(client, izn_db, user_factory):
     await create_custom_role(
         izn_db, RoleCreate(key="ozel_a", name="Özel A", emoji="", description="")
     )
@@ -623,34 +547,7 @@ async def test_roles_is_assignable_eski_8_ve_ozel_roller_true_yeni_6_false(
     assert cevap.status_code == 200
     roller = {r["key"]: r for r in cevap.json()}
     assert len(roller) == 15  # 8 eski + 6 yeni + 1 özel
-    for key in [r["key"] for r in seed_data.ROLES] + ["ozel_a"]:
-        assert roller[key]["is_assignable"] is True, key
-    for key in seed_data.IZN_ROLE_ORDER:
-        assert roller[key]["is_assignable"] is False, key
-
-
-async def test_roles_is_assignable_ayni_anahtarli_elle_acilmis_rol_true(
-    client, seeded_db, user_factory
-):
-    await create_custom_role(
-        seeded_db, RoleCreate(key="viewer", name="Elle Viewer", emoji="", description="")
-    )
-    admin = await _giris(client, user_factory, "system_admin")
-    roller = {r["key"]: r for r in (await client.get("/roles", headers=admin)).json()}
-    assert roller["viewer"]["is_assignable"] is True
-
-
-async def test_roles_is_assignable_kural_atama_kilidiyle_AYNI_yardimciyi_kullanir(izn_db):
-    """Liste alanı ile atama kilidi aynı kuraldan çıkar: her rol için ikisi tutarlı."""
-    from app.modules.roles import repository, service
-
-    roller = await repository.list_roles(izn_db)
-    yanitlar = await service.role_responses(izn_db, roller)
-    for rol, yanit in zip(roller, yanitlar, strict=True):
-        beklenen = repository.role_assignable(
-            rol.key, await repository.has_legacy_cells(izn_db, rol.id)
-        )
-        assert yanit.is_assignable is beklenen, rol.key
+    assert all(r["is_assignable"] is True for r in roller.values())
 
 
 async def test_roles_post_ve_patch_yanitinda_is_assignable_var(client, izn_db, user_factory):

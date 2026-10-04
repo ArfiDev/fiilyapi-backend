@@ -7,6 +7,7 @@ davranışı her router'dan (catalog · budget · day · report) temsilciyle kil
 
 from __future__ import annotations
 
+import pytest
 from httpx import AsyncClient
 
 from tests._disiplin_dunyasi import GUN2, Dunya, _kimlik
@@ -115,6 +116,11 @@ async def test_butce_yapisal_yazmalar_kisitliya_403(
     await _iki_yon(client, "POST", f"{taban}/fill-from-catalog", civil_yazar, yazar_atamasiz)
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="IZN-B2: DELETE `admin` kapısı yalnız Sistem Yöneticisi; admin hücreli özel rol "
+    "silemez. SIL-B1 testi sysadmin aktörüne çevirecek (SIL hattında).",
+)
 async def test_revizyon_ac_sil_kisitliya_403(
     client: AsyncClient, dunya: Dunya, civil_yazar, yazar_atamasiz, atamasiz
 ) -> None:

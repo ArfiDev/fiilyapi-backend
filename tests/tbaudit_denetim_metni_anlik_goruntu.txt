@@ -9,9 +9,12 @@ COMPANY_LOGO_REMOVED = 'Şirket logosu kaldırıldı'
 COMPANY_LOGO_UPDATED = 'Şirket logosu güncellendi'
 COMPANY_UPDATED = 'Şirket bilgileri güncellendi'
 FINANCIAL_INSTRUMENT_STATUS_LABELS = {'portfolio': 'Portföyde', 'collected': 'Tahsil Edildi', 'paid': 'Ödendi', 'returned': 'İade', 'cancelled': 'İptal'}
+HIDDEN_CATEGORY_LABELS = {<HiddenCategory.sozlesme_fiyat: 'sozlesme_fiyat'>: 'Sözleşme ve birim fiyatlar', <HiddenCategory.maliyet_kar: 'maliyet_kar'>: 'Maliyet ve kâr', <HiddenCategory.maas_kisisel: 'maas_kisisel'>: 'Maaş ve kişisel bilgiler', <HiddenCategory.banka_kasa: 'banka_kasa'>: 'Banka/kasa bakiyeleri', <HiddenCategory.satis_alici: 'satis_alici'>: 'Satış bedeli ve alıcı bilgisi', <HiddenCategory.tum_tutarlar: 'tum_tutarlar'>: 'Tüm tutarlar'}
 LOGIN_DETAIL = 'Sisteme giriş yapıldı'
 OFFER_BULK_POZ_SHOWN = 10
 OFFER_TERMS_SHOWN = 60
+PAGE_LEVEL_LABELS = {<PageLevel.none: 'none'>: 'Görmez', <PageLevel.view: 'view'>: 'Görür', <PageLevel.edit: 'edit'>: 'Düzenler'}
+ROLE_PAGES_CHANGES_SHOWN = 6
 WORK_ITEMS_BULK_DISCIPLINES_SHOWN = 10
 _ENTRY_TYPE_LABELS = {'purchase': 'Satınalma girişi', 'transfer': 'Şantiye transferi', 'adjustment': 'Manuel düzeltme'}
 _approval_label(document_type='<document_type#0>', step_no=101, total_steps=102, role='<role#3>') = '<document_type#0> · adım 101/102 · <role#3>'
@@ -173,6 +176,8 @@ offer_template_from_offer(name='<name#0>', offer_no='<offer_no#1>', rev_no=102) 
 offer_template_from_offer(name='<name#0>', offer_no='<offer_no#1>', rev_no=0) = 'Tekliften şablon oluşturuldu: <name#0> ← <offer_no#1> Rev.0'
 offer_template_updated(name='<name#0>') = 'Teklif şablonu güncellendi: <name#0>'
 offer_updated(offer_no='<offer_no#0>', title='<title#1>', employer_name='<employer_name#2>') = 'Teklif künyesi güncellendi: <offer_no#0> · <title#1> (<employer_name#2>)'
+page_cell_label(page_name='<page_name#0>', level_label='<level_label#1>', approve=True) = '<page_name#0>: <level_label#1> + Onaylar'
+page_cell_label(page_name='<page_name#0>', level_label='<level_label#1>', approve=False) = '<page_name#0>: <level_label#1>'
 password_reset(name='<name#0>') = 'Kullanıcı parolası sıfırlandı: <name#0>'
 payment_created(invoice_no='<invoice_no#0>', bank_name='<bank_name#1>', display_name='<display_name#2>') = 'Ödeme kaydı eklendi: <invoice_no#0> · <bank_name#1> · <display_name#2>'
 payment_created(invoice_no='<invoice_no#0>', bank_name='<bank_name#1>', display_name=None) = 'Ödeme kaydı eklendi: <invoice_no#0> · <bank_name#1>'
@@ -262,8 +267,13 @@ purchase_request_deleted(request_no='<request_no#0>') = 'Satın alma talebi sili
 purchase_request_rejected(request_no='<request_no#0>') = 'Satın alma talebi reddedildi: <request_no#0>'
 purchase_request_submitted(request_no='<request_no#0>') = 'Satın alma talebi onaya gönderildi: <request_no#0>'
 purchase_request_updated(request_no='<request_no#0>') = 'Satın alma talebi güncellendi: <request_no#0>'
+role_copied(source_name='<source_name#0>', new_name='<new_name#1>') = 'Rol kopyalandı: <source_name#0> → <new_name#1>'
 role_created(name='<name#0>') = 'Özel rol oluşturuldu: <name#0>'
 role_deleted(name='<name#0>') = 'Rol silindi: <name#0>'
+role_hidden_fields_updated(role_name='<role_name#0>', hidden_labels=['<hidden_labels#1a>', '<hidden_labels#1b>']) = 'Gizli alanlar değişti: <role_name#0> · gizli: <hidden_labels#1a>, <hidden_labels#1b>'
+role_hidden_fields_updated(role_name='<role_name#0>', hidden_labels=[]) = 'Gizli alanlar değişti: <role_name#0> · gizli: hiçbiri'
+role_pages_updated(role_name='<role_name#0>', changes=['<changes#1a>', '<changes#1b>']) = 'Sayfa izinleri değişti: <role_name#0> (2 sayfa) · <changes#1a> · <changes#1b>'
+role_pages_updated(role_name='<role_name#0>', changes=[]) = 'Sayfa izinleri değişti: <role_name#0> (0 sayfa) · '
 role_renamed(old_name='<old_name#0>', new_name='<new_name#1>') = 'Rol yeniden adlandırıldı: <old_name#0> → <new_name#1>'
 sale_activated(project_name='<project_name#0>', unit_label='<unit_label#1>', customer_name='<customer_name#2>') = 'Satış kaydı aktifleştirildi (rezervasyon → satış): <project_name#0> · <unit_label#1> · <customer_name#2>'
 sale_cancelled(project_name='<project_name#0>', unit_label='<unit_label#1>', customer_name='<customer_name#2>', reason='<reason#3>') = 'Ünite satışı iptal edildi: <project_name#0> · <unit_label#1> · <customer_name#2> · Gerekçe: <reason#3>'

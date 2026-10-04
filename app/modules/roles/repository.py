@@ -1,12 +1,13 @@
 import uuid
+from dataclasses import dataclass
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, Scope
-from app.core.sayfalar import HiddenCategory
+from app.core.access import SYSTEM_ADMIN_ROLE_KEY, AccessLevel, Scope
+from app.core.page_gate import display_level, load_cells
+from app.core.sayfalar import HiddenCategory, PageLevel
 from app.modules.roles.models import (
-    IZN_ROLE_KEYS,
     Module,
     Role,
     RoleHiddenField,
@@ -115,16 +116,6 @@ async def list_role_hidden_categories(
     return sorted(result.scalars().all(), key=lambda c: c.value)
 
 
-def role_assignable(role_key: str, has_legacy_cells: bool) -> bool:
-    """Rol bir kullanıcıya atanabilir mi? (TEK kural: `users/service` ve `GET /roles` bunu kullanır)
-
-    IZN-B1'in 6 yeni rolü eski modül kapısında hücre taşımaz → atanan kullanıcı HER uçta 403
-    alırdı; B2 kapı köprüsü canlıya çıkana dek atanamazlar. Aynı anahtarla elle açılmış ve eski
-    hücreleri OLAN rol bu kilide takılmaz (eski kapı onu zaten doğru yönetir).
-    """
-    return role_key not in IZN_ROLE_KEYS or has_legacy_cells
-
-
 async def has_legacy_cells(session: AsyncSession, role_id: uuid.UUID) -> bool:
     count = (
         await session.execute(
@@ -136,11 +127,73 @@ async def has_legacy_cells(session: AsyncSession, role_id: uuid.UUID) -> bool:
     return count > 0
 
 
-async def legacy_cell_role_ids(session: AsyncSession, role_ids: list[uuid.UUID]) -> set[uuid.UUID]:
-    """Verilen roller içinde eski modül hücresi (`role_permissions` satırı) olanlar — TEK sorgu."""
+async def role_user_counts(
+    session: AsyncSession, role_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """Roller için ANA rol olarak kullanıcı sayısı — TEK sorgu (B3'te proje ekibi rolü eklenir)."""
     if not role_ids:
-        return set()
+        return {}
+    from app.modules.users.models import User  # fonksiyon içi: roles ↔ users döngüsünü önler
+
     result = await session.execute(
-        select(RolePermission.role_id).where(RolePermission.role_id.in_(role_ids)).distinct()
+        select(User.role_id, func.count()).where(User.role_id.in_(role_ids)).group_by(User.role_id)
     )
-    return set(result.scalars().all())
+    return {role_id: count for role_id, count in result.all()}
+
+
+@dataclass(frozen=True)
+class MaskBasis:
+    """Bir rolün alan maskesi için tek bakışlık özeti (`core.permissions.role_default_scope`)."""
+
+    has_legacy_rows: bool
+    hides_all_amounts: bool
+
+
+async def role_mask_basis(session: AsyncSession, role_id: uuid.UUID) -> MaskBasis:
+    """Eski `role_permissions` satırı var mı + `tum_tutarlar` gizli mi — TEK sorgu."""
+    legacy = exists().where(RolePermission.role_id == role_id)
+    hidden = exists().where(
+        RoleHiddenField.role_id == role_id,
+        RoleHiddenField.category == HiddenCategory.tum_tutarlar,
+    )
+    row = (await session.execute(select(legacy, hidden))).one()
+    return MaskBasis(has_legacy_rows=bool(row[0]), hides_all_amounts=bool(row[1]))
+
+
+async def derived_role_matrix(
+    session: AsyncSession,
+    role_id: uuid.UUID,
+    role_key: str,
+    cells: dict[str, tuple[PageLevel, bool]] | None = None,
+) -> list[tuple[Module, AccessLevel, Scope]]:
+    """Rolün modül matrisi, SAYFA HÜCRELERİNDEN türetilmiş (salt okur; IZN-B2).
+
+    `/auth/me.permissions` ve `GET /roles/{id}/permissions` bunu okur (frontend B6/F5'e kadar).
+    Düzey: `page_gate.display_level` (Sistem Yöneticisi: her modül `admin`). Kapsam: eski satırı
+    olan modülde DONMUŞ eski satır; satırı olmayanda `role_default_scope` kuralı (satırı hiç
+    olmayan rolde `tum_tutarlar` → `limited`). `cells` çağıranda yüklüyse (`/auth/me`) verilir:
+    ikinci hücre sorgusu koşmaz.
+    """
+    modules = await list_modules(session)
+    if cells is None:
+        cells = {} if role_key == SYSTEM_ADMIN_ROLE_KEY else await load_cells(session, role_id)
+    legacy_scopes = {
+        module.key: perm.scope
+        for module, perm in (await get_role_matrix(session, role_id))
+        if perm in session  # kalıcı satır (varsayılan hücre session'a eklenmez)
+    }
+    default_scope = Scope.all
+    if role_key != SYSTEM_ADMIN_ROLE_KEY:
+        basis = await role_mask_basis(session, role_id)
+        if not basis.has_legacy_rows and basis.hides_all_amounts:
+            default_scope = Scope.limited
+    return [
+        (
+            module,
+            AccessLevel.admin
+            if role_key == SYSTEM_ADMIN_ROLE_KEY
+            else display_level(cells, module.key),
+            legacy_scopes.get(module.key, default_scope),
+        )
+        for module in modules
+    ]

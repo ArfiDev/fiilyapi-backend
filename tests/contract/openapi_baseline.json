@@ -31400,6 +31400,34 @@
         "title": "RiskSourceState",
         "type": "string"
       },
+      "RoleCopy": {
+        "description": "`POST /roles/{id}/copy` gövdesi. `key` SUNUCUDA addan türetilir (çakışırsa `_2` eki).",
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
+          "emoji": {
+            "default": "",
+            "maxLength": 8,
+            "title": "Emoji",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "RoleCopy",
+        "type": "object"
+      },
       "RoleCreate": {
         "properties": {
           "description": {
@@ -31433,6 +31461,78 @@
           "name"
         ],
         "title": "RoleCreate",
+        "type": "object"
+      },
+      "RolePagesResponse": {
+        "description": "Bir rolün sayfa izinleri (Sayfa İzinleri ekranı): `/auth/me.pages` ile AYNI biçim.\n\n`pages` rolün 100 sayfasının TÜMÜNÜ taşır (hücresi olmayan sayfa `none`/`false` döner).\nSistem Yöneticisi için her sayfa `edit` + (onay eylemi varsa) `approve=true`, `is_locked=true`.",
+        "properties": {
+          "hidden_fields": {
+            "items": {
+              "$ref": "#/components/schemas/HiddenCategory"
+            },
+            "title": "Hidden Fields",
+            "type": "array"
+          },
+          "hidden_fields_effective": {
+            "title": "Hidden Fields Effective",
+            "type": "boolean"
+          },
+          "is_locked": {
+            "title": "Is Locked",
+            "type": "boolean"
+          },
+          "pages": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PageGrant"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/PageKey"
+            },
+            "title": "Pages",
+            "type": "object"
+          },
+          "role_id": {
+            "format": "uuid",
+            "title": "Role Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role_id",
+          "is_locked",
+          "pages",
+          "hidden_fields",
+          "hidden_fields_effective"
+        ],
+        "title": "RolePagesResponse",
+        "type": "object"
+      },
+      "RolePagesUpdate": {
+        "description": "`PUT /roles/{id}/pages` gövdesi: Sayfa İzinleri ekranının \"Kaydet\"i TÜM tabloyu gönderir.\n\nTAM matris: `pages` katalogdaki 100 sayfanın HEPSİNİ taşımak zorundadır (eksik anahtar 422;\nbilinmeyen/fazla anahtar Pydantic 422'si — anahtar bir ENUM'dur). Gerekçe: kısmi gövde\n\"gönderilmeyen sayfa ne olur\" belirsizliğini doğurur ve eski bir istemci yeni eklenen sayfayı\nsessizce `none` bırakır; tam gövde ile sonuç gövdenin kendisidir (idempotent, farksız).\n`hidden_fields` gizli kategori kümesinin TAM değiştirmesidir (boş = hiçbiri gizli değil;\nyinelenen değer tekilleştirilir). Pages + hidden_fields TEK transaction'da yazılır (atomik).\nKurallar (servis, 422): `approve=true` yalnız `has_approval=true` sayfada; `level=none` iken\n`approve=true` olamaz. Bu dilimde `tum_tutarlar` dışındaki kategoriler yalnız SAKLANIR\n(maske IZN-B4).",
+        "properties": {
+          "hidden_fields": {
+            "items": {
+              "$ref": "#/components/schemas/HiddenCategory"
+            },
+            "title": "Hidden Fields",
+            "type": "array"
+          },
+          "pages": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PageGrant"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/PageKey"
+            },
+            "title": "Pages",
+            "type": "object"
+          }
+        },
+        "required": [
+          "pages",
+          "hidden_fields"
+        ],
+        "title": "RolePagesUpdate",
         "type": "object"
       },
       "RoleRename": {
@@ -31481,6 +31581,10 @@
             "title": "Is Assignable",
             "type": "boolean"
           },
+          "is_locked": {
+            "title": "Is Locked",
+            "type": "boolean"
+          },
           "is_system": {
             "title": "Is System",
             "type": "boolean"
@@ -31492,6 +31596,10 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "user_count": {
+            "title": "User Count",
+            "type": "integer"
           }
         },
         "required": [
@@ -31501,7 +31609,9 @@
           "emoji",
           "description",
           "is_system",
-          "is_assignable"
+          "is_assignable",
+          "user_count",
+          "is_locked"
         ],
         "title": "RoleResponse",
         "type": "object"
@@ -50103,7 +50213,7 @@
     },
     "/auth/me": {
       "get": {
-        "description": "Matris mantigi YENIDEN YAZILMAZ: `roles.repository.get_role_matrix`\naynen kullanilir — `/roles/{id}/permissions` ucuyla ayni kaynak, tek fark\nrol kimliginin aktörün kendi rolü olmasi ve ek yetki aranmamasi.",
+        "description": "`permissions` (IZN-B2): SAYFA HÜCRELERİNDEN türetilmiş salt-okur modül düzeyi\n(`roles.repository.derived_role_matrix`; `/roles/{id}/permissions` ucuyla ayni kaynak).\nFrontend B6/F5'e kadar onu okur; kapılar `pages` hücrelerinden karar verir.",
         "operationId": "me_auth_me_get",
         "responses": {
           "200": {
@@ -68195,8 +68305,192 @@
         ]
       }
     },
+    "/roles/{role_id}/copy": {
+      "post": {
+        "description": "Kaynak rolün sayfa hücreleri + gizli alanlarıyla yeni rol (anahtar addan türetilir).\n\n404: kaynak rol yok. Kilit ve silinemezlik kopyalanmaz (yeni rol `is_system=false`).",
+        "operationId": "copy_role_endpoint_roles__role_id__copy_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "role_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Role Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleCopy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Copy Role Endpoint",
+        "tags": [
+          "roles"
+        ]
+      }
+    },
+    "/roles/{role_id}/pages": {
+      "get": {
+        "description": "Bir rolün sayfa izinleri + gizli alanları (Sayfa İzinleri ekranı). Rol yoksa 404.",
+        "operationId": "get_role_pages_endpoint_roles__role_id__pages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "role_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Role Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolePagesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Role Pages Endpoint",
+        "tags": [
+          "roles"
+        ]
+      },
+      "put": {
+        "description": "Sayfa İzinleri \"Kaydet\": TAM matris (100 sayfa) + gizli alan kümesi, TEK transaction.\n\n403: Sistem Yöneticisi rolü kilitli · 404: rol yok · 422: eksik sayfa, bilinmeyen sayfa\nanahtarı ya da kategori, `approve=true` onay eylemi olmayan sayfada ya da `level=none`\niken. Reddedilen istek hiçbir şey yazmaz ve denetim satırı ÜRETMEZ; değişmeyen kısım için\nda satır üretilmez (sayfa değişikliği ve gizli alan değişikliği ayrı satırlardır).",
+        "operationId": "update_role_pages_endpoint_roles__role_id__pages_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "role_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Role Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RolePagesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolePagesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Role Pages Endpoint",
+        "tags": [
+          "roles"
+        ]
+      }
+    },
     "/roles/{role_id}/permissions": {
       "get": {
+        "description": "KALDIRILACAK (B6): modül düzeyi SAYFA HÜCRELERİNDEN türetilmiş salt-okur görünümdür.",
         "operationId": "get_role_permissions_endpoint_roles__role_id__permissions_get",
         "parameters": [
           {
@@ -68255,6 +68549,8 @@
     },
     "/roles/{role_id}/permissions/{module_key}": {
       "put": {
+        "deprecated": true,
+        "description": "KALDIRILDI (IZN-B2): her çağrı 410 döner, hiçbir şey yazılmaz.\n\nEski modül hücreleri DONDURULDU; kapılar sayfa hücrelerinden karar verir. Gövde şeması\nyalnız istemci tiplerinin kırılmaması için durur (B6'da uç ve şema birlikte sökülür).",
         "operationId": "update_permission_endpoint_roles__role_id__permissions__module_key__put",
         "parameters": [
           {
@@ -68288,21 +68584,19 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PermissionCell"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
           "403": {
             "description": "Yetkisiz işlem"
           },
           "404": {
             "description": "Kayıt bulunamadı"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Uç kaldırıldı: izinler artık sayfa bazlı (PUT /roles/{id}/pages)"
           },
           "422": {
             "content": {

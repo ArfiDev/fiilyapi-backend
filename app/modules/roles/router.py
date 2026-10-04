@@ -1,14 +1,14 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_page, require_permission
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -18,11 +18,13 @@ from app.modules.roles.schemas import (
     ModuleResponse,
     PermissionCell,
     PermissionUpdate,
+    RoleCopy,
     RoleCreate,
+    RolePagesResponse,
+    RolePagesUpdate,
     RoleRename,
     RoleResponse,
 )
-from app.modules.roles.service import update_role_permission
 from app.modules.users.models import User
 
 router = APIRouter(tags=["roles"], responses=COMMON_ERROR_RESPONSES)
@@ -59,12 +61,14 @@ async def get_role_permissions_endpoint(
     role_id: uuid.UUID,
     session: DbSession,
 ) -> list[PermissionCell]:
-    if await repository.get_role(session, role_id) is None:
+    """KALDIRILACAK (B6): modül düzeyi SAYFA HÜCRELERİNDEN türetilmiş salt-okur görünümdür."""
+    role = await repository.get_role(session, role_id)
+    if role is None:
         raise NotFoundError("Rol bulunamadı")
-    matrix = await repository.get_role_matrix(session, role_id)
+    matrix = await repository.derived_role_matrix(session, role_id, role.key)
     return [
-        PermissionCell(module_key=module.key, access_level=perm.access_level, scope=perm.scope)
-        for module, perm in matrix
+        PermissionCell(module_key=module.key, access_level=level, scope=scope)
+        for module, level, scope in matrix
     ]
 
 
@@ -72,7 +76,7 @@ async def get_role_permissions_endpoint(
     "/roles",
     response_model=RoleResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[require_permission("user_management", AccessLevel.admin)],
+    dependencies=[require_page("ayarlar.rol_yonetimi", "edit")],
 )
 async def create_role_endpoint(
     request: Request,
@@ -94,7 +98,7 @@ async def create_role_endpoint(
 @router.patch(
     "/roles/{role_id}",
     response_model=RoleResponse,
-    dependencies=[require_permission("user_management", AccessLevel.admin)],
+    dependencies=[require_page("ayarlar.rol_yonetimi", "edit")],
 )
 async def rename_role_endpoint(
     request: Request,
@@ -117,37 +121,120 @@ async def rename_role_endpoint(
     return (await service.role_responses(session, [role]))[0]
 
 
+#: 410 gövdesi: eski modül hücresi yazma ucu kalktı (IZN-B2). Mesaj yeni ekranı işaret eder.
+PERMISSION_WRITE_GONE_DETAIL = (
+    "Modül bazlı izin matrisi kaldırıldı. İzinleri Ayarlar > Sayfa İzinleri ekranından "
+    "(PUT /roles/{id}/pages) düzenleyin."
+)
+
+
 @router.put(
     "/roles/{role_id}/permissions/{module_key}",
-    response_model=PermissionCell,
+    deprecated=True,
+    status_code=status.HTTP_410_GONE,
+    response_model=None,
+    responses={
+        status.HTTP_410_GONE: {
+            "description": "Uç kaldırıldı: izinler artık sayfa bazlı (PUT /roles/{id}/pages)"
+        }
+    },
     dependencies=[require_permission("user_management", AccessLevel.admin)],
 )
 async def update_permission_endpoint(
-    request: Request,
     role_id: uuid.UUID,
     module_key: str,
     data: PermissionUpdate,
+) -> None:
+    """KALDIRILDI (IZN-B2): her çağrı 410 döner, hiçbir şey yazılmaz.
+
+    Eski modül hücreleri DONDURULDU; kapılar sayfa hücrelerinden karar verir. Gövde şeması
+    yalnız istemci tiplerinin kırılmaması için durur (B6'da uç ve şema birlikte sökülür).
+    """
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail=PERMISSION_WRITE_GONE_DETAIL)
+
+
+@router.get(
+    "/roles/{role_id}/pages",
+    response_model=RolePagesResponse,
+    dependencies=[require_permission("user_management", AccessLevel.view)],
+)
+async def get_role_pages_endpoint(
+    role_id: uuid.UUID,
+    session: DbSession,
+) -> RolePagesResponse:
+    """Bir rolün sayfa izinleri + gizli alanları (Sayfa İzinleri ekranı). Rol yoksa 404."""
+    return await service.get_role_pages(session, role_id)
+
+
+@router.put(
+    "/roles/{role_id}/pages",
+    response_model=RolePagesResponse,
+    dependencies=[require_page("ayarlar.sayfa_izinleri", "edit")],
+)
+async def update_role_pages_endpoint(
+    request: Request,
+    role_id: uuid.UUID,
+    data: RolePagesUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
-) -> PermissionCell:
-    # system_admin -> PermissionLockedError(403); satir/rol yok -> NotFoundError(404)
-    # Reddedilen degisiklik denetim satiri URETMEZ: istisna asagidaki koda hic ulasmaz.
-    perm = await update_role_permission(session, role_id, module_key, data.access_level, data.scope)
-    # Adlar islem sirasinda degismedigi icin sonrasinda okunmalari guvenli.
-    role = await repository.get_role(session, role_id)
-    module = await repository.get_module(session, module_key)
+) -> RolePagesResponse:
+    """Sayfa İzinleri "Kaydet": TAM matris (100 sayfa) + gizli alan kümesi, TEK transaction.
+
+    403: Sistem Yöneticisi rolü kilitli · 404: rol yok · 422: eksik sayfa, bilinmeyen sayfa
+    anahtarı ya da kategori, `approve=true` onay eylemi olmayan sayfada ya da `level=none`
+    iken. Reddedilen istek hiçbir şey yazmaz ve denetim satırı ÜRETMEZ; değişmeyen kısım için
+    da satır üretilmez (sayfa değişikliği ve gizli alan değişikliği ayrı satırlardır).
+    """
+    change = await service.update_role_pages(session, role_id, data.pages, data.hidden_fields)
+    if change.page_changes:
+        await record_audit(
+            session,
+            action=AuditAction.update,
+            detail=messages.role_pages_updated(change.role.name, change.page_changes),
+            actor_user_id=current_user.id,
+            ip_address=client_ip(request),
+        )
+    if change.hidden_changed:
+        await record_audit(
+            session,
+            action=AuditAction.update,
+            detail=messages.role_hidden_fields_updated(
+                change.role.name, [messages.HIDDEN_CATEGORY_LABELS[c] for c in change.hidden_fields]
+            ),
+            actor_user_id=current_user.id,
+            ip_address=client_ip(request),
+        )
+    return await service.get_role_pages(session, role_id)
+
+
+@router.post(
+    "/roles/{role_id}/copy",
+    response_model=RoleResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[require_page("ayarlar.rol_yonetimi", "edit")],
+)
+async def copy_role_endpoint(
+    request: Request,
+    role_id: uuid.UUID,
+    data: RoleCopy,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: DbSession,
+) -> RoleResponse:
+    """Kaynak rolün sayfa hücreleri + gizli alanlarıyla yeni rol (anahtar addan türetilir).
+
+    404: kaynak rol yok. Kilit ve silinemezlik kopyalanmaz (yeni rol `is_system=false`).
+    """
+    source = await repository.get_role(session, role_id)
+    source_name = source.name if source is not None else ""
+    role = await service.copy_role(session, role_id, data)
     await record_audit(
         session,
-        action=AuditAction.update,
-        detail=messages.permission_changed(
-            role.name if role is not None else "",
-            module.name if module is not None else module_key,
-            perm.access_level,
-        ),
+        action=AuditAction.create,
+        detail=messages.role_copied(source_name, role.name),
         actor_user_id=current_user.id,
         ip_address=client_ip(request),
     )
-    return PermissionCell(module_key=module_key, access_level=perm.access_level, scope=perm.scope)
+    return (await service.role_responses(session, [role]))[0]
 
 
 @router.delete(

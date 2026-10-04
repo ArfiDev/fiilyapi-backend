@@ -26,6 +26,7 @@ from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, SectionType, Site
 from app.modules.users.models import UserProjectAccess
+from tests._legacy_permission_yardimcisi import sync_page_cells
 from tests._section_types import SEED_SECTION_TYPES, SEED_TYPE_IDS, seed_section_types
 from tests.conftest import test_engine
 
@@ -60,6 +61,7 @@ async def _set_sites_level(session, role_key: str, level: AccessLevel) -> None:
     ).scalar_one()
     permission.access_level = level
     await session.flush()
+    await sync_page_cells(session, permission.role_id)
 
 
 @pytest.fixture

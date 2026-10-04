@@ -25,7 +25,7 @@ from app.modules.earned_value import audit_messages as msg
 from app.modules.earned_value import day_view
 from app.modules.earned_value import diary_adapter as adp
 from app.modules.earned_value.access import (
-    APPROVE,
+    DAY_UNLOCK,
     VIEW,
     WRITE,
     SiteContext,
@@ -164,7 +164,9 @@ async def get_previous_allocation(
     )
 
 
-@router.post(f"{_DAY}/unlock", response_model=LockOut, dependencies=[APPROVE, RequireUnrestricted])
+@router.post(
+    f"{_DAY}/unlock", response_model=LockOut, dependencies=[DAY_UNLOCK, RequireUnrestricted]
+)
 async def unlock_day(
     request: Request,
     site_id: uuid.UUID,

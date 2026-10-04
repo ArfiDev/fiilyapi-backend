@@ -6,11 +6,19 @@ from sqlalchemy import func, select
 from app.core.access import AccessLevel, Scope
 from app.core.errors import DomainError, NotFoundError, PermissionLockedError
 from app.modules.roles import repository, service
-from app.modules.roles.models import Module, ModuleGroup, Role, RolePermission
+from app.modules.roles.models import (
+    Module,
+    ModuleGroup,
+    Role,
+    RolePagePermission,
+    RolePermission,
+)
 from app.modules.roles.schemas import RoleCreate
+from tests._legacy_permission_yardimcisi import update_role_permission
 
 
-async def test_create_custom_role_seeds_full_matrix(seeded_db):
+async def test_create_custom_role_eski_hucre_ACMAZ_100_sayfa_hucresi_acar(seeded_db):
+    """IZN-B2: özel rol eski `role_permissions` satırı taşımaz (donmuş tablo); 100 sayfa hücresi."""
     role = await service.create_custom_role(
         seeded_db, RoleCreate(key="saha_amiri", name="Saha Amiri", emoji="🚧", description="")
     )
@@ -22,7 +30,15 @@ async def test_create_custom_role_seeds_full_matrix(seeded_db):
             .where(RolePermission.role_id == role.id)
         )
     ).scalar_one()
-    assert count == 23  # her modul icin bir hucre (none/all) — PLN-B1: +earned_value
+    assert count == 0
+    sayfa = (
+        await seeded_db.execute(
+            select(func.count())
+            .select_from(RolePagePermission)
+            .where(RolePagePermission.role_id == role.id)
+        )
+    ).scalar_one()
+    assert sayfa == 100
 
 
 async def test_create_custom_role_duplicate_key_raises(seeded_db):
@@ -129,7 +145,7 @@ async def test_varsayilan_hucre_veritabanina_YAZILMAZ(seeded_db):
             .where(RolePermission.role_id == role.id)
         )
     ).scalar_one()
-    assert count == 23  # sentetik hücre sayılmaz — PLN-B1: +earned_value
+    assert count == 0  # sentetik hücre sayılmaz (IZN-B2: özel rol eski satır taşımaz)
 
 
 async def test_izin_guncelleme_eksik_hucreyi_OLUSTURUR(seeded_db):
@@ -139,7 +155,7 @@ async def test_izin_guncelleme_eksik_hucreyi_OLUSTURUR(seeded_db):
     )
     await _sonradan_inen_modul(seeded_db)
 
-    perm = await service.update_role_permission(
+    perm = await update_role_permission(
         seeded_db, role.id, "yeni_modul", AccessLevel.view, Scope.all
     )
 
@@ -155,6 +171,6 @@ async def test_olmayan_modul_hala_404(seeded_db):
         seeded_db, RoleCreate(key="ozel_rol4", name="Özel4", emoji="", description="")
     )
     with pytest.raises(NotFoundError):
-        await service.update_role_permission(
+        await update_role_permission(
             seeded_db, role.id, "boyle_bir_modul_yok", AccessLevel.view, Scope.all
         )

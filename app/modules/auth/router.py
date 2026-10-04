@@ -8,7 +8,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_scope import user_disciplines_detail
 from app.core.ratelimit import client_ip, limiter
-from app.core.sayfalar import SAYFA_BY_KEY, sistem_yoneticisi_sayfalari
+from app.core.sayfalar import SAYFA_BY_KEY, PageLevel, sistem_yoneticisi_sayfalari
 from app.core.security import TokenError, create_access_token, create_refresh_token, decode_token
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -16,7 +16,7 @@ from app.modules.audit.service import record_audit
 from app.modules.auth.schemas import LoginRequest, MeResponse, PageGrant, RefreshRequest, TokenPair
 from app.modules.auth.service import AuthError, authenticate
 from app.modules.roles.repository import (
-    get_role_matrix,
+    derived_role_matrix,
     list_role_hidden_categories,
     list_role_page_cells,
 )
@@ -115,12 +115,12 @@ async def me(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> MeResponse:
-    """Matris mantigi YENIDEN YAZILMAZ: `roles.repository.get_role_matrix`
-    aynen kullanilir — `/roles/{id}/permissions` ucuyla ayni kaynak, tek fark
-    rol kimliginin aktörün kendi rolü olmasi ve ek yetki aranmamasi."""
-    matrix = await get_role_matrix(session, user.role_id)
+    """`permissions` (IZN-B2): SAYFA HÜCRELERİNDEN türetilmiş salt-okur modül düzeyi
+    (`roles.repository.derived_role_matrix`; `/roles/{id}/permissions` ucuyla ayni kaynak).
+    Frontend B6/F5'e kadar onu okur; kapılar `pages` hücrelerinden karar verir."""
     disciplines = await user_disciplines_detail(session, user.id)
     admin = is_system_admin(user)
+    cells: dict[str, tuple[PageLevel, bool]] = {}
     if admin:
         pages = {
             key: PageGrant(level=level, approve=approve)
@@ -129,12 +129,17 @@ async def me(
         hidden_fields = []
     else:
         # Katalogda olmayan (kaldırılmış) anahtar yanıta GİRMEZ: şema `page_key` enum'udur.
-        pages = {
-            cell.page_key: PageGrant(level=cell.level, approve=cell.can_approve)
+        rows = [
+            cell
             for cell in await list_role_page_cells(session, user.role_id)
             if cell.page_key in SAYFA_BY_KEY
+        ]
+        pages = {
+            cell.page_key: PageGrant(level=cell.level, approve=cell.can_approve) for cell in rows
         }
+        cells = {cell.page_key: (cell.level, cell.can_approve) for cell in rows}
         hidden_fields = await list_role_hidden_categories(session, user.role_id)
+    matrix = await derived_role_matrix(session, user.role_id, user.role.key, cells)
     return MeResponse(
         id=user.id,
         email=user.email,
@@ -143,7 +148,7 @@ async def me(
         role_key=user.role.key,
         is_system_admin=admin,
         status=user.status,
-        permissions={module.key: perm.access_level for module, perm in matrix},
+        permissions={module.key: level for module, level, _scope in matrix},
         disciplines=disciplines,
         pages=pages,
         hidden_fields=hidden_fields,

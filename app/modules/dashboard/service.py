@@ -22,10 +22,11 @@ kaldirilinca gerekcesi de onunla birlikte tasinsin.
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, Scope, satisfies
+from app.core.access import AccessLevel
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
 from app.core.field_scope import maskele
-from app.core.permissions import can_read
+from app.core.page_gate import gate_ok
+from app.core.permissions import actor_scope, can_read
 from app.modules.approvals import service as approvals_service
 from app.modules.dashboard.risks import build_risks
 from app.modules.dashboard.schemas import (
@@ -42,7 +43,6 @@ from app.modules.projects.models import ProjectStatus
 from app.modules.projects.repository import list_projects_for_user
 from app.modules.projects.schemas import metric, restricted
 from app.modules.roles.models import Role
-from app.modules.roles.repository import get_permission
 from app.modules.users.models import User
 
 # Kart -> BESLEYEN modul anahtari. Ad "bekleyen" demeye devam etse de artik
@@ -303,22 +303,13 @@ async def build_summary(
     "proje yok" ile "yetkin yok"u ayirt etmez; ILR-1/2'nin ucuncu hâli AYRI bir
     zarf isterdi ve o KIRICI olurdu, bu onarimin kapsami disindadir.
     """
-    # 🔴 İZİN SATIRI BİR KEZ OKUNUR, İKİ SORU ONA SORULUR.
-    #
-    # Kart hem SEVİYE (K4: `projects` görünmüyorsa kart hiç dolmaz) hem KAPSAM
-    # (aşağıdaki çapraz maske) kapısından geçer. `can_read` + `actor_scope`
-    # ikilisi AYNI `role_permissions` satırını İKİ KEZ çekerdi; panel açılış
-    # ekranıdır ve sorgu maliyeti bu dosyada ÇİVİLİDİR
-    # (`test_dashboard_pyt2_onay_sayaci.py` tam sayıyı ölçer). Tek okuma,
-    # bekçiyi gevşetmeden aynı iki cevabı verir.
-    projects_izni = await get_permission(session, user.role_id, _PROJECTS_MODULE)
-    projects_okunur = projects_izni is not None and satisfies(
-        projects_izni.access_level, AccessLevel.view
-    )
-    # İzin satırı YOKSA `Scope.all`: `core.permissions.actor_scope`in belgelenmiş
-    # fail-OPEN'ı. Satır yoksa seviye kapısı zaten kapanmıştır (`projects_okunur`
-    # `False`), yani burada `limited` varsaymak hiçbir şeyi korumaz.
-    projects_kapsami = Scope.all if projects_izni is None else projects_izni.scope
+    # IZN-B2: kart hem SEVİYE (K4: `projects` görünmüyorsa kart hiç dolmaz; sayfa hücrelerinden
+    # `gate_ok`) hem KAPSAM (aşağıdaki çapraz maske; `actor_scope` hibrit kuralı) kapısından
+    # geçer. Eski tek-satır okuması ikiye ayrıldı: seviye artık sayfa hücresinden, kapsam eski
+    # satırdan (ya da satırsız rolde `tum_tutarlar`dan) gelir. Sorgu sayısı
+    # (`test_dashboard_pyt2_onay_sayaci.py`) bu yüzden güncellendi.
+    projects_okunur = await gate_ok(session, user, _PROJECTS_MODULE, AccessLevel.view)
+    projects_kapsami = await actor_scope(session, user, _PROJECTS_MODULE)
     projects = await list_projects_for_user(session, user.id) if projects_okunur else []
     role = await session.get(Role, user.role_id)
 

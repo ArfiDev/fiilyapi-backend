@@ -28,12 +28,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_page
 from app.core.ratelimit import client_ip
 from app.modules.approvals import guards, service
 from app.modules.approvals.definitions import HistoryFilter
@@ -55,7 +54,8 @@ from app.modules.users.models import User
 
 router = APIRouter(prefix="/approvals", tags=["approvals"], responses=COMMON_ERROR_RESPONSES)
 
-_ADMIN = require_permission("approvals", AccessLevel.admin)
+#: IZN-B2 §2.4: onay eşiği ve rol atamaları = "Onay Rolleri ve Eşik" sayfası DÜZENLER.
+_ADMIN = require_page("ayarlar.onay_rolleri", "edit")
 
 
 @router.get("", response_model=ApprovalInboxResponse)

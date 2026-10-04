@@ -36,12 +36,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.permissions import require_permission
+from app.core.page_gate import pages_ok
 from app.modules.approvals import service
 from app.modules.approvals.models import ApprovalDocumentType
 from app.modules.users.models import User
 
-__all__ = ["require_permission_or_chain_step"]
+__all__ = ["require_pages_or_chain_step"]
 
 
 async def _zincir_adimi_ikame_ediyor(
@@ -69,57 +69,48 @@ async def _zincir_adimi_ikame_ediyor(
     )
 
 
-def require_permission_or_chain_step(
-    module_key: str,
-    min_level: AccessLevel,
+def require_pages_or_chain_step(
+    page_keys: tuple[str, ...],
     *,
+    module_key: str,
     document_type: ApprovalDocumentType,
     document_id_param: str,
 ):
-    """Modul kapisi GECMEZSE zincirin SIRADAKI adimina bakan uc kapisi.
+    """Sayfa Onaylar kapısı GEÇMEZSE zincirin SIRADAKİ adımına bakan uç kapısı (IZN-B2).
 
-    Sira baglayicidir:
+    Eski `require_permission_or_chain_step(modül, approve)`in yerine: onay eylemi artık modül
+    kapısından değil `page_keys` sayfalarının (+ikizlerinin) ONAYLAR bayrağından geçer
+    (`core.page_gate.pages_ok`). `module_key` evrakın izin modülüdür ve YALNIZ kimlik olarak
+    taşınır (OK-1C yapısal bekçileri kapanıştan okur); `min_level` sabit `approve`dir.
 
-    1. **Once bugunku modul kapisi.** Gecerse HEMEN donulur — ikame HIC kosmaz
-       ve sicak yolda **+0 sorgu** olur (`test_MODUL_KAPISINDAN_GECEN_aktorun_
-       sorgu_sayisi_ARTMAMALIDIR` bunu 27'de sabitler).
-    2. Yakalanan istisna 403 DEGILSE aynen yeniden firlatilir; 401 gibi baska
-       bir kapinin cevabi ikame tarafindan YUTULMAZ.
-    3. 403 ise zincir sorusu sorulur; yanit `True` degilse **yakalanan 403 aynen
-       firlatilir** — `detail` metni DEGISMEZ, cunku kullaniciya hangi katmanin
-       durdurdugunu soylemek tek basina bir bilgidir. Sorunun kendisinin IKI
-       dalli olmasinin (ve ikincisinin neden bir sizintiyi kapattiginin) gerekcesi
-       `service.chain_step_substitutes_permission` docstring'indedir.
+    Sıra baglayicidir:
 
-    🔴 **KAPANIS (CLOSURE) ZORUNLULUGU.** `require_permission(...)` cagrisi
-    fabrikanin govdesinde ONDEN kurulup `_check` icinde yalniz hazir nesne
-    kullanilsaydi, `module_key` ve `min_level` `_check`in SERBEST DEGISKENI
-    OLMAZDI — ve dar kapsamin YAPISAL bekcisi kapilari tam olarak
-    `__code__.co_freevars` uzerinden tanidigi icin bu kapiyi GOREMEZDI. Bu
-    yuzden cagri bilerek `_check`in ICINDEDIR. Maliyeti istek basina bir kapanis
-    nesnesi ayirmaktir (bir DB sorgusunun yaninda olculemez); karsiliginda
-    "hangi uc hangi kapiyi tasiyor" sorusu rota tablosundan URETILEBILIR kalir
-    ve iki kapi ASLA ayrisamaz.
+    1. **Önce sayfa kapısı.** Geçerse HEMEN dönülür — ikame HİÇ koşmaz (+0 sorgu).
+    2. Geçmezse zincir sorusu sorulur; yanıt `True` değilse bugünkü 403 AYNEN fırlatılır
+       (`detail` metni DEĞİŞMEZ: hangi katmanın durdurduğu tek başına bir bilgidir).
+
+    Kapsam DARDIR (OK-1C): yalnız `/approve` ve `/reject`; modülün başka ucu ikame edilmez.
     """
+    min_level = AccessLevel.approve
 
     async def _check(
         request: Request,
         user: Annotated[User, Depends(get_current_user)],
         session: DbSession,
     ) -> None:
-        try:
-            await require_permission(module_key, min_level).dependency(user=user, session=session)
-        except HTTPException as modul_kapisi:
-            if modul_kapisi.status_code != status.HTTP_403_FORBIDDEN:
-                raise
-            ikame = await _zincir_adimi_ikame_ediyor(
-                request,
-                user,
-                session,
-                document_type=document_type,
-                document_id_param=document_id_param,
+        _kimlik = (module_key, min_level)  # yapısal bekçilerin okuduğu kapanış değişkenleri
+        if await pages_ok(session, user, page_keys, "approve"):
+            return
+        ikame = await _zincir_adimi_ikame_ediyor(
+            request,
+            user,
+            session,
+            document_type=document_type,
+            document_id_param=document_id_param,
+        )
+        if not ikame:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Bu işlem için yetkiniz yok"
             )
-            if not ikame:
-                raise modul_kapisi from None
 
     return Depends(_check)

@@ -46,7 +46,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_page, require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -80,11 +80,16 @@ router = APIRouter(tags=["payroll"], responses=COMMON_ERROR_RESPONSES)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
+#: IZN-B2: satır/dönem Onayla-Reddet, Öde = Aylık Bordro ONAYLAR; SGK'ya Gönder = SGK Bildirimi
+#: ONAYLAR (eşikler eski `full`).
+_PAYROLL_APPROVE = require_pages(("mali.bordro",), "approve")
+_SGK_SUBMIT = require_pages(("mali.sgk_bildirimi",), "approve")
 #: 🔴 TB6 T1 — tarifenin TAM KÜME değiştirmesi fiilen bir SİLMEDİR (eski dilim
 #: satırları GİDER, UQ yüzünden pasifleştirilemezler) ve WORKFLOW §8 gereği
 #: **silme yalnız `admin`**tir. `payroll_rates`in PUT'u satırın ÜSTÜNE yazar,
 #: o yüzden orası `full` kalır.
-_ADMIN = require_permission(service.PERMISSION_MODULE, AccessLevel.admin)
+#: IZN-B2 §2.4: vergi dilimi = "Bordro Oranları" sayfası DÜZENLER (eşik eski `admin` ile aynı).
+_ADMIN = require_page("ayarlar.bordro_oranlari", "edit")
 
 # TB3 sayfalama standardı: varsayılan 50, tavan 200 — aşım sessizce KIRPILMAZ,
 # 422 döner (SA/ST ile birebir).
@@ -325,7 +330,7 @@ async def update_payroll_line_endpoint(
             )
         }
     },
-    dependencies=[_FULL],
+    dependencies=[_PAYROLL_APPROVE],
 )
 async def approve_payroll_line_endpoint(
     request: Request,
@@ -351,7 +356,7 @@ async def approve_payroll_line_endpoint(
     "/payroll/lines/{line_id}/reject",
     response_model=PayrollLineResponse,
     responses={409: {"description": "Yalnız onaylanmış satırın onayı geri alınabilir"}},
-    dependencies=[_FULL],
+    dependencies=[_PAYROLL_APPROVE],
 )
 async def reject_payroll_line_endpoint(
     request: Request,
@@ -381,7 +386,7 @@ async def reject_payroll_line_endpoint(
         },
         422: {"description": "Bordro fişi yazılamadı: hesap eşlemesi ya da satır bileşeni eksik"},
     },
-    dependencies=[_FULL],
+    dependencies=[_PAYROLL_APPROVE],
 )
 async def approve_payroll_period_endpoint(
     request: Request,
@@ -417,7 +422,7 @@ async def approve_payroll_period_endpoint(
     "/payroll/periods/{period_id}/pay",
     response_model=PayrollPeriodPayResult,
     responses={409: {"description": "Yalnız onaylanmış dönem ödenebilir"}},
-    dependencies=[_FULL],
+    dependencies=[_PAYROLL_APPROVE],
 )
 async def pay_payroll_period_endpoint(
     request: Request,
@@ -487,7 +492,7 @@ async def payroll_sgk_summary_endpoint(
     "/payroll/periods/{period_id}/sgk-submit",
     response_model=PayrollSgkSubmitResult,
     responses={409: {"description": "Bu dönemin SGK bildirimi zaten işaretlenmiş"}},
-    dependencies=[_FULL],
+    dependencies=[_SGK_SUBMIT],
 )
 async def payroll_sgk_submit_endpoint(
     request: Request,

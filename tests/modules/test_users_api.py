@@ -2,6 +2,7 @@ from sqlalchemy import select
 
 from app.core.access import AccessLevel
 from app.modules.roles.models import Module, Role, RolePermission
+from tests._legacy_permission_yardimcisi import sync_page_cells
 
 
 async def _login(client, user_factory, role_key: str) -> str:
@@ -126,6 +127,7 @@ async def _seviye_ver(session, role_key: str, level: AccessLevel) -> None:
     ).scalar_one()
     permission.access_level = level
     await session.flush()
+    await sync_page_cells(session, permission.role_id)
 
 
 async def test_reset_password_FULL_seviyesine_de_403(client, user_factory, seeded_db):

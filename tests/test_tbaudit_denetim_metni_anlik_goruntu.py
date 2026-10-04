@@ -133,6 +133,14 @@ Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelend
 **KAYIP 0** (`git diff`: yalnız 6 `+` satırı, `-` satırı yok); sayaçlar 241→243 sembol,
 226→227 fonksiyon.
 
+## 🔴 REFERANSA EKLENEN SEMBOLLER (IZN-B2, 2026-10-04)
+
+`role_pages_updated`, `role_hidden_fields_updated`, `role_copied`, `page_cell_label`
+(+ sabitleri `PAGE_LEVEL_LABELS`, `HIDDEN_CATEGORY_LABELS`, `ROLE_PAGES_CHANGES_SHOWN`) — Sayfa
+İzinleri ekranının toplu yazma, gizli alan ve rol kopyalama denetim satırları. Referans
+`python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; farkta **KAYIP 0**
+(yalnız `+` satırları, `diff` ile doğrulandı); sayaçlar 243→250 sembol, 227→231 fonksiyon.
+
 ## Kapsam
 
 Modülün TÜM sembolleri (özel `_` adları DÂHİL) ve her fonksiyon için birden çok
@@ -302,9 +310,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 243, f"sembol sayısı 243 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 250, f"sembol sayısı 250 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 227, f"fonksiyon sayısı 227 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 231, f"fonksiyon sayısı 231 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

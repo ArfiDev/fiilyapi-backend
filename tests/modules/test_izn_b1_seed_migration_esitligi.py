@@ -28,12 +28,12 @@ from app.core.sayfalar import (
     SAYFALAR,
     HiddenCategory,
     PageLevel,
-    esik_spec,
     gizli_alanlar,
     sayfa_matrisi,
 )
 from app.modules.roles import seed_data
 from app.modules.roles.models import IZN_ROLE_KEYS
+from tests._izn_b1_esikleri import b1_matrisi, b1_rows, b1_spec
 
 MIGRATION_PATH = next(
     (Path(__file__).parents[2] / "alembic" / "versions").glob("*_izn_b1_sayfa_katalogu.py")
@@ -100,7 +100,7 @@ def test_gizli_alan_bayraklari_seed_ile_ayni(migration) -> None:
 
 def test_sayfa_eslemesi_ve_esik_tablosu_katalogla_birebir(migration) -> None:
     assert list(migration.PAGES) == [
-        (s.key, s.eski_modul, s.onay_var, esik_spec(s.envanter_no, s.eski_modul)) for s in SAYFALAR
+        (s.key, s.eski_modul, s.onay_var, b1_spec(s)) for s in SAYFALAR
     ]
     assert migration.MODULSUZ_VARSAYILAN == {
         k: v.value for k, v in seed_data.MODULSUZ_VARSAYILAN.items()
@@ -120,7 +120,9 @@ def test_donusum_fonksiyonu_tum_roller_icin_ayni_sonucu_verir(migration) -> None
         if role_key == "system_admin":
             continue
         cells = _app_cells(seed_data.MATRIX, seed_data.ROLE_ORDER, role_key)
-        assert _tuple_rows(migration._page_cells(cells)) == _app_page_rows(role_key), role_key
+        assert _tuple_rows(migration._page_cells(cells)) == b1_rows(seed_data.MATRIX, role_key), (
+            role_key
+        )
         assert set(migration._hidden_categories(cells)) == {
             c.value for c in seed_data.HIDDEN_FIELDS[role_key]
         }, role_key
@@ -128,7 +130,14 @@ def test_donusum_fonksiyonu_tum_roller_icin_ayni_sonucu_verir(migration) -> None
         cells = _app_cells(seed_data.IZN_MATRIX, seed_data.IZN_ROLE_ORDER, role_key)
         rows = _tuple_rows(migration._page_cells(cells))
         rows.update(migration.IZN_SAYFA_ISTISNALARI.get(role_key, {}))
-        assert rows == _app_page_rows(role_key), role_key
+        beklenen = b1_rows(seed_data.IZN_MATRIX, role_key)
+        beklenen.update(
+            {
+                k: (lv.value, ap)
+                for k, (lv, ap) in seed_data.IZN_SAYFA_ISTISNALARI.get(role_key, {}).items()
+            }
+        )
+        assert rows == beklenen, role_key
 
 
 def test_donusum_rastgele_modul_hucreleriyle_de_AYNI_migration_kopyasi(migration) -> None:
@@ -139,7 +148,7 @@ def test_donusum_rastgele_modul_hucreleriyle_de_AYNI_migration_kopyasi(migration
     modules = list(seed_data.MATRIX)
     for _ in range(400):
         cells = {m: (rng.choice(seviyeler), rng.choice(kapsamlar)) for m in modules}
-        beklenen = {k: (lv.value, ap) for k, (lv, ap) in sayfa_matrisi(cells).items()}
+        beklenen = {k: (lv.value, ap) for k, (lv, ap) in b1_matrisi(cells).items()}
         mig_cells = {m: (a.value, sc.value) for m, (a, sc) in cells.items()}
         assert _tuple_rows(migration._page_cells(mig_cells)) == beklenen
         assert set(migration._hidden_categories(mig_cells)) == {
