@@ -847,5 +847,8 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # `on_source_conflict` ne yol ne operasyon acar.
     # OKT-B1: `GET /approvals/history` (onay gecmisi) = +1 yol / +1 operasyon
     # (319→320 · 455→456).
-    assert len(yollar) == 320
-    assert operasyonlar == 456
+    # IZN-B1: `GET /pages` (sayfa kataloğu; yeni yol, tek operasyon) = +1 yol / +1 operasyon
+    # (320→321 · 456→457). `/auth/me`ye eklenen `pages`/`hidden_fields`/`is_system_admin`
+    # alanları ne yol ne operasyon açar (sürüklenmeyi `tests/contract/` yakalar).
+    assert len(yollar) == 321
+    assert operasyonlar == 457

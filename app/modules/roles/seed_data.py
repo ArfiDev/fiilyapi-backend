@@ -8,7 +8,23 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel, Scope
-from app.modules.roles.models import Module, ModuleGroup, Role, RolePermission
+from app.core.sayfalar import (
+    MODULSUZ_VARSAYILAN,  # noqa: F401 — bekçiler seed_data üzerinden de okur
+    SAYFA_ANAHTARLARI,
+    HiddenCategory,
+    PageLevel,
+    gizli_alanlar,
+    sayfa_matrisi,
+)
+from app.modules.roles.models import (
+    SYSTEM_ADMIN_KEY,
+    Module,
+    ModuleGroup,
+    Role,
+    RoleHiddenField,
+    RolePagePermission,
+    RolePermission,
+)
 
 ROLES: list[dict] = [
     {
@@ -332,4 +348,217 @@ async def seed_reference_data(session: AsyncSession) -> None:
                     role_id=role.id, module_id=module.id, access_level=level, scope=scope
                 )
             )
+    await session.flush()
+
+
+# ---------------------------------------------------------------------------
+# IZN-B1 — sayfa bazlı izin modelinin başlangıç değerleri (IZN-PLAN §1.3, §1.4, §7).
+#
+# 🔴 Bu bölüm `ROLES`/`ROLE_ORDER`/`MATRIX`e DOKUNMAZ: o üçü dondurulmuş migration'larla
+# BİREBİR eşit tutulur (`tests/modules/test_seed_migration_matches_seed_data.py`,
+# `TKL-B7-TASARIM.md` §4.6.6). Yeni roller ayrı listelerde durur. Eşitlik bekçisi:
+# `tests/modules/test_izn_b1_seed_migration_esitligi.py` (migration'a ELLE kopyalanan
+# `IZN_*` / `MATRIX` / `MODULSUZ_VARSAYILAN` değerleriyle çakar; migration `app` import etmez).
+# ---------------------------------------------------------------------------
+
+IZN_ROLES: list[dict] = [
+    {
+        "key": "planning_engineer",
+        "name": "Planlama Mühendisi",
+        "emoji": "📐",
+        "is_system": False,
+        "description": "Planlama, adam-saat bütçesi, günlük kayıt ve ilerleme raporları",
+    },
+    {
+        "key": "technical_office",
+        "name": "Teknik Ofis",
+        "emoji": "🗂️",
+        "is_system": False,
+        "description": "Sözleşme, iş kalemi ve teknik belge hazırlama",
+    },
+    {
+        "key": "warehouse_keeper",
+        "name": "Depo Sorumlusu",
+        "emoji": "📦",
+        "is_system": False,
+        "description": "Stok giriş/çıkış, depo ve malzeme takibi",
+    },
+    {
+        "key": "viewer",
+        "name": "Görüntüleyici",
+        "emoji": "👁️",
+        "is_system": False,
+        "description": "Tüm ekranları salt okunur görür; tutarlar gizli",
+    },
+    {
+        "key": "finance_manager",
+        "name": "Finans Müdürü",
+        "emoji": "💰",
+        "is_system": False,
+        "description": "Muhasebe, bordro, fatura ve hazine; mali onaylar",
+    },
+    {
+        "key": "cost_engineer",
+        "name": "Maliyet Mühendisi",
+        "emoji": "🧮",
+        "is_system": False,
+        "description": "Maliyet ve sözleşme takibi, proje görünümü",
+    },
+]
+
+IZN_ROLE_ORDER = [
+    "planning_engineer",
+    "technical_office",
+    "warehouse_keeper",
+    "viewer",
+    "finance_manager",
+    "cost_engineer",
+]
+
+# Yeni rollerin başlangıç hücreleri, ESKİ düzey/kapsam sözlüğüyle yazılır (yukarıdaki `MATRIX`le
+# aynı kısayollar) ve `core/sayfalar.sayfa_matrisi` ile sayfa hücresine çevrilir — eski ve yeni
+# roller TEK dönüşüm yolundan geçer. IZN-PLAN §7 (CEO, ekrandan düzeltilir):
+#   Planlama Müh. = Saha Müh. sütunu + Planlama Düzenler (earned_value `draft`, boq `none`, Onaylar
+#   YOK; şirket katalogları `IZN_SAYFA_ISTISNALARI`nda) · Teknik Ofis = PM'in sözleşme/iş kalemi
+#   satırları (`full`) [+ projects/sites `view`: PLANDA YOK, proje sayfalarına girebilsin diye
+#   bilinçli sapma] · Depo = Satınalma'nın stok satırları · Görüntüleyici = her yer Görür, Ayarlar
+#   hariç (`IZN_SAYFA_ISTISNALARI`) · Finans Müdürü = Muhasebe sütunu birebir (`_FIN` → `_V`; mali
+#   Onaylar Muhasebe'nin `full` hücrelerinden zaten gelir) · Maliyet Müh. = PM Görür + Sözleşmeler
+#   Düzenler (`contracts` `full`: sayfa eşiği; Teklif "Dönüştür" Onaylar'ı `projects:admin` ister).
+# `_LIM` KULLANILMAZ: bu roller eski kapıdan zaten geçemez; "tutarları gizle" `IZN_HIDDEN_FIELDS`te.
+IZN_MATRIX: dict[str, list[tuple[AccessLevel, Scope]]] = {
+    #                      plan   teknik depo   görünt finans maliyet
+    "dashboard": [_V, _N, _N, _V, _V, _V],
+    "approvals": [_V, _V, _V, _V, _V, _V],
+    "projects": [_V, _V, _N, _V, _V, _V],
+    "sites": [_V, _V, _N, _V, _V, _V],
+    "site_diary": [_F, _V, _N, _V, _N, _V],
+    "timesheet": [_V, _N, _N, _V, _V, _N],
+    "personnel": [_V, _N, _N, _V, _F, _V],
+    "payroll": [_N, _N, _N, _V, _F, _N],
+    "inventory": [_V, _N, _F, _V, _N, _V],
+    "procurement": [_REQ, _N, _V, _V, _N, _V],
+    "progress_payments": [_DRF, _N, _N, _V, _APR, _V],
+    "accounting": [_N, _N, _N, _V, _F, _V],
+    "invoicing": [_N, _N, _N, _V, _F, _V],
+    "treasury": [_N, _N, _N, _V, _F, _V],
+    "settings": [_N, _N, _N, _N, _N, _N],
+    "user_management": [_N, _N, _N, _N, _N, _N],
+    "boq": [_N, _F, _N, _V, _V, _V],
+    "contracts": [_N, _F, _N, _V, _V, _F],
+    "sales": [_N, _N, _N, _V, _V, _V],
+    "documents": [_F, _F, _V, _V, _F, _V],
+    "equipment": [_V, _N, _V, _V, _F, _V],
+    "ai": [_V, _V, _V, _V, _V, _V],
+    "earned_value": [_DRF, _V, _N, _V, _V, _V],
+}
+
+#: Yeni rollerin gizli alan bayrakları (rol başına kutucuk). Satır var = gizli.
+IZN_HIDDEN_FIELDS: dict[str, tuple[HiddenCategory, ...]] = {
+    "planning_engineer": (HiddenCategory.tum_tutarlar,),
+    "technical_office": (),
+    "warehouse_keeper": (HiddenCategory.tum_tutarlar,),
+    "viewer": (HiddenCategory.tum_tutarlar, HiddenCategory.maas_kisisel),
+    "finance_manager": (),
+    "cost_engineer": (HiddenCategory.maas_kisisel,),
+}
+
+#: Yeni rollerin SAYFA düzeyindeki istisnaları (modül hücresiyle ifade edilemeyen kararlar;
+#: IZN-PLAN §7): Planlama Müh. = Saha Müh. + "Planlama Düzenler" (şirket katalogları `full`
+#: eşiğinde, Saha Müh.'nin `draft`ı onlara yetmez; Onaylar YOK) · Görüntüleyici: "Ayarlar hariç"
+#: = TÜM `ayarlar.*` Görmez (kişisel Bildirimler/Görünüm dahil).
+IZN_SAYFA_ISTISNALARI: dict[str, dict[str, tuple[PageLevel, bool]]] = {
+    "planning_engineer": {
+        "planlama.birim_oran_katalogu": (PageLevel.edit, False),
+        "planlama.disiplin_yonetimi": (PageLevel.edit, False),
+    },
+    "viewer": {
+        key: (PageLevel.none, False) for key in SAYFA_ANAHTARLARI if key.startswith("ayarlar.")
+    },
+}
+
+
+def _rol_hucreleri(
+    matrix: dict[str, list[tuple[AccessLevel, Scope]]], order: list[str], role_key: str
+) -> dict[str, tuple[AccessLevel, Scope]]:
+    index = order.index(role_key)
+    return {module_key: cells[index] for module_key, cells in matrix.items()}
+
+
+#: Sistem Yöneticisi HARİÇ 13 rolün başlangıç sayfa matrisi (rol → sayfa → (düzey, onay)).
+#: Eski 7 rol, `MATRIX`ten (yedek hücre: migration'da canlı satırı OLMAYAN çift buna düşer);
+#: 6 yeni rol `IZN_MATRIX`ten türetilir.
+PAGE_MATRIX: dict[str, dict[str, tuple[PageLevel, bool]]] = {
+    **{
+        role_key: sayfa_matrisi(_rol_hucreleri(MATRIX, ROLE_ORDER, role_key))
+        for role_key in ROLE_ORDER
+        if role_key != SYSTEM_ADMIN_KEY
+    },
+    **{
+        role_key: {
+            **sayfa_matrisi(_rol_hucreleri(IZN_MATRIX, IZN_ROLE_ORDER, role_key)),
+            **IZN_SAYFA_ISTISNALARI.get(role_key, {}),
+        }
+        for role_key in IZN_ROLE_ORDER
+    },
+}
+
+#: Rol başına gizli alan kümesi (Sistem Yöneticisi hariç): eski roller `limited` kapsamından,
+#: yeni roller `IZN_HIDDEN_FIELDS`ten.
+HIDDEN_FIELDS: dict[str, frozenset[HiddenCategory]] = {
+    **{
+        role_key: gizli_alanlar(_rol_hucreleri(MATRIX, ROLE_ORDER, role_key))
+        for role_key in ROLE_ORDER
+        if role_key != SYSTEM_ADMIN_KEY
+    },
+    **{role_key: frozenset(cats) for role_key, cats in IZN_HIDDEN_FIELDS.items()},
+}
+
+
+async def seed_izn_reference_data(session: AsyncSession) -> None:
+    """6 yeni rolü, `PAGE_MATRIX` hücrelerini ve gizli alan bayraklarını yükler.
+
+    🔴 Üretimde bu fonksiyon ÇAĞRILMAZ: orada hücreleri `izn_b1` migration'ı CANLI
+    `role_permissions` satırlarından türetir. Bu, testlerin (`create_all` şeması) aynı
+    başlangıç durumunu kurması içindir. `seed_reference_data` (8 rol / 184 hücre) önce koşmuş
+    olmalıdır; Sistem Yöneticisi hücre taşımaz. Idempotent: var olan çift yeniden yazılmaz.
+    """
+    roles_by_key: dict[str, Role] = {
+        role.key: role for role in (await session.execute(select(Role))).scalars().all()
+    }
+    for row in IZN_ROLES:
+        if row["key"] not in roles_by_key:
+            role = Role(**row)
+            session.add(role)
+            roles_by_key[row["key"]] = role
+    await session.flush()
+
+    existing_pages = set(
+        (
+            await session.execute(select(RolePagePermission.role_id, RolePagePermission.page_key))
+        ).all()
+    )
+    for role_key, cells in PAGE_MATRIX.items():
+        role = roles_by_key.get(role_key)
+        if role is None:
+            continue
+        for page_key, (level, can_approve) in cells.items():
+            if (role.id, page_key) in existing_pages:
+                continue
+            session.add(
+                RolePagePermission(
+                    role_id=role.id, page_key=page_key, level=level, can_approve=can_approve
+                )
+            )
+
+    existing_hidden = set(
+        (await session.execute(select(RoleHiddenField.role_id, RoleHiddenField.category))).all()
+    )
+    for role_key, categories in HIDDEN_FIELDS.items():
+        role = roles_by_key.get(role_key)
+        if role is None:
+            continue
+        for category in sorted(categories, key=lambda c: c.value):
+            if (role.id, category) not in existing_hidden:
+                session.add(RoleHiddenField(role_id=role.id, category=category))
     await session.flush()

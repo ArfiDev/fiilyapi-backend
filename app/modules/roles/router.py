@@ -36,7 +36,7 @@ router = APIRouter(tags=["roles"], responses=COMMON_ERROR_RESPONSES)
 async def list_roles_endpoint(
     session: DbSession,
 ) -> list[RoleResponse]:
-    return [RoleResponse.model_validate(r) for r in await repository.list_roles(session)]
+    return await service.role_responses(session, await repository.list_roles(session))
 
 
 @router.get(
@@ -88,7 +88,7 @@ async def create_role_endpoint(
         actor_user_id=current_user.id,
         ip_address=client_ip(request),
     )
-    return RoleResponse.model_validate(role)
+    return (await service.role_responses(session, [role]))[0]
 
 
 @router.patch(
@@ -114,7 +114,7 @@ async def rename_role_endpoint(
         actor_user_id=current_user.id,
         ip_address=client_ip(request),
     )
-    return RoleResponse.model_validate(role)
+    return (await service.role_responses(session, [role]))[0]
 
 
 @router.put(

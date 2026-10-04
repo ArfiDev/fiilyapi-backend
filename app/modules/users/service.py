@@ -9,7 +9,12 @@ from app.core.errors import DomainError, NotFoundError, PermissionLockedError
 from app.core.security import hash_password
 from app.modules.projects.models import Project
 from app.modules.roles.models import SYSTEM_ADMIN_KEY, Role
-from app.modules.roles.repository import get_permission, get_role_matrix
+from app.modules.roles.repository import (
+    get_permission,
+    get_role_matrix,
+    has_legacy_cells,
+    role_assignable,
+)
 from app.modules.users import repository
 from app.modules.users.models import User, UserProjectAccess, UserStatus
 from app.modules.users.schemas import ProjectAccessInput, UserCreate, UserUpdate
@@ -40,6 +45,13 @@ async def _require_assignable_role(session: AsyncSession, actor: User, role_id: 
     role = (await session.execute(select(Role).where(Role.id == role_id))).scalar_one_or_none()
     if role is None:
         raise NotFoundError("Rol bulunamadı")
+
+    # IZN-B1: yeni roller B2 kapı köprüsüne dek atanamaz (kural `roles.repository.role_assignable`).
+    if not role_assignable(role.key, await has_legacy_cells(session, role.id)):
+        raise DomainError(
+            f'"{role.name}" rolü henüz kullanılamıyor: sayfa bazlı izin sistemi devreye '
+            "alınana kadar kullanıcıya atanamaz."
+        )
 
     perm = await get_permission(session, actor.role_id, "user_management")
     if perm is not None and satisfies(perm.access_level, AccessLevel.admin):
