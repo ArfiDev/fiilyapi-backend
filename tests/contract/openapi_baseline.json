@@ -623,6 +623,212 @@
         "title": "ApprovalDocumentType",
         "type": "string"
       },
+      "ApprovalHistoryItem": {
+        "description": "Onay GECMISI satiri (OKT-B1): bekleyen kartin AYNI alanlari + sonuc.\n\n* `decision` (zincirin SON DURUMU): `approved` (tum adimlar onayli) |\n  `rejected` | `pending` (zincir suruyor; yalniz `decision=all` sorgusunda).\n* `decided_by`: zincirin SON kararini veren: retse reddeden, onaysa SON\n  imzayi atan kullanicinin ad soyadi; kullanici silinmisse VE zincir\n  suruyorsa `null`.\n* `decided_at`: ret ani ya da son imza ani; zincir suruyorsa `null`.\n* `reason`: YALNIZ retse gerekce, aksi `null`.\n* `current_step_no`: retse reddedilen adim, suren zincirde siradaki adim,\n  onaylanmissa son adim.",
+        "properties": {
+          "amount_snapshot": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Snapshot"
+          },
+          "chain_id": {
+            "format": "uuid",
+            "title": "Chain Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "current_step_no": {
+            "title": "Current Step No",
+            "type": "integer"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/HistoryDecision"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "document_type": {
+            "$ref": "#/components/schemas/ApprovalDocumentType"
+          },
+          "gross_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Amount"
+          },
+          "net_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Amount"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalStepRead"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "threshold_snapshot": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Threshold Snapshot",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "chain_id",
+          "document_type",
+          "document_id",
+          "created_by_name",
+          "created_at",
+          "threshold_snapshot",
+          "amount_snapshot",
+          "current_step_no",
+          "steps",
+          "title",
+          "subtitle",
+          "gross_amount",
+          "net_amount",
+          "decision",
+          "decided_by",
+          "decided_at",
+          "reason"
+        ],
+        "title": "ApprovalHistoryItem",
+        "type": "object"
+      },
+      "ApprovalHistoryResponse": {
+        "description": "Gecmis zarfi: bekleyen kutusunun zarfi ile ayni bicim. `total`, secilen\n`decision` suzgecine gore suzulmus VE gorunur kapsamla sinirli toplamdir\n(frontend sekme sayaci).",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalHistoryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "my_approval_roles": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalRole"
+            },
+            "title": "My Approval Roles",
+            "type": "array"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "my_approval_roles"
+        ],
+        "title": "ApprovalHistoryResponse",
+        "type": "object"
+      },
       "ApprovalInboxItem": {
         "description": "Onay kutusu satiri — mockup kartinin BES parcasi (`Onay Kutusu.dc.html`).\n\n| Kart parcasi | Mockup | Alan |\n|---|---|---|\n| tip rozeti | `:123` `:157` `:216` | `document_type` |\n| olusturan + zaman | `:124` `:159` `:217` | `created_by_name` · `created_at` |\n| baslik | `:126` `:161` `:219` | `title` |\n| alt baslik | `:127` `:162` `:220` | `subtitle` |\n| adim seridi | `:129-135` `:164-170` `:222-224` | `steps` |\n| tutar(lar) | `:138-139` `:173` `:227-228` | `gross_amount` · `net_amount` |\n\n🔴 `net_amount` SATINALMADA `null`dur: talebin brut/net ayrimi YOKTUR\n(mockup `:173` TEK kutu). 🔴 `gross_amount` da `null` OLABILIR — tutarin\nBELIRLENEMEDIGI hâl gercektir (fiyatsiz kalem) ve `0` yazmak \"eksik veri\"\nile \"sifir tutar\"i ayirt edilemez kilardi (SA kanonu).",
         "properties": {
@@ -12406,6 +12612,26 @@
         ],
         "title": "HistogramWeek",
         "type": "object"
+      },
+      "HistoryDecision": {
+        "description": "Onay gecmisindeki bir zincirin SON DURUMU (OKT-B1, zincir duzeyinde).\n\n`approved` = zincirin TUM adimlari karara baglanmis ve ret yok; `rejected` =\nzincir reddedildi; `pending` = zincir SURUYOR (yalniz `decision=all`da doner).",
+        "enum": [
+          "approved",
+          "rejected",
+          "pending"
+        ],
+        "title": "HistoryDecision",
+        "type": "string"
+      },
+      "HistoryFilter": {
+        "description": "`GET /approvals/history?decision=` degerleri (varsayilan `all`).\n\n`all` suzgec YOKTUR: gorunur TUM zincirler (suren dahil). `pending` bir\nSUZGEC degeri DEGILDIR (sekme yoktur), yalnizca kart durumudur.",
+        "enum": [
+          "approved",
+          "rejected",
+          "all"
+        ],
+        "title": "HistoryFilter",
+        "type": "string"
       },
       "HolidayInput": {
         "additionalProperties": false,
@@ -48968,6 +49194,83 @@
         ]
       }
     },
+    "/approvals/history": {
+      "get": {
+        "description": "Sonuclanmis zincirler: `decision=approved|rejected|all` (varsayilan `all`).\n\nAyri bir yetki kapisi YOKTUR (bekleyen kutusu gibi): gorunurluk \"adimlarindan\nbirinin onay rolu bende + evragin projesini goruyorum\" olgusuyla sinirlidir.\nRet kaydi zincir SILINMEDIGI icin vardir (OKT-B1); eski (silinmis) retler yoktur.",
+        "operationId": "list_approval_history_endpoint_approvals_history_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "decision",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/HistoryFilter",
+              "default": "all"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Approval History Endpoint",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
     "/approvals/roles": {
       "get": {
         "description": "EN AZ BIR onay rolu tasiyan kullanicilar. Rolu OLMAYANLAR burada DONMEZ:\nbu uc atamalarin listesidir, kullanici katalogu `GET /users`tur.",
@@ -63533,7 +63836,7 @@
     },
     "/progress-payments/{payment_id}/reject": {
       "post": {
-        "description": "`pending_approval → draft` — ret sonrası taslak yeniden düzenlenebilir.\n\n🔴 **KIRICI (OK-1A K2):** gövde ve gerekçe artık ZORUNLUDUR; eskiden\n`RejectBody | None` idi. `reason` yine hiçbir kolona yazılmaz — TEK kalıcı\nizi denetim günlüğüdür (spec §11) ve K2 bunu değiştirmez: kullanıcı kararı\ngerekçenin ZORUNLULUĞUNU bağladı, DEPOLANDIĞI yeri değil.\n\nRet zinciri de BİTİRİR: `approval_chains` satırı SİLİNİR (adımlar CASCADE)\nve yeniden gönderim ADIM 1'den, YENİ eşik snapshot'ıyla başlar.",
+        "description": "`pending_approval → draft` — ret sonrası taslak yeniden düzenlenebilir.\n\n🔴 **KIRICI (OK-1A K2):** gövde ve gerekçe artık ZORUNLUDUR; eskiden\n`RejectBody | None` idi. `reason` yine hiçbir kolona yazılmaz — TEK kalıcı\nizi denetim günlüğüdür (spec §11) ve K2 bunu değiştirmez: kullanıcı kararı\ngerekçenin ZORUNLULUĞUNU bağladı, DEPOLANDIĞI yeri değil.\n\nRet zinciri de BİTİRİR: `approval_chains` satırı DAMGALANIR, SİLİNMEZ (OKT-B1)\nve yeniden gönderim ADIM 1'den, YENİ eşik snapshot'ıyla başlar.",
         "operationId": "reject_progress_payment_endpoint_progress_payments__payment_id__reject_post",
         "parameters": [
           {
@@ -67216,7 +67519,7 @@
     },
     "/purchase-requests/{request_id}/reject": {
       "post": {
-        "description": "`pending_approval → rejected`. **Gerekçe ZORUNLUDUR** (boş → 422).\n\nGerekçe `rejection_reason` KOLONUNA yazılır (SAT ekranı onu kaydın üstünde\ngösterir) — `sale_cancelled`ın denetim-günlüğü kararının aksine burada\nkalıcı bir yer vardır. `rejected` TERMİNALDİR: diriltme geçişi yoktur,\nihtiyaç sürüyorsa YENİ talep açılır.\n\n🔴 **OK-1A T3:** ret onay zincirini de BİTİRİR (`approval_chains` satırı\nSİLİNİR, adımlar CASCADE). Hakediş ikilisinden FARK: orada evrak `draft`a\ndöner ve yeniden gönderilince YENİ bir zincir açılır; burada `rejected`\nTERMİNAL olduğu için ikinci bir zincir HİÇ açılmaz.",
+        "description": "`pending_approval → rejected`. **Gerekçe ZORUNLUDUR** (boş → 422).\n\nGerekçe `rejection_reason` KOLONUNA yazılır (SAT ekranı onu kaydın üstünde\ngösterir) — `sale_cancelled`ın denetim-günlüğü kararının aksine burada\nkalıcı bir yer vardır. `rejected` TERMİNALDİR: diriltme geçişi yoktur,\nihtiyaç sürüyorsa YENİ talep açılır.\n\n🔴 **OK-1A T3:** ret onay zincirini de BİTİRİR (`approval_chains` satırı\nDAMGALANIR, SİLİNMEZ — OKT-B1). Hakediş ikilisinden FARK: orada evrak `draft`a\ndöner ve yeniden gönderilince YENİ bir zincir açılır; burada `rejected`\nTERMİNAL olduğu için ikinci bir zincir HİÇ açılmaz.",
         "operationId": "reject_purchase_request_endpoint_purchase_requests__request_id__reject_post",
         "parameters": [
           {

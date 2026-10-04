@@ -355,7 +355,7 @@ async def reject_progress_payment_endpoint(
     izi denetim günlüğüdür (spec §11) ve K2 bunu değiştirmez: kullanıcı kararı
     gerekçenin ZORUNLULUĞUNU bağladı, DEPOLANDIĞI yeri değil.
 
-    Ret zinciri de BİTİRİR: `approval_chains` satırı SİLİNİR (adımlar CASCADE)
+    Ret zinciri de BİTİRİR: `approval_chains` satırı DAMGALANIR, SİLİNMEZ (OKT-B1)
     ve yeniden gönderim ADIM 1'den, YENİ eşik snapshot'ıyla başlar.
     """
     result = await transitions.perform(

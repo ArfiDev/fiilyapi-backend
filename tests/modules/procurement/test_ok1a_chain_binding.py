@@ -228,7 +228,7 @@ async def test_onay_ROLU_olmayan_aktor_403(
 # --------------------------------------------------------------------------- #
 
 
-async def test_ret_zinciri_SILER_ve_durum_TERMINAL_kalir(
+async def test_ret_zinciri_DAMGALANIR_ve_durum_TERMINAL_kalir(
     client: AsyncClient,
     sef_headers: dict[str, str],
     seeded_db: AsyncSession,
@@ -266,11 +266,13 @@ async def test_ret_zinciri_SILER_ve_durum_TERMINAL_kalir(
     assert ret.status_code == 200, ret.text
     assert ret.json()["status"] == "rejected"
     assert ret.json()["rejection_reason"] == _GEREKCE["reason"]
-    assert await zincir_getir(seeded_db, _TIP, talep.id) is None, "zincir SİLİNMEDİ"
+    zincir = await zincir_getir(seeded_db, _TIP, talep.id)
+    assert zincir is not None and zincir.rejected_at is not None, "ret zinciri DAMGALAMALI"
 
     tekrar = await client.post(f"{_YOL}/{talep.id}/submit", headers=sef_headers)
     assert tekrar.status_code == 409, tekrar.text
-    assert await zincir_getir(seeded_db, _TIP, talep.id) is None
+    # Yeni zincir AÇILMADI: en yeni kayıt hâlâ reddedilmiş olandır.
+    assert (await zincir_getir(seeded_db, _TIP, talep.id)).id == zincir.id
 
 
 async def test_ret_GEREKCESIZ_422_ZINCIR_AYAKTA(

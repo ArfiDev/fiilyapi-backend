@@ -6,10 +6,13 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.modules.approvals.definitions import HistoryDecision
 from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
-from app.modules.approvals.service import PendingChainView
+from app.modules.approvals.service import HistoryChainView, PendingChainView
 
 __all__ = [
+    "ApprovalHistoryItem",
+    "ApprovalHistoryResponse",
     "ApprovalInboxItem",
     "ApprovalInboxResponse",
     "ApprovalRoleAssignmentListResponse",
@@ -142,6 +145,49 @@ class ApprovalInboxResponse(BaseModel):
     """
 
     items: list[ApprovalInboxItem]
+    total: int
+    limit: int
+    offset: int
+    my_approval_roles: list[ApprovalRole]
+
+
+class ApprovalHistoryItem(ApprovalInboxItem):
+    """Onay GECMISI satiri (OKT-B1): bekleyen kartin AYNI alanlari + sonuc.
+
+    * `decision` (zincirin SON DURUMU): `approved` (tum adimlar onayli) |
+      `rejected` | `pending` (zincir suruyor; yalniz `decision=all` sorgusunda).
+    * `decided_by`: zincirin SON kararini veren: retse reddeden, onaysa SON
+      imzayi atan kullanicinin ad soyadi; kullanici silinmisse VE zincir
+      suruyorsa `null`.
+    * `decided_at`: ret ani ya da son imza ani; zincir suruyorsa `null`.
+    * `reason`: YALNIZ retse gerekce, aksi `null`.
+    * `current_step_no`: retse reddedilen adim, suren zincirde siradaki adim,
+      onaylanmissa son adim.
+    """
+
+    decision: HistoryDecision
+    decided_by: str | None
+    decided_at: datetime | None
+    reason: str | None
+
+    @classmethod
+    def from_history_view(cls, view: HistoryChainView) -> "ApprovalHistoryItem":
+        temel = ApprovalInboxItem.from_view(view)
+        return cls(
+            **{ad: getattr(temel, ad) for ad in ApprovalInboxItem.model_fields},
+            decision=view.decision,
+            decided_by=view.decided_by_name,
+            decided_at=view.decided_at,
+            reason=view.reason,
+        )
+
+
+class ApprovalHistoryResponse(BaseModel):
+    """Gecmis zarfi: bekleyen kutusunun zarfi ile ayni bicim. `total`, secilen
+    `decision` suzgecine gore suzulmus VE gorunur kapsamla sinirli toplamdir
+    (frontend sekme sayaci)."""
+
+    items: list[ApprovalHistoryItem]
     total: int
     limit: int
     offset: int

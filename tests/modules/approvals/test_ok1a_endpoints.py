@@ -27,6 +27,7 @@ from app.modules.company.schemas import CompanyUpdate
 _TASERON = ApprovalDocumentType.subcontractor_progress_payment
 _BEKLENEN_YOLLAR = {
     "/approvals",
+    "/approvals/history",
     "/approvals/settings",
     "/approvals/roles",
     "/approvals/roles/{user_id}",
@@ -49,9 +50,11 @@ async def muhasebe_basliklari(aktor_fabrikasi, giris):
 # --- Rota kümesi: `/approvals/{uuid}` YOKTUR, sabit yollar yutulmaz ---
 
 
-def test_modulun_ROTA_KUMESI_tam_olarak_bes_yoldur() -> None:
+def test_modulun_ROTA_KUMESI_tam_olarak_alti_yoldur() -> None:
     """MK-2 rota sırası tuzağı: `/approvals/{id}` açılsaydı `/approvals/settings`
-    bir UUID sanılıp 422'ye düşerdi. Bugün böyle bir rota YOKTUR ve bu kilitlidir."""
+    bir UUID sanılıp 422'ye düşerdi. Bugün böyle bir rota YOKTUR ve bu kilitlidir.
+
+    OKT-B1: `GET /approvals/history` ALTINCI yoldur (sabit yol, parametreli kardeşi yok)."""
     from app.main import app
 
     yollar = {yol for yol in app.openapi()["paths"] if yol.startswith("/approvals")}

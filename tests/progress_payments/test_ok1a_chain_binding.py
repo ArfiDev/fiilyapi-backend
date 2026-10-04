@@ -389,7 +389,7 @@ async def test_reject_TAVANI_asan_gerekce_422(
     assert yanit.status_code == 422, yanit.text
 
 
-async def test_reject_ZINCIRI_SILER_ve_yeniden_gonderim_ADIM_1DEN(
+async def test_reject_ZINCIRI_DAMGALAR_ve_yeniden_gonderim_YENI_zincir_ADIM_1DEN(
     client: AsyncClient,
     admin_headers: dict[str, str],
     muhasebe_onaycisi: dict[str, str],
@@ -397,7 +397,8 @@ async def test_reject_ZINCIRI_SILER_ve_yeniden_gonderim_ADIM_1DEN(
     seeded_db: AsyncSession,
     gecerli_taslak: uuid.UUID,
 ) -> None:
-    """K2: ret zinciri BİTİRİR, TÜM onaylar silinir, yeniden gönderim ADIM 1'den.
+    """K2 (OKT-B1 ile güncellendi): ret zinciri BİTİRİR ama SİLMEZ (damgalar);
+    yeniden gönderim YENİ zincirle ADIM 1'den.
 
     Yeniden gönderilen evrak YENİ eşikle kurulur (yeni snapshot) — bu, açık
     zincirin donmasıyla ÇELİŞMEZ: donan şey AÇIK zincirdir, yenisi değil.
@@ -418,12 +419,15 @@ async def test_reject_ZINCIRI_SILER_ve_yeniden_gonderim_ADIM_1DEN(
     )
     assert ret.status_code == 200, ret.text
     assert ret.json()["status"] == "draft"
-    assert await zincir_getir(seeded_db, _TIP, gecerli_taslak) is None, "zincir SİLİNMEDİ"
+    eski = await zincir_getir(seeded_db, _TIP, gecerli_taslak)
+    assert eski is not None and eski.rejected_at is not None, "ret zinciri DAMGALAMALI"
+    assert eski.rejection_reason == _GEREKCE["reason"]
 
     # Eşik yükseltilir: YENİ zincir YENİ eşikle kurulur ve adım 1 boştadır.
     await _esik(client, admin_headers, "500000.00")
     await _gonder(client, admin_headers, gecerli_taslak)
     yeni = await zincir_getir(seeded_db, _TIP, gecerli_taslak)
+    assert yeni.id != eski.id and yeni.rejected_at is None
     assert await adim_rolleri(seeded_db, yeni.id) == [ApprovalRole.accounting]
     assert await adim_durumlari(seeded_db, yeni.id) == [False]
     assert yeni.threshold_snapshot == Decimal("500000.00")

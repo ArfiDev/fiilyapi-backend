@@ -398,7 +398,7 @@ async def perform(
         # 🔴 ARA ADIM: evrak `pending_approval`da KALIR (durum makinesi
         # DEĞİŞMEDİ; `approved`a giden yol zincirin SON adımından geçiyor).
         # Koşul YALNIZ `approve` içindir: `reject` de `is_complete=False` döner
-        # ama zinciri SİLER ve evrağı `draft`a taşıması GEREKİR.
+        # ama zinciri DAMGALAR (silmez) ve evrağı `draft`a taşıması GEREKİR.
         await session.flush()
         await session.refresh(payment)
         return TransitionResult(payment, contract, project, chain_step=chain_step)

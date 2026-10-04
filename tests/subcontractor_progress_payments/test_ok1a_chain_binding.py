@@ -259,7 +259,7 @@ async def test_SIRASIZ_aktor_403_rol_eslesmiyorsa(
 # --------------------------------------------------------------------------- #
 
 
-async def test_ret_ZINCIRI_SILER_damga_KOLONDA_kalir_yeniden_gonderim_ADIM_1DEN(
+async def test_ret_ZINCIRI_DAMGALAR_damga_KOLONDA_kalir_yeniden_gonderim_YENI_zincir_ADIM_1DEN(
     client: AsyncClient,
     seeded_db: AsyncSession,
     admin_headers: dict[str, str],
@@ -297,10 +297,12 @@ async def test_ret_ZINCIRI_SILER_damga_KOLONDA_kalir_yeniden_gonderim_ADIM_1DEN(
     # İşverenden FARK: gerekçe KOLONDA yaşar.
     assert govde["rejection_reason"] == _GEREKCE["reason"]
     assert govde["rejected_at"] is not None
-    assert await zincir_getir(seeded_db, _TIP, payment.id) is None, "zincir SİLİNMEDİ"
+    eski = await zincir_getir(seeded_db, _TIP, payment.id)
+    assert eski is not None and eski.rejected_at is not None, "ret zinciri DAMGALAMALI"
 
     await _gonder(client, admin_headers, payment.id)
     yeni = await zincir_getir(seeded_db, _TIP, payment.id)
+    assert yeni.id != eski.id and yeni.rejected_at is None
     assert await adim_durumlari(seeded_db, yeni.id) == [False, False, False]
 
 

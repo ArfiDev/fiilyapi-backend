@@ -845,5 +845,7 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # tek operasyon) = +1 yol / +1 operasyon (318→319 · 454→455). Olculdu: openapi baseline
     # 319 yol / 455 operasyon. `source_code`/`ref_price_date` alanlari ve
     # `on_source_conflict` ne yol ne operasyon acar.
-    assert len(yollar) == 319
-    assert operasyonlar == 455
+    # OKT-B1: `GET /approvals/history` (onay gecmisi) = +1 yol / +1 operasyon
+    # (319→320 · 455→456).
+    assert len(yollar) == 320
+    assert operasyonlar == 456

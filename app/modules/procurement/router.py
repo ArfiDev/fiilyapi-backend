@@ -458,7 +458,7 @@ async def reject_purchase_request_endpoint(
     ihtiyaç sürüyorsa YENİ talep açılır.
 
     🔴 **OK-1A T3:** ret onay zincirini de BİTİRİR (`approval_chains` satırı
-    SİLİNİR, adımlar CASCADE). Hakediş ikilisinden FARK: orada evrak `draft`a
+    DAMGALANIR, SİLİNMEZ — OKT-B1). Hakediş ikilisinden FARK: orada evrak `draft`a
     döner ve yeniden gönderilince YENİ bir zincir açılır; burada `rejected`
     TERMİNAL olduğu için ikinci bir zincir HİÇ açılmaz.
     """

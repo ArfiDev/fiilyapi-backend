@@ -1,7 +1,8 @@
-"""Onay motorunun BES ucu (sozlesme Y5).
+"""Onay motorunun BES ucu (sozlesme Y5) + gecmis ucu (OKT-B1).
 
 ```
 GET  /approvals                    — onay kutusu
+GET  /approvals/history            — onay gecmisi (onaylanan / reddedilen)
 GET  /approvals/settings           — esigi oku
 PUT  /approvals/settings           — esigi yaz     [approvals: admin]
 GET  /approvals/roles              — tum atamalar  [approvals: admin]
@@ -12,9 +13,10 @@ PUT  /approvals/roles/{user_id}    — atama yaz     [approvals: admin]
 seed'de ZATEN vardir (`roles/seed_data.py:74,176`) ve matris satiri da mevcuttur.
 
 🔴 ROTA SIRASI TUZAGI DEGERLENDIRILDI ve BU KOKTE YOKTUR: `/approvals/{id}`
-BICIMINDE HICBIR ROTA ACILMAMISTIR, dolayisiyla `/approvals/settings` ve
-`/approvals/roles` sabit yollarinin UUID sanilmasi YAPISAL OLARAK IMKANSIZDIR.
-Kural bir bekci testiyle kilitlidir (`test_modulun_ROTA_KUMESI_tam_olarak_bes_yoldur`).
+BICIMINDE HICBIR ROTA ACILMAMISTIR, dolayisiyla `/approvals/settings`,
+`/approvals/roles` ve `/approvals/history` sabit yollarinin UUID sanilmasi YAPISAL
+OLARAK IMKANSIZDIR. Kural bir bekci testiyle kilitlidir
+(`test_modulun_ROTA_KUMESI_tam_olarak_alti_yoldur`).
 
 Zincirin ONAY/RET uclari BURADA DEGILDIR: onlar evraklarin KENDI `/approve`
 `/reject` uclarindan gecer (T3) ve o uclarin YOLU KORUNUR — motor yalnizca
@@ -34,7 +36,10 @@ from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.core.ratelimit import client_ip
 from app.modules.approvals import guards, service
+from app.modules.approvals.definitions import HistoryFilter
 from app.modules.approvals.schemas import (
+    ApprovalHistoryItem,
+    ApprovalHistoryResponse,
     ApprovalInboxItem,
     ApprovalInboxResponse,
     ApprovalRoleAssignmentListResponse,
@@ -71,6 +76,32 @@ async def list_my_approvals_endpoint(
     )
     return ApprovalInboxResponse(
         items=[ApprovalInboxItem.from_view(view) for view in views],
+        total=total,
+        limit=limit,
+        offset=offset,
+        my_approval_roles=roller,
+    )
+
+
+@router.get("/history", response_model=ApprovalHistoryResponse)
+async def list_approval_history_endpoint(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: DbSession,
+    decision: Annotated[HistoryFilter, Query()] = HistoryFilter.all,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> ApprovalHistoryResponse:
+    """Sonuclanmis zincirler: `decision=approved|rejected|all` (varsayilan `all`).
+
+    Ayri bir yetki kapisi YOKTUR (bekleyen kutusu gibi): gorunurluk "adimlarindan
+    birinin onay rolu bende + evragin projesini goruyorum" olgusuyla sinirlidir.
+    Ret kaydi zincir SILINMEDIGI icin vardir (OKT-B1); eski (silinmis) retler yoktur.
+    """
+    views, total, roller = await service.history_for_user(
+        session, current_user, decision=decision, limit=limit, offset=offset
+    )
+    return ApprovalHistoryResponse(
+        items=[ApprovalHistoryItem.from_history_view(view) for view in views],
         total=total,
         limit=limit,
         offset=offset,

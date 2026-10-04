@@ -47,14 +47,17 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
     Index,
     Integer,
     Numeric,
+    Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -139,8 +142,20 @@ class ApprovalChain(Base):
 
     __tablename__ = "approval_chains"
     __table_args__ = (
-        UniqueConstraint("document_type", "document_id", name="uq_approval_chains_document"),
+        # OKT-B1: eski `UNIQUE(document_type, document_id)` KISMI indekse donustu — ret
+        # zinciri artik SILMEZ, reddedilmis zincirler kayit olarak durur.
+        Index(
+            "uq_approval_chains_open_document",
+            "document_type",
+            "document_id",
+            unique=True,
+            postgresql_where=text("rejected_at IS NULL"),
+        ),
         Index("ix_approval_chains_created_by_user_id", "created_by_user_id"),
+        CheckConstraint(
+            "(rejected_at IS NULL) = (rejection_reason IS NULL)",
+            name="ck_approval_chains_rejection_pair",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -158,15 +173,27 @@ class ApprovalChain(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # 🔴 OKT-B1 — RET KAYDI. `rejected_at IS NOT NULL` => zincir REDDEDILDI ve
+    # TERMINALDIR: ne bekleyen kutusunda, ne "acik zincir" sorgularinda, ne de
+    # `uq_approval_chains_open_document` kapsaminda sayilir. Kayit YALNIZ gecmis
+    # ekranina (`GET /approvals/history`) hizmet eder. Eski K2 ("ret zinciri
+    # siler") kullanici karariyla (KARARLAR 62ae58a) bununla degisti.
+    # `rejected_by_user_id` SET NULL: kullanici silinse de ret izi ayakta kalir.
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejected_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ApprovalStep(Base):
     """Zincirin TEK adimi. `decided_at IS NULL` => henuz karara baglanmamis.
 
-    RET ayri bir DURUM DEGILDIR: ret zinciri BITIRIR ve `approval_chains` satiri
-    SILINIR (K2 — "tum onaylar silinir"), adimlar da CASCADE ile gider. Bu
-    yuzden karara baglanmis her adim ONAYLANMIS adimdir ve `decided_by_user_id`
-    "kim onayladi" sorusunu tek basina yanitlar.
+    RET adim satirinda DURUM DEGILDIR (OKT-B1): reddedilen adim KARARA BAGLANMAMIS
+    kalir (`decided_at IS NULL`) ve ret zincir satirindadir (`approval_chains.
+    rejected_*`). Bu yuzden karara baglanmis her adim hâlâ ONAYLANMIS adimdir ve
+    `decided_by_user_id` "kim onayladi" sorusunu tek basina yanitlar. Reddedilen
+    adimin numarasi, zincirin karara baglanmamis adimlarinin EN KUCUGUDUR.
     """
 
     __tablename__ = "approval_steps"

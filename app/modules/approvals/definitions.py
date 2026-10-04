@@ -12,6 +12,7 @@ Mockup kaniti (`projedesign/Onay Kutusu.dc.html`):
   * `:60-66`    "Patron · Final onay > ₺500K" / "₺500K alti -> PM + Muhasebe yeterli"
 """
 
+import enum
 from decimal import Decimal
 
 from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
@@ -20,9 +21,35 @@ __all__ = [
     "CHAIN_DEFINITIONS",
     "DEFAULT_APPROVAL_THRESHOLD_TRY",
     "DOCUMENT_PERMISSION_MODULE",
+    "HistoryDecision",
+    "HistoryFilter",
     "PATRON_ROLE",
     "step_roles",
 ]
+
+
+class HistoryDecision(str, enum.Enum):
+    """Onay gecmisindeki bir zincirin SON DURUMU (OKT-B1, zincir duzeyinde).
+
+    `approved` = zincirin TUM adimlari karara baglanmis ve ret yok; `rejected` =
+    zincir reddedildi; `pending` = zincir SURUYOR (yalniz `decision=all`da doner).
+    """
+
+    approved = "approved"
+    rejected = "rejected"
+    pending = "pending"
+
+
+class HistoryFilter(str, enum.Enum):
+    """`GET /approvals/history?decision=` degerleri (varsayilan `all`).
+
+    `all` suzgec YOKTUR: gorunur TUM zincirler (suren dahil). `pending` bir
+    SUZGEC degeri DEGILDIR (sekme yoktur), yalnizca kart durumudur."""
+
+    approved = "approved"
+    rejected = "rejected"
+    all = "all"
+
 
 #: Esik ALTI zincirler. Esik asilirsa SONA `patron` adimi EKLENIR.
 CHAIN_DEFINITIONS: dict[ApprovalDocumentType, tuple[ApprovalRole, ...]] = {

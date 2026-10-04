@@ -34,6 +34,7 @@ from app.core.access import AccessLevel, satisfies
 from app.core.errors import ApprovalNotAllowedError, ApprovalValidationError, ConflictError
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.approvals import definitions, guards, inbox, repository
+from app.modules.approvals.definitions import HistoryDecision, HistoryFilter
 from app.modules.approvals.models import (
     ApprovalChain,
     ApprovalDocumentType,
@@ -49,6 +50,7 @@ from app.modules.users.models import User
 __all__ = [
     "ChainDecision",
     "ChainRewind",
+    "HistoryChainView",
     "PendingChainView",
     "PendingStepView",
     "approve_next_step",
@@ -58,6 +60,7 @@ __all__ = [
     "clean_reject_reason",
     "create_chain",
     "get_threshold",
+    "history_for_user",
     "open_chain",
     "pending_for_user",
     "reject_chain",
@@ -118,6 +121,23 @@ class PendingChainView:
     subtitle: str | None
     gross_amount: Decimal | None
     net_amount: Decimal | None
+
+
+@dataclass(frozen=True)
+class HistoryChainView(PendingChainView):
+    """Onay GECMISI satiri (OKT-B1): bekleyen satirin TUM alanlari + son durum.
+
+    `current_step_no`: reddedilmis zincirde REDDEDILEN adim, suren zincirde
+    SIRADAKI adim, onaylanmis zincirde SON adim. `decided_by_name`/`decided_at`:
+    zincirin SON kararini veren (retse reddeden + ret zamani, onaysa son imzayi
+    atan + zamani; kullanici silinmisse ad `None`); zincir SURUYORSA ikisi de
+    `None`. `reason` yalniz retse dolu.
+    """
+
+    decision: HistoryDecision
+    decided_by_name: str | None
+    decided_at: datetime | None
+    reason: str | None
 
 
 # --------------------------------------------------------------------------- #
@@ -408,7 +428,14 @@ async def reject_chain(
     reason: str | None,
     require_chain: bool = True,
 ) -> ChainDecision | None:
-    """RET TERMINALDIR (K2): zincir SATIRI SILINIR, adimlar CASCADE ile gider.
+    """RET TERMINALDIR ama ZINCIR SILINMEZ (OKT-B1, KARARLAR 62ae58a).
+
+    Zincir `rejected_at` / `rejected_by_user_id` / `rejection_reason` ile
+    DAMGALANIR ve adimlari oldugu gibi DURUR (reddedilen adim karara
+    baglanmamis kalir). Damgali zincir "acik" sayilmaz — evragin yeniden onaya
+    gonderilmesi YENI bir zincir acar (`uq_approval_chains_open_document` kismi
+    indeksi) ve eski kayit yalniz `GET /approvals/history`de gorunur. Eski K2'nin
+    ("tum onaylar silinir") yerine gecer; zaten silinmis retler geri gelmez.
 
     Gerekce dogrulamasi bekcilerden SONRA kosar: yetkisi olmayan birine once
     "gerekce yaz" demek, asil engeli (bu adim ona kapali) gizlerdi. ⚠️ Evrak
@@ -443,11 +470,9 @@ async def reject_chain(
         on_behalf=on_behalf,
         audit_detail=detail,
     )
-    await session.delete(chain)
-    # Adimlar DB'de CASCADE ile gider; session'daki kopyalari da BIRAKILIR ki
-    # sonraki bir autoflush olmayan satirlara UPDATE denemesin.
-    for adim in steps:
-        session.expunge(adim)
+    chain.rejected_at = datetime.now(UTC)
+    chain.rejected_by_user_id = actor.id
+    chain.rejection_reason = temiz
     await session.flush()
     return sonuc
 
@@ -475,8 +500,8 @@ async def rewind_last_step(
     """`/unapprove` — SON karara baglanmis adimi geri sarar. ZINCIR SILINMEZ.
 
     🔴 RETTEN FARKI BUDUR ve dilimin en kolay karistirlan iki islemi bunlardir:
-    ret zinciri SILER (K2, "tum onaylar silinir"), geri alma yalnizca SON imzayi
-    kaldirir. Ikisi de evragi geriye tasidigi icin sadece DURUMA bakan bir test
+    ret zinciri DAMGALAR ve bitirir (OKT-B1; eskiden siliyordu), geri alma
+    yalnizca SON imzayi kaldirir. Ikisi de evragi geriye tasidigi icin sadece DURUMA bakan bir test
     farki GOREMEZ — bu yuzden zincirin varligi ayrica iddia edilir.
 
     🔴 Zincire HIC DOKUNMAYAN bir geri alma evragi KILITLERDI: tamamlanmis
@@ -535,7 +560,7 @@ def rejection_audit_detail(document_detail: str, decision: ChainDecision | None)
     """Ret metni: evragin kendi cumlesi + hangi ADIMDA reddedildigi.
 
     `audit_detail`ten AYRIDIR cunku ret `is_complete=False` doner (zincir
-    tamamlanmadi, SILINDI) — ortak fonksiyona sokulsaydi evragin kendi metni
+    tamamlanmadi, REDDEDILDI) — ortak fonksiyona sokulsaydi evragin kendi metni
     (ve gerekcesi) gunlukten DUSERDI.
     """
     if decision is None:
@@ -573,49 +598,38 @@ async def _admin_document_types(session: AsyncSession, actor: User) -> list[Appr
     return tipler
 
 
-async def pending_for_user(
-    session: AsyncSession, actor: User, *, limit: int, offset: int
-) -> tuple[list[PendingChainView], int, list[ApprovalRole]]:
-    """Kullaniciya DUSEN siradaki adimlar + aktorun ONAY ROLLERI.
+async def _visible_project_ids(session: AsyncSession, actor: User) -> list[uuid.UUID]:
+    """Aktorun GORDUGU projeler — bekleyen kutusu ile GECMIS AYNI yardimciyi
+    kullanir (IDOR suzgecinin tek kaynagi; SQL tarafi `documents.visible_
+    document_clause`tir)."""
+    return [proje.id for proje in await visible_projects(session, actor)]
 
-    🔴 KANON E: `can_approve` gibi bir KARAR ALANI YOKTUR. Yanit adimin rolunu,
-    sirasini ve durumunu verir; aktorun rolleri de ayrica doner ve kararı EKRAN
-    birlestirir.
 
-    🔴 N+1 YOK: sorgu sayisi SATIR SAYISINDAN bagimsizdir (sayim · sayfa ·
-    adimlar · adlar + sabit sayida izin/kapsam sorgusu + AILE BASINA sabit
-    sayida evrak sorgusu). Sayfada bulunmayan evrak ailesi HIC sorgulanmaz.
+@dataclass(frozen=True)
+class _ChainContext:
+    """Bir sayfadaki zincirlerin ortak zenginlestirmesi (adimlar · evrak olgulari · adlar)."""
 
-    🔴 IDOR (T4): kapsam `projects.service.visible_projects` uzerinden gelir ve
-    suzgec SQL'dedir — `total` da ondan turer (`repository._pending_filter`).
-    Kapsam BELLEKTE suzulseydi `total` gorunmeyeni de sayardi.
+    steps_by_chain: dict[uuid.UUID, list[ApprovalStep]]
+    step_map: dict[uuid.UUID, list[PendingStepView]]
+    facts: dict[tuple[ApprovalDocumentType, uuid.UUID], inbox.DocumentFacts]
+    names: dict[uuid.UUID, str]
 
-    ⚠️ Kapsam sorgusu ROL sorgusundan SONRA kosar: onay rolu olmayan aktor icin
-    (cogunluk) ikinci bir sorgu hic acilmaz.
-    """
-    roller = await repository.user_approval_roles(session, actor.id)
-    if not roller:
-        return [], 0, []
 
-    admin_tipleri = await _admin_document_types(session, actor)
-    gorunur_proje_kimlikleri = [proje.id for proje in await visible_projects(session, actor)]
-    rows, total = await repository.pending_page(
-        session,
-        actor_id=actor.id,
-        roles=roller,
-        admin_document_types=admin_tipleri,
-        visible_project_ids=gorunur_proje_kimlikleri,
-        limit=limit,
-        offset=offset,
-    )
-    chain_ids = [chain.id for chain, _ in rows]
-    steps = await repository.steps_of_chains(session, chain_ids)
+async def _chain_context(
+    session: AsyncSession,
+    chains: list[ApprovalChain],
+    *,
+    extra_user_ids: set[uuid.UUID] | None = None,
+) -> _ChainContext:
+    """Sayfadaki zincirler icin SABIT sayida sorgu (adimlar · aile basina evrak
+    olgulari · adlar) — satir sayisindan BAGIMSIZ, N+1 yok."""
+    steps = await repository.steps_of_chains(session, [chain.id for chain in chains])
     olgular = await inbox.load_facts(
-        session, [(chain.document_type, chain.document_id) for chain, _ in rows]
+        session, [(chain.document_type, chain.document_id) for chain in chains]
     )
 
-    kimlikler: set[uuid.UUID] = set()
-    for chain, _ in rows:
+    kimlikler: set[uuid.UUID] = set(extra_user_ids or ())
+    for chain in chains:
         if chain.created_by_user_id is not None:
             kimlikler.add(chain.created_by_user_id)
     for adim in steps:
@@ -635,34 +649,156 @@ async def pending_for_user(
                 else None,
             )
         )
+    zincir_adimlari: dict[uuid.UUID, list[ApprovalStep]] = {}
+    for adim in steps:  # `steps_of_chains` zaten (chain_id, step_no) sirali doner
+        zincir_adimlari.setdefault(adim.chain_id, []).append(adim)
+    return _ChainContext(
+        steps_by_chain=zincir_adimlari, step_map=adim_haritasi, facts=olgular, names=adlar
+    )
 
+
+async def pending_for_user(
+    session: AsyncSession, actor: User, *, limit: int, offset: int
+) -> tuple[list[PendingChainView], int, list[ApprovalRole]]:
+    """Kullaniciya DUSEN siradaki adimlar + aktorun ONAY ROLLERI.
+
+    🔴 KANON E: `can_approve` gibi bir KARAR ALANI YOKTUR. Yanit adimin rolunu,
+    sirasini ve durumunu verir; aktorun rolleri de ayrica doner ve kararı EKRAN
+    birlestirir.
+
+    🔴 N+1 YOK: sorgu sayisi SATIR SAYISINDAN bagimsizdir (sayim · sayfa ·
+    adimlar · adlar + sabit sayida izin/kapsam sorgusu + AILE BASINA sabit
+    sayida evrak sorgusu). Sayfada bulunmayan evrak ailesi HIC sorgulanmaz.
+
+    🔴 IDOR (T4): kapsam `projects.service.visible_projects` uzerinden gelir ve
+    suzgec SQL'dedir — `total` da ondan turer (`repository._pending_filter`).
+    Kapsam BELLEKTE suzulseydi `total` gorunmeyeni de sayardi.
+
+    🔴 OKT-B1: REDDEDILMIS zincir bekleyen SAYILMAZ (`_pending_filter`).
+
+    ⚠️ Kapsam sorgusu ROL sorgusundan SONRA kosar: onay rolu olmayan aktor icin
+    (cogunluk) ikinci bir sorgu hic acilmaz.
+    """
+    roller = await repository.user_approval_roles(session, actor.id)
+    if not roller:
+        return [], 0, []
+
+    admin_tipleri = await _admin_document_types(session, actor)
+    rows, total = await repository.pending_page(
+        session,
+        actor_id=actor.id,
+        roles=roller,
+        admin_document_types=admin_tipleri,
+        visible_project_ids=await _visible_project_ids(session, actor),
+        limit=limit,
+        offset=offset,
+    )
+    baglam = await _chain_context(session, [chain for chain, _ in rows])
     return (
-        [_pending_view(chain, current, adlar, adim_haritasi, olgular) for chain, current in rows],
+        [_pending_view(chain, current, baglam) for chain, current in rows],
         total,
         roller,
     )
 
 
+def _view_fields(chain: ApprovalChain, current_step_no: int, baglam: _ChainContext) -> dict:
+    """`PendingChainView` alanlari — bekleyen kutusu ile gecmis AYNI kaynaktan."""
+    olgu = baglam.facts.get((chain.document_type, chain.document_id), inbox.EMPTY_FACTS)
+    return {
+        "chain_id": chain.id,
+        "document_type": chain.document_type,
+        "document_id": chain.document_id,
+        "created_by_name": baglam.names.get(chain.created_by_user_id)
+        if chain.created_by_user_id
+        else None,
+        "created_at": chain.created_at,
+        "threshold_snapshot": chain.threshold_snapshot,
+        "amount_snapshot": chain.amount_snapshot,
+        "current_step_no": current_step_no,
+        "steps": baglam.step_map.get(chain.id, []),
+        "title": olgu.title,
+        "subtitle": olgu.subtitle,
+        "gross_amount": olgu.gross_amount,
+        "net_amount": olgu.net_amount,
+    }
+
+
 def _pending_view(
-    chain: ApprovalChain,
-    current: ApprovalStep,
-    adlar: dict[uuid.UUID, str],
-    adim_haritasi: dict[uuid.UUID, list[PendingStepView]],
-    olgular: dict[tuple[ApprovalDocumentType, uuid.UUID], inbox.DocumentFacts],
+    chain: ApprovalChain, current: ApprovalStep, baglam: _ChainContext
 ) -> PendingChainView:
-    olgu = olgular.get((chain.document_type, chain.document_id), inbox.EMPTY_FACTS)
-    return PendingChainView(
-        chain_id=chain.id,
-        document_type=chain.document_type,
-        document_id=chain.document_id,
-        created_by_name=adlar.get(chain.created_by_user_id) if chain.created_by_user_id else None,
-        created_at=chain.created_at,
-        threshold_snapshot=chain.threshold_snapshot,
-        amount_snapshot=chain.amount_snapshot,
-        current_step_no=current.step_no,
-        steps=adim_haritasi.get(chain.id, []),
-        title=olgu.title,
-        subtitle=olgu.subtitle,
-        gross_amount=olgu.gross_amount,
-        net_amount=olgu.net_amount,
+    return PendingChainView(**_view_fields(chain, current.step_no, baglam))
+
+
+# --------------------------------------------------------------------------- #
+# Onay gecmisi (OKT-B1)
+# --------------------------------------------------------------------------- #
+
+
+async def history_for_user(
+    session: AsyncSession,
+    actor: User,
+    *,
+    decision: HistoryFilter,
+    limit: int,
+    offset: int,
+) -> tuple[list[HistoryChainView], int, list[ApprovalRole]]:
+    """Gorunur zincirler ve SON DURUMLARI — `GET /approvals/history`.
+
+    Karar ZINCIR duzeyindedir (CEO karari): `approved` = zincirin son durumu
+    onayli (tum adimlar imzali), `rejected` = zincir reddedildi, `all` = suzgec
+    yok (suren zincirler kartta `pending`).
+
+    Gorunurluk: adimlarindan HERHANGI birinin onay rolu aktorun rollerinden biri
+    + aktorun gordugu projeler (bekleyen kutusuyla AYNI IDOR yardimcisi). Onay rolu
+    olmayan aktor icin sorgu acilmaz. N+1 yok: bekleyen kutusuyla ayni sabit
+    sorgu kumesi (`_chain_context`).
+    """
+    roller = await repository.user_approval_roles(session, actor.id)
+    if not roller:
+        return [], 0, []
+    chains, total = await repository.history_page(
+        session,
+        roles=roller,
+        visible_project_ids=await _visible_project_ids(session, actor),
+        decision=decision,
+        limit=limit,
+        offset=offset,
+    )
+    reddeden = {c.rejected_by_user_id for c in chains if c.rejected_by_user_id is not None}
+    baglam = await _chain_context(session, chains, extra_user_ids=reddeden)
+    return [_history_view(chain, baglam) for chain in chains], total, roller
+
+
+def _history_view(chain: ApprovalChain, baglam: _ChainContext) -> HistoryChainView:
+    adimlar = baglam.steps_by_chain[chain.id]  # join sayesinde EN AZ bir adim vardir
+    bekleyen = next((adim for adim in adimlar if adim.decided_at is None), None)
+    if chain.rejected_at is not None:
+        # Reddedilen adim = karara baglanmamis adimlarin en kucugu (ret terminaldir).
+        reddedilen = bekleyen or adimlar[-1]
+        return HistoryChainView(
+            **_view_fields(chain, reddedilen.step_no, baglam),
+            decision=HistoryDecision.rejected,
+            decided_by_name=baglam.names.get(chain.rejected_by_user_id)
+            if chain.rejected_by_user_id
+            else None,
+            decided_at=chain.rejected_at,
+            reason=chain.rejection_reason,
+        )
+    if bekleyen is not None:
+        return HistoryChainView(
+            **_view_fields(chain, bekleyen.step_no, baglam),
+            decision=HistoryDecision.pending,
+            decided_by_name=None,
+            decided_at=None,
+            reason=None,
+        )
+    son = adimlar[-1]
+    return HistoryChainView(
+        **_view_fields(chain, son.step_no, baglam),
+        decision=HistoryDecision.approved,
+        decided_by_name=baglam.names.get(son.decided_by_user_id)
+        if son.decided_by_user_id
+        else None,
+        decided_at=max(adim.decided_at for adim in adimlar if adim.decided_at is not None),
+        reason=None,
     )

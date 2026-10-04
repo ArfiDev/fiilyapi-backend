@@ -1,7 +1,8 @@
-"""OK-1A T1/T2 — RET (K2 · sözleşme Y3).
+"""OK-1A T1/T2 — RET (K2 · sözleşme Y3) · OKT-B1 ile GÜNCELLENDİ.
 
-Ret zinciri BİTİRİR: `approval_chains` satırı SİLİNİR ve adımlar CASCADE ile
-gider ("tüm onaylar silinir"). Evrağın DURUMU bu dilimin işi DEĞİLDİR (T3);
+Ret zinciri BİTİRİR ama artık SİLMEZ (KARARLAR 62ae58a, eski K2'nin üstüne yazar):
+zincir `rejected_*` ile damgalanır, adımlar DURUR. Ret kaydının asıl bekçileri
+`test_okt_b1_ret_kaydi.py`dedir. Evrağın DURUMU bu dilimin işi DEĞİLDİR (T3);
 burada ölçülen şey motorun kendisidir.
 
 Gerekçe ZORUNLU metindir; tavan `core/text.py::FREE_TEXT_MAX_LENGTH` — alanın
@@ -45,8 +46,8 @@ async def _adim_sayisi(seeded_db, chain_id) -> int:
     )
 
 
-async def test_RET_zinciri_SILER_adimlar_CASCADE_ile_gider(seeded_db, aktor_fabrikasi):
-    """Ret 2. adımda verilir: 1. adımın ONAYI da silinmelidir ("tüm onaylar")."""
+async def test_RET_zinciri_SILMEZ_damgalar_adimlar_DURUR(seeded_db, aktor_fabrikasi):
+    """Ret 2. adımda verilir: zincir ve adımlar (1. adımın ONAYI dahil) DURUR."""
     yaratan = await aktor_fabrikasi("ret-yaratan@ok1a.co")
     sef = await aktor_fabrikasi(
         "ret-sef@ok1a.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
@@ -75,8 +76,15 @@ async def test_RET_zinciri_SILER_adimlar_CASCADE_ile_gider(seeded_db, aktor_fabr
 
     assert sonuc.step_no == 2
     assert sonuc.approval_role is ApprovalRole.project_manager
-    assert await zincir_getir(seeded_db, _TASERON, document_id) is None
-    assert await _adim_sayisi(seeded_db, chain_id) == 0
+    # Zincir artık "açık" değildir ...
+    assert await service.open_chain(seeded_db, _TASERON, document_id) is None
+    # ... ama kayıt olarak DURUR; adımlar da (1. adımın onayı dahil).
+    zincir = await zincir_getir(seeded_db, _TASERON, document_id)
+    assert zincir is not None and zincir.id == chain_id
+    assert zincir.rejected_by_user_id == pm.id
+    assert zincir.rejected_at is not None
+    assert zincir.rejection_reason == "Metraj sayfası eksik"
+    assert await _adim_sayisi(seeded_db, chain_id) == 3
 
 
 @pytest.mark.parametrize("gerekce", ["", "   ", "\n\t "])

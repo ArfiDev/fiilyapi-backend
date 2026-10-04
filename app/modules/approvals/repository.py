@@ -3,11 +3,12 @@
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import Select, and_, distinct, func, literal, or_, select
+from sqlalchemy import Select, and_, case, distinct, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.modules.approvals import documents
+from app.modules.approvals.definitions import HistoryFilter
 from app.modules.approvals.models import (
     ApprovalChain,
     ApprovalDocumentType,
@@ -24,6 +25,7 @@ __all__ = [
     "chain_steps",
     "get_chain",
     "get_chain_for_update",
+    "history_page",
     "pending_page",
     "replace_user_approval_roles",
     "steps_of_chains",
@@ -35,10 +37,14 @@ __all__ = [
 async def get_chain(
     session: AsyncSession, document_type: ApprovalDocumentType, document_id: uuid.UUID
 ) -> ApprovalChain | None:
+    """Evragin ACIK zinciri. 🔴 REDDEDILMIS zincir (OKT-B1) "acik" DEGILDIR:
+    `rejected_at IS NULL` suzgeci kismi unique indeksin kosuluyla BIREBIR aynidir
+    ve yoksa ayni evragin birden cok kaydi `scalar`i patlatirdi."""
     return await session.scalar(
         select(ApprovalChain).where(
             ApprovalChain.document_type == document_type,
             ApprovalChain.document_id == document_id,
+            ApprovalChain.rejected_at.is_(None),
         )
     )
 
@@ -61,6 +67,7 @@ async def get_chain_for_update(
         .where(
             ApprovalChain.document_type == document_type,
             ApprovalChain.document_id == document_id,
+            ApprovalChain.rejected_at.is_(None),
         )
         .with_for_update()
         .execution_options(populate_existing=True)
@@ -144,6 +151,8 @@ async def chain_gate_facts(
         .where(
             ApprovalChain.document_type == document_type,
             ApprovalChain.document_id == document_id,
+            # OKT-B1: reddedilmis zincirin karara baglanmamis adimi KAPI ACMAZ.
+            ApprovalChain.rejected_at.is_(None),
         )
         .exists()
     )
@@ -293,6 +302,9 @@ def _pending_filter(
     )
     benim_kararim = select(ApprovalStep.chain_id).where(ApprovalStep.decided_by_user_id == actor_id)
     kosullar = (
+        # 🔴 OKT-B1 — REDDEDILMIS zincir bekleyen DEGILDIR: karara baglanmamis
+        # adimi DB'de durur ama zincir terminaldir.
+        ApprovalChain.rejected_at.is_(None),
         ApprovalStep.approval_role.in_(roles),
         # Bekci 5 — kendi evraki (admin istisnasiyla).
         or_(
@@ -348,3 +360,78 @@ async def pending_page(
         govde.order_by(ApprovalChain.created_at, ApprovalChain.id).limit(limit).offset(offset)
     )
     return [(chain, step) for chain, step in rows.all()], total or 0
+
+
+async def history_page(
+    session: AsyncSession,
+    *,
+    roles: list[ApprovalRole],
+    visible_project_ids: list[uuid.UUID],
+    decision: HistoryFilter,
+    limit: int,
+    offset: int,
+) -> tuple[list[ApprovalChain], int]:
+    """Onay GECMISI: gorunur zincirler — `decision` zincirin SON DURUMUNA gore suzer.
+
+    Gorunurluk IKI kosuldur ve bekleyen kutusunun suzgeciyle AYNI iki ilkeye
+    dayanir (rol + proje kapsami):
+
+    * adimlarindan HERHANGI BIRININ onay rolu aktorun rollerinden biri (`bool_or`);
+    * 🔴 IDOR: evragin projesi aktorun gordukleri arasinda —
+      `documents.visible_document_clause`, `_pending_filter`in kullandigi AYNI
+      yardimci. Govde ile SAYIM ayni `kosullar` demetinden turer.
+
+    Bekci 5/6 (kendi evraki · gorevler ayriligi) BURADA YOKTUR: onlar "bu adimi
+    ben imzalayabilir miyim" sorusunun kurallari; gecmis ise okunur bir kayittir.
+
+    Son durum: `rejected` => `rejected_at IS NOT NULL`; `approved` => ret YOK ve
+    TUM adimlar karara baglanmis; `all` => suzgec YOK (suren zincirler dahil,
+    kartta `pending`). Siralama: karar zamani (ret ani ya da son imza ani)
+    azalan, suren zincirler (karar zamani NULL) SONDA, sonra olusturulma zamani
+    azalan, esitlikte `id`.
+    """
+    adimlar = (
+        select(
+            ApprovalStep.chain_id.label("chain_id"),
+            func.count().label("adim_sayisi"),
+            func.count(ApprovalStep.decided_at).label("karara_baglanan"),
+            func.max(ApprovalStep.decided_at).label("son_imza"),
+            func.bool_or(ApprovalStep.approval_role.in_(roles)).label("rolum_var"),
+        )
+        .group_by(ApprovalStep.chain_id)
+        .subquery()
+    )
+    reddedildi = ApprovalChain.rejected_at.is_not(None)
+    onaylandi = and_(
+        ApprovalChain.rejected_at.is_(None), adimlar.c.karara_baglanan == adimlar.c.adim_sayisi
+    )
+    kosullar = [
+        adimlar.c.rolum_var.is_(True),
+        # 🔴 IDOR — bekleyen kutusuyla ORTAK yardimci.
+        documents.visible_document_clause(visible_project_ids),
+    ]
+    if decision is HistoryFilter.approved:
+        kosullar.append(onaylandi)
+    elif decision is HistoryFilter.rejected:
+        kosullar.append(reddedildi)
+    govde = select(ApprovalChain).join(adimlar, adimlar.c.chain_id == ApprovalChain.id)
+    sayim = (
+        select(func.count())
+        .select_from(ApprovalChain)
+        .join(adimlar, adimlar.c.chain_id == ApprovalChain.id)
+    )
+    karar_zamani = case(
+        (reddedildi, ApprovalChain.rejected_at),
+        (onaylandi, adimlar.c.son_imza),
+        else_=None,
+    )
+    total = await session.scalar(sayim.where(*kosullar))
+    rows = await session.execute(
+        govde.where(*kosullar)
+        .order_by(
+            karar_zamani.desc().nulls_last(), ApprovalChain.created_at.desc(), ApprovalChain.id
+        )
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(rows.scalars().all()), total or 0
