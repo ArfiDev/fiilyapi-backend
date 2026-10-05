@@ -183,17 +183,55 @@ class PurchaseRequestLineCreate(BaseModel):
     quantity: YokGirdi = _QUANTITY
     estimated_unit_price: Maliyet = _UNIT_PRICE
 
-    @model_validator(mode="after")
-    def _xor(self) -> "PurchaseRequestLineCreate":
-        serbest = self.free_text_name is not None or self.free_text_unit is not None
-        if self.stock_item_id is not None:
+    @staticmethod
+    def _xor_kurali(
+        stock_item_id: uuid.UUID | None, free_text_name: str | None, free_text_unit: str | None
+    ) -> None:
+        serbest = free_text_name is not None or free_text_unit is not None
+        if stock_item_id is not None:
             if serbest:
                 raise ValueError(
                     "Kalem ya stok kartından seçilir ya da serbest tanımlanır, ikisi birden olmaz."
                 )
-            return self
-        if self.free_text_name is None or self.free_text_unit is None:
+            return
+        if free_text_name is None or free_text_unit is None:
             raise ValueError("Katalogsuz kalemde malzeme adı ve birim zorunludur.")
+
+    @model_validator(mode="after")
+    def _xor(self) -> "PurchaseRequestLineCreate":
+        self._xor_kurali(self.stock_item_id, self.free_text_name, self.free_text_unit)
+        return self
+
+
+class PurchaseRequestLineUpdate(BaseModel):
+    """`PATCH` kalem girdisi (IZN-B4d onarimi): satir bazinda KISMI birlestirme.
+
+    GECE KARARI: `lines` gonderilince tam degistirme semantigi surer (govdede OLMAYAN eski
+    satir silinir) AMA satir `id` ile eslesirse GONDERILMEYEN alan (`model_fields_set` disi)
+    eski degerden KORUNUR ve satir kimligi degismez. Boylece `maliyet_kar` gizli rolun formu
+    (fiyat gelmez) yalniz miktari duzeltince tahmini fiyati SILMEZ. `id`siz satir YENIDIR ve
+    `PurchaseRequestLineCreate` kurallarina (XOR, miktar zorunlu) tabidir. POST girdisi
+    (`PurchaseRequestLineCreate`) degismedi.
+    """
+
+    id: uuid.UUID | None = None
+    stock_item_id: uuid.UUID | None = None
+    free_text_name: str | None = _FREE_TEXT_NAME
+    free_text_unit: str | None = _FREE_TEXT_UNIT
+    quantity: Yok = Field(default=None, gt=0, max_digits=14, decimal_places=3)
+    estimated_unit_price: Maliyet = _UNIT_PRICE
+
+    @model_validator(mode="after")
+    def _yeni_satir_kurallari(self) -> "PurchaseRequestLineUpdate":
+        if self.id is not None:
+            if "quantity" in self.model_fields_set and self.quantity is None:
+                raise ValueError("Miktar boş olamaz.")
+            return self
+        PurchaseRequestLineCreate._xor_kurali(
+            self.stock_item_id, self.free_text_name, self.free_text_unit
+        )
+        if self.quantity is None:
+            raise ValueError("Yeni kalemde miktar zorunludur.")
         return self
 
 
@@ -273,7 +311,8 @@ class PurchaseRequestUpdate(BaseModel):
 
     **`lines` gondermek REPLACE'tir:** gelen liste eskisinin YERINE gecer (tek
     atomik islem). Hic GONDERMEMEK kalemlere DOKUNMAZ, BOS liste gondermek
-    hepsini SILER — iki durum `model_fields_set` ile ayrilir. Satir bazli
+    hepsini SILER — iki durum `model_fields_set` ile ayrilir. Satir `id` tasirsa
+    o satirla KISMI birlestirilir (bkz. `PurchaseRequestLineUpdate`). Satir bazli
     ekle/cikar ucu ACILMAZ: FST kalem tablosu tek "Kaydet" ile gonderilir ve
     parcali uclar yarim kaydedilmis bir tablo birakabilirdi.
     """
@@ -286,7 +325,7 @@ class PurchaseRequestUpdate(BaseModel):
     needed_by: date | None = None
     justification: str | None = Field(default=None, max_length=FREE_TEXT_MAX_LENGTH)
     quote_deadline: date | None = None
-    lines: list[PurchaseRequestLineCreate] | None = None
+    lines: list[PurchaseRequestLineUpdate] | None = None
 
 
 class PurchaseRequestBase(BaseModel):

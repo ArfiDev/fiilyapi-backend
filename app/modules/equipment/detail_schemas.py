@@ -19,7 +19,7 @@ from datetime import date
 
 from pydantic import BaseModel
 
-from app.modules.equipment.mask_types import Odeme, Yok
+from app.modules.equipment.mask_types import Maliyet, Yok
 from app.modules.equipment.models import EquipmentMaintenancePeriod
 from app.modules.equipment.schemas import EquipmentResponse
 
@@ -67,7 +67,7 @@ class EquipmentRentalTotals(BaseModel):
 
     #: YALNIZ `paid` hakedişlerin `rented` satırlarından (MK-2 K3: `owned` ve
     #: `breakdown` hiçbir ödenecek toplamın kaynağı değildir).
-    cumulative_paid: Odeme
+    cumulative_paid: Maliyet
     cumulative_paid_unknown_count: int
     #: Toplamı üreten ÖDENMİŞ hakediş adedi — 0 ise `cumulative_paid`in `0`ı
     #: "hiç ödeme yok" demektir, "hepsi hesaplanamadı" değil.

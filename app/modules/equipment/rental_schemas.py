@@ -28,7 +28,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.modules.equipment.mask_types import Maliyet, Odeme, Yok, YokGirdi
+from app.modules.equipment.mask_types import Maliyet, Yok, YokGirdi
 from app.modules.equipment.models import (
     DEFAULT_VAT_RATE,
     EquipmentRatePeriod,
@@ -159,7 +159,7 @@ class RentalInvoiceTotals(BaseModel):
     invoice_amount: Maliyet
     vat_rate: YokGirdi
     vat_amount: Maliyet
-    payable_total: Odeme
+    payable_total: Maliyet
 
 
 class RentalSiteDistributionEquipment(BaseModel):
@@ -207,7 +207,7 @@ class RentalInvoiceResponse(BaseModel):
     rate_period: EquipmentRatePeriod
     vat_rate: YokGirdi
     vat_amount: Maliyet
-    payable_total: Odeme
+    payable_total: Maliyet
     status: RentalInvoiceStatus
     approved_by_id: uuid.UUID | None
     approved_at: datetime | None

@@ -129,3 +129,25 @@ async def test_maliyet_kar_gizli_rol_yazabilir_yanit_maskeli_fiyat_gondermek_422
         headers=sef_headers,
     )
     assert fiyatli.status_code == 422, fiyatli.text
+
+
+async def test_yalniz_sozlesme_fiyat_gizli_rolde_gunluk_tutarlari_null(
+    client, sef_headers, seeded_db, gonderilmis_gun
+):
+    """SD2 — günlük tutarları BOQ/sözleşme fiyatından türer: YALNIZ `sozlesme_fiyat` gizleyen
+    rolde de `null` (etiket `sozlesme_fiyat` + `maliyet_kar`); miktar görünür."""
+    site, govde = gonderilmis_gun
+    await rol_gizle(seeded_db, "site_chief", HiddenCategory.sozlesme_fiyat)
+
+    detay = (await client.get(f"/diary/{govde['id']}", headers=sef_headers)).json()
+    assert detay["lines_total"] is None
+    satir = detay["lines"][0]
+    assert satir["unit_price"] is None and satir["line_amount"] is None
+    assert satir["quantity"] == "10.000"
+
+    ozet = (
+        await client.get(f"/sites/{site.id}/diary/summary?year=2026&month=7", headers=sef_headers)
+    ).json()
+    assert ozet["total_amount"] is None
+    assert ozet["items"][0]["amount"] is None
+    assert ozet["items"][0]["contract_item_unit_price"] is None

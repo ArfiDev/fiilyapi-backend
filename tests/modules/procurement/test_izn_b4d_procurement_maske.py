@@ -222,3 +222,20 @@ async def test_onay_esigi_sunucu_ici_maskeden_etkilenmez(
         client, satinalma_headers, gorunen_proje, talep_fabrikasi, seeded_db
     )
     assert tam["ustu"][0] == 200, tam["ustu"]
+
+
+@pytest.mark.asyncio
+async def test_teklif_shipping_cost_PATCHte_403_bayraksiz_rolde_200(
+    client, satinalma_headers, seeded_db, teklifli_talep
+):
+    """PR2 — `PurchaseQuoteUpdate.shipping_cost` yazma kapısı (bayraksız rol: pozitif kontrol)."""
+    talep, _, teklif_id = teklifli_talep
+    yol = f"{_YOL}/{talep.id}/quotes/{teklif_id}"
+    acik = await client.patch(yol, json={"shipping_cost": "9000.00"}, headers=satinalma_headers)
+    assert acik.status_code == 200, acik.text
+    assert acik.json()["shipping_cost"] == "9000.00"
+
+    await rol_gizle(seeded_db, "procurement", HiddenCategory.maliyet_kar)
+    for deger in ("1.00", None):
+        gizli = await client.patch(yol, json={"shipping_cost": deger}, headers=satinalma_headers)
+        assert gizli.status_code == 403, f"{deger!r}: {gizli.text}"

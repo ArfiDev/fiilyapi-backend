@@ -29836,6 +29836,95 @@
         "title": "PurchaseRequestLineResponse",
         "type": "object"
       },
+      "PurchaseRequestLineUpdate": {
+        "description": "`PATCH` kalem girdisi (IZN-B4d onarimi): satir bazinda KISMI birlestirme.\n\nGECE KARARI: `lines` gonderilince tam degistirme semantigi surer (govdede OLMAYAN eski\nsatir silinir) AMA satir `id` ile eslesirse GONDERILMEYEN alan (`model_fields_set` disi)\neski degerden KORUNUR ve satir kimligi degismez. Boylece `maliyet_kar` gizli rolun formu\n(fiyat gelmez) yalniz miktari duzeltince tahmini fiyati SILMEZ. `id`siz satir YENIDIR ve\n`PurchaseRequestLineCreate` kurallarina (XOR, miktar zorunlu) tabidir. POST girdisi\n(`PurchaseRequestLineCreate`) degismedi.",
+        "properties": {
+          "estimated_unit_price": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Unit Price"
+          },
+          "free_text_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Text Name"
+          },
+          "free_text_unit": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Text Unit"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,11}|(?=[\\d.]{1,15}0*$)\\d{0,11}\\.\\d{0,3}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "stock_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock Item Id"
+          }
+        },
+        "title": "PurchaseRequestLineUpdate",
+        "type": "object"
+      },
       "PurchaseRequestListResponse": {
         "properties": {
           "items": {
@@ -30302,7 +30391,7 @@
         "type": "string"
       },
       "PurchaseRequestUpdate": {
-        "description": "`PATCH /purchase-requests/{id}` — YALNIZ taslakta (spec §4), tum alanlar\nistege bagli.\n\n**`lines` gondermek REPLACE'tir:** gelen liste eskisinin YERINE gecer (tek\natomik islem). Hic GONDERMEMEK kalemlere DOKUNMAZ, BOS liste gondermek\nhepsini SILER — iki durum `model_fields_set` ile ayrilir. Satir bazli\nekle/cikar ucu ACILMAZ: FST kalem tablosu tek \"Kaydet\" ile gonderilir ve\nparcali uclar yarim kaydedilmis bir tablo birakabilirdi.",
+        "description": "`PATCH /purchase-requests/{id}` — YALNIZ taslakta (spec §4), tum alanlar\nistege bagli.\n\n**`lines` gondermek REPLACE'tir:** gelen liste eskisinin YERINE gecer (tek\natomik islem). Hic GONDERMEMEK kalemlere DOKUNMAZ, BOS liste gondermek\nhepsini SILER — iki durum `model_fields_set` ile ayrilir. Satir `id` tasirsa\no satirla KISMI birlestirilir (bkz. `PurchaseRequestLineUpdate`). Satir bazli\nekle/cikar ucu ACILMAZ: FST kalem tablosu tek \"Kaydet\" ile gonderilir ve\nparcali uclar yarim kaydedilmis bir tablo birakabilirdi.",
         "properties": {
           "justification": {
             "anyOf": [
@@ -30320,7 +30409,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/PurchaseRequestLineCreate"
+                  "$ref": "#/components/schemas/PurchaseRequestLineUpdate"
                 },
                 "type": "array"
               },
