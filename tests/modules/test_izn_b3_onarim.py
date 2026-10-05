@@ -490,10 +490,14 @@ async def test_visible_projects_http_icinde_kapisiz_cagrida_hata_atar_uretimde_f
     assert [p.id for p in await visible_projects(seeded_db, kisi)] == [proje.id]
     seeded_db.info[GATE_KEY] = GateContext()  # HTTP isteği başladı, kapı geçilmedi
     try:
+        # Ortam bayrağı AÇIKÇA kurulur: CI `ENVIRONMENT` vermez ve `settings` varsayılanı
+        # "production"dır; yerel sarmalayıcı ise "development" verir (PR #173 CI kırmızısı).
+        monkeypatch.setattr(settings, "environment", "development")
         with pytest.raises(MissingGateContextError):
             await visible_projects(seeded_db, kisi)
         monkeypatch.setattr(settings, "environment", "production")
-        assert await visible_projects(seeded_db, kisi) == []  # üretim: fail-closed
+        # Üretim: fail-closed — üye olunan proje BİLE dönmez (fail-open'a düşmediğinin kanıtı).
+        assert await visible_projects(seeded_db, kisi) == []
         monkeypatch.undo()
         pairs = gate_flags("progress_payments", AccessLevel.view)
         assert [p.id for p in await visible_projects(seeded_db, kisi, pairs=pairs)] == [proje.id]
