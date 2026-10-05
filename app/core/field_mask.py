@@ -45,7 +45,8 @@ Değişen her nesne `model_copy(update=...)` ile YENİ üretilir; değişmeyen a
 
 ## Yazma yolu (kural burada, uygulaması `core/mask_route.py`)
 
-Gizli kategoriye ait bir alanı GÖVDEDE DOLU gönderen aktör 403 alır. Eski kural ("kapsamı
+Gizli kategoriye ait bir alanı PUT/PATCH GÖVDESİNDE gönderen aktör 403 alır (POST/oluşturma
+SERBEST, CEO kararı: gizlilik okuma içindir). Eski kural ("kapsamı
 kısıtlı rol hiçbir yazma ucuna giremez") yeni modelde fazla kaba: maaşı gizleyen bir Proje
 Müdürü yine de BOQ yazabilmelidir. Maskeli alan forma `null` olarak düştüğü için istemci onu
 göndermez; gönderirse bilmediği bir değeri ezmeye çalışıyordur.
@@ -107,15 +108,19 @@ def _bayrak(kategori: Hassas) -> HiddenCategory:
 class MaskeKumeleri:
     """Bir isteğin gizli kategori kümeleri.
 
-    * `varsayilan`: isteğin kendi bağlamı — proje bağlamlı uçta o projedeki rolün, aksi hâlde ana
-      rolün bayrakları.
+    * `varsayilan`: isteğin kendi bağlamı — proje bağlamlı uçta o projedeki rolün bayrakları;
+      proje ÇÖZÜLEMEYEN uçta (şirket geneli / çok proje / belirsiz) ana rol ile kullanıcının TÜM
+      ekip rollerinin BİRLEŞİMİ (IZN-PLAN §3, fail-closed). Yazma kapısı bunu kullanır.
     * `proje_basina`: kullanıcının EKİP olduğu her projenin rolünün bayrakları. Çok proje
-      LİSTELERİNDE `project_id` taşıyan satır kendi projesindeki rolle maskelenir. "Tüm projeler"
-      kullanıcıda boştur (ana rolle çalışır).
+      LİSTELERİNDE `project_id` taşıyan satır kendi projesindeki rolle maskelenir (satır başına
+      maske: birleşimin aşırı maskelemesini önler). "Tüm projeler" kullanıcıda boştur.
+    * `ana`: ana rolün bayrakları — ekibinde OLMADIĞI projenin satırı (erişimi ana rolledir)
+      için. `None` ise `varsayilan` kullanılır.
     """
 
     varsayilan: frozenset[HiddenCategory] = frozenset()
     proje_basina: Mapping[uuid.UUID, frozenset[HiddenCategory]] = field(default_factory=dict)
+    ana: frozenset[HiddenCategory] | None = None
 
     @property
     def bos_mu(self) -> bool:
@@ -131,8 +136,9 @@ HEPSI_GIZLI = MaskeKumeleri(varsayilan=frozenset(HiddenCategory))
 # --- Alan planı (sınıf başına BİR kez) ----------------------------------------------------------
 
 _PII_ADI = re.compile(
-    r"(?:^|_)(?:tc|tckn|iban|wage|salary|phone|mobile|birth|sgk|address)(?:_|$)"
-    r"|national_id|tax_number|tax_no|tax_id|identity_number",
+    r"(?:^|_)(?:tc|tckn|iban|wage|salary|phone|mobile|birth|sgk|address|email|e_mail)(?:_|$)"
+    r"|birthdate|date_of_birth|national_id|tax_number|tax_no|tax_id|vergi_no|identity_number"
+    r"|(?:^|_)(?:buyer|customer)_name(?:_|$)",
     re.IGNORECASE,
 )
 
@@ -299,8 +305,11 @@ def _model[TModel: BaseModel](
     if not plan.hassas_agac:
         return model
     proje = _satir_projesi(model)
-    if proje is not None and proje in kumeler.proje_basina:
-        kume = kumeler.proje_basina[proje]  # satır KENDİ projesindeki rolle maskelenir
+    if proje is not None:
+        # Satır KENDİ projesindeki rolle maskelenir; ekipte değilse ana rolle (erişimi odur).
+        kume = kumeler.proje_basina.get(
+            proje, kumeler.varsayilan if kumeler.ana is None else kumeler.ana
+        )
     guncel: dict[str, Any] = {}
     for alan in plan.hassas:
         if gizli_mi(alan, kume):

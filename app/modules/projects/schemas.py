@@ -2,7 +2,7 @@ import re
 import uuid
 from datetime import date
 from decimal import Decimal
-from typing import Annotated, Self
+from typing import Annotated, ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -465,6 +465,9 @@ class TimelineProject(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    # Satır KENDİ projesindeki rolle maskelenir (IZN-B4a; `field_mask.PROJE_ALANI_OZNITELIGI`).
+    PROJE_ALANI: ClassVar[str] = "id"
+
     id: uuid.UUID
     code: str
     name: str
@@ -495,6 +498,9 @@ class ProjectTimelineResponse(BaseModel):
 
 class ProjectListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+    # Satır KENDİ projesindeki rolle maskelenir (IZN-B4a; `field_mask.PROJE_ALANI_OZNITELIGI`).
+    PROJE_ALANI: ClassVar[str] = "id"
 
     id: uuid.UUID
     code: str

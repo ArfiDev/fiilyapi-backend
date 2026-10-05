@@ -5436,6 +5436,11 @@
             ],
             "title": "Progress Pct"
           },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
           "start_date": {
             "anyOf": [
               {
@@ -5458,6 +5463,7 @@
         },
         "required": [
           "id",
+          "project_id",
           "title",
           "contract_no",
           "counterparty_name",
@@ -6382,8 +6388,15 @@
             "type": "string"
           },
           "name": {
-            "title": "Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
           },
           "national_id": {
             "anyOf": [
@@ -20496,18 +20509,32 @@
       "OfferSettingsRead": {
         "properties": {
           "default_overhead_pct": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Default Overhead Pct",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Overhead Pct"
           },
           "default_payment_terms": {
             "title": "Default Payment Terms",
             "type": "string"
           },
           "default_profit_pct": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Default Profit Pct",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Profit Pct"
           },
           "default_validity_days": {
             "title": "Default Validity Days",

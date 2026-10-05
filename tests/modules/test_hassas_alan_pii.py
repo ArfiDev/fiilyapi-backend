@@ -55,7 +55,10 @@ async def test_satis_alici_gizli_ALICI_kisisel_alanlari_null_ad_ve_tip_durur(
     for alan in ("national_id", "tax_number", "phone", "email", "address"):
         assert kisitli[alan] is None, alan
         assert liste[alan] is None, alan
-    assert kisitli["name"] == "Ayşe Yılmaz"  # kimlik ALANI (ad) listede ayırt etmek için durur
+    # IZN-B4a (GECE KARARI): alıcı ADI da `satis_alici` (satıştaki `customer_name` ile tutarlı).
+    assert kisitli["name"] is None
+    assert liste["name"] is None
+    assert tam["name"] == "Ayşe Yılmaz"  # POZİTİF KONTROL
     assert kisitli["customer_type"] == "person"
 
 
@@ -86,8 +89,10 @@ async def test_YAZMA_satis_alici_gizliyken_kisisel_alan_gonderen_403_ad_guncelle
 
     ok = await client.patch(f"/customers/{alici_id}", json={"name": "Ayşe Demir"}, headers=gizli)
     assert ok.status_code == 200, ok.text
-    assert ok.json()["name"] == "Ayşe Demir"
-    assert ok.json()["phone"] is None  # yazma yanıtı da maskelenir
+    assert ok.json()["name"] is None  # yazma yanıtı da maskelenir (ad `satis_alici`)
+    assert ok.json()["phone"] is None
+    guncel = (await client.get(f"/customers/{alici_id}", headers=acik)).json()
+    assert guncel["name"] == "Ayşe Demir"  # ad gerçekten güncellendi
     # DB'de telefon DEĞİŞMEDİ
     assert (await client.get(f"/customers/{alici_id}", headers=acik)).json()[
         "phone"

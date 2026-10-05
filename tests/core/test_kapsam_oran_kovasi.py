@@ -72,6 +72,7 @@ def test_oran_SOZLESME_FIYATI_gizliyken_gizlenir_gizli_olmayan_rolde_GORUNUR() -
 
     kayit = ContractListItem(
         id="00000000-0000-0000-0000-000000000001",
+        project_id="00000000-0000-0000-0000-000000000002",
         title="A Blok Kaba İnşaat",
         contract_no="SZ-1",
         counterparty_name="Akın İnşaat",

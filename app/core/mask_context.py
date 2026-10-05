@@ -6,9 +6,11 @@ Kural (IZN-PLAN §3 + B3 notu; kapı kararıyla AYNI çözücüler):
 * Proje bağlamlı uç (`projects.context.request_project`): kişi o projenin EKİBİNDE ise O PROJEDEKİ
   rolün bayrakları, değilse ana rolün.
 * `all_projects` kişi → ana rol (ekip satırı yok sayılır, `page_gate.team_roles` boş döner).
-* Şirket geneli uç (proje çözülmez) → ana rol.
-* Çok proje LİSTESİ: `project_id` taşıyan satır KENDİ projesindeki rolle maskelenir
-  (`MaskeKumeleri.proje_basina`); `project_id` taşımayan satır isteğin varsayılanıyla.
+* Şirket geneli / proje ÇÖZÜLEMEYEN uç → ana rol ∪ kullanıcının TÜM ekip rollerinin gizli
+  kategorileri (IZN-PLAN §3, fail-closed): bir projede gizli kategori şirket genelinde de gizlidir.
+* Çok proje LİSTESİ: `project_id` (ya da `PROJE_ALANI`) taşıyan satır KENDİ projesindeki rolle
+  maskelenir (`MaskeKumeleri.proje_basina`; ekipte değilse ana rolle) — birleşimin aşırı
+  maskelemesini önler; projesiz satır isteğin varsayılanıyla (birleşim).
 
 Bu dosya `permissions`/`page_gate` ile AYNI çözücüleri kullanır: kapı ile maske arasında iki ayrı
 "etkin rol" tanımı DOĞAMAZ. Yerel import döngüyü önler (`projects.context` modeller çeker).
@@ -59,5 +61,9 @@ async def kumeleri_coz(
     main = sets[main_id]
     per_project = {project_id: sets[role_id] for project_id, role_id in team.items()}
     project_id = await request_project(session, request) if request is not None else None
-    default = per_project.get(project_id, main) if project_id is not None else main
-    return MaskeKumeleri(varsayilan=default, proje_basina=per_project)
+    if project_id is not None:
+        default = per_project.get(project_id, main)
+    else:
+        # Proje çözülemedi: ana rol + TÜM ekip rollerinin birleşimi (fail-closed, IZN-PLAN §3).
+        default = frozenset().union(main, *per_project.values())
+    return MaskeKumeleri(varsayilan=default, proje_basina=per_project, ana=main)

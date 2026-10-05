@@ -130,6 +130,9 @@ class ContractListItem(BaseModel):
     kaynaklardan servis tarafından doldurulur (spec §6.1 alan eşlemesi)."""
 
     id: uuid.UUID
+    # IZN-B4a (EKLEME): satırın projesi — çok proje listesinde satır KENDİ projesindeki rolle
+    # maskelenir (işveren sözleşmesinde `id` ile aynıdır).
+    project_id: uuid.UUID
     title: str
     contract_no: str | None
     counterparty_name: str | None
@@ -495,7 +498,7 @@ class SubcontractorCreate(BaseModel):
     tax_number: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=11)
     contact_person: str | None = Field(default=None, max_length=200)
     phone: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=30)
-    email: str | None = Field(default=None, max_length=255)
+    email: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=255)
     # category enum DEĞİL, String — sunucu FORM 82'deki listeyi zorlamaz (spec §3.4).
     category: str | None = Field(default=None, max_length=100)
     is_active: bool = True
@@ -506,7 +509,7 @@ class SubcontractorUpdate(BaseModel):
     tax_number: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=11)
     contact_person: str | None = Field(default=None, max_length=200)
     phone: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=30)
-    email: str | None = Field(default=None, max_length=255)
+    email: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=255)
     category: str | None = Field(default=None, max_length=100)
     is_active: bool | None = None
 
@@ -519,7 +522,7 @@ class SubcontractorResponse(BaseModel):
     tax_number: Annotated[str | None, Hassas.yok]
     contact_person: str | None
     phone: Annotated[str | None, Hassas.yok]
-    email: str | None
+    email: Annotated[str | None, Hassas.yok]
     category: str | None
     is_active: bool
 

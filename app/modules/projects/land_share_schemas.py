@@ -200,7 +200,7 @@ class LandShareUnitRow(BaseModel):
     owner_side: UnitOwnerSide | None
     shareholder_id: uuid.UUID | None
     shareholder_name: str | None
-    buyer_name: str | None
+    buyer_name: Annotated[str | None, Hassas.satis_alici]
     sales_status: UnitSalesStatus | None
 
 

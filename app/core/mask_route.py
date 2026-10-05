@@ -38,8 +38,11 @@ Kural değişmedi: gövdesini kendi üreten uç maskeyi KENDİSİ uygular (`mask
 
 ## Yazma kapısı
 
-Bkz. `field_mask` docstring'i: gizli kategorili alanı gövdede DOLU gönderen aktör → 403. Kapı
-uç çağrılmadan ÖNCE koşar (yan etki yok), yalnız GÖVDEDE hassas etiketli alan DOLU ise DB'ye gider.
+Bkz. `field_mask` docstring'i: PUT/PATCH gövdesinde gizli kategorili alanı GÖNDEREN aktör → 403
+(POST/oluşturma SERBEST: gizlilik okuma içindir, yanıt maskeli döner). Kapı uç çağrılmadan ÖNCE
+koşar (yan etki yok), yalnız GÖVDEDE hassas etiketli alan varsa DB'ye gider. Gizli bir rolün
+PATCH'i gönderilmeyen alanı SİLEMEZ: iç içe nesne güncellemeleri servis katmanında alan alan
+birleştirilir (`projects.service._merge_contract` vb.).
 """
 
 from __future__ import annotations
@@ -70,7 +73,10 @@ from app.core.mask_context import kumeleri_coz
 
 __all__ = ["MaskeBaglami", "MaskeRotasi", "maskele_baglamli"]
 
-_GUVENLI_METOTLAR = frozenset({"GET", "HEAD", "OPTIONS"})
+#: Yazma kapısı YALNIZ mevcut kaydı DEĞİŞTİREN metotlarda (IZN-B4a, CEO kararı): oluşturma (POST)
+#: gövdesinde gizli alan doldurmak SERBESTTİR — kişi yeni kayıt giriyor, gizlilik OKUMA içindir
+#: (yanıt yine maskeli döner). Var olan değeri ezebilen PUT/PATCH'te dolu gönderim 403.
+_KAPILI_METOTLAR = frozenset({"PUT", "PATCH"})
 
 _YAZMA_REDDI = "Bu alanları düzenleme yetkiniz yok"
 
@@ -205,6 +211,6 @@ class MaskeRotasi(APIRoute):
             *(kwargs.get("dependencies") or []),
         ]
         super().__init__(
-            path, _sarmala(endpoint, bool(metotlar - _GUVENLI_METOTLAR), durum), **kwargs
+            path, _sarmala(endpoint, bool(metotlar & _KAPILI_METOTLAR), durum), **kwargs
         )
         durum.baslat(self.response_model)

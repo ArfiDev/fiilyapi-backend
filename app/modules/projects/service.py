@@ -373,10 +373,12 @@ def _ensure_type_consistency(
 
 
 def _apply_investment(project: Project, data: ProjectInvestmentInput) -> None:
+    """YALNIZ GÖNDERİLEN alanları yazar (IZN-B4a): maskeli alanı göndermeyen rol (ör. `land_cost`
+    `maliyet_kar` gizli) onu SİLMEZ. Oluşturmada gönderilmeyen alan zaten `None`dır."""
     if project.investment is None:
         project.investment = ProjectInvestment(project_id=project.id)
-    project.investment.sales_target = data.sales_target
-    project.investment.land_cost = data.land_cost
+    for name in data.model_fields_set:
+        setattr(project.investment, name, getattr(data, name))
 
 
 async def _merge_shareholders(
@@ -429,25 +431,36 @@ async def _merge_shareholders(
     project.shareholders = merged
 
 
+_LAND_SHARE_FIELDS = (
+    "landowner_name",
+    "our_share_pct",
+    "owner_share_pct",
+    "contract_no",
+    "notary_date",
+    "land_area_m2",
+    "construction_area_m2",
+    "delivery_date",
+    "daily_penalty",
+    "guarantee_amount",
+)
+
+
 async def _apply_land_share(
     session: AsyncSession, project: Project, data: ProjectLandShareInput
 ) -> None:
     # Hissedar dogrulamasi (422/409) DIGER alanlara dokunmadan once: reddedilen
     # istek arsa payi alanlarini da degistirmis birakmaz.
-    await _merge_shareholders(session, project, data.shareholders)
+    # IZN-B4a: GONDERILMEYEN alan mevcut degerini KORUR (hissedar listesi dahil): maskeli alani
+    # (`daily_penalty`/`guarantee_amount`) gormeyen rol onu `None`a ezemez.
+    sent = data.model_fields_set
+    if "shareholders" in sent:
+        await _merge_shareholders(session, project, data.shareholders)
     if project.land_share is None:
         project.land_share = ProjectLandShare(project_id=project.id)
     land_share = project.land_share
-    land_share.landowner_name = data.landowner_name
-    land_share.our_share_pct = data.our_share_pct
-    land_share.owner_share_pct = data.owner_share_pct
-    land_share.contract_no = data.contract_no
-    land_share.notary_date = data.notary_date
-    land_share.land_area_m2 = data.land_area_m2
-    land_share.construction_area_m2 = data.construction_area_m2
-    land_share.delivery_date = data.delivery_date
-    land_share.daily_penalty = data.daily_penalty
-    land_share.guarantee_amount = data.guarantee_amount
+    for name in _LAND_SHARE_FIELDS:
+        if name in sent:
+            setattr(land_share, name, getattr(data, name))
 
 
 #: Proje kodu üretici danışma kilidi anahtar uzayı: `(anahtar, yıl)`. SABİT, DEĞİŞTİRİLMEZ
@@ -570,6 +583,41 @@ def _apply_contract(project: Project, data: ProjectContractInput) -> None:
     # contract_no/amount burada otoritedir; projeye kopyalanır (spec §2.4, §5).
     project.contract_no = data.contract_no
     project.contract_amount = data.amount
+
+
+_CONTRACT_FIELDS = (
+    "contract_no",
+    "signature_date",
+    "amount",
+    "advance_pct",
+    "retainage_pct",
+    "vat_pct",
+    "late_penalty_daily",
+    "has_price_escalation",
+    "index_type",
+    "base_index_value",
+)
+
+
+def _merge_contract(
+    existing: ProjectContract | None, data: ProjectContractInput
+) -> ProjectContractInput:
+    """PATCH sözleşmesi: YALNIZ GÖNDERİLEN alanlar değişir, gönderilmeyen mevcut değerini korur
+    (IZN-B4a). Eski davranış sözleşmeyi TAMAMEN değiştiriyordu: `{"contract_no": "X"}` gönderen
+    (özellikle `sozlesme_fiyat` gizli, bedeli hiç görmeyen) bir rol bedeli `None`a eziyordu.
+
+    Satır yoksa girdi aynen döner (yeni satır). Fiyat farkı kapatılırken endeks alanları AÇIKÇA
+    gönderilmediyse temizlenir (`ck_contract_escalation`: kapalıyken endeks saklanmaz).
+    """
+    if existing is None:
+        return data
+    merged: dict[str, Any] = {name: getattr(existing, name) for name in _CONTRACT_FIELDS}
+    merged.update(data.model_dump(exclude_unset=True))
+    if merged["has_price_escalation"] is False:
+        for name in ("index_type", "base_index_value"):
+            if name not in data.model_fields_set:
+                merged[name] = None
+    return ProjectContractInput(**merged)
 
 
 def _validate_contract_update(project: Project, contract: ProjectContractInput) -> None:
@@ -758,8 +806,10 @@ async def update_project(
 ) -> Project:
     project = await _visible_project(session, actor, project_id)
     _ensure_type_consistency(project.project_type, data.investment, data.land_share)
+    contract_in = None
     if data.contract is not None:
-        _validate_contract_update(project, data.contract)
+        contract_in = _merge_contract(project.contract, data.contract)
+        _validate_contract_update(project, contract_in)
     # `contract` bir İLİŞKİdir: sözlükte kalırsa setattr döngüsü ORM alanının
     # üstüne düz bir dict yazar. Sözleşme aşağıda `_apply_contract` ile işlenir.
     changes = data.model_dump(exclude_unset=True, exclude={"investment", "land_share", "contract"})
@@ -767,10 +817,10 @@ async def update_project(
     for field, value in changes.items():
         setattr(project, field, value)
     _sync_contract_authority(project, changes)
-    if data.contract is not None:
-        # Tam sözleşme nesnesi gelmişse otorite ODUR: `contract_no`/`contract_amount`
-        # anlık görüntüsü de burada tazelenir (spec §2.4, §5).
-        _apply_contract(project, data.contract)
+    if contract_in is not None:
+        # Sözleşme nesnesi gelmişse otorite ODUR: `contract_no`/`contract_amount`
+        # anlık görüntüsü de burada tazelenir (spec §2.4, §5). Birleştirilmiş (tam) girdi yazılır.
+        _apply_contract(project, contract_in)
     if data.investment is not None:
         _apply_investment(project, data.investment)
     if data.land_share is not None:

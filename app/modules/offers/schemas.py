@@ -3,9 +3,8 @@
 Yuzdeler YUZDE biriminde (12 = %12). Aralik sabitleri `models`taki CHECK tavanlariyla AYNI
 kaynaktan gelir. Para birimi YALNIZ TL (T36) — hicbir semada para birimi alani yoktur.
 
-Maske kovasi: ayar yuzdeleri VARSAYILAN ORANLARDIR (hicbir tutardan turemez) → `kimlik`
-(emsal `contracts.advance_pct`); aciklamasi `test_kapsam_oran_kovasi` "paradan turemis oran"
-tanimina GIRMEZ. Teklif revizyonunun kar/maliyet alanlari B4.2'de `para` olacaktir.
+Maske: genel gider/kâr varsayılanları `maliyet_kar` (IZN-B4a: revizyon oranlarıyla geri
+hesaplanabilir); KDV varsayılanı `yok`.
 """
 
 from __future__ import annotations
@@ -27,10 +26,10 @@ class OfferSettingsUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    default_overhead_pct: Annotated[Decimal, Hassas.yok] = Field(
+    default_overhead_pct: Annotated[Decimal, Hassas.maliyet_kar] = Field(
         ge=0, le=MAX_PCT, max_digits=5, decimal_places=2
     )
-    default_profit_pct: Annotated[Decimal, Hassas.yok] = Field(
+    default_profit_pct: Annotated[Decimal, Hassas.maliyet_kar] = Field(
         ge=0, le=MAX_PROFIT_PCT, max_digits=6, decimal_places=2
     )
     default_vat_pct: Annotated[Decimal, Hassas.yok] = Field(
@@ -51,8 +50,10 @@ class OfferSettingsUpdate(BaseModel):
 class OfferSettingsRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    default_overhead_pct: Annotated[Decimal, Hassas.yok]
-    default_profit_pct: Annotated[Decimal, Hassas.yok]
+    # IZN-B4a: varsayılan genel gider/kâr oranları `maliyet_kar` (revizyon oranlarıyla geri
+    # hesaplanabilir; KDV oranı herkese açık, `yok`).
+    default_overhead_pct: Annotated[Decimal | None, Hassas.maliyet_kar]
+    default_profit_pct: Annotated[Decimal | None, Hassas.maliyet_kar]
     default_vat_pct: Annotated[Decimal, Hassas.yok]
     default_validity_days: int
     default_payment_terms: str

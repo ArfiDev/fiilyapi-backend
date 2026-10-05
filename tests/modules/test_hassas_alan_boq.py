@@ -225,9 +225,11 @@ async def test_YAZMA_kategori_gizli_degilse_fiyat_yazilir(
     assert ok.json()["unit_price"] == "300.00"
 
 
-async def test_YAZMA_olusturma_ucunda_zorunlu_gizli_alan_403(
+async def test_YAZMA_olusturma_ucunda_gizli_alan_SERBEST_yanit_maskeli(
     client, db_session, user_factory, project_factory
 ) -> None:
+    """IZN-B4a (CEO kararı): POST (oluşturma) gövdesinde gizli alan doldurmak SERBEST — kişi yeni
+    kayıt giriyor, gizlilik OKUMA içindir. Kayıt yazılır, YANIT maskeli döner."""
     await rol_gizli(db_session, "gz_yaz3", {H.tum_tutarlar})
     _p, site, item = await _proje(db_session, project_factory, "HZ-H")
     _u, baslik = await _giris(
@@ -244,9 +246,14 @@ async def test_YAZMA_olusturma_ucunda_zorunlu_gizli_alan_403(
 
     resp = await client.post(f"/sites/{site.id}/boq/items", json=govde, headers=baslik)
 
-    assert resp.status_code == 403, resp.text
-    adet = (await db_session.execute(select(BoqItem).where(BoqItem.code == "9.9"))).scalars().all()
-    assert adet == []
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["unit_price"] is None  # yanıt maskeli
+    satir = (await db_session.execute(select(BoqItem).where(BoqItem.code == "9.9"))).scalar_one()
+    assert satir.unit_price == Decimal("5")  # ama KAYIT yazıldı
+
+    # PATCH'te aynı alan 403 kalır (mevcut değeri ezme).
+    ezme = await client.patch(f"/boq/items/{satir.id}", json={"unit_price": "1"}, headers=baslik)
+    assert ezme.status_code == 403, ezme.text
 
 
 @pytest.mark.parametrize(

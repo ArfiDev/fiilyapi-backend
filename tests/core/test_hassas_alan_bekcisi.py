@@ -150,17 +150,25 @@ def _zarf_mi(annotation: typing.Any) -> bool:
     )
 
 
-#: PARA anlamı taşıyan ad parçaları (`int`/`float` alanlar için; `total` BİLEREK yok: sayfalama
-#: sayacıdır) ve sayaç imzaları (para adını EZER: `items_missing_price` bir SAYIDIR).
+#: PARA anlamı taşıyan ad parçaları (`int`/`float` alanlar için) ve sayaç/ölçü imzaları (para
+#: adını EZER: `items_missing_price` bir SAYIDIR, `net_area_m2` bir ALANDIR). `total` yalnız
+#: `*_total`/`total_*` biçiminde paradır; çıplak `total` sayfalama sayacıdır (`_para_adi_mi`).
 _PARA_ADLARI = (
     "amount", "price", "cost", "tutar", "bedel", "fiyat", "maliyet", "revenue", "profit",
-    "budget", "butce", "balance", "kurus",
+    "budget", "butce", "balance", "kurus", "total", "gross", "net", "margin", "discount",
+    "deposit", "payment", "income", "expense",
 )  # fmt: skip
-_SAYAC_ADLARI = ("count", "adet", "sayi", "missing", "pending", "index", "order", "sort")
+_SAYAC_ADLARI = (
+    "count", "adet", "sayi", "missing", "pending", "index", "order", "sort", "area", "m2",
+    "limit", "offset", "pct", "percent", "page", "days", "term", "units", "rows",
+    "installment_total",
+)  # fmt: skip
 
 
 def _para_adi_mi(ad: str) -> bool:
     kucuk = ad.lower()
+    if kucuk == "total":
+        return False
     return not any(s in kucuk for s in _SAYAC_ADLARI) and any(p in kucuk for p in _PARA_ADLARI)
 
 
@@ -287,6 +295,22 @@ def test_ZORUNLU_modullerin_HER_rotasi_MaskeRotasidir() -> None:
     ]
     assert not disarida, f"MaskeRotasi taşımayan rota: {disarida}"
     assert len(_tum_rotalar()) > 400, "tarama kümesi küçüldü"
+
+
+def test_hassas_semayi_donduren_HER_rota_MaskeRotasidir() -> None:
+    """K2 (IZN-B4a): sahibi hangi modül olursa olsun, yanıt şemasının AĞACINDA etiketli alan taşıyan
+    HER rota `MaskeRotasi`dir. Aksi hâlde uç maskesiz döner (`progress_payments` özeti, router
+    ZORUNLU kümede olmadığı için kaçmıştı). Rota tablosu + `response_model` taraması."""
+    from app.core.field_mask import sema_plani
+
+    acik = [
+        f"{sorted(r.methods)} {r.path} ({_sahip(r)})"
+        for r in _tum_rotalar()
+        if r.response_model is not None
+        and any(sema_plani(sema).hassas_agac for sema in semalar_icinde(r.response_model))
+        and not isinstance(r, MaskeRotasi)
+    ]
+    assert not acik, f"hassas şema döndüren ama MaskeRotasi taşımayan rota: {acik}"
 
 
 def zorunlu_ihlaller() -> dict[str, list[str]]:

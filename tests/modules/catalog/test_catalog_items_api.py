@@ -363,17 +363,23 @@ async def test_limited_kapsamda_ref_price_gizli_all_kapsamda_gorunur(
     assert gorunur["price_updated_at"] is not None
 
 
-async def test_fiyat_kategorisini_gizleyen_rol_fiyat_alanini_YAZAMAZ_ama_diger_alani_yazar(
+async def test_fiyat_kategorisini_gizleyen_rol_olustururken_serbest_GUNCELLERKEN_YAZAMAZ(
     client, admin, kab, db_session, user_factory
 ) -> None:
-    """IZN-B4 yazma kapısı: gizli kategorili alanı DOLU gönderen aktör 403; yoksa yazabilir."""
+    """IZN-B4a yazma kapısı: POST (oluşturma) gizli alanla SERBEST (yanıt maskeli); PATCH'te gizli
+    kategorili alanı gönderen aktör 403, ilgisiz alanı güncelleyebilir."""
     await _set_permission(db_session, "project_manager", "contracts", AccessLevel.full)
     await rol_gizle(db_session, "project_manager", HiddenCategory.sozlesme_fiyat)
     sinirli = await _giris(client, db_session, user_factory, "project_manager")
     resp = await client.post(URL, json=_govde(kab, ref_price="10.00"), headers=sinirli)
-    assert resp.status_code == 403
-    resp = await client.post(URL, json=_govde(kab), headers=sinirli)
     assert resp.status_code == 201, resp.text
+    assert resp.json()["ref_price"] is None  # yanıt maskeli
+    kalem_id = resp.json()["id"]
+
+    red = await client.patch(f"{URL}/{kalem_id}", json={"ref_price": "11.00"}, headers=sinirli)
+    assert red.status_code == 403, red.text
+    ok = await client.patch(f"{URL}/{kalem_id}", json={"uom": "m2"}, headers=sinirli)
+    assert ok.status_code == 200, ok.text
 
 
 # --------------------------------------------------------- EV sizinti bekcisi

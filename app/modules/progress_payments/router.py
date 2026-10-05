@@ -15,6 +15,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -41,10 +42,14 @@ from app.modules.users.models import User
 
 # Ü2 (DSC-B5): hakedis ticari/proje duzeyi → kisitli kullaniciya router duzeyinde 403; yeni
 # eklenen her rota otomatik kapali.
+# IZN-B4a (K2): `GET /projects/{id}/progress-payments/summary` (`ProgressPaymentSummary`, hassas
+# alanlı) maskesiz dönüyordu; router MaskeRotasi taşır. Router'ın KALAN şemaları B4b'de etiketlenir
+# (şimdilik hassas alan taşımadıkları için sınıf onlara dokunmaz).
 router = APIRouter(
     tags=["progress-payments"],
     responses=COMMON_ERROR_RESPONSES,
     dependencies=[RequireUnrestricted],
+    route_class=MaskeRotasi,
 )
 
 # TKL-B3.2: son fiyat portuna kayit (import yan etkisi; bekci testi uygulama acilisinda ister).

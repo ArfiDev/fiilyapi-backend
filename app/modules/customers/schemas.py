@@ -48,7 +48,8 @@ class CustomerResponse(BaseModel):
 
     id: uuid.UUID
     customer_type: CustomerType
-    name: str
+    # IZN-B4a (GECE KARARI, fail-closed): alıcı adı satıştaki `customer_name` ile aynı kategori.
+    name: Annotated[str | None, Hassas.satis_alici]
     national_id: Annotated[str | None, Hassas.satis_alici]
     tax_number: Annotated[str | None, Hassas.satis_alici]
     phone: Annotated[str | None, Hassas.satis_alici]
