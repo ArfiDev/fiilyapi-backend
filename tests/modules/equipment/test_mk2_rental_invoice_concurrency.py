@@ -325,6 +325,7 @@ async def _yaris(kurulum: _Kurulum, eylem: str) -> tuple[str, str]:
             task2,
             mesaj=f"tx2, tx1 kilidi serbest bırakmadan ilerleyebildi — `rental_service.{eylem}` "
             "artık fatura satırını KİLİTLEMİYOR olabilir (çift damga yarışı yeniden açık)",
+            sorgu_oneki="SELECT equipment_rental_invoices.",
         )
         # Metin 1024 baytta kırpılır (`FOR UPDATE` görünmez); kilitte bekleyen bir SELECT
         # yalnız kilitli okuma olabilir — kilitsiz mutant UPDATE'te beklerdi.
