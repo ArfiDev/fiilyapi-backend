@@ -15,8 +15,12 @@ bağlamı DEĞİŞTİRMEMELİDİR: aksi hâlde istemci ekip rolünü şirket gen
 atlatma, IZN-B4c çürütmesi). Rota/gövde modeli çözülemezse bağlam çözülmez (fail-closed).
 TAŞIMA kuralı (IZN-HF1): yol çözücüsü eşleştiyse gövde bağlamı DEĞİŞTİREMEZ — gövde yol projesinden
 (P) farklı Q gösterirse ya da kayıt projesizken (P yok) Q gösterirse bağlam `None` olur (kayıt
-başka projeye "taşınıyormuş" gibi o projenin rolüyle okunup yazılamaz); P == Q → P. Bilinen kapsam:
-`RESOLVERS` dışı PATCH/PUT uçları kayıt çözücüsü almadıkça (IZN-B4d/B5) gövdeden bağlam alır.
+başka projeye "taşınıyormuş" gibi o projenin rolüyle okunup yazılamaz); P == Q → P; açık `null`
+(hedef = projesiz) P doluyken de taşımadır → `None`. Rota bağlam anahtarı bildirip gövde JSON olarak
+okunamıyorsa (tür/boş/bozuk/dict değil/değer dize-null değil) bağlam `None`. İçerik türü FastAPI'nin
+kuralıyla çözülür (büyük harf, `+json`). Bilinen borç: `RESOLVERS` dışı PATCH/PUT uçları kayıt
+çözücüsü almadıkça gövdeden bağlam alır (saha ve satınalma çözücüleri IZN-B4d'de eklenecek;
+`/financial-instruments` HF1'de eklendi; kalan liste `BILINEN_COZUCUSUZ_PATCH` testinde).
 Slug (`/projects/{slug}`, `/sites/{slug}` …) ÇÖZÜLÜR: UUID ile slug aynı projeyi verir.
 Slug kapsamı tekil değilse (şantiye / bölüm slug'ı proje / şantiye içinde tekildir)
 ve birden çok projede eşleşirse bağlam ÇÖZÜLMEZ
@@ -29,13 +33,14 @@ kırmızı verir.
 
 from __future__ import annotations
 
+import email.message
 import json
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from types import UnionType
-from typing import Union, get_args, get_origin
+from typing import NamedTuple, Union, get_args, get_origin
 
-from fastapi import Request
+from fastapi import Request, params
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from sqlalchemy import Select, select
@@ -197,6 +202,17 @@ async def _invoice_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.
     return await _unique(session, select(Invoice.project_id).where(Invoice.id == ref))
 
 
+async def _instrument_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.treasury.models import FinancialInstrument  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    # Şirket geneli çek/senet `project_id IS NULL` → `None` (birleşim, fail-closed).
+    return await _unique(
+        session, select(FinancialInstrument.project_id).where(FinancialInstrument.id == ref)
+    )
+
+
 async def _employer_item_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
     from app.modules.contracts.models import EmployerContractItem  # döngüyü önler
 
@@ -249,6 +265,8 @@ RESOLVERS: Mapping[tuple[str, str], Resolver] = {
     ("/subcontractor-contracts", "item_id"): _sub_item_project,
     # IZN-B4b onarımı: fatura + ödeme alt yolu (`/invoices/{id}/payments`) faturanın projesinde.
     ("/invoices", "invoice_id"): _invoice_project,
+    # IZN-HF1: çek/senet PATCH'i `project_id` bildirir → taşıma kuralı kayıt çözücüsü ister.
+    ("/financial-instruments", "instrument_id"): _instrument_project,
     ("/contracts", "item_id"): _employer_item_project,
     ("/contracts", "group_id"): _employer_group_project,
     ("/units", "unit_id"): _unit_project,
@@ -334,36 +352,85 @@ def _body_declared_keys(request: Request) -> frozenset[str]:
     return frozenset(keys)
 
 
-async def _body_projects(session: AsyncSession, request: Request) -> list[uuid.UUID | None]:
+def _is_json_content_type(value: str | None) -> bool:
+    """FastAPI ile AYNI kural (`fastapi/routing.py`): `email.message` ayrıştırması, ana tür
+    `application`, alt tür (küçük harfe çevrilmiş) `json` ya da `*+json`. Büyük/küçük harf,
+    parametre (`; charset=utf-8`) ve `+json` çeşitlemeleri uç ile bağlam arasında AYRIŞMAMALI."""
+    if not value:
+        return False
+    message = email.message.Message()
+    message["content-type"] = value
+    if message.get_content_maintype() != "application":
+        return False
+    subtype = message.get_content_subtype()
+    return subtype == "json" or subtype.endswith("+json")
+
+
+def _is_form_route(request: Request) -> bool:
+    """Rotanın gövdesi form/multipart mı (`POST /documents`, birim içe aktarma): bu uçlarda
+    `project_id`/`site_id` FORM alanıdır, JSON gövde yoktur — fail-closed kuralı uygulanmaz."""
+    route = request.scope.get("route")
+    if not isinstance(route, APIRoute):
+        return False
+    return any(isinstance(p.field_info, params.Form) for p in route.dependant.body_params)
+
+
+class _Body(NamedTuple):
+    """Gövdenin bağlam okuması: `projects` = dize değerli bildirilmiş anahtarların çözülmüş
+    projeleri; `has_null` = bildirilmiş bir anahtar AÇIKÇA `null` ("hedef = projesiz");
+    `invalid` = gövde bağlam için GÜVENİLEMEZ (JSON okunamadı / dict değil / değer dize-null
+    değil)."""
+
+    projects: tuple[uuid.UUID | None, ...] = ()
+    has_null: bool = False
+    invalid: bool = False
+
+
+_INVALID = _Body(invalid=True)
+
+
+async def _read_body(session: AsyncSession, request: Request) -> _Body:
     """JSON gövdesinde, rotanın gövde modelinin ÜST DÜZEYDE bildirdiği `project_id`/`site_id`
-    anahtarlarının çözülmüş projeleri (anahtar başına bir öğe; bildirilmemiş / dize olmayan anahtar
-    sayılmaz). Gövde yok / okunamıyor / bildirim yok → boş liste."""
+    anahtarlarının okuması. Rota bu anahtarlardan birini BİLDİRMİYORSA gövde okunmaz (boş sonuç).
+    Bildiriyorsa (POST/PUT/PATCH) ve gövde JSON olarak okunamıyorsa (içerik türü JSON değil, boş,
+    bozuk, dict değil) ya da bir değer dize/`null` değilse → `invalid` (fail-closed)."""
     if request.method not in ("POST", "PUT", "PATCH"):
-        return []
-    if "json" not in request.headers.get("content-type", ""):
-        return []
+        return _Body()
     declared = _body_declared_keys(request)
     if not declared.intersection(BODY_KEYS):
-        return []
+        return _Body()
+    if _is_form_route(request):
+        return _Body()  # form alanı ≠ JSON: bağlama girmez (eski davranış)
+    if not _is_json_content_type(request.headers.get("content-type")):
+        return _INVALID
     try:
         body = json.loads((await request.body()) or b"null")
     except (ValueError, UnicodeDecodeError):
-        return []
+        return _INVALID
     if not isinstance(body, dict):
-        return []
-    return [
-        await BODY_RESOLVERS[key](session, parse_ref(body[key]))
-        for key in BODY_KEYS
-        if key in declared and isinstance(body.get(key), str)
-    ]
+        return _INVALID
+    projects: list[uuid.UUID | None] = []
+    has_null = False
+    for key in BODY_KEYS:
+        if key not in declared or key not in body:
+            continue
+        value = body[key]
+        if value is None:
+            has_null = True
+        elif isinstance(value, str):
+            projects.append(await BODY_RESOLVERS[key](session, parse_ref(value)))
+        else:
+            return _INVALID
+    return _Body(tuple(projects), has_null)
 
 
 async def _body_project(session: AsyncSession, request: Request) -> uuid.UUID | None:
     """Gövdedeki bağlam (oluşturma uçları): YALNIZ rotanın gövde modeli anahtarı bildiriyorsa.
-    Bildirilen anahtarlar farklı projelere çözülüyorsa / çözülemiyorsa `None` (fail-closed)."""
-    projects = await _body_projects(session, request)
-    distinct = set(projects)
-    return next(iter(distinct)) if len(distinct) == 1 else None
+    Bildirilen anahtarlar farklı projelere çözülüyorsa / çözülemiyorsa / gövde güvenilemezse
+    `None` (fail-closed)."""
+    body = await _read_body(session, request)
+    distinct = set(body.projects)
+    return None if body.invalid or len(distinct) != 1 else next(iter(distinct))
 
 
 async def request_project(session: AsyncSession, request: Request) -> uuid.UUID | None:
@@ -373,21 +440,30 @@ async def request_project(session: AsyncSession, request: Request) -> uuid.UUID 
     DEĞİŞTİREMEZ. Gövde (modelin bildirdiği `project_id`/`site_id`) yol projesi P'den farklı bir
     projeye işaret ediyorsa — ya da kayıt projesizken (P yok) bir proje gösteriyorsa — sonuç `None`
     (maske: ana rol ∪ ekip rolleri birleşimi, kapı: yalnız ana rol; fail-closed). Aksi hâlde kayıt
-    "taşınıyormuş" gibi hedef projenin rolüyle okunup yazılabilirdi. P == Q → P. Yol çözücüsü HİÇ
-    eşleşmediyse (oluşturma uçları, `RESOLVERS` dışı yollar) gövde bağlamı geçerlidir.
+    "taşınıyormuş" gibi hedef projenin rolüyle okunup yazılabilirdi. P == Q → P. Açık `null`
+    ("hedef = projesiz") P doluyken aynı taşımadır (proje rolüyle şirket geneline taşıma) → `None`;
+    P yokken P == Q (ikisi de projesiz) → değişmez. Yol çözücüsü HİÇ eşleşmediyse (oluşturma
+    uçları, `RESOLVERS` dışı yollar) gövde bağlamı geçerlidir (`null` yok sayılır).
 
-    Bilinen kapsam: `RESOLVERS` dışı PATCH/PUT uçları (kayıt çözücüsü olmayanlar) gövdeden bağlam
-    alır; bunlar IZN-B4d/B5'te kayıt çözücüsü kazanınca taşıma kuralına girer.
+    Fail-closed: rota bağlam anahtarı bildirip gövde JSON olarak okunamıyorsa / değer dize-null
+    değilse bağlam her durumda `None`. İçerik türü FastAPI ile aynı kuralla çözülür
+    (`_is_json_content_type`): `application/JSON`, `application/vnd.x+json` gövdesi de okunur.
+
+    Bilinen borç: yol çözücüsü OLMAYAN PATCH/PUT uçları gövdeden bağlam alır (taşıma kuralı
+    uygulanamaz); liste `tests/modules/test_izn_hf1_govde_baglam.py::BILINEN_COZUCUSUZ_PATCH`.
     """
     if SCOPE_KEY in request.scope:
         return request.scope[SCOPE_KEY]
     matched, project_id = await resolve_path_project(session, request.url.path, request.path_params)
-    body_projects = await _body_projects(session, request)
-    if matched:
-        if any(body != project_id for body in body_projects):
+    body = await _read_body(session, request)
+    if body.invalid:
+        project_id = None
+    elif matched:
+        moved = any(target != project_id for target in body.projects)
+        if moved or (body.has_null and project_id is not None):
             project_id = None  # taşıma / çelişki: bağlam çözülmez
     else:
-        distinct = set(body_projects)
+        distinct = set(body.projects)
         project_id = next(iter(distinct)) if len(distinct) == 1 else None
     request.scope[SCOPE_KEY] = project_id
     return project_id

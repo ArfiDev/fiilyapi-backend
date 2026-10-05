@@ -5,6 +5,11 @@
 Aşağıda önce B4c'den gelen üç istismar + pozitif kontrol + birim testler, sonra `RESOLVERS` ve rota
 tablosundan OTOMATİK KEŞFEDİLEN saldırı matrisi (A/B/C sınıfları) ve uçtan uca taşıma senaryoları.
 
+HF1 çürütme onarımları: (1) içerik türü FastAPI'nin kuralıyla çözülür (`application/JSON`,
+`+json`, parametreli); bağlam anahtarı bildiren rota için JSON okunamayan gövde → `None`;
+(2) açık `"project_id": null` P doluyken taşımadır → `None`; (3) C sınıfı C-POST (oluşturma) ve
+C-PATCH (BİLİNEN BORÇ: çözücüsüz PATCH/PUT, açık beyaz liste) diye ayrıldı.
+
 IZN-B4c onarımı — gövdeden proje bağlamı YALNIZ rotanın gövde modeli anahtarı bildiriyorsa.
 
 Çürütme bulgusu: `_body_project` ham JSON'daki `project_id`/`site_id`'yi, ucun gövde modeli o alanı
@@ -24,7 +29,7 @@ import re
 import uuid
 
 import pytest
-from fastapi import Body, FastAPI, Request
+from fastapi import Body, FastAPI, Request, params
 from fastapi.routing import APIRoute, iter_route_contexts
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -233,11 +238,31 @@ _YOL_PROJESI = uuid.UUID("11111111-1111-4111-8111-111111111111")  # P
 _GOVDE_PROJESI = uuid.UUID("22222222-2222-4222-8222-222222222222")  # Q
 
 
-def _istek_kur(method: str, sablon: str, route: APIRoute, govde: dict) -> Request:
-    """Rota tablosundaki bir rota için sahte istek: yol parametreleri doldurulmuş, gövde JSON."""
+_JSON_TURLERI = [
+    "application/json",
+    "application/JSON",
+    "application/json; charset=utf-8",
+    "application/vnd.x+json",
+    "APPLICATION/VND.X+JSON",
+]
+_JSON_DEGIL = ["text/plain", "application/x-www-form-urlencoded", "application/jsonx", ""]
+
+
+def _istek_kur(
+    method: str,
+    sablon: str,
+    route: APIRoute,
+    govde: object,
+    *,
+    tur: str = "application/json",
+    ham: bytes | None = None,
+) -> Request:
+    """Rota tablosundaki bir rota için sahte istek: yol parametreleri doldurulmuş, gövde JSON
+    (`ham` verilirse gövde baytları olduğu gibi; `tur` boşsa içerik türü başlığı YOK)."""
     parametreler = {ad: str(uuid.uuid4()) for ad in _PARAM.findall(sablon)}
     yol = _PARAM.sub(lambda m: parametreler[m.group(1)], sablon)
-    ham = json.dumps(govde).encode()
+    if ham is None:
+        ham = json.dumps(govde).encode()
 
     async def receive() -> dict:
         return {"type": "http.request", "body": ham, "more_body": False}
@@ -250,7 +275,7 @@ def _istek_kur(method: str, sablon: str, route: APIRoute, govde: dict) -> Reques
         "path": yol,
         "root_path": "",
         "query_string": b"",
-        "headers": [(b"content-type", b"application/json")],
+        "headers": [(b"content-type", tur.encode())] if tur else [],
         "path_params": parametreler,
         "route": route,
     }
@@ -268,6 +293,7 @@ class _Uc:
         paramlar = _PARAM.findall(sablon)
         onek = "/" + sablon.lstrip("/").split("/", 1)[0]
         self.cozuculu = any((onek, p) in RESOLVERS for p in paramlar)
+        self.form = any(isinstance(p.field_info, params.Form) for p in route.dependant.body_params)
 
     @property
     def kimlik(self) -> str:
@@ -291,10 +317,33 @@ UCLAR = _yazma_uclari()
 #: (A) gövde modeli anahtarlardan en az birini BİLDİRMİYOR → o anahtar enjekte edilebilir.
 SINIF_A = [u for u in UCLAR if set(BODY_KEYS) - u.bildirilen]
 #: (B) RESOLVERS'lı + gövde modeli bağlam anahtarı BİLDİRİYOR: kayıt taşıma / yol-gövde çelişkisi.
-SINIF_B = [u for u in UCLAR if u.cozuculu and u.bildirilen]
+#: Form/multipart uçlar (alanlar JSON değil) dışarıda: bağlama hiç girmezler (`SINIF_FORM`).
+SINIF_B = [u for u in UCLAR if u.cozuculu and u.bildirilen and not u.form]
 SINIF_B_TASIMA = [u for u in SINIF_B if u.method in ("PUT", "PATCH")]
-#: (C) gövde bağlamı bildiren ve yol çözücüsü OLMAYAN uçlar (oluşturma): gövde geçerli kalır.
-SINIF_C = [u for u in UCLAR if not u.cozuculu and u.bildirilen]
+#: (C-POST) çözücüsüz + bağlam bildiren OLUŞTURMA uçları: gövde bağlamı geçerli kalır (doğru).
+SINIF_C_POST = [
+    u for u in UCLAR if not u.cozuculu and u.bildirilen and not u.form and u.method == "POST"
+]
+#: (C-PATCH) çözücüsüz + bağlam bildiren PATCH/PUT = BİLİNEN BORÇ (taşıma kuralı uygulanamaz).
+SINIF_C_PATCH = [
+    u
+    for u in UCLAR
+    if not u.cozuculu and u.bildirilen and not u.form and u.method in ("PUT", "PATCH")
+]
+#: Form/multipart bağlam bildiren uçlar: JSON gövde bağlamı hiç değiştirmez (eski davranış).
+SINIF_FORM = [u for u in UCLAR if u.bildirilen and u.form]
+#: Açık beyaz liste: yeni PATCH/PUT ucu eklenir ya da bir uç çözücü kazanırsa test KIRMIZI olur,
+#: liste BİLİNÇLİ güncellenir. Saha (`/equipment/*`) ve satınalma (`/purchase-requests/*`)
+#: çözücüleri IZN-B4d'de eklenecek. `/financial-instruments/{instrument_id}` HF1'de çözücü aldı.
+BILINEN_COZUCUSUZ_PATCH = frozenset(
+    {
+        ("PATCH", "/purchase-requests/{request_id}"),
+        ("PATCH", "/equipment/{equipment_id}"),
+        ("PATCH", "/equipment/work-logs/{log_id}"),
+        ("PATCH", "/equipment/fuel-logs/{log_id}"),
+        ("PATCH", "/equipment/rental-invoices/{invoice_id}"),
+    }
+)
 
 
 def _kimlikler(uclar: list[_Uc]) -> list[str]:
@@ -320,34 +369,71 @@ def test_matris_kesfi_bos_degil_ve_bilinen_tasima_uclarini_icerir() -> None:
     assert len(UCLAR) > 150, len(UCLAR)
     assert len(SINIF_A) > 100, len(SINIF_A)
     assert len(SINIF_B_TASIMA) >= 3, _kimlikler(SINIF_B_TASIMA)
-    bilinen = {"PATCH /invoices/{invoice_id}", "PATCH /subcontractor-contracts/{contract_id}"}
+    bilinen = {
+        "PATCH /invoices/{invoice_id}",
+        "PATCH /subcontractor-contracts/{contract_id}",
+        "PATCH /financial-instruments/{instrument_id}",
+    }
     assert bilinen <= set(_kimlikler(SINIF_B_TASIMA)), _kimlikler(SINIF_B_TASIMA)
-    assert SINIF_C, "gövdeden bağlam çözen oluşturma ucu bulunamadı"
+    assert SINIF_C_POST, "gövdeden bağlam çözen oluşturma ucu bulunamadı"
 
 
+@pytest.mark.parametrize("tur", _JSON_TURLERI)
 @pytest.mark.parametrize("uc", SINIF_A, ids=_kimlikler(SINIF_A))
-async def test_A_beyansiz_anahtar_enjeksiyonu_baglami_DEGISTIRMEZ(monkeypatch, uc: _Uc) -> None:
+async def test_A_beyansiz_anahtar_enjeksiyonu_baglami_DEGISTIRMEZ(
+    monkeypatch, uc: _Uc, tur: str
+) -> None:
     """Gövde modeli bildirmediği `project_id`/`site_id`'yi gövdeye eklemek sonucu oynatmaz:
-    yol çözücülü uçta yol projesi (P), çözücüsüz uçta `None` — govdesiz istekle AYNI."""
+    yol çözücülü uçta yol projesi (P), çözücüsüz uçta `None` — govdesiz istekle AYNI (her JSON
+    içerik türü çeşitlemesinde: büyük harf, parametre, `+json`)."""
     _cozucu_yerine_koy(monkeypatch, _YOL_PROJESI)
     enjekte = {k: str(_GOVDE_PROJESI) for k in set(BODY_KEYS) - uc.bildirilen}
-    temel = await request_project(None, _istek_kur(uc.method, uc.sablon, uc.route, {}))  # type: ignore[arg-type]
-    saldiri = await request_project(None, _istek_kur(uc.method, uc.sablon, uc.route, enjekte))  # type: ignore[arg-type]
+    temel = await request_project(None, _istek_kur(uc.method, uc.sablon, uc.route, {}, tur=tur))  # type: ignore[arg-type]
+    saldiri = await request_project(
+        None,  # type: ignore[arg-type]
+        _istek_kur(uc.method, uc.sablon, uc.route, enjekte, tur=tur),
+    )
     assert saldiri == temel, uc.kimlik
     assert temel == (_YOL_PROJESI if uc.cozuculu else None), uc.kimlik
 
 
+@pytest.mark.parametrize("tur", _JSON_TURLERI)
 @pytest.mark.parametrize("uc", SINIF_B, ids=_kimlikler(SINIF_B))
 @pytest.mark.parametrize("yol_projesi", [_YOL_PROJESI, None], ids=["P-dolu", "P-projesiz"])
 async def test_B_tasi_yaz_yol_ile_govde_celisirse_baglam_COZULMEZ(
-    monkeypatch, uc: _Uc, yol_projesi: uuid.UUID | None
+    monkeypatch, uc: _Uc, yol_projesi: uuid.UUID | None, tur: str
 ) -> None:
     """Yol çözücüsü eşleşti (P ya da projesiz kayıt) VE gövde başka bir projeyi (Q) gösteriyor →
     `None` (maske birleşim, kapı ana rol): kayıt Q'ya "taşınıyormuş" gibi Q'daki rolle okunamaz /
-    yazılamaz. Bildirilen HER anahtar için ölçülür."""
+    yazılamaz. Bildirilen HER anahtar için ve her JSON içerik türü çeşitlemesinde ölçülür."""
     _cozucu_yerine_koy(monkeypatch, yol_projesi)
     for anahtar in sorted(uc.bildirilen):
-        istek = _istek_kur(uc.method, uc.sablon, uc.route, {anahtar: str(_GOVDE_PROJESI)})
+        istek = _istek_kur(uc.method, uc.sablon, uc.route, {anahtar: str(_GOVDE_PROJESI)}, tur=tur)
+        assert await request_project(None, istek) is None, (uc.kimlik, anahtar)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("uc", SINIF_B, ids=_kimlikler(SINIF_B))
+async def test_B_acik_null_P_doluyken_projesize_tasima_baglami_COZMEZ(monkeypatch, uc: _Uc) -> None:
+    """P dolu + gövdede bildirilmiş anahtar AÇIKÇA `null` ("hedef = projesiz") → `None`: proje
+    rolüyle kayıt şirket geneline taşınamaz. P projesiz + `null` → P == Q (ikisi de projesiz):
+    `None` (zaten bağlam yok). Anahtar başına ölçülür."""
+    for yol_projesi in (_YOL_PROJESI, None):
+        _cozucu_yerine_koy(monkeypatch, yol_projesi)
+        for anahtar in sorted(uc.bildirilen):
+            istek = _istek_kur(uc.method, uc.sablon, uc.route, {anahtar: None})
+            assert await request_project(None, istek) is None, (uc.kimlik, anahtar, yol_projesi)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("uc", SINIF_B, ids=_kimlikler(SINIF_B))
+@pytest.mark.parametrize("gecersiz", [7, 1.5, True, {"a": 1}, ["x"]], ids=repr)
+@pytest.mark.parametrize("yol_projesi", [_YOL_PROJESI, None], ids=["P-dolu", "P-projesiz"])
+async def test_B_gecersiz_deger_fail_closed(
+    monkeypatch, uc: _Uc, yol_projesi: uuid.UUID | None, gecersiz: object
+) -> None:
+    """Dize/null olmayan bildirilmiş değer (sayı, nesne, liste, bool) → bağlam `None`."""
+    _cozucu_yerine_koy(monkeypatch, yol_projesi)
+    for anahtar in sorted(uc.bildirilen):
+        istek = _istek_kur(uc.method, uc.sablon, uc.route, {anahtar: gecersiz})
         assert await request_project(None, istek) is None, (uc.kimlik, anahtar)  # type: ignore[arg-type]
 
 
@@ -364,22 +450,101 @@ async def test_C_ayni_projeye_isaret_eden_govde_yol_baglaminda_calisir(
     assert await request_project(None, govdesiz) == _YOL_PROJESI, uc.kimlik  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize("uc", SINIF_C, ids=_kimlikler(SINIF_C))
-async def test_C_yol_cozucusuz_olusturma_ucu_baglami_govdeden_cozer(monkeypatch, uc: _Uc) -> None:
-    """Yol çözücüsü HİÇ eşleşmiyorsa (oluşturma uçları) gövde bağlamı geçerli kalır (mevcut)."""
+@pytest.mark.parametrize("uc", SINIF_C_POST, ids=_kimlikler(SINIF_C_POST))
+async def test_C_POST_yol_cozucusuz_olusturma_ucu_baglami_govdeden_cozer(
+    monkeypatch, uc: _Uc
+) -> None:
+    """Yol çözücüsü HİÇ eşleşmiyorsa (oluşturma uçları) gövde bağlamı geçerli kalır (doğru).
+    Açık `null` bildirilmemiş gibi yok sayılır (oluşturmada hedef = projesiz = bağlam yok)."""
     _cozucu_yerine_koy(monkeypatch, _YOL_PROJESI)
     for anahtar in sorted(uc.bildirilen):
         istek = _istek_kur(uc.method, uc.sablon, uc.route, {anahtar: str(_GOVDE_PROJESI)})
         assert await request_project(None, istek) == _GOVDE_PROJESI, (uc.kimlik, anahtar)  # type: ignore[arg-type]
+    if uc.bildirilen == set(BODY_KEYS):
+        karma = {"project_id": None, "site_id": str(_GOVDE_PROJESI)}
+        istek = _istek_kur(uc.method, uc.sablon, uc.route, karma)
+        assert await request_project(None, istek) == _GOVDE_PROJESI, uc.kimlik  # type: ignore[arg-type]
+
+
+def test_C_PATCH_cozucusuz_uclar_acik_beyaz_listeyle_ESIT() -> None:
+    """BİLİNEN BORÇ: yol çözücüsü EŞLEŞMEYEN ama gövde bağlamı bildiren PATCH/PUT uçları taşıma
+    kuralına giremez (gövdeden bağlam alır). Küme beyaz listeyle birebir eşit olmalı: yeni uç
+    eklenirse ya da bir uç çözücü kazanırsa test kırmızı olur, liste bilinçli güncellenir."""
+    bulunan = {(u.method, u.sablon) for u in SINIF_C_PATCH}
+    assert bulunan == BILINEN_COZUCUSUZ_PATCH, (
+        sorted(bulunan - BILINEN_COZUCUSUZ_PATCH),
+        sorted(BILINEN_COZUCUSUZ_PATCH - bulunan),
+    )
+
+
+@pytest.mark.parametrize("uc", SINIF_FORM, ids=_kimlikler(SINIF_FORM))
+async def test_FORM_uclarda_json_govde_baglami_DEGISTIRMEZ(monkeypatch, uc: _Uc) -> None:
+    """Form/multipart uçlarda `project_id`/`site_id` form alanıdır (JSON değil): fail-closed kuralı
+    onları kırmaz (meşru akış) ve JSON gövde bağlamı oynatmaz — gövdesiz istekle AYNI."""
+    _cozucu_yerine_koy(monkeypatch, _YOL_PROJESI)
+    govde = {k: str(_GOVDE_PROJESI) for k in uc.bildirilen}
+    temel = await request_project(None, _istek_kur(uc.method, uc.sablon, uc.route, {}))  # type: ignore[arg-type]
+    saldiri = await request_project(None, _istek_kur(uc.method, uc.sablon, uc.route, govde))  # type: ignore[arg-type]
+    assert saldiri == temel == (_YOL_PROJESI if uc.cozuculu else None), uc.kimlik
 
 
 async def test_C_govde_anahtarlari_birbiriyle_celisirse_baglam_COZULMEZ(monkeypatch) -> None:
     """`project_id` ve `site_id` ikisi de bildirilmiş ve FARKLI projelere çözülüyorsa `None`."""
     _cozucu_yerine_koy(monkeypatch, _YOL_PROJESI)
-    uc = next(u for u in SINIF_C if u.bildirilen == set(BODY_KEYS))
+    uc = next(u for u in SINIF_C_POST if u.bildirilen == set(BODY_KEYS))
     govde = {"project_id": str(_GOVDE_PROJESI), "site_id": str(uuid.uuid4())}
     istek = _istek_kur(uc.method, uc.sablon, uc.route, govde)
     assert await request_project(None, istek) is None  # type: ignore[arg-type]
+
+
+# --- (d2) içerik türü + okunamayan gövde (FastAPI kuralıyla AYNI çözüm) --------------------------
+
+
+def _bildirir_ucu() -> _Uc:
+    return next(u for u in SINIF_C_POST if u.bildirilen == set(BODY_KEYS))
+
+
+@pytest.mark.parametrize("tur", _JSON_TURLERI)
+async def test_CT_json_icerik_turu_cesitlemeleri_govdeden_cozer(monkeypatch, tur: str) -> None:
+    """`application/JSON`, parametreli, `+json` ve büyük harfli `+JSON`: FastAPI gövdeyi JSON çözer,
+    bağlam da AYNI biçimde okur (ayrışma = kapı atlatma: HF1 çürütmesi)."""
+    _cozucu_yerine_koy(monkeypatch, None)
+    uc = _bildirir_ucu()
+    istek = _istek_kur(uc.method, uc.sablon, uc.route, {"project_id": str(_GOVDE_PROJESI)}, tur=tur)
+    assert await request_project(None, istek) == _GOVDE_PROJESI  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("tur", _JSON_DEGIL)
+async def test_CT_json_olmayan_icerik_turu_bildiren_rotada_baglami_COZMEZ(
+    monkeypatch, tur: str
+) -> None:
+    """Rota bağlam anahtarı bildiriyor ama içerik türü JSON değil (ya da yok): FastAPI gövdeyi
+    JSON okumaz; bağlam da `None` (fail-closed). Yol çözücülü uçta P'ye düşmez."""
+    _cozucu_yerine_koy(monkeypatch, _YOL_PROJESI)
+    for uc in (_bildirir_ucu(), SINIF_B_TASIMA[0]):
+        istek = _istek_kur(
+            uc.method, uc.sablon, uc.route, {"project_id": str(_GOVDE_PROJESI)}, tur=tur
+        )
+        assert await request_project(None, istek) is None, (uc.kimlik, tur)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("ham", [b"", b"{bozuk", b"[1, 2]", b"null", b'"metin"', b"\xff\xfe"])
+async def test_CT_okunamayan_govde_bildiren_rotada_baglami_COZMEZ(monkeypatch, ham: bytes) -> None:
+    """Boş / bozuk / dict olmayan / UTF-8 olmayan gövde: bildiren rota için bağlam `None`."""
+    _cozucu_yerine_koy(monkeypatch, _YOL_PROJESI)
+    for uc in (_bildirir_ucu(), SINIF_B_TASIMA[0]):
+        istek = _istek_kur(uc.method, uc.sablon, uc.route, None, ham=ham)
+        assert await request_project(None, istek) is None, (uc.kimlik, ham)  # type: ignore[arg-type]
+
+
+async def test_CT_bildirmeyen_rotada_okunamayan_govde_baglami_OYNATMAZ(monkeypatch) -> None:
+    """Rota bildirmiyorsa gövde zaten okunmaz: bozuk gövde / JSON olmayan tür yol bağlamını
+    (P) bozmaz — fail-closed YALNIZ bildiren rotalar içindir."""
+    _cozucu_yerine_koy(monkeypatch, _YOL_PROJESI)
+    uc = next(u for u in SINIF_A if u.cozuculu and not u.bildirilen)
+    for tur, ham in (("text/plain", b"x"), ("application/json", b"{bozuk")):
+        istek = _istek_kur(uc.method, uc.sablon, uc.route, None, tur=tur, ham=ham)
+        assert await request_project(None, istek) == _YOL_PROJESI, uc.kimlik  # type: ignore[arg-type]
 
 
 # --- (e) uçtan uca: kayıt TAŞIMA ile bağlam değiştirilemez (HTTP) -------------------------------
