@@ -15,7 +15,7 @@ koşul: kapı · gelen kutusu · geçmiş · kilitli karar). Bu dosya SÖZLEŞME
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.core.errors import ApprovalNotAllowedError, ConflictError
 from app.modules.approvals import guards, service
@@ -26,6 +26,7 @@ from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
     SubcontractorProgressPayment,
 )
+from app.modules.users.models import ProjectMember
 from tests.modules.approvals.conftest import adim_durumlari, proje_rolu_ver
 
 _TASERON = ApprovalDocumentType.subcontractor_progress_payment
@@ -337,3 +338,146 @@ async def test_EKIP_uyesi_sahip_SAYILIR_baska_projenin_uyesi_SAYILMAZ(
     await proje_rolu_ver(seeded_db, muh, proje, "accounting")  # şimdi bu projede
     zincir = await _zincir(seeded_db, _ISVEREN, document_id, yaratan)
     assert zincir.id is not None
+
+
+# --------------------------------------------------------------------------- #
+# 5. ONARIM: evrağı açan kişi sahip SAYILMAZ (tek sahipse zincir TAKILIRDI)
+# --------------------------------------------------------------------------- #
+
+
+async def test_TEK_sahip_evragi_acan_kisi_ise_submit_409_zincir_ACILMAZ(
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
+):
+    """Muhasebe adımının TEK sahibi evrağı açan kişiyse: kendi evrağını onaylayamaz ve zincir
+    kimsenin kutusuna düşmezdi → 409, zincir açılmaz.
+
+    Mutasyon (a): `_assert_step_roles_have_owners`ta açan kişiyi hariç tutan koşul kaldırılırsa
+    kırmızı."""
+    acan = await aktor_fabrikasi("b3b-5a-acan@b3b.co", role_key="hr_manager", tum_projeler=False)
+    document_id, proje = await evrak_fabrikasi(_ISVEREN, creator=acan, rol_sahipleri=False)
+    await proje_rolu_ver(seeded_db, acan, proje, "accounting")  # TEK sahip = açan kişi
+
+    with pytest.raises(ConflictError) as hata:
+        await _zincir(seeded_db, _ISVEREN, document_id, acan)
+
+    assert (
+        str(hata.value) == "Bu projede Muhasebe atanmamış; önce Ayarlar > Kullanıcılar'dan atayın"
+    )
+    assert await service.open_chain(seeded_db, _ISVEREN, document_id) is None
+
+
+async def test_ACAN_disinda_baska_sahip_varsa_zincir_acilir_ve_O_kisinin_kutusuna_duser(
+    client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
+):
+    acan = await aktor_fabrikasi("b3b-5b-acan@b3b.co", role_key="hr_manager", tum_projeler=False)
+    diger = await aktor_fabrikasi("b3b-5b-diger@b3b.co", role_key="hr_manager", tum_projeler=False)
+    document_id, proje = await evrak_fabrikasi(_ISVEREN, creator=acan, rol_sahipleri=False)
+    await proje_rolu_ver(seeded_db, acan, proje, "accounting")
+    await proje_rolu_ver(seeded_db, diger, proje, "accounting")
+
+    zincir = await _zincir(seeded_db, _ISVEREN, document_id, acan)
+
+    assert zincir.id is not None
+    kutu = (await client.get("/approvals", headers=await giris(diger.email))).json()
+    assert [i["document_id"] for i in kutu["items"]] == [str(document_id)]
+    acan_kutu = (await client.get("/approvals", headers=await giris(acan.email))).json()
+    assert acan_kutu["items"] == [] or all(i["can_decide"] is False for i in acan_kutu["items"])
+
+
+# --------------------------------------------------------------------------- #
+# 6. ONARIM: "Tüm projeler" kişide BAYAT ekip satırı sahip SAYILMAZ
+# --------------------------------------------------------------------------- #
+
+
+async def test_TUM_PROJELER_kisisinde_bayat_ekip_satiri_adim_sahibi_SAYMAZ(
+    client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
+):
+    """`all_projects` kişide ekip satırı yok sayılır (`page_gate.team_roles` ile hizalı): ana rolü
+    adım rolü DEĞİLSE (hr_manager) bayat `site_chief` satırı ona adımı onaylatmaz.
+
+    Mutasyon (c): `step_owner_clause` proje dalından `all_projects.is_(False)` kaldırılırsa
+    kırmızı."""
+    yaratan = await aktor_fabrikasi("b3b-6-yaratan@b3b.co")
+    document_id, proje = await evrak_fabrikasi(_TASERON, creator=yaratan)
+    zincir = await _zincir(seeded_db, _TASERON, document_id, yaratan)
+    bayat = await aktor_fabrikasi("b3b-6-bayat@b3b.co", role_key="hr_manager")  # all_projects
+    assert bayat.all_projects is True
+    await proje_rolu_ver(seeded_db, bayat, proje, "site_chief")  # BAYAT satır
+    basliklar = await giris(bayat.email)
+
+    yanit = await client.post(f"{_TASERON_YOL}/{document_id}/approve", headers=basliklar)
+
+    assert yanit.status_code == 403, yanit.text
+    assert await adim_durumlari(seeded_db, zincir.id) == [False, False, False]
+    assert (await client.get("/approvals", headers=basliklar)).json()["total"] == 0
+
+
+async def test_TUM_PROJELER_kisisinin_bayat_ekip_satiri_zincir_kurarken_de_sahip_SAYILMAZ(
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
+):
+    yaratan = await aktor_fabrikasi("b3b-6b-yaratan@b3b.co", role_key="hr_manager")
+    document_id, proje = await evrak_fabrikasi(_ISVEREN, creator=yaratan, rol_sahipleri=False)
+    bayat = await aktor_fabrikasi("b3b-6b-bayat@b3b.co", role_key="hr_manager")  # all_projects
+    await proje_rolu_ver(seeded_db, bayat, proje, "accounting")
+
+    with pytest.raises(ConflictError):
+        await _zincir(seeded_db, _ISVEREN, document_id, yaratan)
+
+
+# --------------------------------------------------------------------------- #
+# 7. ONARIM (GECE KARARI): sahipsiz kalmış açık zinciri Sistem Yöneticisi REDDEDEBİLİR
+# --------------------------------------------------------------------------- #
+
+_GEREKCE = {"reason": "Adım sahibi kalmadı, yeniden atayıp gönderin"}
+
+
+async def _sahipsiz_zincir(seeded_db, aktor_fabrikasi, evrak_fabrikasi):
+    """Açık zincir kurar, sonra projenin TÜM ekibini çıkarır (adım sahipsiz kalır)."""
+    yaratan = await aktor_fabrikasi("b3b-7-yaratan@b3b.co")
+    document_id, proje = await evrak_fabrikasi(_TASERON, creator=yaratan)
+    zincir = await _zincir(seeded_db, _TASERON, document_id, yaratan)
+    await seeded_db.execute(delete(ProjectMember).where(ProjectMember.project_id == proje.id))
+    await seeded_db.flush()
+    return document_id, zincir
+
+
+async def test_SAHIPSIZ_kalmis_zinciri_SISTEM_YONETICISI_reddeder_ONAYLAYAMAZ(
+    client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
+):
+    """Kaçış yolu YALNIZ ret: evrak taslağa döner, zincir damgalanır, denetim "vekaleten" der.
+    Onay hâlâ sahiplik ister (görevler ayrılığı korunur).
+
+    Mutasyon (b): `reject_chain`daki `admin_escape=True` kaldırılırsa kırmızı."""
+    document_id, zincir = await _sahipsiz_zincir(seeded_db, aktor_fabrikasi, evrak_fabrikasi)
+    admin = await aktor_fabrikasi("b3b-7-admin@b3b.co", role_key="system_admin")
+    basliklar = await giris(admin.email)
+
+    onay = await client.post(f"{_TASERON_YOL}/{document_id}/approve", headers=basliklar)
+    ret = await client.post(
+        f"{_TASERON_YOL}/{document_id}/reject", json=_GEREKCE, headers=basliklar
+    )
+
+    assert onay.status_code == 403, onay.text
+    assert ret.status_code == 200, ret.text
+    assert (await _durum(seeded_db, _TASERON, document_id)).value == "draft"
+    await seeded_db.refresh(zincir)
+    assert zincir.rejected_at is not None and zincir.rejected_by_user_id == admin.id
+    assert await adim_durumlari(seeded_db, zincir.id) == [False, False, False]
+
+
+async def test_SAHIPSIZ_zinciri_SISTEM_YONETICISI_OLMAYAN_reddedemez(
+    client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
+):
+    """Modül kapısından geçen (`project_manager`, `approve`) ama adımın sahibi olmayan kişi: 403."""
+    document_id, zincir = await _sahipsiz_zincir(seeded_db, aktor_fabrikasi, evrak_fabrikasi)
+    pm = await aktor_fabrikasi("b3b-7-pm@b3b.co", role_key="project_manager")
+    basliklar = await giris(pm.email)
+
+    ret = await client.post(
+        f"{_TASERON_YOL}/{document_id}/reject", json=_GEREKCE, headers=basliklar
+    )
+
+    assert ret.status_code == 403, ret.text
+    assert (await _durum(seeded_db, _TASERON, document_id)).value == "pending_approval"
+    await seeded_db.refresh(zincir)
+    assert zincir.rejected_at is None

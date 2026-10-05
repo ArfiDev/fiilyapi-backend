@@ -201,7 +201,9 @@ def aktor_fabrikasi(seeded_db: AsyncSession, user_factory) -> Callable[..., Awai
                 seeded_db.add(ProjectMember(user_id=user.id, project_id=proje.id, role_id=uye_rolu))
         elif roller and tum_projeler:
             # Eski "her projede bu onay rolü": var olan + sonradan açılan her projede proje rolü.
-            user.all_projects = True
+            # Ekip kişisi: `all_projects=False` (üretimde "Tüm projeler" kişide ekip satırı yoktur;
+            # `step_owner_clause` all_projects kişide ekip satırını yok sayar).
+            user.all_projects = False
             await onay_rolu_ver(seeded_db, user, *roller)
         elif roller:
             pass  # kapsamsız: üyelik YOK (IDOR bekçisinin kurulumu)
@@ -266,10 +268,9 @@ async def onay_rolu_ver(session: AsyncSession, user: User, *roller: ApprovalRole
     """Eski API'nin YENİ karşılığı: kişi, `rol` ROLÜYLE her projenin ekip üyesi olur.
 
     Var olan projelere hemen, sonradan açılacaklara `before_flush` dinleyicisiyle yazılır.
-    `all_projects`e DOKUNMAZ: kapı kararı eskisi gibi ANA rolden çıkar (eski testlerin sistem
-    rolü kurgusu korunur); adım sahipliği ise yalnız bu ekip satırlarından gelir. (Üretimde
-    "Tüm projeler" kişide ekip satırı bulunmaz; bu karışım YALNIZ eski testlerin uyumluluğudur —
-    yeni testler `proje_rolu_ver` ya da saf `all_projects` + ana rol kurar.)
+    `all_projects`e DOKUNMAZ; çağıran kişiyi `all_projects=False` kurmalıdır (üretimde "Tüm
+    projeler" kişide ekip satırı bulunmaz ve `step_owner_clause` o satırı yok sayar). Adım
+    sahipliği yalnız bu ekip satırlarından gelir.
     Birden çok rol → `ValueError` (tek kişi tek projede tek rol).
     """
     if not roller:

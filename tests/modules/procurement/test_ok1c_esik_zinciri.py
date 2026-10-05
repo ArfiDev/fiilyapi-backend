@@ -82,7 +82,9 @@ async def _aktor(
 ) -> tuple[User, dict[str, str]]:
     """Sistem rolü + onay rolleri AYRI verilir (K1); tüm projeler görünür."""
     user = await user_factory(email=email, password=PAROLA, role_key=role_key)
-    user.all_projects = True
+    # IZN-B3b: onay rolü = PROJE rolü → ekip kişisi `all_projects=False` (üretimde "Tüm projeler"
+    # kişide ekip satırı yoktur; `step_owner_clause` o satırı yok sayar).
+    user.all_projects = not approval_roles
     await onay_rolu_ver(seeded_db, user, *approval_roles)
     yanit = await client.post("/auth/login", json={"email": email, "password": PAROLA})
     assert yanit.status_code == 200, yanit.text

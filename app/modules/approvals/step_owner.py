@@ -25,6 +25,7 @@ görünürlüğü süzgecinden geçer.
 import uuid
 
 from sqlalchemy import ColumnElement, Text, case, cast, exists, literal, null, or_, select
+from sqlalchemy.orm import aliased
 
 from app.modules.approvals.documents import DOCUMENT_PROJECT_COLUMNS
 from app.modules.approvals.models import ApprovalChain, ApprovalRole, ApprovalStep
@@ -67,12 +68,17 @@ def step_owner_clause(actor_id: uuid.UUID) -> ColumnElement[bool]:
     Çağıran sorgu `ApprovalChain` ve `ApprovalStep`i FROM'unda taşımalıdır.
     """
     adim_rolu = cast(ApprovalStep.approval_role, Text)
+    # "Tüm projeler" kişide ekip satırı YOK SAYILIR (`page_gate.team_roles` ile hizalı): bayat
+    # bir satır o kişiye ana rolünden ayrı bir proje rolü kazandırmaz.
+    uye = aliased(User)
     proje_rolu = exists(
         select(literal(1))
         .select_from(ProjectMember)
         .join(Role, Role.id == ProjectMember.role_id)
+        .join(uye, uye.id == ProjectMember.user_id)
         .where(
             ProjectMember.user_id == actor_id,
+            uye.all_projects.is_(False),
             ProjectMember.project_id == document_project_expr(),
             Role.key == adim_rolu,
         )

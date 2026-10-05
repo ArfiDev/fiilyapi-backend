@@ -98,7 +98,9 @@ async def _onaycı(
     role_key: str = "project_manager",
 ) -> dict[str, str]:
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
-    user.all_projects = True
+    # IZN-B3b: onay rolü = PROJE rolü → ekip kişisi `all_projects=False` (üretimde "Tüm projeler"
+    # kişide ekip satırı yoktur; `step_owner_clause` o satırı yok sayar).
+    user.all_projects = not approval_roles
     await onay_rolu_ver(seeded_db, user, *approval_roles)
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

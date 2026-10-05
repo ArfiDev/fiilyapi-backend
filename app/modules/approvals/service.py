@@ -6,7 +6,8 @@
    SABITTIR: sozlesme -> evrak -> zincir (deadlock).
 2. zincir satiri `FOR UPDATE` — `repository.get_chain_for_update`.
 3. zincir acik mi / adim SIRADAKI adim mi  -> **409**
-4. aktor adimin onay rolunu tasiyor mu     -> **403**
+4. aktor adimin SAHIBI mi (projedeki rolu)  -> **403** (YALNIZ RET: Sistem Yoneticisi sahip
+   olmasa da gecer, vekaleten isaretiyle)
 5. 🔴 KENDI EVRAKI                          -> **403**, TEK ISTISNA: aktorun
    EVRAGIN izin modulunde `AccessLevel.admin` seviyesi varsa GECER ve denetim
    metni "vekaleten" isareti tasir.
@@ -33,7 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
 from app.core.errors import ApprovalNotAllowedError, ApprovalValidationError, ConflictError
-from app.core.page_gate import gate_flags, gate_ok
+from app.core.page_gate import gate_flags, gate_ok, is_admin_role
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.approvals import definitions, documents, guards, inbox, repository
 from app.modules.approvals.definitions import HistoryDecision, HistoryFilter
@@ -168,17 +169,27 @@ async def _assert_step_roles_have_owners(
     document_type: ApprovalDocumentType,
     document_id: uuid.UUID,
     roles: tuple[ApprovalRole, ...],
+    opener_id: uuid.UUID,
 ) -> None:
     """Zincirin HER adim rolunun belgenin projesinde en az bir (AKTIF) sahibi var mi?
 
-    Sahip = o projenin ekibinde o rolle yer alan aktif kullanici, ya da "Tum projeler" isaretli
-    ve ANA rolu o rol olan aktif kullanici. Eksik varsa 409 (`guards.step_roles_unassigned`):
-    zincir kurulmaz, cagiran evrak ailesi durum degistirmeden doner. Pasif / izinli kullanici
-    giris yapamaz (`core.deps`) — onunla "sahipli" sayilan bir zincir TAKILIRDI.
+    Sahip = o projenin ekibinde o rolle yer alan aktif kullanici (`all_projects` kisinin ekip
+    satiri yok sayilir, `page_gate.team_roles` ile ayni), ya da "Tum projeler" isaretli ve ANA
+    rolu o rol olan aktif kullanici. Eksik varsa 409 (`guards.step_roles_unassigned`): zincir
+    kurulmaz, cagiran evrak ailesi durum degistirmeden doner. Pasif / izinli kullanici giris
+    yapamaz (`core.deps`) — onunla "sahipli" sayilan bir zincir TAKILIRDI.
+
+    🔴 EVRAGI ACAN KISI SAHIP SAYILMAZ: kendi evragini onaylayamaz (`_assert_can_decide`
+    bekci 5) ve tek sahip oysa zincir kimsenin kutusuna dusmez, TAKILIRDI. Tek istisna
+    `_has_document_admin` kuralidir (kendi evragini onaylamasina izin verilen kisi) — karar
+    `_assert_can_decide` ile AYNI fonksiyondan gecer.
     """
     id_kolonu, proje_kolonu = documents.DOCUMENT_PROJECT_COLUMNS[document_type]
     proje_id = await session.scalar(select(proje_kolonu).where(id_kolonu == document_id))
     anahtarlar = list(dict.fromkeys(rol.value for rol in roles))
+    acan = await session.get(User, opener_id)
+    acan_sayilir = acan is not None and await _has_document_admin(session, acan, document_type)
+    acan_haric = [] if acan_sayilir else [User.id != opener_id]
     ekipte = (
         select(literal(1))
         .select_from(ProjectMember)
@@ -187,6 +198,8 @@ async def _assert_step_roles_have_owners(
             ProjectMember.role_id == Role.id,
             ProjectMember.project_id == proje_id,
             User.status == UserStatus.active,
+            User.all_projects.is_(False),
+            *acan_haric,
         )
         .exists()
     )
@@ -197,6 +210,7 @@ async def _assert_step_roles_have_owners(
             User.role_id == Role.id,
             User.all_projects.is_(True),
             User.status == UserStatus.active,
+            *acan_haric,
         )
         .exists()
     )
@@ -238,7 +252,9 @@ async def create_chain(
     adim_rolleri = definitions.step_roles(document_type, amount, threshold)
     # 🔴 IZN-B3b (KARAR, kullanici 2026-10-04): adim rollerinden biri belgenin projesinde
     # (ya da "Tum projeler" + ana rolde) kimsede yoksa zincir AÇILMAZ, evrak durumu degismez.
-    await _assert_step_roles_have_owners(session, document_type, document_id, adim_rolleri)
+    await _assert_step_roles_have_owners(
+        session, document_type, document_id, adim_rolleri, created_by_user_id
+    )
     chain = ApprovalChain(
         document_type=document_type,
         document_id=document_id,
@@ -308,20 +324,18 @@ async def chain_step_substitutes_permission(
     * **aktor SIRADAKI adimin SAHIBI** (IZN-B3b: evragin projesinde o role atanmis
       ekip uyesi ya da "Tum projeler" + ana rol) -> kapi acilir. Karar degil,
       yalnizca kapi: otorite hâlâ kilit altindaki `_assert_can_decide`tir.
-    * **aktor ADAY IMZACI (bir projede ya da ana rolunde adim rolu var) ve evrak HIC YOK**
-      -> kapi
-      yine acilir. 🔴 OLCULDU (T2): acilmasaydi var OLMAYAN bir kimlik 403,
-      GORUNMEYEN (kapsam disi) bir kayit ise 404 verirdi ve elinde kimlik olan
-      bir aday imzaci kaydin VARLIGINI ogrenirdi
-      (`test_KAPSAMI_OLMAYAN_adim_sahibi_404_alir_ve_VAR_OLMAYANDAN_AYIRT_
-      EDILEMEZ`). Kapinin acilmasi HICBIR yetki vermez — var olmayan evrak
-      ucta zaten 404'tur; yalnizca iki cevap AYNILASIR.
+    * **aktor ADAY IMZACI (bir projede ya da ana rolunde adim rolu var) ve evrak HIC
+      YOK** -> kapi yine acilir ve istek evrak ucunda 404 olur. Gercek davranis:
+      aday imzaciya BASKA bir projede VAR olan evrak 403, HIC var olmayan evrak 404
+      doner; yani iki cevap AYNILASMAZ ve aday imzaci bir kimligin var olup
+      olmadigini ogrenebilir (varlik bilgisi sizintisi IZN-B3b ile GENISLEDI, eski
+      "iki cevap aynilasir" iddiasi artik gecerli DEGIL). Kapinin acilmasi HICBIR
+      yetki vermez; otorite `_assert_can_decide`tir.
 
     🔴 Ikinci dal ADAY IMZACIYLA SINIRLIDIR ve bu bilinclidir: kosulsuz
     acilsaydi hicbir adim rolu OLMAYAN her kullanici da var olan (403) ile var
     olmayan (404) kimligi ayirt edebilir, yani bugun HIC OLMAYAN bir varlik
-    kesif yuzeyi butun kullanicilara acilirdi. Bu hâliyle ayrim yalnizca
-    ikamenin zaten muhatabi olan kumede kalir.
+    kesif yuzeyi butun kullanicilara acilirdi.
 
     Olgularin kendisi ve SQL gerekcesi `repository.chain_gate_facts`tedir.
     """
@@ -373,14 +387,24 @@ async def _assert_can_decide(
     chain: ApprovalChain,
     steps: list[ApprovalStep],
     current: ApprovalStep,
+    *,
+    admin_escape: bool = False,
 ) -> bool:
     """Bekci 4-5-6. Doner: karar "vekaleten" mi verildi.
 
     Ret de bir KARARDIR ve AYNI huniden gecer: ayri birakilsaydi evragin sahibi
     kendi evragini REDDEDEREK zinciri silebilir ve onay izini yok edebilirdi.
+
+    🔴 `admin_escape=True` YALNIZ RET yoludur (GECE KARARI, IZN-B3b): adim sahipsiz kalmissa
+    (tek sahip ekipten cikti / pasiflesti / izne cikti) kimse karar veremez ve zincir takilir.
+    Sistem Yoneticisi sahip OLMASA da zinciri REDDEDEBILIR (evrak taslaga doner, rol yeniden
+    atanip yeniden gonderilir); ONAYLAYAMAZ — gorevler ayriligi ve sahiplik onayda korunur.
+    Denetim metni "vekaleten" isareti tasir.
     """
     # IZN-B3b: adimin sahibi mi — kapi ve gelen kutusuyla AYNI `step_owner_clause`.
     if not await repository.actor_owns_step(session, actor.id, current.id):
+        if admin_escape and await is_admin_role(session, actor):
+            return True
         raise ApprovalNotAllowedError(guards.APPROVAL_ROLE_MISSING)
 
     on_behalf = False
@@ -487,7 +511,7 @@ async def reject_chain(
         return None
     steps = await repository.chain_steps(session, chain.id)
     current = _current_step(steps, None)
-    on_behalf = await _assert_can_decide(session, actor, chain, steps, current)
+    on_behalf = await _assert_can_decide(session, actor, chain, steps, current, admin_escape=True)
     temiz = clean_reject_reason(reason)
 
     detail = messages.approval_chain_rejected(

@@ -1,4 +1,4 @@
-"""OK-1C — zincir adiminin onay rolu, MODUL KAPISINI IKAME EDER.
+"""OK-1C — zincir adiminin SAHIBI (projedeki rolu adim rolu olan kisi), MODUL KAPISINI IKAME EDER.
 
 ## Neden bir kapi daha var
 

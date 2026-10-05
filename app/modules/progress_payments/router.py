@@ -60,8 +60,9 @@ _APPROVE_PAGES = ("mali.hakedis_isveren", "proje.isveren_hakedis", "santiye.hake
 _APPROVE = require_pages(_APPROVE_PAGES, "approve")
 _ADMIN = require_permission("progress_payments", AccessLevel.admin)
 #: OK-1C — `approve`/`reject`in kapısı. Modül seviyesi AYNEN `approve`tır;
-#: seviye yetmediğinde zincirin SIRADAKİ adımının onay rolü onu İKAME EDER
-#: (`approvals/gate.py`). `mark-paid`/`unapprove` DEĞİŞMEDİ — kapsam DAR.
+#: seviye yetmediğinde zincirin SIRADAKİ adımının sahibi
+#: (evrakın projesinde adım rolü olan kişi) onu İKAME EDER (`approvals/gate.py`).
+#: `mark-paid`/`unapprove` DEĞİŞMEDİ — kapsam DAR.
 _CHAIN_APPROVE = require_pages_or_chain_step(
     _APPROVE_PAGES,
     module_key="progress_payments",

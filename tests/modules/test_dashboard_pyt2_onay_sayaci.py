@@ -81,7 +81,9 @@ def aktor(seeded_db: AsyncSession, user_factory):
     ) -> User:
         user = await user_factory(email=email, password=PAROLA, role_key=role_key)
         if projeler is None:
-            user.all_projects = True
+            # Onay rolü varsa PROJE rolü (ekip kişisi, `all_projects=False`; "Tüm projeler"
+            # kişide ekip satırı yok sayılır), yoksa "Tüm projeler" + ana rol.
+            user.all_projects = not approval_roles
             await onay_rolu_ver(seeded_db, user, *approval_roles)
         else:
             # IZN-B3b: verilen projelerde ekip üyesi — onay rolü varsa O rolle (proje rolü).
@@ -411,7 +413,8 @@ async def test_onay_rolu_OLAN_aktorun_panel_MALIYETI_CAKILDI(seeded_db, aktor, p
     yeşil kalır.
     """
     yaratan = await aktor("pyt2-y10@d.co", approval_roles=())
-    sef = await aktor("pyt2-sef10@d.co", approval_roles=[ApprovalRole.site_chief])
+    # "Tüm projeler" + ANA rol `site_chief` (üretimdeki gerçek durum; ekip satırı yok).
+    sef = await aktor("pyt2-sef10@d.co", approval_roles=())
     await _zincirler(seeded_db, project_factory, yaratan, ["PYT2-K1", "PYT2-K2"])
 
     with _sorgu_sayaci() as sorgular:

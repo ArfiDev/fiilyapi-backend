@@ -77,6 +77,8 @@ from tests.modules.approvals.test_ok1c_ikame import _SATINALMA, _TASERON, _zinci
 _MODUL_KAPISI = "Bu işlem için yetkiniz yok"
 #: 🔴 ELLE YAZILDI (`subcontractor_progress_payments/guards.py`ten ithal EDİLMEDİ).
 _HAKEDIS_YOK = "Hakediş bulunamadı"
+#: 🔴 ELLE YAZILDI (`approvals/guards.py::APPROVAL_ROLE_MISSING`ten ithal EDİLMEDİ).
+_ROL_YOK = "Bu projede bu onay adimi icin gereken role sahip degilsiniz"
 #: 🔴 ELLE YAZILDI (`procurement/guards.py`ten ithal EDİLMEDİ).
 _TALEP_YOK = "Satın alma talebi bulunamadı"
 
@@ -90,6 +92,16 @@ _IZINSIZ_ROL = "hr_manager"
 
 #: `/reject` gövdesi ZORUNLUDUR (taşeron ailesi).
 _GEREKCE = {"reason": "Metrajlar eksik, revize edin"}
+
+
+async def _baska_projede_aday(aktor_fabrikasi, evrak_fabrikasi, yaratan, email, rol):
+    """IZN-B3b: aday imzacı = BAŞKA bir projenin ekibinde `rol` taşıyan kişi (ana rolü
+    `_IZINSIZ_ROL`: modül izni yok). Test evrağının projesinde üyeliği YOKTUR; bu yüzden modül
+    kapısı kapanır ve ikame yalnız adımın sahibine açılır."""
+    _id, diger = await evrak_fabrikasi(_TASERON, creator=yaratan)
+    return await aktor_fabrikasi(
+        email, role_key=_IZINSIZ_ROL, approval_roles=[rol], projeler=[diger]
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -192,8 +204,10 @@ async def test_F3_SIRADAKI_ROLU_TASIMAYAN_aday_403_alir_KAPSAM_ICI_ve_DISI_AYNI(
 
     assert kapsam_disi.status_code == 403, kapsam_disi.text
     assert kapsam_disi.json()["detail"] == _MODUL_KAPISI
+    # IZN-B3b: kapsam İÇİ aday o projenin EKİBİNDEDİR (accounting) ve proje rolüyle modül kapısından
+    # geçer; reddi kilitli karar verir (aynı 403, kilitli kararın metni).
     assert kapsam_ici.status_code == 403, kapsam_ici.text
-    assert kapsam_ici.json()["detail"] == _MODUL_KAPISI
+    assert kapsam_ici.json()["detail"] == _ROL_YOK
 
 
 # --------------------------------------------------------------------------- #
@@ -215,11 +229,8 @@ async def test_KAHIN_ACIK_aday_imzaci_icin_403_VARLIK_KANITIDIR(
     kararıdır.
     """
     yaratan = await aktor_fabrikasi("kahin-ana-yaratan@ok1c.co")
-    await aktor_fabrikasi(
-        "kahin-ana@ok1c.co",
-        role_key=_IZINSIZ_ROL,
-        approval_roles=[ApprovalRole.accounting],
-        tum_projeler=True,
+    await _baska_projede_aday(
+        aktor_fabrikasi, evrak_fabrikasi, yaratan, "kahin-ana@ok1c.co", ApprovalRole.accounting
     )
     basliklar = await giris("kahin-ana@ok1c.co")
     document_id, _proje = await evrak_fabrikasi(_TASERON, creator=yaratan)
@@ -332,11 +343,8 @@ async def test_KAHIN_REJECT_ucunda_da_ACIKTIR(
     dayandırır (ikisi ayrışırsa burası kırmızı olur).
     """
     yaratan = await aktor_fabrikasi("kahin-ret-yaratan@ok1c.co")
-    await aktor_fabrikasi(
-        "kahin-ret@ok1c.co",
-        role_key=_IZINSIZ_ROL,
-        approval_roles=[ApprovalRole.accounting],
-        tum_projeler=True,
+    await _baska_projede_aday(
+        aktor_fabrikasi, evrak_fabrikasi, yaratan, "kahin-ret@ok1c.co", ApprovalRole.accounting
     )
     basliklar = await giris("kahin-ret@ok1c.co")
     document_id, _proje = await evrak_fabrikasi(_TASERON, creator=yaratan)
@@ -368,11 +376,12 @@ async def test_KAHIN_GOVDESIZ_REJECT_ile_de_isler_403_ve_422_AYRISIR(
     Aday imzacı OLMAYAN için ise iki hâl de 403'tür (kapı hiç açılmaz).
     """
     yaratan = await aktor_fabrikasi("kahin-govdesiz-yaratan@ok1c.co")
-    await aktor_fabrikasi(
+    await _baska_projede_aday(
+        aktor_fabrikasi,
+        evrak_fabrikasi,
+        yaratan,
         "kahin-govdesiz@ok1c.co",
-        role_key=_IZINSIZ_ROL,
-        approval_roles=[ApprovalRole.accounting],
-        tum_projeler=True,
+        ApprovalRole.accounting,
     )
     await aktor_fabrikasi("kahin-govdesiz-rolsuz@ok1c.co", role_key=_IZINSIZ_ROL, tum_projeler=True)
     aday = await giris("kahin-govdesiz@ok1c.co")

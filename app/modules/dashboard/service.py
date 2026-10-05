@@ -83,11 +83,11 @@ async def _pending_approvals(session: AsyncSession, user: User) -> PendingApprov
     beslemek, admin bir aktorun rozetini sessizce daraltirdi.
 
     ⚠️ OLCULMUS MALIYET (bu dilimde eklenen):
-      * onay rolu OLMAYAN aktor (cogunluk): **+1 sorgu** — motor rol kumesi
-        bosken erkenden doner.
-      * onay rolu TASIYAN aktor: **+13 sorgu**; bunun **7'si** panelin zaten
-        kostugu proje okumasinin (`visible_projects`) tekrarididir. Tekrari
-        silmek motorun IMZASINI degistirmeyi gerektirir (kapsami disaridan
+      * ADAY IMZACI OLMAYAN aktor (cogunluk; hicbir projede / ana rolde adim rolu
+        yok): **+1 sorgu** — aday imzaci olgusu bosken erkenden doner.
+      * ADAY IMZACI aktor (bir projede ya da ana rolde adim rolu var): **+13 sorgu**;
+        bunun **7'si** panelin zaten kostugu proje okumasinin (`visible_projects`)
+        tekrarididir. Tekrari silmek motorun IMZASINI degistirmeyi gerektirir (kapsami disaridan
         almak) — o `approvals/` dilimidir, burada YAPILMADI.
       Ikisi de SATIR SAYISINDAN BAGIMSIZDIR (bekcisi:
       `test_panelin_sorgu_sayisi_SATIR_SAYISINDAN_BAGIMSIZ`).

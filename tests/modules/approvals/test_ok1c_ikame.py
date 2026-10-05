@@ -454,11 +454,8 @@ async def test_MODUL_KAPISINDAN_GECEN_aktorun_sorgu_sayisi_ARTMAMALIDIR(
     ve zincirin 2. adımı ona aittir — yani modül kapısından ZATEN geçer.
     """
     yaratan = await aktor_fabrikasi("ikame-t8-yaratan@ok1c.co")
-    await aktor_fabrikasi(
-        "ikame-t8-pm@ok1c.co",
-        role_key="project_manager",
-        approval_roles=[ApprovalRole.project_manager],
-    )
+    # IZN-B3b: "Tüm projeler" + ANA rol `project_manager` (üretimdeki gerçek durum).
+    await aktor_fabrikasi("ikame-t8-pm@ok1c.co", role_key="project_manager")
     basliklar = await giris("ikame-t8-pm@ok1c.co")
     document_id, _proje = await evrak_fabrikasi(_TASERON, creator=yaratan)
     await _zincir(seeded_db, _TASERON, document_id, yaratan)
