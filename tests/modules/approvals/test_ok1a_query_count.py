@@ -27,6 +27,7 @@ from sqlalchemy import event
 from app.modules.approvals import service
 from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
 from tests.conftest import test_engine
+from tests.modules.approvals.conftest import proje_rolu_ver
 
 _TASERON = ApprovalDocumentType.subcontractor_progress_payment
 
@@ -100,26 +101,25 @@ async def test_UC_AILE_birlikteyken_de_sorgu_sayisi_SABIT_kalir(
     sayısını oynatmamalı. Aile karışımı iki ölçümde de aynıdır; değişen tek şey
     aile BAŞINA düşen satır sayısıdır (1 → 3)."""
     yaratan = await aktor_fabrikasi("n1-uclu-yaratan@ok1a.co")
-    await aktor_fabrikasi(
-        "n1-uclu@ok1a.co",
-        role_key="system_admin",
-        approval_roles=[
-            ApprovalRole.site_chief,
-            ApprovalRole.accounting,
-            ApprovalRole.procurement,
-        ],
-    )
+    # IZN-B3b: tek kişi tek projede tek rol → her ailenin projesinde O AİLENİN ilk adım rolüyle üye.
+    aktor = await aktor_fabrikasi("n1-uclu@ok1a.co", role_key="hr_manager", tum_projeler=False)
     basliklar = await giris("n1-uclu@ok1a.co")
     tipler = (
         _TASERON,
         ApprovalDocumentType.progress_payment,
         ApprovalDocumentType.purchase_request,
     )
+    ilk_adim_rolu = {
+        _TASERON: ApprovalRole.site_chief,
+        ApprovalDocumentType.progress_payment: ApprovalRole.accounting,
+        ApprovalDocumentType.purchase_request: ApprovalRole.procurement,
+    }
 
     async def _tur(tekrar: int) -> None:
         for _ in range(tekrar):
             for tip in tipler:
-                document_id, _proje = await evrak_fabrikasi(tip, creator=yaratan)
+                document_id, proje = await evrak_fabrikasi(tip, creator=yaratan)
+                await proje_rolu_ver(seeded_db, aktor, proje, ilk_adim_rolu[tip].value)
                 await service.create_chain(
                     seeded_db,
                     document_type=tip,

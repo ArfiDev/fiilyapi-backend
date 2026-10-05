@@ -29,9 +29,16 @@ from app.modules.approvals import service as approvals_service
 from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
 from app.modules.dashboard.service import build_summary
 from app.modules.projects.models import Project
-from app.modules.users.models import ProjectMember, User
+from app.modules.users.models import User
 from tests.conftest import test_engine
-from tests.modules.approvals.conftest import onay_rolu_ver, taseron_evraki
+from tests.modules.approvals.conftest import (
+    onay_rolu_ver,
+    proje_rolu_ver,
+    rol_sahipleri_dolgusu,  # noqa: F401  (fixture)
+    taseron_evraki,
+)
+
+pytestmark = pytest.mark.usefixtures("rol_sahipleri_dolgusu")
 
 PAROLA = "parola1234"
 _TASERON = ApprovalDocumentType.subcontractor_progress_payment
@@ -73,15 +80,16 @@ def aktor(seeded_db: AsyncSession, user_factory):
         projeler: Sequence[Project] | None = None,
     ) -> User:
         user = await user_factory(email=email, password=PAROLA, role_key=role_key)
-        if approval_roles:
-            await onay_rolu_ver(seeded_db, user, *approval_roles)
         if projeler is None:
-            user.all_projects = True
+            # Onay rolü varsa PROJE rolü (ekip kişisi, `all_projects=False`; "Tüm projeler"
+            # kişide ekip satırı yok sayılır), yoksa "Tüm projeler" + ana rol.
+            user.all_projects = not approval_roles
+            await onay_rolu_ver(seeded_db, user, *approval_roles)
         else:
+            # IZN-B3b: verilen projelerde ekip üyesi — onay rolü varsa O rolle (proje rolü).
+            uye_rolu = approval_roles[0].value if approval_roles else role_key
             for proje in projeler:
-                seeded_db.add(
-                    ProjectMember(user_id=user.id, project_id=proje.id, role_id=user.role_id)
-                )
+                await proje_rolu_ver(seeded_db, user, proje, uye_rolu)
         await seeded_db.flush()
         return user
 
@@ -156,7 +164,7 @@ async def test_rozet_SIFIR_ama_available_TRUE__gercek_sifir_bilinmiyor_DEGIL(
     yaratan = await aktor("pyt2-y2@d.co", approval_roles=())
     proje = await project_factory("PYT2-B", name="Güneşkent B")
     await _zincir(seeded_db, proje, yaratan)
-    rolsuz = await aktor("pyt2-rolsuz@d.co", role_key="patron", approval_roles=())
+    rolsuz = await aktor("pyt2-rolsuz@d.co", role_key="hr_manager", approval_roles=())
 
     ozet = await build_summary(seeded_db, rolsuz)
 
@@ -234,8 +242,9 @@ async def test_GORUNMEYEN_projenin_evragi_SAYILMAZ(seeded_db, aktor, project_fac
 async def test_GOREVLER_AYRILIGI__ayni_zincirde_karar_vermis_aktor_SAYMAZ(
     seeded_db, aktor, project_factory, client
 ):
-    """Bekçi 6 — görevler ayrılığı. İKİ onay rolü taşıyan aktör 1. adımı
-    onayladıktan sonra zincirin 2. adımı ona düşse bile rozet ARTMAZ."""
+    """Bekçi 6 — görevler ayrılığı. 1. adımı şef olarak onaylayan aktör, projedeki ROLÜ PM'e
+    değişince zincirin 2. adımı ona düşse bile rozet ARTMAZ (IZN-B3b: tek kişi tek projede
+    tek rol; ayrılık rol değişiminde ısırır)."""
     yaratan = await aktor("pyt2-y7@d.co", approval_roles=())
     proje = await project_factory("PYT2-G", name="Güneşkent G")
     document_id = await taseron_evraki(seeded_db, proje, yaratan)
@@ -249,7 +258,7 @@ async def test_GOREVLER_AYRILIGI__ayni_zincirde_karar_vermis_aktor_SAYMAZ(
     ikili = await aktor(
         "pyt2-ikili@d.co",
         role_key="system_admin",
-        approval_roles=[ApprovalRole.site_chief, ApprovalRole.project_manager],
+        approval_roles=[ApprovalRole.site_chief],
     )
     once = await build_summary(seeded_db, ikili)
     assert once.pending_approvals.count == 1, "kurulum kontrolü: karardan ÖNCE bir satır düşüyor"
@@ -258,6 +267,9 @@ async def test_GOREVLER_AYRILIGI__ayni_zincirde_karar_vermis_aktor_SAYMAZ(
         seeded_db, actor=ikili, document_type=_TASERON, document_id=document_id
     )
 
+    await proje_rolu_ver(seeded_db, ikili, proje, "project_manager")
+    ara = await build_summary(seeded_db, ikili)
+    assert ara.pending_approvals.count == 0, "2. adım PM'indir ama ona kapalı (ayrılık)"
     sonra = await build_summary(seeded_db, ikili)
 
     assert sonra.pending_approvals.count == 0, (
@@ -401,7 +413,8 @@ async def test_onay_rolu_OLAN_aktorun_panel_MALIYETI_CAKILDI(seeded_db, aktor, p
     yeşil kalır.
     """
     yaratan = await aktor("pyt2-y10@d.co", approval_roles=())
-    sef = await aktor("pyt2-sef10@d.co", approval_roles=[ApprovalRole.site_chief])
+    # "Tüm projeler" + ANA rol `site_chief` (üretimdeki gerçek durum; ekip satırı yok).
+    sef = await aktor("pyt2-sef10@d.co", approval_roles=())
     await _zincirler(seeded_db, project_factory, yaratan, ["PYT2-K1", "PYT2-K2"])
 
     with _sorgu_sayaci() as sorgular:
@@ -431,7 +444,7 @@ async def test_onay_rolu_YOKSA_panel_TEK_ek_sorgu_oder(seeded_db, aktor, project
     Her üç kalemin dökümü `test_onay_rolu_OLAN_aktorun_panel_MALIYETI_CAKILDI`
     docstring'inde tek tek yazılıdır; onay rolünden BAĞIMSIZ oldukları için iki
     tavana da AYNI sayıyla girerler."""
-    rolsuz = await aktor("pyt2-rolsuz2@d.co", role_key="patron", approval_roles=())
+    rolsuz = await aktor("pyt2-rolsuz2@d.co", role_key="hr_manager", approval_roles=())
     await project_factory("PYT2-J", name="Güneşkent J")
 
     with _sorgu_sayaci() as sorgular:
@@ -442,7 +455,10 @@ async def test_onay_rolu_YOKSA_panel_TEK_ek_sorgu_oder(seeded_db, aktor, project
     # kapsam: eski satır / `tum_tutarlar` hibriti `actor_scope`) + rolün tek seferlik okunması.
     # IZN-B3: 37 → 33 (`visible_projects` −2 × iki çağrı: portföy + risk); onarım: 33 → 35 (+2:
     # `restricted_project_ids` + proje başına alan kapısı toplu okuması).
-    assert len(sorgular) == 35, (
+    # IZN-B3b: 35 → 31. Aktör artık ana rolü `patron` OLAN "Tüm projeler" kişi DEĞİL (o, `patron`
+    # adımının sahibidir ve "rolsüz" sayılamaz) ama ana rolü hiçbir adım rolü olmayan `hr_manager`:
+    # `actor_is_candidate` (1 sorgu) hâlâ TEK ek sorgudur; fark, rolün daha az izin okumasıdır.
+    assert len(sorgular) == 31, (
         f"rolsüz aktörün panel maliyeti {len(sorgular)} sorgu — "
         "taban 8 + onay rolü 1 + portföy 10 + risk 15 + proje kartı izin kapısı 3 (IZN-B2)"
     )

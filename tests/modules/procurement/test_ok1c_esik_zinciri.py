@@ -34,6 +34,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,8 +52,11 @@ from tests.modules.approvals.conftest import (
     PAROLA,
     adim_durumlari,
     onay_rolu_ver,
+    rol_sahipleri_dolgusu,  # noqa: F401  (fixture)
     satinalma_evraki,
 )
+
+pytestmark = pytest.mark.usefixtures("rol_sahipleri_dolgusu")
 
 _SATINALMA = ApprovalDocumentType.purchase_request
 _YOL = "/purchase-requests"
@@ -78,7 +82,9 @@ async def _aktor(
 ) -> tuple[User, dict[str, str]]:
     """Sistem rolü + onay rolleri AYRI verilir (K1); tüm projeler görünür."""
     user = await user_factory(email=email, password=PAROLA, role_key=role_key)
-    user.all_projects = True
+    # IZN-B3b: onay rolü = PROJE rolü → ekip kişisi `all_projects=False` (üretimde "Tüm projeler"
+    # kişide ekip satırı yoktur; `step_owner_clause` o satırı yok sayar).
+    user.all_projects = not approval_roles
     await onay_rolu_ver(seeded_db, user, *approval_roles)
     yanit = await client.post("/auth/login", json={"email": email, "password": PAROLA})
     assert yanit.status_code == 200, yanit.text

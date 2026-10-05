@@ -25,6 +25,14 @@ bekçiyi hiçliğe çevirir; bir metni bilerek değiştiren dilim referansı
 `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazeler ve
 **farkı incelemede görünür kılar** — sessizce değil.
 
+## 🔴 REFERANSTAN DÜŞEN SEMBOL (IZN-B3b, 2026-10-05)
+
+`approval_roles_assigned` KALDIRILDI: `PUT /approvals/roles/{user_id}` 410 oldu (onay rolü artık
+proje rolünden gelir; atama `PUT /users/{id}/access`te, denetim satırı `user_access_updated`).
+Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; fark
+(`git diff`): YALNIZ bu fonksiyonun İKİ satırı silindi; başka metin DEĞİŞMEDİ.
+Sayaçlar 251/232 → 250/231.
+
 ## 🔴 REFERANS DEĞİŞİKLİĞİ (IZN-B3, 2026-10-04)
 
 `project_access_updated` KALDIRILDI, yerine `user_access_updated` geldi: eski
@@ -328,9 +336,9 @@ def test_anlik_goruntu_bos_degil_ve_tum_sembolleri_kapsiyor() -> None:
     yine yeşil kalabilirdi ("hiçbir şeyi hiçbir şeyle karşılaştırmak").
     """
     tanimlar = _tanimlar()
-    assert len(tanimlar) == 251, f"sembol sayısı 251 olmalı, {len(tanimlar)} bulundu"
+    assert len(tanimlar) == 250, f"sembol sayısı 250 olmalı, {len(tanimlar)} bulundu"
     fonksiyonlar = [a for a in tanimlar if callable(getattr(messages, a))]
-    assert len(fonksiyonlar) == 232, f"fonksiyon sayısı 232 olmalı, {len(fonksiyonlar)} bulundu"
+    assert len(fonksiyonlar) == 231, f"fonksiyon sayısı 231 olmalı, {len(fonksiyonlar)} bulundu"
 
     satirlar = _ANLIK_GORUNTU.read_text(encoding="utf-8").splitlines()
     assert len(satirlar) >= 240, f"anlık görüntü çok kısa: {len(satirlar)} satır"

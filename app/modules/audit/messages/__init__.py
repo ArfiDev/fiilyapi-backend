@@ -120,9 +120,6 @@ from app.modules.audit.messages.approvals import (
     approval_chain_rejected as approval_chain_rejected,
 )
 from app.modules.audit.messages.approvals import (
-    approval_roles_assigned as approval_roles_assigned,
-)
-from app.modules.audit.messages.approvals import (
     approval_step_approved as approval_step_approved,
 )
 from app.modules.audit.messages.approvals import (

@@ -624,7 +624,7 @@
         "type": "string"
       },
       "ApprovalHistoryItem": {
-        "description": "Onay GECMISI satiri (OKT-B1): bekleyen kartin AYNI alanlari + sonuc.\n\n* `decision` (zincirin SON DURUMU): `approved` (tum adimlar onayli) |\n  `rejected` | `pending` (zincir suruyor; yalniz `decision=all` sorgusunda).\n* `decided_by`: zincirin SON kararini veren: retse reddeden, onaysa SON\n  imzayi atan kullanicinin ad soyadi; kullanici silinmisse VE zincir\n  suruyorsa `null`.\n* `decided_at`: ret ani ya da son imza ani; zincir suruyorsa `null`.\n* `reason`: YALNIZ retse gerekce, aksi `null`.\n* `current_step_no`: retse reddedilen adim, suren zincirde siradaki adim,\n  onaylanmissa son adim.",
+        "description": "Onay GECMISI satiri (OKT-B1): bekleyen kartin AYNI alanlari + sonuc.\n\n* `decision` (zincirin SON DURUMU): `approved` (tum adimlar onayli) |\n  `rejected` | `pending` (zincir suruyor; yalniz `decision=all` sorgusunda).\n* `decided_by`: zincirin SON kararini veren: retse reddeden, onaysa SON\n  imzayi atan kullanicinin ad soyadi; kullanici silinmisse VE zincir\n  suruyorsa `null`.\n* `decided_at`: ret ani ya da son imza ani; zincir suruyorsa `null`.\n* `reason`: YALNIZ retse gerekce, aksi `null`.\n* `current_step_no`: retse reddedilen adim, suren zincirde siradaki adim,\n  onaylanmissa son adim.\n* `can_decide` (IZN-B3b): aktor bu zincirin SIRADAKI adimini SIMDI onaylayip/reddedebilir mi.\n  Yalniz suren zincirde `true` olabilir; onaylanmis / reddedilmis satirda ve baskasinin\n  adiminda `false`.",
         "properties": {
           "amount_snapshot": {
             "anyOf": [
@@ -637,6 +637,10 @@
               }
             ],
             "title": "Amount Snapshot"
+          },
+          "can_decide": {
+            "title": "Can Decide",
+            "type": "boolean"
           },
           "chain_id": {
             "format": "uuid",
@@ -781,6 +785,7 @@
           "subtitle",
           "gross_amount",
           "net_amount",
+          "can_decide",
           "decision",
           "decided_by",
           "decided_at",
@@ -803,13 +808,6 @@
             "title": "Limit",
             "type": "integer"
           },
-          "my_approval_roles": {
-            "items": {
-              "$ref": "#/components/schemas/ApprovalRole"
-            },
-            "title": "My Approval Roles",
-            "type": "array"
-          },
           "offset": {
             "title": "Offset",
             "type": "integer"
@@ -823,8 +821,7 @@
           "items",
           "total",
           "limit",
-          "offset",
-          "my_approval_roles"
+          "offset"
         ],
         "title": "ApprovalHistoryResponse",
         "type": "object"
@@ -843,6 +840,10 @@
               }
             ],
             "title": "Amount Snapshot"
+          },
+          "can_decide": {
+            "title": "Can Decide",
+            "type": "boolean"
           },
           "chain_id": {
             "format": "uuid",
@@ -949,13 +950,14 @@
           "title",
           "subtitle",
           "gross_amount",
-          "net_amount"
+          "net_amount",
+          "can_decide"
         ],
         "title": "ApprovalInboxItem",
         "type": "object"
       },
       "ApprovalInboxResponse": {
-        "description": "🔴 KANON E: `can_approve` gibi bir KARAR ALANI YOKTUR.\n\n`my_approval_roles` OLGUSU doner; \"bu satiri onaylayabilir miyim\" kararini\nekran, adim rolu ile bu kume uzerinden TEK yardimcida birlestirir.\n🔴 ACILIYET/RENK de SUNUCUDA URETILMEZ (K10 kanonu).",
+        "description": "Onay kutusu zarfi.\n\n🔴 IZN-B3b: `my_approval_roles` KALKTI — onay rolu artik PROJEYE baglidir ve tek bir liste\nyanlis olurdu. \"Bu satiri SIMDI onaylayabilir miyim\" sorusunu satirdaki `can_decide` yanitlar\n(adimin sahibi aktor + kendi evraki / gorevler ayriligi bekcileri + acik zincir).\n🔴 ACILIYET/RENK SUNUCUDA URETILMEZ (K10 kanonu).",
         "properties": {
           "items": {
             "items": {
@@ -967,13 +969,6 @@
           "limit": {
             "title": "Limit",
             "type": "integer"
-          },
-          "my_approval_roles": {
-            "items": {
-              "$ref": "#/components/schemas/ApprovalRole"
-            },
-            "title": "My Approval Roles",
-            "type": "array"
           },
           "offset": {
             "title": "Offset",
@@ -988,8 +983,7 @@
           "items",
           "total",
           "limit",
-          "offset",
-          "my_approval_roles"
+          "offset"
         ],
         "title": "ApprovalInboxResponse",
         "type": "object"
@@ -1026,87 +1020,6 @@
         ],
         "title": "ApprovalRole",
         "type": "string"
-      },
-      "ApprovalRoleAssignmentListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ApprovalRoleAssignmentRead"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "ApprovalRoleAssignmentListResponse",
-        "type": "object"
-      },
-      "ApprovalRoleAssignmentRead": {
-        "properties": {
-          "approval_roles": {
-            "items": {
-              "$ref": "#/components/schemas/ApprovalRole"
-            },
-            "title": "Approval Roles",
-            "type": "array"
-          },
-          "email": {
-            "title": "Email",
-            "type": "string"
-          },
-          "full_name": {
-            "title": "Full Name",
-            "type": "string"
-          },
-          "user_id": {
-            "format": "uuid",
-            "title": "User Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "user_id",
-          "full_name",
-          "email",
-          "approval_roles"
-        ],
-        "title": "ApprovalRoleAssignmentRead",
-        "type": "object"
-      },
-      "ApprovalRoleAssignmentUpdate": {
-        "additionalProperties": false,
-        "description": "TAM KUME yazar: gonderilmeyen rol KALKAR (kismi ekleme ucu YOKTUR).",
-        "properties": {
-          "approval_roles": {
-            "items": {
-              "$ref": "#/components/schemas/ApprovalRole"
-            },
-            "title": "Approval Roles",
-            "type": "array"
-          }
-        },
-        "required": [
-          "approval_roles"
-        ],
-        "title": "ApprovalRoleAssignmentUpdate",
-        "type": "object"
       },
       "ApprovalSettingsRead": {
         "properties": {
@@ -50100,59 +50013,23 @@
     },
     "/approvals/roles": {
       "get": {
-        "description": "EN AZ BIR onay rolu tasiyan kullanicilar. Rolu OLMAYANLAR burada DONMEZ:\nbu uc atamalarin listesidir, kullanici katalogu `GET /users`tur.",
+        "deprecated": true,
+        "description": "KALDIRILDI (IZN-B3b): her çağrı 410 döner. Onay rolü = proje rolü (K1).",
         "operationId": "list_approval_role_assignments_endpoint_approvals_roles_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 200,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApprovalRoleAssignmentListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
           "403": {
             "description": "Yetkisiz işlem"
           },
           "404": {
             "description": "Kayıt bulunamadı"
           },
-          "422": {
+          "410": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": {}
               }
             },
-            "description": "Validation Error"
+            "description": "Uç kaldırıldı: onay rolü artık proje rolü (`PUT /users/{id}/access`)"
           }
         },
         "security": [
@@ -50168,7 +50045,8 @@
     },
     "/approvals/roles/{user_id}": {
       "put": {
-        "description": "Bir kullanicinin onay rollerini TAM KUME olarak yazar (K1).\n\nOnay rolu HICBIR IZIN VERMEZ: yalnizca zincirde imza adayligidir. Bu yuzden\nburada izin matrisine DOKUNULMAZ ve yeni bir rol/modul acilmaz.",
+        "deprecated": true,
+        "description": "KALDIRILDI (IZN-B3b): her çağrı 410 döner, hiçbir şey yazılmaz.",
         "operationId": "set_approval_roles_endpoint_approvals_roles__user_id__put",
         "parameters": [
           {
@@ -50182,32 +50060,20 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApprovalRoleAssignmentUpdate"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApprovalRoleAssignmentRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
           "403": {
             "description": "Yetkisiz işlem"
           },
           "404": {
             "description": "Kayıt bulunamadı"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Uç kaldırıldı: onay rolü artık proje rolü (`PUT /users/{id}/access`)"
           },
           "422": {
             "content": {

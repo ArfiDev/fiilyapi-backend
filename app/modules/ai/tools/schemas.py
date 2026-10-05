@@ -149,11 +149,10 @@ class AiOnayKalemi(BaseModel):
 
 class AiOnayKutusu(BaseModel):
     items: list[AiOnayKalemi]
+    #: 🔴 Bu uç KAPISIZDIR ve dönen küme "bu adım SANA düştü" olgusuyla sınırlıdır. Aktör
+    #: hiçbir projede adım rolü taşımıyorsa küme boştur ve bu **yetki reddi değildir** — cümle
+    #: farkı burada doğar. (IZN-B3b: `my_approval_roles` kalktı; rol artık projeye bağlı.)
     total: int
-    #: 🔴 Bu uç KAPISIZDIR ve dönen küme "bu adım SANA düştü" olgusuyla
-    #: sınırlıdır. Aktörün onay rolü yoksa küme boştur ve bu **yetki reddi
-    #: değildir** — cümle farkı burada doğar.
-    my_approval_roles: list[str]
 
 
 class AiPuantajHaftasi(BaseModel):

@@ -333,7 +333,7 @@ _HAM: Final[tuple[tuple, ...]] = (
     (93, "ayarlar.kullanicilar", "Kullanıcılar", _G.ayarlar, None, "/ayarlar/kullanicilar", "kullanici", "user_management", False, ()),
     (94, "ayarlar.rol_yonetimi", "Rol Yönetimi", _G.ayarlar, None, "/ayarlar/roller", "rol", "user_management", False, ()),
     (95, "ayarlar.sayfa_izinleri", "Sayfa İzinleri", _G.ayarlar, None, "/ayarlar/izin-matrisi", "sayfa_izinleri", "user_management", False, ()),
-    (96, "ayarlar.onay_rolleri", "Onay Rolleri ve Eşik", _G.ayarlar, None, "/ayarlar/onay-rolleri", "onay_rolleri", "approvals", False, ()),
+    (96, "ayarlar.onay_rolleri", "Onay Eşiği", _G.ayarlar, None, "/ayarlar/onay-rolleri", "onay_rolleri", "approvals", False, ()),
     (97, "ayarlar.bordro_oranlari", "Bordro Oranları", _G.ayarlar, None, "/ayarlar/bordro-oranlari", "bordro_oranlari", "payroll", False, ()),
     (98, "ayarlar.entegrasyonlar", "Entegrasyonlar", _G.ayarlar, None, "/ayarlar/entegrasyonlar", "entegrasyon", None, False, ()),
     (99, "ayarlar.yedekleme", "Yedekleme", _G.ayarlar, None, "/ayarlar/yedekleme", "yedekleme", None, False, ()),

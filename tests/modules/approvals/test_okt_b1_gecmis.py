@@ -107,7 +107,7 @@ async def _uc_durum(seeded_db, aktor_fabrikasi, evrak_fabrikasi, yaratan, projel
 async def _izleyici(aktor_fabrikasi, giris, email="okt-g-izleyici@okt-g.co", **kw):
     await aktor_fabrikasi(
         email,
-        role_key="accounting",
+        role_key=kw.pop("role_key", "accounting"),
         approval_roles=kw.pop("approval_roles", [ApprovalRole.accounting]),
         **kw,
     )
@@ -132,7 +132,7 @@ async def test_ALL_gorunur_TUM_zincirleri_son_durumlariyla_dondurur(
     assert yanit.status_code == 200, yanit.text
     govde = yanit.json()
     assert govde["total"] == 3
-    assert govde["my_approval_roles"] == ["accounting"]
+    assert "my_approval_roles" not in govde  # IZN-B3b: roller satırda (`can_decide`)
     harita = _karar_haritasi(govde)
 
     onay = harita[str(onayli)]
@@ -141,6 +141,7 @@ async def test_ALL_gorunur_TUM_zincirleri_son_durumlariyla_dondurur(
     assert onay["decided_at"] is not None
     assert onay["reason"] is None
     assert onay["current_step_no"] == 3
+    assert onay["can_decide"] is False  # bitmiş zincir
     assert [a["decided_at"] is not None for a in onay["steps"]] == [True, True, True]
 
     red = harita[str(reddedilen)]
@@ -149,6 +150,7 @@ async def test_ALL_gorunur_TUM_zincirleri_son_durumlariyla_dondurur(
     assert red["decided_at"] is not None
     assert red["reason"] == _GEREKCE
     assert red["current_step_no"] == 1  # reddedilen adım
+    assert red["can_decide"] is False  # terminal zincir
 
     bekleyen = harita[str(suren)]
     assert bekleyen["decision"] == "pending"
@@ -156,6 +158,7 @@ async def test_ALL_gorunur_TUM_zincirleri_son_durumlariyla_dondurur(
     assert bekleyen["decided_at"] is None
     assert bekleyen["reason"] is None
     assert bekleyen["current_step_no"] == 2  # sıradaki adım
+    assert bekleyen["can_decide"] is False  # sıradaki adım PM'in; izleyici muhasebe
     # Bekleyen kutusuyla AYNI kart alanları da gelir.
     for alan in ("chain_id", "document_type", "title", "gross_amount", "threshold_snapshot"):
         assert alan in bekleyen
@@ -283,20 +286,23 @@ async def test_ROL_gorunurlugu_zincirin_HICBIR_adiminda_rolum_yoksa_gorunmez(
         aktor_fabrikasi,
         giris,
         email="okt-g7-satinalma@okt-g.co",
+        role_key="procurement",
         approval_roles=[ApprovalRole.procurement],
     )
-    # Rolü olmayan aktör: sorgu bile açılmaz.
+    # Hiçbir projede adım rolü taşımayan aktör (ana rol `hr_manager` bir adım rolü DEĞİL):
+    # sorgu bile açılmaz.
     rolsuz = await _izleyici(
-        aktor_fabrikasi, giris, email="okt-g7-rolsuz@okt-g.co", approval_roles=[]
+        aktor_fabrikasi,
+        giris,
+        email="okt-g7-rolsuz@okt-g.co",
+        role_key="hr_manager",
+        approval_roles=[],
     )
     await _uc_durum(seeded_db, aktor_fabrikasi, evrak_fabrikasi, yaratan)
 
     for basliklar in (satinalmaci, rolsuz):
         govde = (await client.get("/approvals/history", headers=basliklar)).json()
         assert govde["items"] == [] and govde["total"] == 0
-    assert (await client.get("/approvals/history", headers=rolsuz)).json()[
-        "my_approval_roles"
-    ] == []
 
 
 async def test_reddeden_kullanici_silinmisse_decided_by_null_kayit_durur(
@@ -340,3 +346,45 @@ async def test_gecmis_sorgu_sayisi_SATIR_SAYISINDAN_BAGIMSIZ(
     assert len(dokuz_satir) == len(uc_satir), (
         f"3→9 satırda sorgu sayısı {len(uc_satir)}→{len(dokuz_satir)} oldu — N+1"
     )
+
+
+async def test_CAN_DECIDE_yalniz_SIRADAKI_adimin_sahibi_ve_acik_zincirde_true(
+    client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
+):
+    """IZN-B3b: `can_decide` satır başına OLGUDUR. Süren zincirin sıradaki adımı (PM) kimindeyse
+    onda `true`; onaylanmış / reddedilmiş zincirde ve başkasının adımında `false`.
+
+    İki karşıt izleyici AYNI testtedir: muhasebe (adım 3'te rolü var, sıra gelmedi) ve PM
+    (sıradaki adım onun). Sabit `true` ya da sabit `false` yazan bir uygulama birini kırar.
+    """
+    yaratan = await aktor_fabrikasi("okt-g10-yaratan@okt-g.co")
+    muhasebe = await _izleyici(aktor_fabrikasi, giris, email="okt-g10-muh@okt-g.co")
+    pm = await _izleyici(
+        aktor_fabrikasi,
+        giris,
+        email="okt-g10-pm@okt-g.co",
+        role_key="project_manager",
+        approval_roles=[ApprovalRole.project_manager],
+    )
+    onayli, reddedilen, suren = await _uc_durum(
+        seeded_db, aktor_fabrikasi, evrak_fabrikasi, yaratan
+    )
+
+    muh_harita = _karar_haritasi((await client.get("/approvals/history", headers=muhasebe)).json())
+    pm_harita = _karar_haritasi((await client.get("/approvals/history", headers=pm)).json())
+
+    assert {k: v["can_decide"] for k, v in muh_harita.items()} == {
+        str(onayli): False,
+        str(reddedilen): False,
+        str(suren): False,
+    }
+    assert {k: v["can_decide"] for k, v in pm_harita.items()} == {
+        str(onayli): False,
+        str(reddedilen): False,
+        str(suren): True,
+    }
+    # Kutu ile TUTARLI: PM'in kutusunda tam bu satır var, muhasebenin kutusunda yok.
+    pm_kutu = (await client.get("/approvals", headers=pm)).json()
+    assert [i["document_id"] for i in pm_kutu["items"]] == [str(suren)]
+    assert pm_kutu["items"][0]["can_decide"] is True
+    assert (await client.get("/approvals", headers=muhasebe)).json()["items"] == []

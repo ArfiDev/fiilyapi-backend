@@ -13,8 +13,9 @@ TEKRARLANMAZ (işveren `progress_payments/router.py` deseninin birebiri).
 Kapı seviyeleri işverenle AYNIDIR (aynı izin modülü, aynı ekran ailesi):
 `submit` → `_DRAFT` · `mark-paid` → `_APPROVE` · `unapprove` → `_ADMIN`.
 `approve`/`reject` de AYNI seviyeyi ister ama kapıları `_CHAIN_APPROVE`dir
-(OK-1C): seviye yetmediğinde zincirin SIRADAKİ adımının onay rolü modül
-kapısını İKAME EDER. Diğer üç uç DEĞİŞMEDİ — genişleme DARDIR.
+(OK-1C): seviye yetmediğinde zincirin SIRADAKİ adımının sahibi
+(evrakın projesinde adım rolü olan kişi) modül kapısını İKAME EDER.
+Diğer üç uç DEĞİŞMEDİ — genişleme DARDIR.
 """
 
 import uuid

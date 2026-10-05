@@ -267,7 +267,8 @@ def _bekle_kendi_kuyrugu(dis, ic) -> None:
     boştur ve bu **kapsam dışılık DEĞİLDİR** — `ScopedEmpty` yazmak yanlış olurdu."""
     assert isinstance(dis, Ok) and isinstance(ic, Ok)
     assert dis.row_count == ic.row_count == 0
-    assert dis.data["my_approval_roles"] == ic.data["my_approval_roles"] == []
+    assert dis.data["total"] == ic.data["total"] == 0
+    assert "my_approval_roles" not in dis.data  # IZN-B3b: alan kalkti (rol artik projeye bagli)
 
 
 def _bekle_kapsamsiz(dis, ic) -> None:

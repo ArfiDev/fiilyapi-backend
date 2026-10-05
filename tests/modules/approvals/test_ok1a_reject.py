@@ -9,7 +9,6 @@ Gerekçe ZORUNLU metindir; tavan `core/text.py::FREE_TEXT_MAX_LENGTH` — alanı
 TÜM giriş noktaları aynı sabitten okur (BC dersi).
 """
 
-import uuid
 from decimal import Decimal
 
 import pytest
@@ -28,8 +27,12 @@ from tests.modules.approvals.conftest import adim_rolleri, zincir_getir
 _TASERON = ApprovalDocumentType.subcontractor_progress_payment
 
 
-async def _zincir_kur(seeded_db, yaratan, document_id=None, *, amount=Decimal("100.00")):
-    document_id = document_id or uuid.uuid4()
+async def _zincir_kur(
+    seeded_db, evrak_fabrikasi, yaratan, document_id=None, *, amount=Decimal("100.00")
+):
+    """GERÇEK evrak + zincir (IZN-B3b: adım sahipliği belgenin PROJESİNDEN çözülür)."""
+    if document_id is None:
+        document_id, _ = await evrak_fabrikasi(_TASERON, creator=yaratan)
     await service.create_chain(
         seeded_db,
         document_type=_TASERON,
@@ -46,7 +49,9 @@ async def _adim_sayisi(seeded_db, chain_id) -> int:
     )
 
 
-async def test_RET_zinciri_SILMEZ_damgalar_adimlar_DURUR(seeded_db, aktor_fabrikasi):
+async def test_RET_zinciri_SILMEZ_damgalar_adimlar_DURUR(
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
+):
     """Ret 2. adımda verilir: zincir ve adımlar (1. adımın ONAYI dahil) DURUR."""
     yaratan = await aktor_fabrikasi("ret-yaratan@ok1a.co")
     sef = await aktor_fabrikasi(
@@ -57,7 +62,7 @@ async def test_RET_zinciri_SILMEZ_damgalar_adimlar_DURUR(seeded_db, aktor_fabrik
         role_key="project_manager",
         approval_roles=[ApprovalRole.project_manager],
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
     zincir = await zincir_getir(seeded_db, _TASERON, document_id)
     chain_id = zincir.id
 
@@ -88,7 +93,7 @@ async def test_RET_zinciri_SILMEZ_damgalar_adimlar_DURUR(seeded_db, aktor_fabrik
 
 
 @pytest.mark.parametrize("gerekce", ["", "   ", "\n\t "])
-async def test_GEREKCESIZ_ret_422(seeded_db, aktor_fabrikasi, gerekce):
+async def test_GEREKCESIZ_ret_422(seeded_db, aktor_fabrikasi, gerekce, evrak_fabrikasi):
     """Boş VE yalnız-boşluk gerekçe reddedilir; zincir AYAKTA kalır."""
     yaratan = await aktor_fabrikasi(f"gerekcesiz-{len(gerekce)}@ok1a.co")
     sef = await aktor_fabrikasi(
@@ -96,7 +101,7 @@ async def test_GEREKCESIZ_ret_422(seeded_db, aktor_fabrikasi, gerekce):
         role_key="site_chief",
         approval_roles=[ApprovalRole.site_chief],
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
 
     with pytest.raises(ApprovalValidationError) as hata:
         await service.reject_chain(
@@ -111,13 +116,13 @@ async def test_GEREKCESIZ_ret_422(seeded_db, aktor_fabrikasi, gerekce):
     assert await zincir_getir(seeded_db, _TASERON, document_id) is not None
 
 
-async def test_gerekce_TAVANI_paylasilan_sabittendir(seeded_db, aktor_fabrikasi):
+async def test_gerekce_TAVANI_paylasilan_sabittendir(seeded_db, aktor_fabrikasi, evrak_fabrikasi):
     """Tavan `FREE_TEXT_MAX_LENGTH`tir — modüle ayrı bir sayı YAZILMAZ."""
     yaratan = await aktor_fabrikasi("tavan-yaratan@ok1a.co")
     sef = await aktor_fabrikasi(
         "tavan-sef@ok1a.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
 
     with pytest.raises(ApprovalValidationError) as hata:
         await service.reject_chain(
@@ -132,7 +137,9 @@ async def test_gerekce_TAVANI_paylasilan_sabittendir(seeded_db, aktor_fabrikasi)
     assert await zincir_getir(seeded_db, _TASERON, document_id) is not None
 
 
-async def test_ret_bekcileri_ONAYLA_AYNIDIR_kendi_evragini_reddedemez(seeded_db, aktor_fabrikasi):
+async def test_ret_bekcileri_ONAYLA_AYNIDIR_kendi_evragini_reddedemez(
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
+):
     """Ret de bir KARARDIR: bekçi 4/5/6 onaydakiyle aynı huniden geçer.
 
     Ayrı bırakılsaydı evrağın sahibi kendi evrağını reddederek zinciri
@@ -141,7 +148,7 @@ async def test_ret_bekcileri_ONAYLA_AYNIDIR_kendi_evragini_reddedemez(seeded_db,
     yaratan = await aktor_fabrikasi(
         "ret-kendi@ok1a.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
 
     with pytest.raises(ApprovalNotAllowedError) as hata:
         await service.reject_chain(
@@ -157,14 +164,16 @@ async def test_ret_bekcileri_ONAYLA_AYNIDIR_kendi_evragini_reddedemez(seeded_db,
 
 
 async def test_retten_sonra_YENIDEN_gonderim_ADIM_1den_YENI_esikle_baslar(
-    seeded_db, aktor_fabrikasi
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
 ):
     """🔴 K2 + K3 birlikte: yeni zincir adım 1'den kurulur ve YENİ eşiği donar."""
     yaratan = await aktor_fabrikasi("yeniden-yaratan@ok1a.co")
     sef = await aktor_fabrikasi(
         "yeniden-sef@ok1a.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
     )
-    document_id = await _zincir_kur(seeded_db, yaratan, amount=Decimal("400000.00"))
+    document_id = await _zincir_kur(
+        seeded_db, evrak_fabrikasi, yaratan, amount=Decimal("400000.00")
+    )
 
     await service.reject_chain(
         seeded_db,

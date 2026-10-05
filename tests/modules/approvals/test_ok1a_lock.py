@@ -67,9 +67,7 @@ from app.modules.approvals import definitions, repository, service
 from app.modules.approvals.models import (
     ApprovalChain,
     ApprovalDocumentType,
-    ApprovalRole,
     ApprovalStep,
-    UserApprovalRole,
 )
 from app.modules.roles.models import Role
 from app.modules.users.models import User
@@ -79,7 +77,10 @@ _SessionFactory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on
 
 #: Rol anahtari ve e-postalar TESTE OZELDIR: bu dosya GERCEKTEN commit ettigi
 #: icin sizinti ancak yaratilan satirlarin tam bilinmesiyle kapanir.
-_ROL_ANAHTARI = "ok1a_conc_role"
+#: IZN-B3b: adım sahipliği ROL ANAHTARINDAN gelir ("Tüm projeler" + ANA rol) — yarışan şeflerin
+#: rolü `site_chief` olmak ZORUNDADIR. Test DB'sinde COMMIT'li seed yoktur (testler geri alınır);
+#: varsa o rol kullanılır ve temizlikte SİLİNMEZ.
+_ROL_ANAHTARI = "site_chief"
 _EPOSTALAR = ("ok1a-kilit0@conc.co", "ok1a-kilit1@conc.co", "ok1a-kilit2@conc.co")
 _TASERON = ApprovalDocumentType.subcontractor_progress_payment
 
@@ -90,6 +91,7 @@ _BLOKE_TAVANI = 2
 
 class _Kurulum:
     def __init__(self, document_id, chain_id, actor_ids, role_id) -> None:  # noqa: ANN001
+        # `role_id None` = rol bu testten ONCE vardı, temizlikte SİLİNMEZ.
         self.document_id = document_id
         self.chain_id = chain_id
         self.actor_ids = actor_ids
@@ -106,23 +108,27 @@ async def _kur() -> _Kurulum:
     """
     document_id = uuid.uuid4()
     async with _SessionFactory() as session:
-        role = Role(key=_ROL_ANAHTARI, name="OK-1A Eşzamanlılık Rolü")
-        session.add(role)
-        await session.flush()
+        role = await session.scalar(select(Role).where(Role.key == _ROL_ANAHTARI))
+        olusturulan_rol_id = None
+        if role is None:
+            role = Role(key=_ROL_ANAHTARI, name="Şantiye Şefi")
+            session.add(role)
+            await session.flush()
+            olusturulan_rol_id = role.id
+        # 0 = evrağı YARATAN ("Tüm projeler" DEĞİL: hiçbir adımı onaylayamaz) · 1-2 = yarışan
+        # şefler ("Tüm projeler" + ana rol `site_chief` = adımın sahibi).
         aktorler = [
             User(
                 email=eposta,
                 password_hash=hash_password("parola1234"),
                 full_name=f"Kilit Aktörü {sira}",
                 role_id=role.id,
+                all_projects=sira > 0,
             )
             for sira, eposta in enumerate(_EPOSTALAR)
         ]
         session.add_all(aktorler)
         await session.flush()
-        # 0 = evrağı YARATAN (hiçbir adımı onaylayamaz) · 1-2 = yarışan şefler.
-        for aktor in aktorler[1:]:
-            session.add(UserApprovalRole(user_id=aktor.id, approval_role=ApprovalRole.site_chief))
 
         chain = ApprovalChain(
             document_type=_TASERON,
@@ -137,7 +143,7 @@ async def _kur() -> _Kurulum:
         for sira, rol in enumerate(definitions.CHAIN_DEFINITIONS[_TASERON], start=1):
             session.add(ApprovalStep(chain_id=chain.id, step_no=sira, approval_role=rol))
         await session.commit()
-        return _Kurulum(document_id, chain.id, [a.id for a in aktorler], role.id)
+        return _Kurulum(document_id, chain.id, [a.id for a in aktorler], olusturulan_rol_id)
 
 
 async def _gorevleri_bosalt(*gorevler) -> None:  # noqa: ANN002
@@ -160,11 +166,9 @@ async def _temizle(kurulum: _Kurulum) -> None:
     async with _SessionFactory() as session:
         # Adimlar CASCADE ile gider; zincir acikca dusurulur.
         await session.execute(delete(ApprovalChain).where(ApprovalChain.id == kurulum.chain_id))
-        await session.execute(
-            delete(UserApprovalRole).where(UserApprovalRole.user_id.in_(kurulum.actor_ids))
-        )
         await session.execute(delete(User).where(User.id.in_(kurulum.actor_ids)))
-        await session.execute(delete(Role).where(Role.id == kurulum.role_id))
+        if kurulum.role_id is not None:
+            await session.execute(delete(Role).where(Role.id == kurulum.role_id))
         await session.commit()
 
 

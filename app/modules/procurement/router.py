@@ -100,8 +100,9 @@ _REQUEST = require_permission(service.PERMISSION_MODULE, AccessLevel.request)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
 #: OK-1C — `approve`/`reject`in kapısı. `_APPROVE` sabiti SİLİNDİ: bu iki uç
 #: onun TEK çağıranıydı ve ölü sabit bırakmak yanıltıcı olurdu. Modül seviyesi
-#: AYNEN `approve`tır; seviye yetmediğinde zincirin SIRADAKİ adımının onay rolü
-#: onu İKAME EDER (`approvals/gate.py`). Diğer 21 uç DEĞİŞMEDİ.
+#: AYNEN `approve`tır; seviye yetmediğinde zincirin SIRADAKİ adımının sahibi
+#: (evrakın projesinde adım rolü olan kişi) onu İKAME EDER (`approvals/gate.py`).
+#: Diğer 21 uç DEĞİŞMEDİ.
 _CHAIN_APPROVE = require_pages_or_chain_step(
     ("stok.satinalma_talepleri",),
     module_key=service.PERMISSION_MODULE,

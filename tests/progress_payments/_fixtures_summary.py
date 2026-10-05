@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.approvals.models import ApprovalRole, UserApprovalRole
+from app.modules.approvals.models import ApprovalRole
 from app.modules.contracts.models import EmployerContractGroup, EmployerContractItem
 from app.modules.progress_payments.models import (
     ProgressPayment,
@@ -22,6 +22,7 @@ from app.modules.progress_payments.models import (
 from app.modules.projects.models import Project, ProjectContract
 from app.modules.sites.models import Site
 from app.modules.users.models import User
+from tests.modules.approvals.conftest import onay_rolu_ver
 
 from ._fixtures_base import _dagit
 
@@ -369,5 +370,4 @@ async def zincir_onaycilari(
     """
     for email in ("admin@pp-crud.co", "muhasebe@pp-transitions.co"):
         user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
-        seeded_db.add(UserApprovalRole(user_id=user.id, approval_role=ApprovalRole.accounting))
-    await seeded_db.flush()
+        await onay_rolu_ver(seeded_db, user, ApprovalRole.accounting)

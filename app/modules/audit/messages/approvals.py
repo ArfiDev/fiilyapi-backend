@@ -76,12 +76,6 @@ def approval_chain_rejected(
     return f"{metin} · {APPROVAL_ON_BEHALF_MARK}" if on_behalf else metin
 
 
-def approval_roles_assigned(name: str, roles: list[str]) -> str:
-    """Atama TAM KUMEDIR; metin de son durumu yazar, farki degil."""
-    etiketler = ", ".join(APPROVAL_ROLE_LABELS.get(rol, rol) for rol in roles)
-    return f"Onay rolleri güncellendi: {name} · {etiketler or 'Yok'}"
-
-
 def approval_step_rewound(step_no: int, role: str) -> str:
     """Onay adiminin GERI SARILMASI (`/unapprove`, sozlesme Y4).
 

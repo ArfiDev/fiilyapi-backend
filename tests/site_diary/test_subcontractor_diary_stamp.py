@@ -18,6 +18,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tests.modules.approvals.conftest import rol_sahipleri_dolgusu  # noqa: F401  (fixture)
+
 from ._suggestion import (
     HAKEDIS_DONEM as DONEM,
 )
@@ -28,7 +30,7 @@ from ._suggestion import (
     _kaydet,
 )
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("rol_sahipleri_dolgusu")]
 
 
 @pytest.fixture
@@ -521,7 +523,8 @@ async def _zincir_onaycilari(
     şefi uçtan geçemez — o ADIM burada `project_manager` sistem rolündeki bir
     aktör tarafından atılır ve bu, onay rolü ≠ sistem rolü ayrımının kendisidir.
     """
-    from app.modules.approvals.models import ApprovalRole, UserApprovalRole
+    from app.modules.approvals.models import ApprovalRole
+    from tests.modules.approvals.conftest import onay_rolu_ver
 
     tanimlar = (
         ("sd-sef@ok1a.co", "project_manager", ApprovalRole.site_chief),
@@ -531,9 +534,10 @@ async def _zincir_onaycilari(
     basliklar: list[dict[str, str]] = []
     for email, sistem_rolu, onay_rolu in tanimlar:
         user = await user_factory(email=email, password="parola1234", role_key=sistem_rolu)
-        user.all_projects = True
-        seeded_db.add(UserApprovalRole(user_id=user.id, approval_role=onay_rolu))
-        await seeded_db.flush()
+        # IZN-B3b: onay rolü = PROJE rolü → ekip kişisi `all_projects=False` (üretimde "Tüm
+        # projeler" kişide ekip satırı yoktur; `step_owner_clause` o satırı yok sayar).
+        user.all_projects = False
+        await onay_rolu_ver(seeded_db, user, onay_rolu)
         giris = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
         assert giris.status_code == 200, giris.text
         basliklar.append({"Authorization": f"Bearer {giris.json()['access_token']}"})

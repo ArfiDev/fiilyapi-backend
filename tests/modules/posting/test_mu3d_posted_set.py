@@ -40,6 +40,7 @@ DEĞİLDİR ve karşılığı `test_mu3d_hakedis_fisleme.py`dedir.
 
 import uuid
 
+import pytest
 from sqlalchemy import select
 
 from app.modules.accounting.models import JournalEntry, JournalSourceType
@@ -51,6 +52,7 @@ from app.modules.progress_payments.transitions import PaymentAction
 from app.modules.subcontractor_progress_payments import transitions as taseron_transitions
 from app.modules.subcontractor_progress_payments.models import SubcontractorPaymentStatus
 from tests._para_gercek import parayi_yatir
+from tests.modules.approvals.conftest import rol_sahipleri_dolgusu  # noqa: F401  (fixture)
 from tests.modules.equipment._mk2_para_gercek import kira_parasini_yatir
 from tests.modules.posting._mu3d import (
     aktor,
@@ -59,6 +61,8 @@ from tests.modules.posting._mu3d import (
     kira_hakedisi,
     taseron_hakedisi,
 )
+
+pytestmark = pytest.mark.usefixtures("rol_sahipleri_dolgusu")
 
 
 async def _kaynak_damgalari(session) -> set[tuple[JournalSourceType, uuid.UUID]]:

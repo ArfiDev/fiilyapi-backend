@@ -15,9 +15,6 @@ __all__ = [
     "ApprovalHistoryResponse",
     "ApprovalInboxItem",
     "ApprovalInboxResponse",
-    "ApprovalRoleAssignmentListResponse",
-    "ApprovalRoleAssignmentRead",
-    "ApprovalRoleAssignmentUpdate",
     "ApprovalSettingsRead",
     "ApprovalSettingsUpdate",
     "ApprovalStepRead",
@@ -40,28 +37,6 @@ class ApprovalSettingsUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     approval_threshold_try: Decimal = Field(ge=0, max_digits=18, decimal_places=2)
-
-
-class ApprovalRoleAssignmentRead(BaseModel):
-    user_id: uuid.UUID
-    full_name: str
-    email: str
-    approval_roles: list[ApprovalRole]
-
-
-class ApprovalRoleAssignmentUpdate(BaseModel):
-    """TAM KUME yazar: gonderilmeyen rol KALKAR (kismi ekleme ucu YOKTUR)."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    approval_roles: list[ApprovalRole]
-
-
-class ApprovalRoleAssignmentListResponse(BaseModel):
-    items: list[ApprovalRoleAssignmentRead]
-    total: int
-    limit: int
-    offset: int
 
 
 class ApprovalStepRead(BaseModel):
@@ -108,6 +83,7 @@ class ApprovalInboxItem(BaseModel):
     subtitle: str | None
     gross_amount: Decimal | None
     net_amount: Decimal | None
+    can_decide: bool
 
     @classmethod
     def from_view(cls, view: PendingChainView) -> "ApprovalInboxItem":
@@ -133,22 +109,23 @@ class ApprovalInboxItem(BaseModel):
             subtitle=view.subtitle,
             gross_amount=view.gross_amount,
             net_amount=view.net_amount,
+            can_decide=view.can_decide,
         )
 
 
 class ApprovalInboxResponse(BaseModel):
-    """🔴 KANON E: `can_approve` gibi bir KARAR ALANI YOKTUR.
+    """Onay kutusu zarfi.
 
-    `my_approval_roles` OLGUSU doner; "bu satiri onaylayabilir miyim" kararini
-    ekran, adim rolu ile bu kume uzerinden TEK yardimcida birlestirir.
-    🔴 ACILIYET/RENK de SUNUCUDA URETILMEZ (K10 kanonu).
+    🔴 IZN-B3b: `my_approval_roles` KALKTI — onay rolu artik PROJEYE baglidir ve tek bir liste
+    yanlis olurdu. "Bu satiri SIMDI onaylayabilir miyim" sorusunu satirdaki `can_decide` yanitlar
+    (adimin sahibi aktor + kendi evraki / gorevler ayriligi bekcileri + acik zincir).
+    🔴 ACILIYET/RENK SUNUCUDA URETILMEZ (K10 kanonu).
     """
 
     items: list[ApprovalInboxItem]
     total: int
     limit: int
     offset: int
-    my_approval_roles: list[ApprovalRole]
 
 
 class ApprovalHistoryItem(ApprovalInboxItem):
@@ -163,6 +140,9 @@ class ApprovalHistoryItem(ApprovalInboxItem):
     * `reason`: YALNIZ retse gerekce, aksi `null`.
     * `current_step_no`: retse reddedilen adim, suren zincirde siradaki adim,
       onaylanmissa son adim.
+    * `can_decide` (IZN-B3b): aktor bu zincirin SIRADAKI adimini SIMDI onaylayip/reddedebilir mi.
+      Yalniz suren zincirde `true` olabilir; onaylanmis / reddedilmis satirda ve baskasinin
+      adiminda `false`.
     """
 
     decision: HistoryDecision
@@ -191,4 +171,3 @@ class ApprovalHistoryResponse(BaseModel):
     total: int
     limit: int
     offset: int
-    my_approval_roles: list[ApprovalRole]

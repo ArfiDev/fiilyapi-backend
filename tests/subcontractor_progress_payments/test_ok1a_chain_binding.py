@@ -23,6 +23,7 @@ ayrı olduğu tam olarak budur.
 import uuid
 from decimal import Decimal
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,8 +40,11 @@ from tests.modules.approvals.conftest import (
     adim_durumlari,
     adim_rolleri,
     onay_rolu_ver,
+    rol_sahipleri_dolgusu,  # noqa: F401  (fixture)
     zincir_getir,
 )
+
+pytestmark = pytest.mark.usefixtures("rol_sahipleri_dolgusu")
 
 _TIP = ApprovalDocumentType.subcontractor_progress_payment
 _YOL = "/subcontractor-progress-payments"
@@ -94,7 +98,9 @@ async def _onaycı(
     role_key: str = "project_manager",
 ) -> dict[str, str]:
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
-    user.all_projects = True
+    # IZN-B3b: onay rolü = PROJE rolü → ekip kişisi `all_projects=False` (üretimde "Tüm projeler"
+    # kişide ekip satırı yoktur; `step_owner_clause` o satırı yok sayar).
+    user.all_projects = not approval_roles
     await onay_rolu_ver(seeded_db, user, *approval_roles)
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

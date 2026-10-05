@@ -4,15 +4,14 @@
 GET  /approvals                    — onay kutusu (satır zenginleştirmesi T4'te)
 GET  /approvals/settings           — eşiği oku
 PUT  /approvals/settings           — eşiği yaz     [approvals: admin]
-GET  /approvals/roles              — tüm atamalar  [approvals: admin]
-PUT  /approvals/roles/{user_id}    — atama yaz     [approvals: admin]
+GET  /approvals/roles              — 410 (IZN-B3b: onay rolü = proje rolü)
+PUT  /approvals/roles/{user_id}    — 410 (IZN-B3b)
 ```
 
 YENİ izin modülü AÇILMADI: `approvals` seed'de ZATEN vardır
 (`roles/seed_data.py:74,176`) ve `admin` seviyesinden yalnız `system_admin` geçer.
 """
 
-import uuid
 from decimal import Decimal
 
 import pytest
@@ -138,18 +137,21 @@ async def test_PUT_company_esigi_DEGISTIREMEZ(client, admin_basliklari):
     assert Decimal(oku.json()["approval_threshold_try"]) == Decimal("750000.00")
 
 
-# --- Onay rolü atamaları ---
+# --- Onay rolü atama uçları: IZN-B3b'de 410 (onay rolü = proje rolü) ---
+
+_ROLLER_GONE = "Onay rolleri artık proje rolünden gelir"
 
 
-async def test_rol_atamasi_TAM_KUME_degistirir(
+async def test_rol_atama_PUT_410_doner_ve_HICBIR_SEY_yazmaz(
     client, seeded_db, admin_basliklari, aktor_fabrikasi
 ):
-    """Atama TAM KÜME yazar: gönderilmeyen rol KALKAR (kısmi ekleme değil)."""
-    hedef = await aktor_fabrikasi(
-        "atama-hedef@ok1a.co",
-        role_key="project_manager",
-        approval_roles=[ApprovalRole.site_chief],
-    )
+    """Eski ucu çağıran eski ekran yönlendirici mesaj alır; ekip satırları DEĞİŞMEZ."""
+    from sqlalchemy import func, select
+
+    from app.modules.users.models import ProjectMember
+
+    hedef = await aktor_fabrikasi("atama-hedef@ok1a.co", role_key="project_manager")
+    once = await seeded_db.scalar(select(func.count()).select_from(ProjectMember))
 
     yanit = await client.put(
         f"/approvals/roles/{hedef.id}",
@@ -157,84 +159,46 @@ async def test_rol_atamasi_TAM_KUME_degistirir(
         headers=admin_basliklari,
     )
 
-    assert yanit.status_code == 200, yanit.text
-    assert set(yanit.json()["approval_roles"]) == {"project_manager", "accounting"}
-    assert set(await service.user_approval_roles(seeded_db, hedef.id)) == {
-        ApprovalRole.project_manager,
-        ApprovalRole.accounting,
-    }
+    assert yanit.status_code == 410, yanit.text
+    assert _ROLLER_GONE in yanit.json()["detail"]
+    assert "PUT /users/{id}/access" in yanit.json()["detail"]
+    assert await seeded_db.scalar(select(func.count()).select_from(ProjectMember)) == once
 
 
-async def test_rol_atamasi_BOS_kume_ile_tum_rolleri_kaldirir(
-    client, seeded_db, admin_basliklari, aktor_fabrikasi
+async def test_rol_atama_uclari_KAPI_eski_kapiyla_AYNI_yetkisize_403(
+    client, muhasebe_basliklari, admin_basliklari, aktor_fabrikasi
 ):
-    hedef = await aktor_fabrikasi(
-        "atama-bos@ok1a.co", approval_roles=[ApprovalRole.accounting, ApprovalRole.patron]
-    )
-
-    yanit = await client.put(
-        f"/approvals/roles/{hedef.id}", json={"approval_roles": []}, headers=admin_basliklari
-    )
-
-    assert yanit.status_code == 200, yanit.text
-    assert await service.user_approval_roles(seeded_db, hedef.id) == []
-
-
-async def test_rol_atamasi_YETKISIZE_403(client, muhasebe_basliklari, aktor_fabrikasi):
+    """410 kapının ARKASINDADIR: yetkisiz 403 alır (yönlendirme mesajı bile sızmaz), yetkili 410."""
     hedef = await aktor_fabrikasi("atama-yetkisiz@ok1a.co")
 
-    yanit = await client.put(
+    put_yetkisiz = await client.put(
         f"/approvals/roles/{hedef.id}",
         json={"approval_roles": ["patron"]},
         headers=muhasebe_basliklari,
     )
+    get_yetkisiz = await client.get("/approvals/roles", headers=muhasebe_basliklari)
+    assert put_yetkisiz.status_code == 403, put_yetkisiz.text
+    assert get_yetkisiz.status_code == 403, get_yetkisiz.text
 
-    assert yanit.status_code == 403, yanit.text
-
-
-async def test_olmayan_kullaniciya_atama_404(client, admin_basliklari):
-    yanit = await client.put(
-        f"/approvals/roles/{uuid.uuid4()}",
-        json={"approval_roles": ["patron"]},
-        headers=admin_basliklari,
-    )
-
-    assert yanit.status_code == 404, yanit.text
+    get_yetkili = await client.get("/approvals/roles", headers=admin_basliklari)
+    assert get_yetkili.status_code == 410, get_yetkili.text
+    assert _ROLLER_GONE in get_yetkili.json()["detail"]
 
 
-async def test_gecersiz_onay_rolu_422(client, admin_basliklari, aktor_fabrikasi):
-    hedef = await aktor_fabrikasi("atama-gecersiz@ok1a.co")
+def test_rol_atama_uclari_DEPRECATED_ve_410_belgeli() -> None:
+    from app.main import app
 
-    yanit = await client.put(
-        f"/approvals/roles/{hedef.id}",
-        json={"approval_roles": ["system_admin"]},
-        headers=admin_basliklari,
-    )
-
-    assert yanit.status_code == 422, yanit.text
-
-
-async def test_atama_listesi_YALNIZ_ADMINE(
-    client, admin_basliklari, muhasebe_basliklari, aktor_fabrikasi
-):
-    await aktor_fabrikasi("liste-rol@ok1a.co", approval_roles=[ApprovalRole.patron])
-
-    yetkisiz = await client.get("/approvals/roles", headers=muhasebe_basliklari)
-    assert yetkisiz.status_code == 403, yetkisiz.text
-
-    yanit = await client.get("/approvals/roles", headers=admin_basliklari)
-    assert yanit.status_code == 200, yanit.text
-    govde = yanit.json()
-    assert set(govde) >= {"items", "total", "limit", "offset"}
-    kayitlar = {satir["full_name"]: satir["approval_roles"] for satir in govde["items"]}
-    assert "Onay Aktörü" in kayitlar
-    assert kayitlar["Onay Aktörü"] == ["patron"]
+    yollar = app.openapi()["paths"]
+    for yol, yontem in (("/approvals/roles", "get"), ("/approvals/roles/{user_id}", "put")):
+        uc = yollar[yol][yontem]
+        assert uc.get("deprecated") is True, (yol, yontem)
+        assert "410" in uc["responses"], (yol, yontem)
 
 
 # --- 🔴 Liste ucu kanonu (TB3/T2): tavan aşımı 422, KIRPMA DEĞİL ---
 
 
-@pytest.mark.parametrize("yol", ["/approvals", "/approvals/roles"])
+@pytest.mark.parametrize("yol", ["/approvals"])
 @pytest.mark.parametrize("sorgu", ["limit=201", "limit=0", "limit=-1", "offset=-1"])
 async def test_liste_sinirlari_422(client, admin_basliklari, yol, sorgu):
     yanit = await client.get(f"{yol}?{sorgu}", headers=admin_basliklari)
@@ -247,7 +211,7 @@ async def test_onay_kutusu_ZARFI_ve_VARSAYILANLARI(client, admin_basliklari):
 
     assert yanit.status_code == 200, yanit.text
     govde = yanit.json()
-    assert set(govde) == {"items", "total", "limit", "offset", "my_approval_roles"}
+    assert set(govde) == {"items", "total", "limit", "offset"}  # IZN-B3b: roller satirda
     assert govde["limit"] == 50
     assert govde["offset"] == 0
 
@@ -301,7 +265,7 @@ async def test_onay_kutusu_YALNIZ_siradaki_adimi_ve_KENDI_rollerini_doner(
 
     assert yanit.status_code == 200, yanit.text
     govde = yanit.json()
-    assert govde["my_approval_roles"] == ["site_chief"]
+    assert "my_approval_roles" not in govde
     assert [satir["document_id"] for satir in govde["items"]] == [str(dusen)]
     assert govde["total"] == 1
     satir = govde["items"][0]
@@ -313,21 +277,26 @@ async def test_onay_kutusu_YALNIZ_siradaki_adimi_ve_KENDI_rollerini_doner(
         "project_manager",
         "accounting",
     ]
-    # 🔴 KANON E: cevap OLGUYU taşır, KARARI değil.
+    # 🔴 KANON E: cevap OLGUYU taşır; `can_decide` kutuda süzgecin kendisidir (IZN-B3b).
     assert "can_approve" not in satir
+    assert satir["can_decide"] is True
 
 
 async def test_onay_kutusu_GOREVLER_AYRILIGINA_takilan_satiri_GIZLER(
     client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
 ):
+    """IZN-B3b: bir kişi bir projede TEK rol taşır; ayrılık bekçisi, rolü açık zincir sürerken
+    DEĞİŞEN kişide ısırır (şef iken 1. adımı onaylar, sonra PM olur → 2. adım ona kapalı)."""
+    from tests.modules.approvals.conftest import proje_rolu_ver
+
     yaratan = await aktor_fabrikasi("kutu-ayrilik-yaratan@ok1a.co")
-    cift_rollu = await aktor_fabrikasi(
+    kisi = await aktor_fabrikasi(
         "kutu-ayrilik@ok1a.co",
         role_key="project_manager",
-        approval_roles=[ApprovalRole.site_chief, ApprovalRole.project_manager],
+        approval_roles=[ApprovalRole.site_chief],
     )
     basliklar = await giris("kutu-ayrilik@ok1a.co")
-    document_id, _ = await evrak_fabrikasi(_TASERON, creator=yaratan)
+    document_id, proje = await evrak_fabrikasi(_TASERON, creator=yaratan)
     await service.create_chain(
         seeded_db,
         document_type=_TASERON,
@@ -340,8 +309,9 @@ async def test_onay_kutusu_GOREVLER_AYRILIGINA_takilan_satiri_GIZLER(
     assert [s["document_id"] for s in once.json()["items"]] == [str(document_id)]
 
     await service.approve_next_step(
-        seeded_db, actor=cift_rollu, document_type=_TASERON, document_id=document_id
+        seeded_db, actor=kisi, document_type=_TASERON, document_id=document_id
     )
+    await proje_rolu_ver(seeded_db, kisi, proje, "project_manager")
 
     sonra = await client.get("/approvals", headers=basliklar)
     assert sonra.json()["items"] == [], "2. adım aynı aktöre kapalıdır, kutuda görünmemeliydi"
