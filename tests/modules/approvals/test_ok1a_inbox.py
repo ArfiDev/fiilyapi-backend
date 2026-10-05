@@ -31,6 +31,7 @@ from app.modules.approvals.models import (
     ApprovalRole,
     ApprovalStep,
 )
+from tests._hassas_alan import rol_gizle
 from tests.modules.approvals.conftest import proje_rolu_ver
 
 _TASERON = ApprovalDocumentType.subcontractor_progress_payment
@@ -73,6 +74,7 @@ async def test_taseron_satiri_MOCKUP_alanlarini_tasir(
     await aktor_fabrikasi(
         "t4-sef@ok1a.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
     )
+    await rol_gizle(seeded_db, "site_chief")  # seed rol tutarları gizler (IZN-B4b): içerik testi
     basliklar = await giris("t4-sef@ok1a.co")
 
     document_id, _ = await evrak_fabrikasi(
@@ -106,6 +108,7 @@ async def test_satinalma_satirinda_NET_TUTAR_NULLDUR(
     await aktor_fabrikasi(
         "t4-sa@ok1a.co", role_key="procurement", approval_roles=[ApprovalRole.procurement]
     )
+    await rol_gizle(seeded_db, "procurement")  # seed rol tutarları gizler (IZN-B4b): içerik testi
     basliklar = await giris("t4-sa@ok1a.co")
 
     document_id, _ = await evrak_fabrikasi(
@@ -167,6 +170,7 @@ async def test_gross_amount_CANLIDIR_amount_snapshot_DONMUS_carpandir(
     await aktor_fabrikasi(
         "t4-snap-sef@ok1a.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
     )
+    await rol_gizle(seeded_db, "site_chief")  # seed rol tutarları gizler (IZN-B4b): içerik testi
     basliklar = await giris("t4-snap-sef@ok1a.co")
 
     document_id, _ = await evrak_fabrikasi(_TASERON, creator=yaratan)
@@ -343,6 +347,7 @@ _SATIR_ALANLARI = {
     "gross_amount",
     "net_amount",
     "can_decide",
+    "project_id",  # IZN-B4b onarımı: satır başına maske için evrakın projesi (eklemeli)
 }
 
 

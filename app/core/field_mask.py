@@ -138,7 +138,7 @@ HEPSI_GIZLI = MaskeKumeleri(varsayilan=frozenset(HiddenCategory))
 _PII_ADI = re.compile(
     r"(?:^|_)(?:tc|tckn|iban|wage|salary|phone|mobile|birth|sgk|address|email|e_mail)(?:_|$)"
     r"|birthdate|date_of_birth|national_id|tax_number|tax_no|tax_id|vergi_no|identity_number"
-    r"|(?:^|_)(?:buyer|customer)_name(?:_|$)",
+    r"|(?:^|_)(?:buyer|customer|party)_name(?:_|$)",
     re.IGNORECASE,
 )
 
@@ -252,9 +252,14 @@ def sema_plani(sema: type[BaseModel]) -> SemaPlani:
     return plan
 
 
-def gizli_mi(alan: AlanPlani, kume: frozenset[HiddenCategory]) -> bool:
-    """Bu alan, gizli kategori kümesinde gizlenir mi?"""
-    if any(_bayrak(k) in kume for k in alan.kategoriler):
+def gizli_mi(
+    alan: AlanPlani,
+    kume: frozenset[HiddenCategory],
+    kategoriler: frozenset[Hassas] | None = None,
+) -> bool:
+    """Bu alan, gizli kategori kümesinde gizlenir mi? `kategoriler`: satıra göre ETKİN küme
+    (`KATEGORI_COZ`); verilmezse alanın statik etiketleri."""
+    if any(_bayrak(k) in kume for k in (alan.kategoriler if kategoriler is None else kategoriler)):
         return True
     return alan.sayisal and HiddenCategory.tum_tutarlar in kume
 
@@ -264,6 +269,12 @@ def gizli_mi(alan: AlanPlani, kume: frozenset[HiddenCategory]) -> bool:
 #: Şemanın PROJESİNİ veren alan adı (varsayılan `project_id`). `id`si proje olan şemalar
 #: (`ProjectResponse`) `PROJE_ALANI = "id"` bildirir.
 PROJE_ALANI_OZNITELIGI = "PROJE_ALANI"
+
+#: Alanın kategorisi SATIRA göre değişiyorsa (onay kutusunda evrak tipi, yevmiyede kaynak tipi)
+#: şema `@staticmethod KATEGORI_COZ(model, alan_adi, etiketler) -> frozenset[Hassas]` bildirir.
+#: Statik `Hassas` etiketleri bekçi ve OpenAPI için ÜST KÜME olarak durur; çözücü satırın ETKİN
+#: kategorilerini döner (daraltabilir ya da ek kategori ekleyebilir). Çözücü yoksa etiketler.
+KATEGORI_COZ_OZNITELIGI = "KATEGORI_COZ"
 
 
 def _satir_projesi(model: BaseModel) -> uuid.UUID | None:
@@ -311,8 +322,12 @@ def _model[TModel: BaseModel](
             proje, kumeler.varsayilan if kumeler.ana is None else kumeler.ana
         )
     guncel: dict[str, Any] = {}
+    coz = getattr(type(model), KATEGORI_COZ_OZNITELIGI, None)
     for alan in plan.hassas:
-        if gizli_mi(alan, kume):
+        etkin = (
+            alan.kategoriler if coz is None else frozenset(coz(model, alan.ad, alan.kategoriler))
+        )
+        if gizli_mi(alan, kume, etkin):
             guncel[alan.ad] = _gizle(getattr(model, alan.ad))
     for ad in plan.ic_ice:
         if ad in guncel:  # kapsayıcı zaten gizlendi

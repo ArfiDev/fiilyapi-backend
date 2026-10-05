@@ -64,6 +64,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -93,7 +94,7 @@ from app.modules.silme import service as silme_service
 from app.modules.silme.params import DELETE_WITH_PREVIEW_RESPONSES, PreviewTokenQuery
 from app.modules.users.models import User
 
-router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(guards.PERMISSION_MODULE, AccessLevel.full)
@@ -527,7 +528,7 @@ async def journal_export_endpoint(
         offset=0,
     )
     return Response(
-        content=export.build_journal_workbook(defter).getvalue(),
+        content=export.build_journal_workbook(await maskele_baglamli(defter)).getvalue(),
         media_type=export.XLSX_MEDIA_TYPE,
         headers={
             "Content-Disposition": http.content_disposition(

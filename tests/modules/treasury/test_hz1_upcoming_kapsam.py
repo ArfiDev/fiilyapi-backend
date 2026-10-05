@@ -89,6 +89,7 @@ async def test_K10_aciliyet_alani_ACILMAZ(
             "due_date",
             "days_remaining",
             "amount",
+            "project_id",  # IZN-B4b onarımı (eklemeli): satır başına maske
         }
 
 

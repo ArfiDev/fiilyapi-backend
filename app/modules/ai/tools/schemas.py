@@ -516,8 +516,11 @@ class AiIsverenHakedisi(BaseModel):
     period_year: int | None
     period_month: int | None
     status: str
-    gross_total: Decimal
-    net_total: Decimal
+    #: 🔴 `| None`: kaynak uç (`ProgressPaymentListItem`/`SubcontractorProgressPaymentListItem`)
+    #: tutarı hassas-etiketlidir; gizli rolde `null` gelir. `Decimal` ZORUNLU kalsaydı araç
+    #: `ToolError` verirdi (IZN-B4b onarımı).
+    gross_total: Decimal | None
+    net_total: Decimal | None
 
 
 class AiIsverenHakedisListesi(BaseModel):
@@ -536,8 +539,11 @@ class AiTaseronHakedisi(BaseModel):
     period_year: int | None
     period_month: int | None
     status: str
-    gross_total: Decimal
-    net_total: Decimal
+    #: 🔴 `| None`: kaynak uç (`ProgressPaymentListItem`/`SubcontractorProgressPaymentListItem`)
+    #: tutarı hassas-etiketlidir; gizli rolde `null` gelir. `Decimal` ZORUNLU kalsaydı araç
+    #: `ToolError` verirdi (IZN-B4b onarımı).
+    gross_total: Decimal | None
+    net_total: Decimal | None
 
 
 class AiTaseronHakedisListesi(BaseModel):

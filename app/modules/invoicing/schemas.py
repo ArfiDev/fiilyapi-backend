@@ -37,9 +37,11 @@ iskonto sütunu bu şemalarda YOKTUR ve gövdede gönderilirlerse **422**dir.
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from app.core.field_mask import Hassas
 from app.core.slug import url_safe_key
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.invoicing.models import (
@@ -87,6 +89,19 @@ _UNIT_PRICE = Field(ge=0, max_digits=18, decimal_places=2)
 _VAT_RATE = Field(ge=0, le=100, max_digits=5, decimal_places=2)
 
 
+# 🔴 GECE KARARI (IZN-B4b): fatura satış YA DA gider olabilir ve tek satırda hem maliyet/kâr hem
+# kasa-banka hem satış bedeli anlamı taşır. Fail-closed: üç kategori BİRLİKTE etiketlenir
+# (HERHANGİ biri gizliyse tutar gizlenir). `party_*` vergi no/adres: satis_alici.
+_MALI = (Hassas.maliyet_kar, Hassas.banka_kasa, Hassas.satis_alici)
+MaliTutar = Annotated[Decimal | None, *_MALI]
+#: İSTEK gövdesinde aynı etiket (gizli rol dolu tutar gönderirse 403); tip `None` taşımaz.
+MaliTutarGirdi = Annotated[Decimal, *_MALI]
+#: ORAN/miktar: tutar değil (yüzde, metraj) → açıkça hassas DEĞİL.
+Oran = Annotated[Decimal | None, Hassas.yok]
+OranGirdi = Annotated[Decimal, Hassas.yok]
+AliciMetni = Annotated[str | None, Hassas.satis_alici]
+
+
 class InvoiceLineCreate(BaseModel):
     """Fatura kaleminin BİR satırı (FGI:116-130 · FGE:150-160 · FK:168-183).
 
@@ -104,9 +119,9 @@ class InvoiceLineCreate(BaseModel):
 
     description: str = Field(min_length=1, max_length=FREE_TEXT_MAX_LENGTH)
     unit: str | None = Field(default=None, min_length=1, max_length=20)
-    quantity: Decimal = _QUANTITY
-    unit_price: Decimal = _UNIT_PRICE
-    vat_rate: Decimal = _VAT_RATE
+    quantity: OranGirdi = _QUANTITY
+    unit_price: MaliTutarGirdi = _UNIT_PRICE
+    vat_rate: OranGirdi = _VAT_RATE
     detail_note: str | None = Field(default=None, max_length=200)
 
 
@@ -142,10 +157,10 @@ class InvoiceLineResponse(BaseModel):
     sort_order: int
     description: str
     unit: str | None
-    quantity: Decimal
-    unit_price: Decimal
-    vat_rate: Decimal
-    line_total: Decimal
+    quantity: Annotated[Decimal, Hassas.yok]
+    unit_price: MaliTutar
+    vat_rate: Annotated[Decimal, Hassas.yok]
+    line_total: MaliTutar
     detail_note: str | None
 
 
@@ -176,10 +191,10 @@ class InvoiceCreate(BaseModel):
     payment_method: InvoicePaymentMethod | None = None
     note: str | None = _NOTE
 
-    party_name: str = _PARTY_NAME
-    party_tax_number: str | None = _TAX_NUMBER
+    party_name: Annotated[str, Hassas.satis_alici] = _PARTY_NAME
+    party_tax_number: AliciMetni = _TAX_NUMBER
     party_tax_office: str | None = _TAX_OFFICE
-    party_address: str | None = _ADDRESS
+    party_address: AliciMetni = _ADDRESS
 
     employer_id: uuid.UUID | None = None
     customer_id: uuid.UUID | None = None
@@ -194,9 +209,9 @@ class InvoiceCreate(BaseModel):
     project_id: uuid.UUID | None = None
     site_id: uuid.UUID | None = None
 
-    advance_rate: Decimal | None = _RATE
-    retention_rate: Decimal | None = _RATE
-    withholding_rate: Decimal | None = _RATE
+    advance_rate: Oran = _RATE
+    retention_rate: Oran = _RATE
+    withholding_rate: Oran = _RATE
 
     lines: list[InvoiceLineCreate] = Field(default_factory=list)
 
@@ -226,10 +241,10 @@ class InvoiceUpdate(BaseModel):
     payment_method: InvoicePaymentMethod | None = None
     note: str | None = _NOTE
 
-    party_name: str | None = Field(default=None, min_length=1, max_length=200)
-    party_tax_number: str | None = _TAX_NUMBER
+    party_name: AliciMetni = Field(default=None, min_length=1, max_length=200)
+    party_tax_number: AliciMetni = _TAX_NUMBER
     party_tax_office: str | None = _TAX_OFFICE
-    party_address: str | None = _ADDRESS
+    party_address: AliciMetni = _ADDRESS
 
     employer_id: uuid.UUID | None = None
     customer_id: uuid.UUID | None = None
@@ -244,9 +259,9 @@ class InvoiceUpdate(BaseModel):
     project_id: uuid.UUID | None = None
     site_id: uuid.UUID | None = None
 
-    advance_rate: Decimal | None = _RATE
-    retention_rate: Decimal | None = _RATE
-    withholding_rate: Decimal | None = _RATE
+    advance_rate: Oran = _RATE
+    retention_rate: Oran = _RATE
+    withholding_rate: Oran = _RATE
 
 
 class InvoiceResponse(BaseModel):
@@ -290,10 +305,10 @@ class InvoiceResponse(BaseModel):
         """
         return url_safe_key(self.invoice_no)
 
-    party_name: str
-    party_tax_number: str | None
+    party_name: AliciMetni
+    party_tax_number: AliciMetni
     party_tax_office: str | None
-    party_address: str | None
+    party_address: AliciMetni
 
     employer_id: uuid.UUID | None
     customer_id: uuid.UUID | None
@@ -308,16 +323,16 @@ class InvoiceResponse(BaseModel):
     project_id: uuid.UUID | None
     site_id: uuid.UUID | None
 
-    subtotal: Decimal
-    advance_rate: Decimal | None
-    advance_amount: Decimal
-    retention_rate: Decimal | None
-    retention_amount: Decimal
-    tax_base: Decimal
-    vat_amount: Decimal
-    withholding_rate: Decimal | None
-    withholding_amount: Decimal
-    total: Decimal
+    subtotal: MaliTutar
+    advance_rate: Oran
+    advance_amount: MaliTutar
+    retention_rate: Oran
+    retention_amount: MaliTutar
+    tax_base: MaliTutar
+    vat_amount: MaliTutar
+    withholding_rate: Oran
+    withholding_amount: MaliTutar
+    total: MaliTutar
 
     created_by_id: uuid.UUID
     created_at: datetime
@@ -351,7 +366,7 @@ class InvoiceSummaryMetric(BaseModel):
     "18 fatura · ₺0,00" gibi imkânsız bir çift ekrana çıkabilirdi.
     """
 
-    amount: Decimal
+    amount: MaliTutar
     count: int
 
 
@@ -369,5 +384,5 @@ class InvoiceSummaryResponse(BaseModel):
     issued_this_month: InvoiceSummaryMetric
     received_this_month: InvoiceSummaryMetric
     receivable: InvoiceSummaryMetric
-    vat_difference: Decimal
+    vat_difference: MaliTutar
     pending_approval: int

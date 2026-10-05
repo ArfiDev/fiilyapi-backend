@@ -37,6 +37,7 @@ import enum
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,6 +45,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # `personnel` ile PAYLAŞILIR). Ad buradan YENİDEN DIŞA AKTARILIR: `service.py`
 # onu bu modülden import eder ve `__all__` listeler — bağ koparsa banka hesabı
 # create/update akışının tamamı çöker.
+from app.core.field_mask import Hassas
 from app.core.iban import iban_field_validator, normalize_iban
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.treasury.models import BankAccountType, PaymentMethodKind
@@ -79,6 +81,14 @@ _IBAN = Field(default=None, min_length=1, max_length=34)
 #: mevduat hesabı eksi açılışla girilebilir ve `ge=0` bunu yasaklardı.
 _OPENING_BALANCE = Field(default=Decimal("0.00"), max_digits=18, decimal_places=2)
 
+# 🔴 GECE KARARI (IZN-B4b): banka/kasa bakiyesi, açılış bakiyesi, IBAN, nakit akışı ve yaklaşan
+# ödemeler = `banka_kasa` (fail-closed: yaklaşan ödeme tutarı fatura/hakediş/bordro kaynaklı olsa
+# da ödeme/tahsilat YÖNÜ kasa-banka hareketidir).
+KasaTutar = Annotated[Decimal | None, Hassas.banka_kasa]
+#: İSTEK gövdesinde aynı etiket; tip `None` taşımaz.
+KasaTutarGirdi = Annotated[Decimal, Hassas.banka_kasa]
+Iban = Annotated[str | None, Hassas.banka_kasa]
+
 
 class BankAccountCreate(BaseModel):
     """`POST /bank-accounts` (E9:70-84 kartının yazma yolu).
@@ -96,9 +106,9 @@ class BankAccountCreate(BaseModel):
 
     bank_name: str = _BANK_NAME
     account_type: BankAccountType
-    iban: str | None = _IBAN
+    iban: Iban = _IBAN
     display_name: str | None = _DISPLAY_NAME
-    opening_balance: Decimal = _OPENING_BALANCE
+    opening_balance: KasaTutarGirdi = _OPENING_BALANCE
     is_active: bool = True
 
     _iban_dogrula = iban_field_validator()
@@ -121,9 +131,9 @@ class BankAccountUpdate(BaseModel):
 
     bank_name: str | None = Field(default=None, min_length=1, max_length=100)
     account_type: BankAccountType | None = None
-    iban: str | None = _IBAN
+    iban: Iban = _IBAN
     display_name: str | None = _DISPLAY_NAME
-    opening_balance: Decimal | None = Field(default=None, max_digits=18, decimal_places=2)
+    opening_balance: KasaTutar = Field(default=None, max_digits=18, decimal_places=2)
     is_active: bool | None = None
 
     _iban_dogrula = iban_field_validator()
@@ -137,9 +147,9 @@ class _BankAccountStored(BaseModel):
     id: uuid.UUID
     bank_name: str
     account_type: BankAccountType
-    iban: str | None
+    iban: Iban
     display_name: str | None
-    opening_balance: Decimal
+    opening_balance: KasaTutar
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -156,7 +166,7 @@ class BankAccountResponse(_BankAccountStored):
     düzeltemez ve bakiyenin nereden başladığı ekranda okunabilir olmalıdır.
     """
 
-    balance: Decimal
+    balance: KasaTutar
 
     @classmethod
     def from_row(cls, account, balance: Decimal) -> "BankAccountResponse":  # noqa: ANN001
@@ -223,7 +233,7 @@ class PaymentCreate(BaseModel):
     #: süzgecine bakmayı gerektirir) — o kapı `payments_service`tedir ve
     #: **404**tür, sessiz `None` DEĞİL.
     financial_instrument_id: uuid.UUID | None = None
-    amount: Decimal = _AMOUNT
+    amount: Annotated[Decimal, Hassas.banka_kasa] = _AMOUNT
     paid_on: date
     note: str | None = Field(default=None, max_length=FREE_TEXT_MAX_LENGTH)
 
@@ -246,7 +256,7 @@ class PaymentResponse(BaseModel):
     #: vermezdi. İstemci ayrıntıyı `/financial-instruments/{id}`den okur.
     financial_instrument_id: uuid.UUID | None
     method: PaymentMethodKind
-    amount: Decimal
+    amount: Annotated[Decimal | None, Hassas.banka_kasa]
     paid_on: date
     note: str | None
     created_by_id: uuid.UUID
@@ -271,8 +281,8 @@ class PaymentListResponse(BaseModel):
     total: int
     limit: int
     offset: int
-    paid_total: Decimal
-    remaining: Decimal
+    paid_total: Annotated[Decimal | None, Hassas.banka_kasa]
+    remaining: Annotated[Decimal | None, Hassas.banka_kasa]
 
 
 # --------------------------------------------------------------------------- #
@@ -344,7 +354,20 @@ class UpcomingPaymentItem(BaseModel):
     document_no: str
     due_date: date
     days_remaining: int
-    amount: Decimal
+    amount: KasaTutar
+    #: Kaynağın projesi (IZN-B4b onarımı; eklemeli): satır KENDİ projesindeki rolle maskelenir.
+    #: Bordro dönemi şirket geneli → `null` (birleşim, fail-closed). Çözülemeyen fatura da `null`.
+    project_id: uuid.UUID | None = None
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "UpcomingPaymentItem", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        """Bordro kaynaklı satırın tutarı personel NET MAAŞ toplamıdır: `maas_kisisel` de gizler
+        (kasa-banka hareketi OLMASI maaş gizliliğini kaldırmaz)."""
+        if model.source_type is UpcomingSourceType.payroll:
+            return etiketler | {Hassas.maas_kisisel}
+        return etiketler
 
 
 class UpcomingPaymentsResponse(BaseModel):
@@ -371,8 +394,8 @@ class CashFlowBucket(BaseModel):
     """
 
     day: date
-    inflow: Decimal
-    outflow: Decimal
+    inflow: KasaTutar
+    outflow: KasaTutar
 
 
 class CashFlowResponse(BaseModel):
@@ -389,5 +412,5 @@ class CashFlowResponse(BaseModel):
     year: int
     month: int
     series: list[CashFlowBucket]
-    inflow_total: Decimal
-    outflow_total: Decimal
+    inflow_total: KasaTutar
+    outflow_total: KasaTutar

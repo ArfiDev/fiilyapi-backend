@@ -72,8 +72,8 @@ class ProgressPaymentLineInput(BaseModel):
 
     contract_item_id: uuid.UUID
     site_id: uuid.UUID
-    quantity: Decimal = Field(ge=0)
-    coefficient: Decimal | None = Field(default=None, gt=0)
+    quantity: Annotated[Decimal, Hassas.yok] = Field(ge=0)
+    coefficient: Annotated[Decimal | None, Hassas.yok] = Field(default=None, gt=0)
 
     @model_validator(mode="before")
     @classmethod
@@ -104,7 +104,7 @@ class ProgressPaymentCreate(BaseModel):
     period_year: int | None = None
     period_month: int | None = Field(default=None, ge=1, le=12)
     description: str | None = None
-    default_coefficient: Decimal | None = Field(default=None, gt=0)
+    default_coefficient: Annotated[Decimal | None, Hassas.yok] = Field(default=None, gt=0)
     lines: list[ProgressPaymentLineInput] | None = None
 
 
@@ -119,7 +119,7 @@ class ProgressPaymentUpdate(BaseModel):
     period_year: int | None = None
     period_month: int | None = Field(default=None, ge=1, le=12)
     description: str | None = None
-    default_coefficient: Decimal | None = Field(default=None, gt=0)
+    default_coefficient: Annotated[Decimal | None, Hassas.yok] = Field(default=None, gt=0)
 
 
 class RejectBody(BaseModel):
@@ -169,8 +169,8 @@ class ProgressPaymentListItem(BaseModel):
     period_month: int | None
     description: str | None
     status: ProgressPaymentStatus
-    gross_total: Decimal
-    net_total: Decimal
+    gross_total: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    net_total: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
 
 
 class ProgressPaymentListResponse(BaseModel):
@@ -198,21 +198,21 @@ class ProgressPaymentLineDetail(BaseModel):
     """KAT-B2.4: Bakanlık poz no SNAPSHOT'ı (maskesiz rota: düz alan)."""
     description: str
     unit: str = Field(max_length=50)
-    contract_unit_price: Decimal
-    coefficient: Decimal
-    quantity: Decimal
+    contract_unit_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    coefficient: Annotated[Decimal, Hassas.yok]
+    quantity: Annotated[Decimal, Hassas.yok]
     group_name: str | None = Field(max_length=200)
     sort_order: int
     quantity_source: QuantitySource
     """E15 "Günlük kayıttan" rozetinin kaynağı — SUNUCU damgası, istekten ASLA
     alınmaz (TB4 T1). Taşeron ikizi `SubcontractorProgressPaymentLineRead` ile
     aynı tip ve aynı zorunluluk düzeyindedir (S4 simetrisi)."""
-    adjusted_unit_price: Decimal
-    line_total: Decimal
-    previous_quantity: Decimal
-    previous_amount: Decimal
-    cumulative_quantity: Decimal
-    cumulative_amount: Decimal
+    adjusted_unit_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    line_total: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    previous_quantity: Annotated[Decimal, Hassas.yok]
+    previous_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    cumulative_quantity: Annotated[Decimal, Hassas.yok]
+    cumulative_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     is_price_stale: bool | None
 
 
@@ -220,29 +220,29 @@ class ProgressPaymentGroupSummary(BaseModel):
     """E15 96-141 grup toplulaştırması (`group_name` üzerinden, spec §6.6)."""
 
     group_name: str | None
-    previous_amount: Decimal
-    this_amount: Decimal
-    cumulative_amount: Decimal
-    contract_amount: Decimal
+    previous_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    this_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    cumulative_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    contract_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
 
 
 class PaymentCalculationBlock(BaseModel):
     """E15 151-172 / OLU 179-196 ödeme hesabı (spec §6.2-§6.4) — H2
     `calculations` fonksiyonlarının çıktısı, saklanmaz."""
 
-    gross: Decimal
-    vat: Decimal
-    advance_deduction: Decimal
-    retention: Decimal
-    net: Decimal
+    gross: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    vat: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    advance_deduction: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    retention: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    net: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
 
 
 class ProgressBlock(BaseModel):
     """E15 177-190 sözleşme ilerlemesi (spec §8). Eksik veri → `None` (zarif düşüş)."""
 
-    financial_pct: Decimal | None
-    physical_pct: Decimal | None
-    duration_pct: Decimal | None
+    financial_pct: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    physical_pct: Annotated[Decimal | None, Hassas.yok]
+    duration_pct: Annotated[Decimal | None, Hassas.yok]
 
 
 class ProgressPaymentDetail(BaseModel):
@@ -259,10 +259,10 @@ class ProgressPaymentDetail(BaseModel):
     period_month: int | None
     description: str | None
     status: ProgressPaymentStatus
-    vat_pct: Decimal
-    advance_pct: Decimal
-    retainage_pct: Decimal
-    default_coefficient: Decimal
+    vat_pct: Annotated[Decimal, Hassas.yok]
+    advance_pct: Annotated[Decimal, Hassas.yok]
+    retainage_pct: Annotated[Decimal, Hassas.yok]
+    default_coefficient: Annotated[Decimal, Hassas.yok]
     submitted_at: datetime | None
     approved_at: datetime | None
     approved_by: uuid.UUID | None

@@ -35,6 +35,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.field_mask import Hassas
 from app.modules.treasury.instruments import derive
 from app.modules.treasury.models import (
     FinancialInstrumentDirection,
@@ -97,7 +98,9 @@ def _opsiyonel_metin(deger: str | None) -> str | None:
 #: kaydetmis olur ve fark yalnizca mutabakatta gorunurdu.
 #: `gt=0` DB'deki `ck_financial_instruments_amount_positive`in sema karsiligidir
 #: ve ondan ONCE kosar.
-_AMOUNT = Annotated[Decimal, Field(gt=0, max_digits=18, decimal_places=2)]
+_AMOUNT = Annotated[Decimal, Field(gt=0, max_digits=18, decimal_places=2), Hassas.banka_kasa]
+#: 🔴 GECE KARARI (IZN-B4b): çek/senet tutarı = `banka_kasa` (alacak/borç çeki fark etmez).
+KasaTutar = Annotated[Decimal | None, Hassas.banka_kasa]
 
 
 class FinancialInstrumentCreate(BaseModel):
@@ -147,7 +150,7 @@ class FinancialInstrumentUpdate(BaseModel):
     bank_name: _BANK_NAME = None
     issue_date: date | None = None
     due_date: date | None = None
-    amount: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=2)
+    amount: KasaTutar = Field(default=None, gt=0, max_digits=18, decimal_places=2)
     project_id: uuid.UUID | None = None
     bank_account_id: uuid.UUID | None = None
 
@@ -186,7 +189,7 @@ class _FinancialInstrumentStored(BaseModel):
     bank_name: str | None
     issue_date: date
     due_date: date
-    amount: Decimal
+    amount: KasaTutar
     status: FinancialInstrumentStatus
     project_id: uuid.UUID | None
     bank_account_id: uuid.UUID | None
@@ -245,7 +248,7 @@ class FinancialInstrumentSummaryCard(BaseModel):
     kanonu).
     """
 
-    amount: Decimal
+    amount: KasaTutar
     count: int
 
 

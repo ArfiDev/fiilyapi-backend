@@ -54,6 +54,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -69,7 +70,7 @@ from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.users.models import User
 
-router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(guards.PERMISSION_MODULE, AccessLevel.full)
@@ -211,7 +212,9 @@ async def export_chart_accounts_endpoint(
         session, q=q, account_type=account_type, is_active=is_active, limit=None, offset=0
     )
     return Response(
-        content=export.build_chart_of_accounts_workbook(accounts).getvalue(),
+        content=export.build_chart_of_accounts_workbook(
+            await maskele_baglamli(accounts)
+        ).getvalue(),
         media_type=export.XLSX_MEDIA_TYPE,
         headers={
             "Content-Disposition": http.content_disposition(export.chart_of_accounts_filename())

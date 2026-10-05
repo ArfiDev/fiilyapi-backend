@@ -725,6 +725,18 @@
             ],
             "title": "Net Amount"
           },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
           "reason": {
             "anyOf": [
               {
@@ -901,6 +913,18 @@
               }
             ],
             "title": "Net Amount"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
           },
           "steps": {
             "items": {
@@ -1260,9 +1284,16 @@
             "type": "array"
           },
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
           },
           "group_codes": {
             "items": {
@@ -1333,9 +1364,16 @@
             "type": "array"
           },
           "subtotal": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Subtotal",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtotal"
           },
           "subtotal_label": {
             "title": "Subtotal Label",
@@ -1375,9 +1413,16 @@
             "type": "string"
           },
           "total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           },
           "total_label": {
             "title": "Total Label",
@@ -1498,9 +1543,16 @@
             "$ref": "#/components/schemas/BankAccountType"
           },
           "balance": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Balance",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
           },
           "bank_name": {
             "title": "Bank Name",
@@ -1543,9 +1595,16 @@
             "type": "boolean"
           },
           "opening_balance": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Opening Balance",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Balance"
           },
           "updated_at": {
             "format": "date-time",
@@ -3376,14 +3435,28 @@
             "type": "string"
           },
           "inflow": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Inflow",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inflow"
           },
           "outflow": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Outflow",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outflow"
           }
         },
         "required": [
@@ -3398,18 +3471,32 @@
         "description": "E9:90-106 — günlük seri + iki toplam (`Giriş` / `Çıkış`).\n\n🔴 **Seri SEYREKTİR:** yalnız hareket GÖRMÜŞ günler satır üretir. Ayın 31\ngününü sıfırla doldurmak, veri olmayan bir günü \"0 TL hareket oldu\"\ndiye gösterirdi ve boş ayın 31 satırlık yanıtı \"boş\" görünmezdi.\n\n🔴 **Toplamlar `0`dır, NULL DEĞİL** (`coalesce`, `paid_sum` dersi): ödemesiz\nbir ayda `SUM()` NULL döner ve kart \"₺\" yanında boşluk basardı.",
         "properties": {
           "inflow_total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Inflow Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inflow Total"
           },
           "month": {
             "title": "Month",
             "type": "integer"
           },
           "outflow_total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Outflow Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outflow Total"
           },
           "series": {
             "items": {
@@ -3444,9 +3531,16 @@
             "type": "array"
           },
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
           },
           "key": {
             "title": "Key",
@@ -3470,9 +3564,16 @@
         "description": "Nakit Akış Tablosunun tamamı — yevmiyeden türer (KK-2).\n\n🔴 **`/treasury/cash-flow` İLE AYNI ŞEY DEĞİLDİR.** O uç\n`payments`+`invoices`ten türeyen GÜNLÜK giriş/çıkış serisidir (F-HZ ekranı);\nbu uç yevmiyeden türeyen işletme/yatırım/finansman tablosudur. İkisi farklı\nsayı basar ve bu bir kusur değildir — ayrım her iki modül docstring'inde de\nyazılıdır.\n\n🔴 **DÖRT ALAN BİRDEN DÖNER** ve gerekçesi ölçülmüştür: mockup'ın alt bandı\n`DÖNEM SONU NAKİT (A+B+C)` **diyor** ama değeri `4.249.500`, yani\nBilanço'daki `Kasa ve Bankalar` (BL:51) ile BİREBİR aynı — bu KAPANIŞ\nNAKDİDİR. A+B+C ise `4.802.000`dir (NA:58). İkisi AYRI ŞEYDİR ve mockup'ta\n**DÖNEM BAŞI NAKİT satırı EKSİKTİR** (türetilen açılış `−552.500` çıkar,\nimkânsız). Uç dördünü de döndürür; hangisinin basılacağına frontend kendi\ndiliminde karar verir (MU-2'nin `carried_forward`ı emsal).\n\nKimlik: `closing_cash == opening_cash + net_change`.\n\n`year`/`month` yanıtta TEKRARLANIR: mockup NA:37 (`Ocak–Temmuz 2026`)\nbaşlığı buradan kurulur.\n\nKapsam dışı: `3 Aylık Projeksiyon` kartı (NA:134-150) — ileriye dönük\ntahmin, algoritması mockup'ta YOK ve açıklama metinleri (`\"Hakediş +\nbordro\"`) serbest metin. İCAT EDİLMEZ; frontend devre-dışı + gerekçeyle\nbasar (F-TH kanonu).",
         "properties": {
           "closing_cash": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Closing Cash",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Cash"
           },
           "month": {
             "title": "Month",
@@ -3486,14 +3587,28 @@
             "type": "array"
           },
           "net_change": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net Change",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Change"
           },
           "opening_cash": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Opening Cash",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Cash"
           },
           "sections": {
             "items": {
@@ -3538,9 +3653,16 @@
             "type": "array"
           },
           "subtotal": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Subtotal",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtotal"
           },
           "subtotal_label": {
             "title": "Subtotal Label",
@@ -4041,9 +4163,16 @@
             "$ref": "#/components/schemas/ChartAccountType"
           },
           "balance": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Balance",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
           },
           "class_code": {
             "title": "Class Code",
@@ -11902,9 +12031,16 @@
         "description": "Satir + 🔴 TUREV `is_due` (K2).\n\n`status` (kalici) ve `is_due` (turev) **AYRI alanlardir** ve frontend rozeti\nIKISINDEN kurar. Tek alanda birlestirilseydi (or. `status='due'`) kalici\ndurum kaybolur, ertesi ay geri getirilemez ve E10:130 `Portfoyde` ile\nE10:121 `Vadede` ayni kolona yazilmis olurdu.",
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
           },
           "bank_account_id": {
             "anyOf": [
@@ -12064,9 +12200,16 @@
         "description": "E10:70-89'un TEK karti — tutar VE adet (E10:73 `8 adet`).\n\nAdet ayri bir alandir, `items` uzunlugundan turetilmez: kart TUM kumeyi\nsayar, liste ise SAYFAYI dondurur (BOR-TEMIZ'in \"iki sayac ayri seydir\"\nkanonu).",
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
           },
           "count": {
             "title": "Count",
@@ -13388,9 +13531,16 @@
             "type": "array"
           },
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
           },
           "key": {
             "title": "Key",
@@ -13418,9 +13568,16 @@
             "type": "integer"
           },
           "period_profit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Period Profit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Profit"
           },
           "profit_label": {
             "title": "Profit Label",
@@ -13434,14 +13591,28 @@
             "type": "array"
           },
           "total_expense": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total Expense",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Expense"
           },
           "total_revenue": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total Revenue",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Revenue"
           },
           "year": {
             "title": "Year",
@@ -13475,9 +13646,16 @@
             "type": "array"
           },
           "subtotal": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Subtotal",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtotal"
           },
           "subtotal_label": {
             "title": "Subtotal Label",
@@ -13889,9 +14067,16 @@
         "description": "Detay = künye + KALEMLER (FGI/FGE kalem tablosu), `sort_order` sırasında.\n\nListe bu şemayı KULLANMAZ: 50 faturanın kalemlerini çekmek N+1 üretir ve FY\ntablosu zaten kalem göstermez.",
         "properties": {
           "advance_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Advance Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advance Amount"
           },
           "advance_rate": {
             "anyOf": [
@@ -14013,8 +14198,15 @@
             "title": "Party Address"
           },
           "party_name": {
-            "title": "Party Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Name"
           },
           "party_tax_number": {
             "anyOf": [
@@ -14085,9 +14277,16 @@
             "title": "Purchase Order Id"
           },
           "retention_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Retention Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Amount"
           },
           "retention_rate": {
             "anyOf": [
@@ -14154,9 +14353,16 @@
             "title": "Subcontractor Progress Payment Id"
           },
           "subtotal": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Subtotal",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtotal"
           },
           "supplier_id": {
             "anyOf": [
@@ -14171,14 +14377,28 @@
             "title": "Supplier Id"
           },
           "tax_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Tax Base",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Base"
           },
           "total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           },
           "updated_at": {
             "format": "date-time",
@@ -14186,14 +14406,28 @@
             "type": "string"
           },
           "vat_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Vat Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Amount"
           },
           "withholding_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Withholding Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withholding Amount"
           },
           "withholding_rate": {
             "anyOf": [
@@ -14380,9 +14614,16 @@
             "type": "string"
           },
           "line_total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Line Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Total"
           },
           "quantity": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -14405,9 +14646,16 @@
             "title": "Unit"
           },
           "unit_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Unit Price",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Price"
           },
           "vat_rate": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -14494,9 +14742,16 @@
         "description": "Fatura künyesi — FY listesinin satırı ve detayın başlığı AYNI şemadır.\n\nİki ayrı şema açılsaydı liste \"Matrah/KDV/Toplam\" sütunlarını (FY:116-118)\nayrı bir hesapla doldurur ve detaydan sapabilirdi. Para alanlarının hepsi\nSAKLANAN kolonlardır (K7): okumada yeniden hesaplanmazlar.\n\nTürev alan YOKTUR: \"kalan gün\" (FGI:68) `due_date`ten, \"Vadeli\" rozeti\n(K1) `status` + `due_date`ten ekranda türer.",
         "properties": {
           "advance_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Advance Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advance Amount"
           },
           "advance_rate": {
             "anyOf": [
@@ -14611,8 +14866,15 @@
             "title": "Party Address"
           },
           "party_name": {
-            "title": "Party Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Name"
           },
           "party_tax_number": {
             "anyOf": [
@@ -14683,9 +14945,16 @@
             "title": "Purchase Order Id"
           },
           "retention_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Retention Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Amount"
           },
           "retention_rate": {
             "anyOf": [
@@ -14752,9 +15021,16 @@
             "title": "Subcontractor Progress Payment Id"
           },
           "subtotal": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Subtotal",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtotal"
           },
           "supplier_id": {
             "anyOf": [
@@ -14769,14 +15045,28 @@
             "title": "Supplier Id"
           },
           "tax_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Tax Base",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Base"
           },
           "total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           },
           "updated_at": {
             "format": "date-time",
@@ -14784,14 +15074,28 @@
             "type": "string"
           },
           "vat_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Vat Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Amount"
           },
           "withholding_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Withholding Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withholding Amount"
           },
           "withholding_rate": {
             "anyOf": [
@@ -14865,9 +15169,16 @@
         "description": "FY:71-73 kartlarının İKİ satırı: büyük rakam (tutar) + alt satır (adet).\n\nİkisi TEK nesnede durur çünkü aynı kümeden gelirler; `*_amount` ve\n`*_count` diye düz alanlara açılsalardı bir kart yanlış eşleştirilebilir ve\n\"18 fatura · ₺0,00\" gibi imkânsız bir çift ekrana çıkabilirdi.",
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
           },
           "count": {
             "title": "Count",
@@ -14898,9 +15209,16 @@
             "$ref": "#/components/schemas/InvoiceSummaryMetric"
           },
           "vat_difference": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Vat Difference",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Difference"
           }
         },
         "required": [
@@ -15512,18 +15830,42 @@
             ],
             "title": "Reversal Of Id"
           },
+          "source_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JournalSourceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "$ref": "#/components/schemas/JournalEntryStatus"
           },
           "total_credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Credit"
           },
           "total_debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Debit"
           },
           "updated_at": {
             "format": "date-time",
@@ -15645,18 +15987,42 @@
             ],
             "title": "Reversal Of Id"
           },
+          "source_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JournalSourceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "$ref": "#/components/schemas/JournalEntryStatus"
           },
           "total_credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Credit"
           },
           "total_debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Debit"
           },
           "updated_at": {
             "format": "date-time",
@@ -15799,14 +16165,28 @@
             "type": "string"
           },
           "credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
           },
           "debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debit"
           },
           "id": {
             "format": "uuid",
@@ -15816,6 +16196,16 @@
           "sort_order": {
             "title": "Sort Order",
             "type": "integer"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JournalSourceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -15848,6 +16238,20 @@
         "title": "JournalLinesReplace",
         "type": "object"
       },
+      "JournalSourceType": {
+        "description": "🔴 MU-3A — otomatik fişi DOĞURAN belgenin AİLESİ (`journal_entries.source_type`).\n\n## Neden PG enum, neden METİN DEĞİL\n\nDepo deseni ÖLÇÜLDÜ: `app/modules/*/models.py` altında **91** adet\n`Enum(..., name=...)` kolonu var, çok biçimli bir referansı serbest metinle\ntutan TEK BİR tablo YOK. Desen burada da doğrudur ve gerekçesi bu dilime\nözeldir: bu kolon `uq_journal_entries_source`un YARISIDIR. Metin olsaydı\n`\"invoice\"` ile `\"invoices\"` (ya da `\"Invoice\"`) AYRI iki tekillik uzayı açar\nve aynı fatura İKİ KEZ fişlenebilirdi — yani idempotanlığın kendisi bir yazım\nhatasına dayanırdı. Enum'da böyle bir değer DB'ye HİÇ GİREMEZ.\n\nBedeli bilinerek alınmıştır: her yeni aile bir `ALTER TYPE … ADD VALUE`\nmigration'ı ister (MT-1'in `equity` emsali). Bu bedel, sessiz bir çift fişten\nucuzdur.\n\n## Üye = TABLO, üye ≠ KAVRAM\n\nHer üye TEK BİR tabloya karşılık gelir ve `source_id` O TABLONUN birincil\nanahtarıdır. \"Hakediş\" tek bir üye olsaydı `source_id` iki farklı tablonun\n(`progress_payments` / `subcontractor_progress_payments`) kimliğini birden\ntaşır ve \"bu kimlik hangi tabloda?\" sorusu kolonlardan CEVAPLANAMAZDI.\n\n## 🔴 FK YOKTUR ve olamaz\n\nÇok biçimli referansta tek bir `source_id` beş tabloya birden bakamaz. Bu bir\nzayıflıktır ve bilinçlidir: alternatif beş nullable FK kolonu + bir\n\"yalnız biri dolu\" CHECK'iydi (`invoices.ck_invoices_single_source` deseni),\nki o da beş kolonu UNIQUE'e sokmayı ve her yeni ailede ŞEMA değiştirmeyi\ngerektirirdi. Bütünlüğü ayakta tutan şey `post_document`in TEK GİRİŞ\nNOKTASI olmasıdır (`app/modules/posting/service.py`).\n\n## Bugün YOKLAR ve neden\n\n* **`purchase_order` / stok hareketi** — KARAR-7: satınalma ve stok fiş\n  ATMAZ. Stokta değerleme yöntemi yoktur, sarf fişinin tutarı hesaplanamaz.\n* ~~`equipment_rental_invoice`~~ — **MU-3D'de EKLENDİ** (`b7c8d9e0f1a2`).\n  MU-3A'da \"üye ICAT EDILMEZ, fişlendiği dilimde `ALTER TYPE` ile eklenir\"\n  diye bırakılmıştı; fişlendiği dilim budur.\n* ~~`financial_instrument`~~ — **ODM-1'de EKLENDİ** (`f5a6b7c8d9e0`).\n  MU-3C üyeyi açmamıştı çünkü nakdin tanımı `Σ payments`tı; ODM-1 o tanımı\n  değiştirdi (bağlı ödeme yalnız `collected`/`paid` iken nakit) ve\n  MU-3C'nin *\"bu bir ÜRÜN KARARIDIR\"* diye beklettiği kararı verdi.\n  Gerekçenin tamamı `treasury/instruments/posting.py` docstring'indedir.\n\nÜye SIRASI kilitlidir: `ALTER TYPE … ADD VALUE` üyeyi SONA ekler ve\n`enum_range` o sırayı döner (migration testi bunu ölçer).",
+        "enum": [
+          "invoice",
+          "payment",
+          "payroll_period",
+          "progress_payment",
+          "subcontractor_progress_payment",
+          "equipment_rental_invoice",
+          "financial_instrument"
+        ],
+        "title": "JournalSourceType",
+        "type": "string"
+      },
       "JournalSummaryResponse": {
         "description": "E8:79-88 KPI şeridi — ÜÇ kart.\n\n🔴 `net_balance = ALACAK − BORÇ`. Yön mockup'tan KANITLIDIR:\n`4.120.000 − 3.842.600 = 277.400` (E8:88) tam tutar ve bu, E8'deki tek\ngöstermelik-olmayan aritmetiktir.\n\nŞerit yalnız DÖNEME bağlıdır; hesap süzgeci ALMAZ (E8:72 — KPI'lar tablonun\nve filtre çubuğunun DIŞINDADIR).",
         "properties": {
@@ -15856,19 +16260,40 @@
             "type": "integer"
           },
           "net_balance": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net Balance",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Balance"
           },
           "total_credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Credit"
           },
           "total_debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Debit"
           },
           "year": {
             "title": "Year",
@@ -18069,9 +18494,16 @@
         "description": "K7 zarfı + 🔴 **`carried_balance`** (pencere ÖNCESİ toplam).\n\nAd `bank_accounts.opening_balance`tan bilinçli olarak AYRIDIR: orası\nSAKLANAN bir kolondur, bu ise TÜREVDİR. Aynı ad kullanılsaydı frontend\nikisini ayırt edemez ve türetilmiş bir sayıyı düzenlenebilir sanırdı.",
         "properties": {
           "carried_balance": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Carried Balance",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carried Balance"
           },
           "items": {
             "items": {
@@ -18120,14 +18552,28 @@
             "type": "string"
           },
           "credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
           },
           "debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debit"
           },
           "description": {
             "title": "Description",
@@ -18158,9 +18604,26 @@
             "$ref": "#/components/schemas/JournalEntryStatus"
           },
           "running_balance": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Running Balance",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Running Balance"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JournalSourceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -18526,9 +18989,16 @@
         "description": "`Aylık Nakit Pozisyonu` grafiğinin bir noktası (mockup NA:108-131).\n\n🔴 **BAKİYE, akış DEĞİL:** grafiğin adı \"Pozisyon\"dur ve nokta o ayın\nSONUNDAKİ nakit bakiyesidir (açılış nakdi dâhil). Aylık akış basan bir\nuygulama aynı veriyle bambaşka bir eğri çizer ve son noktası\n`closing_cash`e denk GELMEZDİ.",
         "properties": {
           "closing_cash": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Closing Cash",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Cash"
           },
           "month": {
             "title": "Month",
@@ -21994,29 +22464,64 @@
         "description": "E15 151-172 / OLU 179-196 ödeme hesabı (spec §6.2-§6.4) — H2\n`calculations` fonksiyonlarının çıktısı, saklanmaz.",
         "properties": {
           "advance_deduction": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Advance Deduction",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advance Deduction"
           },
           "gross": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Gross",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross"
           },
           "net": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net"
           },
           "retention": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Retention",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention"
           },
           "vat": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Vat",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat"
           }
         },
         "required": [
@@ -22112,14 +22617,28 @@
             "type": "integer"
           },
           "paid_total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Paid Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Total"
           },
           "remaining": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Remaining",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
           },
           "total": {
             "title": "Total",
@@ -22183,9 +22702,16 @@
         "description": "Ödeme satırı — yalnız SAKLANAN kolonlar.\n\n`direction` YOKTUR ve türetilip eklenmez: ekran faturanın yönünü zaten\nfaturadan okur, burada ikinci bir kopya taşımak K4'ün tek kaynağını bozardı.",
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
           },
           "bank_account_id": {
             "format": "uuid",
@@ -25703,14 +26229,28 @@
         "description": "E15 96-141 grup toplulaştırması (`group_name` üzerinden, spec §6.6).",
         "properties": {
           "contract_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Contract Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Amount"
           },
           "cumulative_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Cumulative Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cumulative Amount"
           },
           "group_name": {
             "anyOf": [
@@ -25724,14 +26264,28 @@
             "title": "Group Name"
           },
           "previous_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Previous Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Amount"
           },
           "this_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "This Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "This Amount"
           }
         },
         "required": [
@@ -25748,9 +26302,16 @@
         "description": "E15 96-141 satırı + OLU'nun düzenlenebilir alanları. Türev alanlar\n(`adjusted_unit_price`/`line_total`/`previous_*`/`cumulative_*`) saklanmaz,\nher okuyuşta H2 `calculations` fonksiyonlarıyla hesaplanır (spec §4.2, §6.6).\n\n`is_price_stale`: `contract_unit_price != kalem.unit_price` iken `True`;\nbağ (`contract_item_id`) koptuysa `None` (spec §5.1 — kalem silinmiş,\nkıyaslanacak canlı fiyat yok).",
         "properties": {
           "adjusted_unit_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Adjusted Unit Price",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjusted Unit Price"
           },
           "code": {
             "maxLength": 50,
@@ -25775,14 +26336,28 @@
             "title": "Contract Item Id"
           },
           "contract_unit_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Contract Unit Price",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Unit Price"
           },
           "cumulative_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Cumulative Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cumulative Amount"
           },
           "cumulative_quantity": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -25822,14 +26397,28 @@
             "title": "Is Price Stale"
           },
           "line_total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Line Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Total"
           },
           "previous_amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Previous Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Amount"
           },
           "previous_quantity": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -26015,9 +26604,16 @@
             "title": "Description"
           },
           "gross_total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Gross Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Total"
           },
           "id": {
             "format": "uuid",
@@ -26025,9 +26621,16 @@
             "type": "string"
           },
           "net_total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Total"
           },
           "period_month": {
             "anyOf": [
@@ -41179,29 +41782,64 @@
         "description": "O147-163 tfoot'u (spec §3) — `calculations.py` çıktısı, SAKLANMAZ (türev).\n\nTeminat kesintisi ve fiyat farkı katsayısı ONAYLI SAPMA olarak dahildir;\nKDV tevkifatı bu dilimde hesaba GİRMEZ (spec §8 S4).",
         "properties": {
           "advance_deduction": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Advance Deduction",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advance Deduction"
           },
           "gross": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Gross",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross"
           },
           "net": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net"
           },
           "retention": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Retention",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention"
           },
           "vat": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Vat",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat"
           }
         },
         "required": [
@@ -41679,9 +42317,16 @@
         "description": "O72-100 satırı. Şantiye kırılımı YOKTUR — taşeron sözleşmesi zaten tek\nşantiyeye (ya da proje geneline) bağlıdır (spec §2).",
         "properties": {
           "adjusted_unit_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Adjusted Unit Price",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjusted Unit Price"
           },
           "code": {
             "maxLength": 50,
@@ -41706,9 +42351,16 @@
             "title": "Contract Item Id"
           },
           "contract_unit_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Contract Unit Price",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Unit Price"
           },
           "description": {
             "title": "Description",
@@ -41732,9 +42384,16 @@
             "type": "string"
           },
           "line_total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Line Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Total"
           },
           "quantity": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -41846,9 +42505,16 @@
             "title": "Description"
           },
           "gross_total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Gross Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Total"
           },
           "id": {
             "format": "uuid",
@@ -41860,9 +42526,16 @@
             "type": "boolean"
           },
           "net_total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net Total",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Total"
           },
           "period_month": {
             "anyOf": [
@@ -42011,14 +42684,28 @@
             "type": "integer"
           },
           "paid_period_gross": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Paid Period Gross",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Period Gross"
           },
           "pending_gross": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Pending Gross",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Gross"
           },
           "period_month": {
             "title": "Period Month",
@@ -42029,9 +42716,16 @@
             "type": "integer"
           },
           "total_gross": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total Gross",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Gross"
           }
         },
         "required": [
@@ -44338,34 +45032,76 @@
             "type": "string"
           },
           "closing_credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Closing Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Credit"
           },
           "closing_debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Closing Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Debit"
           },
           "opening_credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Opening Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Credit"
           },
           "opening_debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Opening Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Debit"
           },
           "period_credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Period Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Credit"
           },
           "period_debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Period Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Debit"
           }
         },
         "required": [
@@ -44386,34 +45122,76 @@
         "description": "tfoot `GENEL TOPLAM` (mockup satır 161-171) — altı kolonun AYRI toplamı.\n\n🔴 K15: mockup'ın tfoot RAKAMLARI kendi satırlarıyla çelişir (göstermelik);\nSATIRLAR kazanır, tfoot'tan yalnız YAPI alınır — yani \"altı ayrı toplam +\niki kapanış toplamının eşit basıldığı denge iddiası\".\n\nToplam TÜM kümeyi kapsar; sayfalama olsaydı bu sayı bir SAYFANIN toplamı\nolurdu ve `GENEL TOPLAM` adı yalan söylerdi (bkz. `TrialBalanceResponse`).",
         "properties": {
           "closing_credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Closing Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Credit"
           },
           "closing_debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Closing Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Debit"
           },
           "opening_credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Opening Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Credit"
           },
           "opening_debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Opening Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Debit"
           },
           "period_credit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Period Credit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Credit"
           },
           "period_debit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Period Debit",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Debit"
           }
         },
         "required": [
@@ -47335,9 +48113,16 @@
         "description": "E9:109-125 satırı — mockup'ın BEŞ alanı + kaynak damgası.\n\n🔴 **K10: aciliyet/renk alanı YOKTUR ve açılmaz.** E9'un kodlaması kendi\niçinde tutarsızdır (2 gün→turuncu, 3 gün→**kırmızı**, 7 gün→yeşil); sunucu\nbir eşik uydurursa mockup'ın hangi yarısının doğru olduğuna KARAR VERMİŞ\nolur. Yanıt yalnız `days_remaining` sayısını ve `source_type`ı verir; renk\nistemcinindir (SA'nın \"EN HIZLI rozeti sunucuda üretilmez\" kanonu).\n\n`counterparty` NULLABLE'dır ve olmalıdır: taşeron sözleşmesinde\n`subcontractor_name` taslak aşamasında boş bırakılabilir. Boş metinle\nya da \"Bilinmeyen\" gibi bir dolgu ile doldurmak, kullanıcıya var olmayan\nbir kayıt adı gösterirdi.\n\n`document_no` yalnız TANIMLAYICIDIR, cümle DEĞİL: faturada `invoice_no`,\nhakedişte `sequence_no`nun metni, bordroda dönemin `\"YYYY-MM\"`i. Sunucu\n\"Hakediş #47\" cümlesini KURMAZ — o birleştirme (E9:113) `source_type` ile\nbirlikte istemcide yapılır ve çeviri/biçim kararı sunucuya sızmaz. Aynı\nkanon bordroda E9:117'nin \"Temmuz\"unu da DIŞARIDA bırakır: ay adı bir\nÇEVİRİ kararıdır, `\"2026-07\"`den istemcide üretilir.\n\nBordro satırı `counterparty`yi **`None`** taşır: E9:117 bir karşı taraf adı\nçizmez (\"Bordro – Temmuz\"), oysa fatura satırı \"Yılmaz Elektrik\" basar.\nAlan yine de zarfta DURUR — kaynağa göre şekil değiştiren bir zarf,\nistemcide kaynak başına ayrı bir okuma yolu doğururdu.",
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Amount",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
           },
           "counterparty": {
             "anyOf": [
@@ -47362,6 +48147,18 @@
             "format": "date",
             "title": "Due Date",
             "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
           },
           "source_id": {
             "format": "uuid",
@@ -47750,18 +48547,32 @@
         "description": "`İndirimler` tablosunun bir satırı (mockup satır 116-125).\n\n🔴 Mockup İKİ satır çizer (`Mal Alışları` / `Hizmet Alımları`) ama bu ayrımın\nveri modelinde karşılığı YOKTUR (ölçüldü: `item_type`/`is_service`/\n`product_type` sıfır eşleşme, kalemin stok bağı yok). Sınıflandırıcı\nUYDURULMADI; tek satır `Alışlar` döner ve boşluk açık borçtur. Liste tipi\nolması, sınıflandırma bir gün gerçekten modellendiğinde şemanın KIRILMADAN\nbüyümesi içindir.",
         "properties": {
           "base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Base",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
           },
           "source": {
             "title": "Source",
             "type": "string"
           },
           "vat": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Vat",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat"
           }
         },
         "required": [
@@ -47776,19 +48587,40 @@
         "description": "KDV Beyannamesinin tamamı — 🔴 sayfalama YOKTUR (mizanla aynı gerekçe).\n\n`year`/`month` yanıtta TEKRARLANIR: istemci hangi dönemi gördüğünü kendi\nisteğinden değil SUNUCUNUN cevabından okur (mockup satır 45 başlığı).\n\n🔴 **`payable` ve `carried_forward` AYNI ANDA sıfırdan büyük OLAMAZ.**\n`fark = calculated_vat − deductible_vat`; `payable = max(fark, 0)` ve\n`carried_forward = max(−fark, 0)`. Negatif fark \"ödenecek\" DEĞİL DEVREDEN\nKDV'dir — tek alan açılıp negatif basılsaydı ekran devlete borç yerine\nalacak yazardı. Mockup yalnız `Ödenecek` çizer (satır 65-69, 134-143); alan\nyine de açılır, sunum kararı frontend'indir.\n\nPara alanlarının hiçbiri `None` OLMAZ; boş dönem her yeri `0` basar ve\n`due_date` YİNE doludur (vade fatura verisine değil TAKVİME bağlıdır).",
         "properties": {
           "calculated_vat": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Calculated Vat",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculated Vat"
           },
           "carried_forward": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Carried Forward",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carried Forward"
           },
           "deductible_vat": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Deductible Vat",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deductible Vat"
           },
           "deductions": {
             "items": {
@@ -47803,18 +48635,32 @@
             "type": "string"
           },
           "exempt_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Exempt Base",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exempt Base"
           },
           "month": {
             "title": "Month",
             "type": "integer"
           },
           "payable": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Payable",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payable"
           },
           "taxable_rows": {
             "items": {
@@ -47847,9 +48693,16 @@
         "description": "`Tablo 1 — Matrah ve Vergi`nin bir ORAN satırı (mockup satır 84-89).\n\n🔴 `rate = 0` satırları BURAYA GİRMEZ: mockup istisnayı ayrı, italik/gri bir\nsatır olarak çizer (satır 90-95) ve vergisi tanımı gereği `0`dır. Listeye\nkonsaydı `Vergi` kolonu hep `0` olan sahte bir \"oran\" satırı doğardı.\n`VatReturnResponse.exempt_base` onun yeridir.",
         "properties": {
           "base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Base",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
           },
           "rate": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -47857,9 +48710,16 @@
             "type": "string"
           },
           "vat": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Vat",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat"
           }
         },
         "required": [

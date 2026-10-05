@@ -477,6 +477,12 @@ async def test_MODUL_KAPISINDAN_GECEN_aktorun_sorgu_sayisi_ARTMAMALIDIR(
     # sorgusuz (`all_projects` → kısıtsız; −1) ve `visible_projects` tek üyelik okumasıdır (−2).
     # İkame sıcak yola sızmadı. 25 → 26 (IZN-B3 onarımı): onay kapısı isteğin PROJESİNİ çözer (yol
     # parametresindeki hakedişten proje: +1 sorgu) ve o projedeki rolle karar verir.
-    assert len(ifadeler) == 26, (
-        f"sıcak yol sorgu sayısı 26 iken {len(ifadeler)} oldu — ikame sıcak yola sızdı mı?"
+    # 26 → 27 (IZN-B4b onarımı): taşeron hakediş yanıtı hassas alan taşır; `MaskeRotasi` yanıtı
+    # maskelemek için rolün gizli kategorilerini TEK sorguyla okur (`role_hidden_fields`, +1). Bu
+    # maske okuması İKAME'den bağımsızdır; ikame sıcak yola yine sızmadı.
+    assert len(ifadeler) == 27, (
+        f"sıcak yol sorgu sayısı 27 iken {len(ifadeler)} oldu — ikame sıcak yola sızdı mı?"
+    )
+    assert sum("role_hidden_fields" in i for i in ifadeler) == 1, (
+        "beklenen +1 sorgu rolün gizli kategori okumasıdır"
     )

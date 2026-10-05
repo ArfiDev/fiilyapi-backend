@@ -42,6 +42,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.modules.accounting import (
@@ -62,7 +63,7 @@ from app.modules.accounting.reports_schemas import (
 )
 from app.modules.users.models import User
 
-router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
 
@@ -144,7 +145,7 @@ async def trial_balance_export_endpoint(
         session, year=year, month=month, include_empty=include_empty
     )
     return Response(
-        content=export.build_trial_balance_workbook(report).getvalue(),
+        content=export.build_trial_balance_workbook(await maskele_baglamli(report)).getvalue(),
         media_type=export.XLSX_MEDIA_TYPE,
         headers={
             "Content-Disposition": http.content_disposition(

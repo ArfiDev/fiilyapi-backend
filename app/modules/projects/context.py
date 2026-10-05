@@ -175,6 +175,15 @@ async def _installment_project(session: AsyncSession, ref: uuid.UUID | str) -> u
     )
 
 
+async def _invoice_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.invoicing.models import Invoice  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    # Şirket geneli fatura `project_id IS NULL` → `None` (birleşim, fail-closed).
+    return await _unique(session, select(Invoice.project_id).where(Invoice.id == ref))
+
+
 async def _employer_item_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
     from app.modules.contracts.models import EmployerContractItem  # döngüyü önler
 
@@ -225,6 +234,8 @@ RESOLVERS: Mapping[tuple[str, str], Resolver] = {
     ("/subcontractor-contracts", "contract_id"): _sub_contract_project,
     # IZN-B4a: maske + yazma kapısı proje başına karar verir (ekip rolü ≠ ana rol).
     ("/subcontractor-contracts", "item_id"): _sub_item_project,
+    # IZN-B4b onarımı: fatura + ödeme alt yolu (`/invoices/{id}/payments`) faturanın projesinde.
+    ("/invoices", "invoice_id"): _invoice_project,
     ("/contracts", "item_id"): _employer_item_project,
     ("/contracts", "group_id"): _employer_group_project,
     ("/units", "unit_id"): _unit_project,

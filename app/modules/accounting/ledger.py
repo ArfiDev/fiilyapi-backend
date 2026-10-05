@@ -123,6 +123,7 @@ def _base(account_id: uuid.UUID | None, status: JournalEntryStatus | None) -> Se
             JournalEntry.description.label("description"),
             JournalEntry.detail_note.label("detail_note"),
             JournalEntry.created_at.label("entry_created_at"),
+            JournalEntry.source_type.label("source_type"),
             JournalLine.id.label("line_id"),
             JournalLine.sort_order.label("sort_order"),
             JournalLine.account_id.label("account_id"),
@@ -270,6 +271,7 @@ async def build_ledger(
                 debit=satir["debit"],
                 credit=satir["credit"],
                 running_balance=satir["running_balance"],
+                source_type=satir["source_type"],
             )
             for satir in satirlar
         ],

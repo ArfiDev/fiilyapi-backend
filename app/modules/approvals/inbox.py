@@ -78,6 +78,9 @@ class DocumentFacts:
     subtitle: str | None = None
     gross_amount: Decimal | None = None
     net_amount: Decimal | None = None
+    #: Evrağın PROJESİ (IZN-B4b onarımı): satır kendi projesindeki rolün gizli kategorileriyle
+    #: maskelenir (`field_mask.PROJE_ALANI`). Çözülemezse `None` → birleşim (fail-closed).
+    project_id: uuid.UUID | None = None
 
 
 #: Evrağı okunamayan satırın zarif düşüşü. Pratikte ULAŞILMAZ: görünürlük
@@ -180,6 +183,7 @@ async def _taseron_facts(
             ),
             gross_amount=hesap.gross,
             net_amount=hesap.net,
+            project_id=payment.project_id,
         )
     return sonuc
 
@@ -246,6 +250,7 @@ async def _isveren_facts(
             ),
             gross_amount=gross,
             net_amount=calculations.net_amount(gross, vat, advance, retention),
+            project_id=payment.project_id,
         )
     return sonuc
 
@@ -322,6 +327,7 @@ async def _satinalma_facts(
             gross_amount=calculations.quantize2(toplam) if toplam is not None else None,
             # 🔴 Mockup `:173`te İKİNCİ kutu YOKTUR (bkz. `DocumentFacts`).
             net_amount=None,
+            project_id=request.project_id,
         )
     return sonuc
 

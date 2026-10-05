@@ -134,13 +134,12 @@ async def test_SEF_sozlesme_ucunden_403_alir(client, sef_headers, yan_kapi_haked
     )
 
 
-async def test_SEF_ayni_BIRIM_FIYATI_hakedis_ucunden_TAM_okur(
+async def test_SEF_ayni_BIRIM_FIYATI_hakedis_ucunden_artik_OKUYAMAZ(
     client, sef_headers, yan_kapi_hakedisi
 ):
-    """YAN KAPI — ölçülmüş hâl. `KARARLAR-BEKLEYEN.md` §1.
-
-    🔴 Bu test KIRMIZI verdiyse karar uygulanmış demektir; silmeden önce kararı
-    okuyun. Yeşil olması bir onay DEĞİL, bugünkü hâlin kaydıdır.
+    """YAN KAPI KAPANDI (IZN-B4b). `KARARLAR-BEKLEYEN.md` §1'in karari alan maskesiyle
+    uygulandi: hakedis ucu hala 200 doner (matris dokunulmadi) ama taseron tutarlari
+    `maliyet_kar` etiketlidir ve `site_chief` bu kategoriyi gizler → `null`.
     """
     _contract, hakedis = yan_kapi_hakedisi
 
@@ -150,10 +149,7 @@ async def test_SEF_ayni_BIRIM_FIYATI_hakedis_ucunden_TAM_okur(
 
     assert resp.status_code == 200, resp.text
     satir = resp.json()["lines"][0]
-    assert Decimal(satir["contract_unit_price"]) == _BIRIM_FIYAT, (
-        "Taşeron sözleşmesinin birim fiyatı hakediş satırında DEĞİŞTİ; bu testin "
-        "ölçtüğü olgu artık başka bir şey"
-    )
-    # Türevler de açıktadır: maske olsaydı bunlar da düşerdi (`boq` emsali).
-    assert satir["adjusted_unit_price"] is not None
-    assert satir["line_total"] is not None
+    assert satir["contract_unit_price"] is None
+    assert satir["adjusted_unit_price"] is None
+    assert satir["line_total"] is None
+    assert resp.json()["calculation"]["gross"] is None
