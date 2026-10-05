@@ -44,22 +44,20 @@ from fastapi import APIRouter, Depends, Query
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
-from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
+from app.core.permissions import require_permission
 from app.modules.projects.service import visible_projects
 from app.modules.sites import repository
 from app.modules.sites.schemas import SiteOptionListResponse, SiteOptionResponse
 from app.modules.users.models import User
 
-# 🔴 KAPSAM MASKESİ — İKİ PARÇA DA GEREKLİ (kullanıcı kararı 2026-09-19).
-#    Gerekçe `router.py`deki kardeşindedir; çifti
-#    `tests/core/test_kapsam_baglantisi.py` çakar.
+# HASSAS ALAN MASKESİ (IZN-B4): `MaskeRotasi` yanıtı etkin rolün `hidden_fields`ına göre maskeler
+#    ve bağlam bağımlılığını kendisi ekler (tek parça).
 router = APIRouter(
     tags=["sites"],
     responses=COMMON_ERROR_RESPONSES,
-    route_class=kapsam_rotasi("sites", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("sites")],
+    route_class=MaskeRotasi,
 )
 
 _VIEW = require_permission("sites", AccessLevel.view)

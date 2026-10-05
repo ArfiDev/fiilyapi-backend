@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, computed_field
 
 # Yer tutucu sozlesmesi TEK yerde tanimlidir (B6/P1, spec §3/§5.1): kopyalanmaz,
 # projects modulunden import edilir (plan T2 notu).
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 
 # Serbest metin tavani (TB4 S3) `contracts` ailesiyle PAYLASILIR — tek kaynak.
 from app.core.text import FREE_TEXT_MAX_LENGTH
@@ -105,9 +105,9 @@ class BoqItemResponse(BaseModel):
     code: str
     description: str
     unit: str
-    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    unit_price: Annotated[Decimal | None, Gorunurluk.para]
-    progress_pct: Annotated[MetricPlaceholder, Gorunurluk.operasyonel]
+    quantity: Annotated[Decimal | None, Hassas.yok]
+    unit_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    progress_pct: Annotated[MetricPlaceholder, Hassas.yok]
     sort_order: int
     # SZK-B1: sozlesme kalemine bag (kimlik, etiketsiz). Doluysa code/description/
     # unit/unit_price sahada KILITLIDIR; frontend kilidi buna bakar.
@@ -120,8 +120,8 @@ class BoqItemResponse(BaseModel):
     # `unallocated_quantity != quantity - allocated_quantity`'dir ve bu bir kusur
     # degil tanimdir. Mockup'in "Santiye Kotasi" sutunu (BoqAssignmentCard.tsx:17)
     # suzulmus yanitta `allocated_quantity + unallocated_quantity`den okunur.
-    allocated_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    unallocated_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    allocated_quantity: Annotated[Decimal | None, Hassas.yok]
+    unallocated_quantity: Annotated[Decimal | None, Hassas.yok]
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -192,18 +192,18 @@ class BoqTotals(BaseModel):
     dogru kalir ama bekleyen sey MODUL degil **KAVRAMDIR**.
     """
 
-    contract_total: Annotated[MetricPlaceholder, Gorunurluk.para]
-    realized_total: Annotated[MetricPlaceholder, Gorunurluk.para]
-    remaining_total: Annotated[MetricPlaceholder, Gorunurluk.para]
-    revision_total: Annotated[MetricPlaceholder, Gorunurluk.para]
+    contract_total: Annotated[MetricPlaceholder, Hassas.sozlesme_fiyat]
+    realized_total: Annotated[MetricPlaceholder, Hassas.sozlesme_fiyat]
+    remaining_total: Annotated[MetricPlaceholder, Hassas.sozlesme_fiyat]
+    revision_total: Annotated[MetricPlaceholder, Hassas.sozlesme_fiyat]
     # 🔴 İKİ KOVA — kullanıcı kararı 2026-09-19. `grand_total` `Σ(metraj × birim
     #    fiyat)`tır: girdilerinden HERHANGİ BİRİ gizlenince değer anlamını yitirir.
     #    Yalnız `para` etiketliyken `finance` kapsamında HAYATTA KALIYORDU ve ekran
     #    TUTARSIZLAŞIYORDU: her satırın tutarı "—" iken altta gerçek bir genel
     #    toplam duruyordu. Dahası `tutar / birim fiyat` ile gizlenen metraj GERİ
     #    HESAPLANABİLİYORDU (ölçüldü: 5000000.00 / 12500.00 = 400).
-    grand_total: Annotated[Decimal | None, Gorunurluk.para, Gorunurluk.operasyonel]
-    grand_progress_pct: Annotated[MetricPlaceholder, Gorunurluk.operasyonel]
+    grand_total: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    grand_progress_pct: Annotated[MetricPlaceholder, Hassas.yok]
 
 
 class BoqListResponse(BaseModel):
@@ -231,8 +231,8 @@ class BoqItemCreate(BaseModel):
     code: str = Field(min_length=1, max_length=50)
     description: str = Field(min_length=1, max_length=FREE_TEXT_MAX_LENGTH)
     unit: str = Field(min_length=1, max_length=50)
-    quantity: Decimal = Field(gt=0)
-    unit_price: Decimal = Field(ge=0)
+    quantity: Annotated[Decimal, Hassas.yok] = Field(gt=0)
+    unit_price: Annotated[Decimal, Hassas.sozlesme_fiyat] = Field(ge=0)
     sort_order: int = Field(default=0, ge=0)
 
 
@@ -246,7 +246,7 @@ class BoqItemAllocationInput(BaseModel):
 
     section_id: uuid.UUID
     # Kolon `Numeric(14, 3)` ile BIREBIR (`1e30` / `0.0004` -> 422, 500 degil).
-    quantity: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
+    quantity: Annotated[Decimal, Hassas.yok] = Field(gt=0, max_digits=14, decimal_places=3)
 
 
 class BoqItemAllocationsReplace(BaseModel):
@@ -271,7 +271,7 @@ class BoqItemAllocation(BaseModel):
 
     section_id: uuid.UUID
     section_name: str
-    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    quantity: Annotated[Decimal | None, Hassas.yok]
 
 
 class BoqItemAllocationsResponse(BaseModel):
@@ -287,8 +287,8 @@ class BoqItemUpdate(BaseModel):
     code: str | None = Field(default=None, min_length=1, max_length=50)
     description: str | None = Field(default=None, min_length=1, max_length=FREE_TEXT_MAX_LENGTH)
     unit: str | None = Field(default=None, min_length=1, max_length=50)
-    quantity: Decimal | None = Field(default=None, gt=0)
-    unit_price: Decimal | None = Field(default=None, ge=0)
+    quantity: Annotated[Decimal | None, Hassas.yok] = Field(default=None, gt=0)
+    unit_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat] = Field(default=None, ge=0)
     sort_order: int | None = Field(default=None, ge=0)
 
 
@@ -305,7 +305,9 @@ class SectionDistributionCellInput(BaseModel):
 
     boq_item_id: uuid.UUID
     section_id: uuid.UUID
-    quantity: Decimal | None = Field(..., ge=0, max_digits=14, decimal_places=3)
+    quantity: Annotated[Decimal | None, Hassas.yok] = Field(
+        ..., ge=0, max_digits=14, decimal_places=3
+    )
 
 
 class SectionDistributionSave(BaseModel):
@@ -332,7 +334,7 @@ class SectionDistributionSection(BaseModel):
 
 class SectionDistributionAllocation(BaseModel):
     section_id: uuid.UUID
-    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    quantity: Annotated[Decimal | None, Hassas.yok]
 
 
 class SectionDistributionItem(BaseModel):
@@ -340,11 +342,11 @@ class SectionDistributionItem(BaseModel):
     code: str
     description: str
     unit: str
-    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    unit_price: Annotated[Decimal | None, Gorunurluk.para]
+    quantity: Annotated[Decimal | None, Hassas.yok]
+    unit_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     allocations: list[SectionDistributionAllocation]
-    allocated_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    unallocated_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    allocated_quantity: Annotated[Decimal | None, Hassas.yok]
+    unallocated_quantity: Annotated[Decimal | None, Hassas.yok]
 
 
 class SectionDistributionGroup(BaseModel):
@@ -359,18 +361,18 @@ class SectionDistributionSectionItem(BaseModel):
     code: str
     description: str
     unit: str
-    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    unit_price: Annotated[Decimal | None, Gorunurluk.para]
+    quantity: Annotated[Decimal | None, Hassas.yok]
+    unit_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     # IKI KOVA: finance birim fiyati gorur; `amount` acik kalsaydi miktar
     # `amount / unit_price` ile GERI HESAPLANIRDI (`BoqTotals.grand_total` emsali).
-    amount: Annotated[Decimal | None, Gorunurluk.para, Gorunurluk.operasyonel]
+    amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
 
 
 class SectionDistributionSectionSummary(BaseModel):
     section_id: uuid.UUID
     section_name: str
     items: list[SectionDistributionSectionItem]
-    total_amount: Annotated[Decimal | None, Gorunurluk.para, Gorunurluk.operasyonel]
+    total_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
 
 
 class SectionDistributionResponse(BaseModel):

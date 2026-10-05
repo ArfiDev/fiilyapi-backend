@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.modules.settings import service
 from app.modules.settings.schemas import (
@@ -14,7 +15,9 @@ from app.modules.settings.schemas import (
 )
 from app.modules.users.models import User
 
-router = APIRouter(prefix="/settings", tags=["settings"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(
+    route_class=MaskeRotasi, prefix="/settings", tags=["settings"], responses=COMMON_ERROR_RESPONSES
+)
 
 
 @router.get("/preferences", response_model=PreferencesRead)

@@ -11,12 +11,11 @@ yoktur. `tests/core/test_kapsam_baglantisi.py` bu fonksiyonun İÇ MEKANİZMASIN
 from app.modules.roles.scope_wiring import kablolu_moduller
 
 
-def test_kablolu_moduller_OLCULMUS_ALTI_MODULDUR() -> None:
-    beklenen = {"boq", "contracts", "dashboard", "projects", "sales", "sites"}
-    assert kablolu_moduller() == beklenen, (
-        "Kablolu modül kümesi ölçülmüş taban kümeden SAPTI — ya yeni bir modül "
-        f"köprüyü kurdu ya biri bozuldu: {sorted(kablolu_moduller())}"
-    )
+def test_kablolu_moduller_IZN_B4_sonrasi_BOSTUR() -> None:
+    """IZN-B4a: altı eski modül de yeni maskeye (`MaskeRotasi`) geçti; eski köprüyü taşıyan modül
+    kalmadı. Küme B6'da (`scope_wiring` sökümü) testle birlikte silinir. Yeni bir modül eski
+    köprüyü yeniden kurarsa burası kırmızı olur."""
+    assert kablolu_moduller() == frozenset(), sorted(kablolu_moduller())
 
 
 def test_kablolu_moduller_PARA_AGIRLIKLI_16_MODULU_DISLAR() -> None:

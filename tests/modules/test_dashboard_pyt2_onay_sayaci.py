@@ -424,9 +424,10 @@ async def test_onay_rolu_OLAN_aktorun_panel_MALIYETI_CAKILDI(seeded_db, aktor, p
     # IZN-B3: 47 → 41 (`visible_projects` artık 1 üyelik okuması: −2 × 3 çağrı). IZN-B3 onarımı:
     # 41 → 49 (+8): alan kapısı PROJE BAŞINA (portföy + risk modülleri: ekip rolü + hücre okuması),
     # `restricted_project_ids` (+1 disiplin okuması × 2), gelen kutusu evrak modülü başına proje
-    # süzgeci. Hepsi PROJE SAYISINDAN bağımsızdır (N+1 yok).
-    assert len(sorgular) == 49, (
-        f"onay rolu tasiyan aktorun panel maliyeti {len(sorgular)} sorgu oldu (beklenen 49) — "
+    # süzgeci. Hepsi PROJE SAYISINDAN bağımsızdır (N+1 yok). IZN-B4: 49 → 48 (kart kapsamı için
+    # `actor_scope("projects")` okuması kalktı; maske artık rota katmanında çözülür).
+    assert len(sorgular) == 48, (
+        f"onay rolu tasiyan aktorun panel maliyeti {len(sorgular)} sorgu oldu (beklenen 48) — "
         "rozet icin sayfa GOVDESI de cekiliyor olabilir (`limit` degisti mi?)"
     )
 
@@ -458,7 +459,8 @@ async def test_onay_rolu_YOKSA_panel_TEK_ek_sorgu_oder(seeded_db, aktor, project
     # IZN-B3b: 35 → 31. Aktör artık ana rolü `patron` OLAN "Tüm projeler" kişi DEĞİL (o, `patron`
     # adımının sahibidir ve "rolsüz" sayılamaz) ama ana rolü hiçbir adım rolü olmayan `hr_manager`:
     # `actor_is_candidate` (1 sorgu) hâlâ TEK ek sorgudur; fark, rolün daha az izin okumasıdır.
-    assert len(sorgular) == 31, (
+    # IZN-B4: 31 → 30, `actor_scope("projects")` okuması kalktı (B3b üstüne rebase'de ölçüldü).
+    assert len(sorgular) == 30, (
         f"rolsüz aktörün panel maliyeti {len(sorgular)} sorgu — "
         "taban 8 + onay rolü 1 + portföy 10 + risk 15 + proje kartı izin kapısı 3 (IZN-B2)"
     )

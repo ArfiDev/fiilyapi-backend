@@ -23,10 +23,10 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_scope import UNRESTRICTED
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.permissions import require_permission
 from app.core.ratelimit import client_ip
-from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -43,13 +43,11 @@ from app.modules.catalog.schemas import (
 )
 from app.modules.users.models import User
 
-# 🔴 KAPSAM MASKESİ — İKİ PARÇA DA GEREKLİ (bkz. `contracts/router.py`); çifti
-#    `tests/core/test_kapsam_baglantisi.py` çakar.
+# HASSAS ALAN MASKESİ (IZN-B4): `MaskeRotasi` tek parça (bağlamı kendisi ekler).
 router = APIRouter(
     tags=["catalog"],
     responses=COMMON_ERROR_RESPONSES,
-    route_class=kapsam_rotasi("contracts", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("contracts")],
+    route_class=MaskeRotasi,
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)

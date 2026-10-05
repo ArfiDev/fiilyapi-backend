@@ -4,9 +4,7 @@ Izin modulu `sites`tir, AYRI modul ACILMAZ (izin isleri en son). Okuma `view`,
 ekleme bolum OLUSTURMA ucuyla (`POST /sites/{id}/sections`) AYNI kapidir (`full`):
 bolum olusturabilen tip ekleyebilir. Silme / yeniden adlandirma ucu YOKTUR.
 
-Kapsam maskesi cifti (`route_class` + `kapsam_kapisi`) `router.py` ile AYNIDIR;
-yanit para alani tasimaz ama `tests/core/test_kapsam_baglantisi.py` kisitli izinle
-korunan HER routerin baglanmasini sart kosar.
+Hassas alan maskesi (`MaskeRotasi`) `router.py` ile AYNIDIR; yanit hassas alan tasimaz.
 """
 
 from typing import Annotated
@@ -16,10 +14,10 @@ from fastapi import APIRouter, Depends, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.permissions import require_permission
 from app.core.ratelimit import client_ip
-from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -30,8 +28,7 @@ from app.modules.users.models import User
 router = APIRouter(
     tags=["sites"],
     responses=COMMON_ERROR_RESPONSES,
-    route_class=kapsam_rotasi("sites", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("sites")],
+    route_class=MaskeRotasi,
 )
 
 _VIEW = require_permission("sites", AccessLevel.view)

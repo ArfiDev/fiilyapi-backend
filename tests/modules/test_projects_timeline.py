@@ -26,11 +26,11 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date
 
-from sqlalchemy import event, select
+from sqlalchemy import delete, event, select
 
 from app.core import timezone
 from app.core.access import AccessLevel, Scope
-from app.modules.roles.models import Module, Role, RolePermission
+from app.modules.roles.models import Module, Role, RoleHiddenField, RolePermission
 from app.modules.sites.models import Section, SectionMilestone, SectionStatus, Site
 from app.modules.users.models import ProjectMember
 from tests._legacy_permission_yardimcisi import sync_page_cells
@@ -231,6 +231,9 @@ async def test_timeline_govdesi(client, user_factory, seeded_db, project_factory
     await _set_permission(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
     user, token = await _login(client, user_factory, VIEW_ROLE)
     await _grant(seeded_db, user, project_id=project.id)
+    # Sözleşme bedeli `sozlesme_fiyat` kategorisidir; `limited` seed rolü tum_tutarlar gizler.
+    await seeded_db.execute(delete(RoleHiddenField).where(RoleHiddenField.role_id == user.role_id))
+    await seeded_db.flush()
 
     resp = await client.get("/projects/timeline", headers=_auth(token))
     assert resp.status_code == 200, resp.text

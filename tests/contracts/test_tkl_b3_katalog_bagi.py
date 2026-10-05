@@ -455,9 +455,9 @@ async def test_toplu_sozlesmesiz_proje_404(client, admin_headers, project_factor
 
 def test_toplu_yanit_sarmalayicisinda_kapsam_maskesi_para_alanini_gizler():
     """Yanıt `BaseModel` olduğu için rota sarmalayıcısı `items[]` içindeki para
-    alanını (`unit_price`, `Gorunurluk.para`) kapsama göre `None`a çeker."""
-    from app.core.access import Scope
-    from app.core.field_scope import maskele
+    alanını (`unit_price`, `Hassas.sozlesme_fiyat`) gizli kategoriye göre `None`a çeker."""
+    from app.core.field_mask import MaskeKumeleri, maskele
+    from app.core.sayfalar import HiddenCategory
     from app.modules.contracts.schemas import (
         EmployerContractItemResponse,
         EmployerContractItemsBulkResponse,
@@ -479,11 +479,13 @@ def test_toplu_yanit_sarmalayicisinda_kapsam_maskesi_para_alanini_gizler():
     )
     yanit = EmployerContractItemsBulkResponse(items=[kalem])
 
-    assert maskele(yanit, Scope.all).items[0].unit_price == Decimal("100")
-    assert maskele(yanit, Scope.limited).items[0].quantity == Decimal("1")
-    assert maskele(yanit, Scope.limited).items[0].unit_price is None
-    # KAT-B2.1: source_code kimlik alanidir — limited kapsamda GORUNUR
-    assert maskele(yanit, Scope.limited).items[0].source_code == "15.100.1001"
+    acik = MaskeKumeleri()
+    gizli = MaskeKumeleri(varsayilan=frozenset({HiddenCategory.sozlesme_fiyat}))
+    assert maskele(yanit, acik).items[0].unit_price == Decimal("100")
+    assert maskele(yanit, gizli).items[0].quantity == Decimal("1")
+    assert maskele(yanit, gizli).items[0].unit_price is None
+    # KAT-B2.1: source_code kimlik alanidir — sozlesme_fiyat gizliyken GORUNUR
+    assert maskele(yanit, gizli).items[0].source_code == "15.100.1001"
 
 
 # --------------------------------------------------------------- TKL-B3.3 onarimlari

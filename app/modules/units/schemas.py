@@ -11,7 +11,7 @@ from pydantic import AfterValidator, BaseModel, Field, computed_field, model_val
 # satirinin KAPSAMINA da tabidir. Etiketsiz kalan her `Decimal` alani
 # `field_scope` KIMLIK sayar ve `limited` rolde SIZAR; bu semadaki para
 # alanlari aylarca oyle sizdi (denetim 2026-09-19).
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 
 # Yer tutucu sozlesmesi TEK yerde tanimlidir (B6/P1, spec §6): kopyalanmaz,
 # projects modulunden import edilir (BOQ `schemas.py:8` deseninin aynisi).
@@ -182,7 +182,7 @@ class BlockResponse(BaseModel):
     shop_count: int | None  # BE 83
     # Insaat alani METRAJDIR, para degil: muhasebe (`finance`) onu gormez,
     # santiye sefi (`limited`) gorur — kovalarin tam tersi tarafi.
-    construction_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]  # BE 84
+    construction_area_m2: Annotated[Decimal | None, Hassas.yok]  # BE 84
     elevator_count: int | None  # BE 85
     parking_type: BlockParkingType | None  # BE 86
     estimated_delivery_date: date | None  # BE 100
@@ -231,31 +231,31 @@ class UnitResponse(BaseModel):
     unit_no: str
     unit_kind: UnitKind
     layout: str | None  # KY 272 "Tip"
-    gross_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    net_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    list_price: Annotated[Decimal | None, Gorunurluk.para]  # KY 274 "Liste Fiyati"
-    appraisal_value: Annotated[Decimal | None, Gorunurluk.para]  # KKP 89 "Rayic Deger"
+    gross_area_m2: Annotated[Decimal | None, Hassas.yok]
+    net_area_m2: Annotated[Decimal | None, Hassas.yok]
+    list_price: Annotated[Decimal | None, Hassas.satis_alici]  # KY 274 "Liste Fiyati"
+    appraisal_value: Annotated[Decimal | None, Hassas.satis_alici]  # KKP 89 "Rayic Deger"
     owner_side: UnitOwnerSide | None  # KKP 90 "Sahip"
     sort_order: int
     # --- Unite formu (UE), spec §4.1 ---
     floor: str | None  # UE 66 — METIN (karar 4)
     facing: UnitFacing | None  # UE 78
-    balcony_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]  # UE 79
+    balcony_area_m2: Annotated[Decimal | None, Hassas.yok]  # UE 79
     bathroom_count: int | None  # UE 80
     parking_right: UnitParkingRight | None  # UE 81
-    min_sale_price: Annotated[Decimal | None, Gorunurluk.para]  # UE 92
+    min_sale_price: Annotated[Decimal | None, Hassas.satis_alici]  # UE 92
     # 🔴 KDV ORANI `para` kovasindadir, `kimlik` DEGIL: bir TUTAR olmasa da
     # satisin MALI parametresidir ve muhasebenin (`finance`) gormesi gereken,
     # santiye sefinin (`limited`) gormesine gerek olmayan taraftadir. Kovasiz
     # birakilsaydi `field_scope` onu kimlik sayip HER kapsamda gosterirdi.
-    vat_rate: Annotated[Decimal | None, Gorunurluk.para]  # UE 93
+    vat_rate: Annotated[Decimal | None, Hassas.satis_alici]  # UE 93
     # UE 94 — ARTIK YER TUTUCU DEGIL (kullanici karari 2, spec §4.4). P8
     # geldiginde OTOMATIKLESECEK ve elle giris kilitlenecektir.
     sales_status: UnitSalesStatus | None
     # KY 275/277 — P8 T5'te YER TUTUCU DEGIL: acik satis kaydindan gelir
     # (`unit_sales`). Satisi olmayan unitede `None`dir; uydurma deger uretilmez.
-    sale_price: Annotated[Decimal | None, Gorunurluk.para]  # P8 (KY 275)
-    buyer_name: str | None  # P8 (KY 277)
+    sale_price: Annotated[Decimal | None, Hassas.satis_alici]  # P8 (KY 275)
+    buyer_name: Annotated[str | None, Hassas.satis_alici]  # P8 (KY 277)
     # KKP 91 "Hissedar / Alici" — hissedar YARISI P9 T3'te YER TUTUCU DEGIL:
     # `units.shareholder_id` gercek kolondur, ad tek JOIN/sorgudan gelir
     # (`sale_price`/`buyer_name`in P8 T5'teki donusumunun aynisi). Atanmamis
@@ -275,8 +275,8 @@ class UnitResponse(BaseModel):
     # Bekci: `tests/modules/test_pyt4_unite_maliyet_tabani.py`.
     # Zarfli alan `None`a CEKILMEZ, `kisitli()` halini alir (`field_scope._gizle`):
     # sema kirilmaz ve ekran "veri yok" ile "yetkin yok"u ayirt edebilir.
-    unit_cost: Annotated[MetricPlaceholder, Gorunurluk.para]  # UE 91 / FDS 62
-    expected_profit: Annotated[MetricPlaceholder, Gorunurluk.para]  # UE 97-99
+    unit_cost: Annotated[MetricPlaceholder, Hassas.maliyet_kar]  # UE 91 / FDS 62
+    expected_profit: Annotated[MetricPlaceholder, Hassas.maliyet_kar]  # UE 97-99
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -307,10 +307,10 @@ class UnitSideSummary(BaseModel):
     # Maske zorunlu bir alana da `None` yazar (FastAPI bunu REDDETMEZ, olculdu);
     # tipi `Decimal` birakmak sozlesmeyi YALANCI yapardi — istemci `number`
     # bekler, `null` alir ve `Number(null) === 0` ile "0 TL" basardi.
-    total_value: Annotated[Decimal | None, Gorunurluk.para]  # value_basis toplami
-    average_value: Annotated[Decimal | None, Gorunurluk.para]  # KK 121 "Ortalama ₺1,32M"
+    total_value: Annotated[Decimal | None, Hassas.satis_alici]  # value_basis toplami
+    average_value: Annotated[Decimal | None, Hassas.satis_alici]  # KK 121 "Ortalama ₺1,32M"
     # Adet ORANIDIR (para degil): `sold`/`reserved` gibi SAYAC ailesindendir.
-    share_pct: Annotated[Decimal | None, Gorunurluk.operasyonel]  # turev adet orani (spec §5.2)
+    share_pct: Annotated[Decimal | None, Hassas.yok]  # turev adet orani (spec §5.2)
     # P3'te yer tutucuydular; `totals`'taki sayaclarla AYNI veriden (`sales_status`
     # sutunu) beslendikleri icin onlarla birlikte GERCEK sayaca dondular (spec
     # §8.2). Ayri kalsalardi ekran proje toplaminda "34 satildi" gorup taraf
@@ -332,13 +332,13 @@ class UnitTotals(BaseModel):
     # olurdu (BOQ'ta ayni hata bulundu: "kalem Tutar'i bos ama GENEL TOPLAM
     # gercek sayi"). Toplami ATLAYIP gostermek de kotudur — eksik bir toplam
     # gercek gibi okunur.
-    total_value: Annotated[Decimal | None, Gorunurluk.para]  # KKP 69 "Toplam Deger"
-    average_value: Annotated[Decimal | None, Gorunurluk.para]  # KY 168 "Ort. ₺927K"
+    total_value: Annotated[Decimal | None, Hassas.satis_alici]  # KKP 69 "Toplam Deger"
+    average_value: Annotated[Decimal | None, Hassas.satis_alici]  # KY 168 "Ort. ₺927K"
     # Iki sutun da AYRICA doner ki ekran ihtiyaci olani sorgusuz alabilsin.
-    total_list_price: Annotated[Decimal | None, Gorunurluk.para]
-    total_appraisal_value: Annotated[Decimal | None, Gorunurluk.para]
+    total_list_price: Annotated[Decimal | None, Hassas.satis_alici]
+    total_appraisal_value: Annotated[Decimal | None, Hassas.satis_alici]
     # METRAJ toplami: `finance` kapsaminda gizlenir, `limited`te GORUNUR.
-    total_gross_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]  # KKP 68 YERINE GECMEZ
+    total_gross_area_m2: Annotated[Decimal | None, Hassas.yok]  # KKP 68 YERINE GECMEZ
     sides: list[UnitSideSummary]  # contractor / landowner / atanmamis
     # KY 258-259 "34 satildi · 5 rezerve · 13 bos", KKP 161-163 tfoot kirilimi.
     # DORT deger de her zaman doner (sifir olsa bile): eksik anahtar, ekranda
@@ -353,8 +353,8 @@ class UnitTotals(BaseModel):
     # P8 T5'te GERCEK degere dondu: ciro artik `unit_sales`ten toplanir ve
     # yalniz GERCEKLESEN satislari (`active`/`deed_transferred`) sayar —
     # rezervasyon ciro DEGILDIR. Satis yoksa ortalama `None`dir, 0 degil.
-    sales_revenue: Annotated[Decimal | None, Gorunurluk.para]  # P8 (KY 93)
-    average_sale_price: Annotated[Decimal | None, Gorunurluk.para]  # P8 (KY 267)
+    sales_revenue: Annotated[Decimal | None, Hassas.satis_alici]  # P8 (KY 93)
+    average_sale_price: Annotated[Decimal | None, Hassas.satis_alici]  # P8 (KY 267)
 
 
 class UnitBlockGroup(BaseModel):
@@ -394,7 +394,7 @@ class _BlockFormFields(BaseModel):
     units_per_floor: int | None = Field(default=None, ge=0)
     ground_floor_usage: BlockGroundUsage | None = None
     shop_count: int | None = Field(default=None, ge=0)
-    construction_area_m2: Decimal | None = Field(
+    construction_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(
         default=None, ge=0, max_digits=12, decimal_places=2
     )
     elevator_count: int | None = Field(default=None, ge=0)
@@ -439,11 +439,15 @@ class _UnitFormFields(BaseModel):
 
     floor: str | None = Field(default=None, max_length=20)  # UE 66 — METIN
     facing: UnitFacing | None = None  # UE 78
-    balcony_area_m2: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
+    balcony_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(
+        default=None, ge=0, max_digits=10, decimal_places=2
+    )
     bathroom_count: int | None = Field(default=None, ge=0)  # UE 80
     parking_right: UnitParkingRight | None = None  # UE 81
-    min_sale_price: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
-    vat_rate: VatRate = None  # UE 93 — kume {1, 10, 20} (karar 9)
+    min_sale_price: Annotated[Decimal | None, Hassas.satis_alici] = Field(
+        default=None, ge=0, max_digits=18, decimal_places=2
+    )
+    vat_rate: Annotated[VatRate, Hassas.satis_alici] = None  # UE 93 — kume {1, 10, 20} (karar 9)
 
 
 # Servis, yeni alanlari TEK TEK YAZMAK yerine bu kumeyi kullanir.
@@ -455,10 +459,18 @@ class UnitCreate(_UnitFormFields):
     unit_no: str = Field(min_length=1, max_length=30)
     unit_kind: UnitKind
     layout: str | None = Field(default=None, max_length=20)
-    gross_area_m2: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
-    net_area_m2: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
-    list_price: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
-    appraisal_value: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    gross_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(
+        default=None, ge=0, max_digits=10, decimal_places=2
+    )
+    net_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(
+        default=None, ge=0, max_digits=10, decimal_places=2
+    )
+    list_price: Annotated[Decimal | None, Hassas.satis_alici] = Field(
+        default=None, ge=0, max_digits=18, decimal_places=2
+    )
+    appraisal_value: Annotated[Decimal | None, Hassas.satis_alici] = Field(
+        default=None, ge=0, max_digits=18, decimal_places=2
+    )
     owner_side: UnitOwnerSide | None = None
     sort_order: int = Field(default=0, ge=0)
     # UE 94'te "Satışta (Boş)" `selected` gelir → sunucu VARSAYILANI `listed`.
@@ -482,10 +494,18 @@ class UnitUpdate(_UnitFormFields):
     unit_no: str | None = Field(default=None, min_length=1, max_length=30)
     unit_kind: UnitKind | None = None
     layout: str | None = Field(default=None, max_length=20)
-    gross_area_m2: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
-    net_area_m2: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
-    list_price: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
-    appraisal_value: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    gross_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(
+        default=None, ge=0, max_digits=10, decimal_places=2
+    )
+    net_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(
+        default=None, ge=0, max_digits=10, decimal_places=2
+    )
+    list_price: Annotated[Decimal | None, Hassas.satis_alici] = Field(
+        default=None, ge=0, max_digits=18, decimal_places=2
+    )
+    appraisal_value: Annotated[Decimal | None, Hassas.satis_alici] = Field(
+        default=None, ge=0, max_digits=18, decimal_places=2
+    )
     owner_side: UnitOwnerSide | None = None
     sort_order: int | None = Field(default=None, ge=0)
 
@@ -544,10 +564,16 @@ class UnitBulkSlot(BaseModel):
 
     sequence: int = Field(ge=1, le=20)  # TU 98 "Sira"
     layout: str | None = Field(default=None, max_length=20)  # TU 99
-    gross_area_m2: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
-    net_area_m2: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
+    gross_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(
+        default=None, ge=0, max_digits=10, decimal_places=2
+    )
+    net_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(
+        default=None, ge=0, max_digits=10, decimal_places=2
+    )
     facing: UnitFacing | None = None  # TU 102
-    list_price: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    list_price: Annotated[Decimal | None, Hassas.satis_alici] = Field(
+        default=None, ge=0, max_digits=18, decimal_places=2
+    )
     # TU 104 "Maliyet" sutunu BILEREK YOKTUR — kullanici karari 3 (spec §4.5):
     # maliyet elle girilmez, kolon acilmaz.
 
@@ -565,16 +591,26 @@ class UnitBulkCreate(BaseModel):
     prefix: str = Field(default="", max_length=10)  # "D" → D1..D4 (SY 132-135)
     start_number: int = Field(default=1, ge=0)  # global sira baslangici (TU 84, SY 76)
     slots: list[UnitBulkSlot] = Field(default_factory=list, max_length=20)  # TU 96-133
-    floor_price_increase_pct: Decimal | None = Field(  # TU 138 "Kat basina %1.5"
-        default=None, ge=0, le=100, max_digits=5, decimal_places=2
+    floor_price_increase_pct: Annotated[Decimal | None, Hassas.yok] = (
+        Field(  # TU 138 "Kat basina %1.5"
+            default=None, ge=0, le=100, max_digits=5, decimal_places=2
+        )
     )
     # Uretilen TUM unitelere uygulanacak ortak varsayilanlar. `slots` BOS
     # birakilirsa bunlar uygulanir (P3 davranisi KORUNUR, spec §5.3).
     layout: str | None = Field(default=None, max_length=20)
-    gross_area_m2: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
-    net_area_m2: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
-    list_price: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
-    appraisal_value: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    gross_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(
+        default=None, ge=0, max_digits=10, decimal_places=2
+    )
+    net_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(
+        default=None, ge=0, max_digits=10, decimal_places=2
+    )
+    list_price: Annotated[Decimal | None, Hassas.satis_alici] = Field(
+        default=None, ge=0, max_digits=18, decimal_places=2
+    )
+    appraisal_value: Annotated[Decimal | None, Hassas.satis_alici] = Field(
+        default=None, ge=0, max_digits=18, decimal_places=2
+    )
 
     @model_validator(mode="after")
     def _validate_range(self) -> "UnitBulkCreate":
@@ -613,10 +649,10 @@ class UnitBulkPreviewRow(BaseModel):
     floor: int  # TU 152
     floor_label: str  # karar 4 — `units.floor` sutununa yazilacak deger
     layout: str | None  # TU 153 "Tip"
-    gross_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]  # TU 154 "Brut/Net m²"
-    net_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    gross_area_m2: Annotated[Decimal | None, Hassas.yok]  # TU 154 "Brut/Net m²"
+    net_area_m2: Annotated[Decimal | None, Hassas.yok]
     facing: UnitFacing | None  # TU 155
-    list_price: Annotated[Decimal | None, Gorunurluk.para]  # TU 156
+    list_price: Annotated[Decimal | None, Hassas.satis_alici]  # TU 156
     conflict: bool  # TU 177 — cakisma UYARIDIR, hata degil (spec §5.6)
 
 
@@ -632,7 +668,7 @@ class UnitBulkPreview(BaseModel):
 
     total_units: int  # TU 73, 146, 171
     # `Decimal | None`: satir fiyatlari maskeliyken toplam GERCEK sayi basamaz.
-    total_list_value: Annotated[Decimal | None, Gorunurluk.para]  # TU 146, 172 (karar 5)
+    total_list_value: Annotated[Decimal | None, Hassas.satis_alici]  # TU 146, 172 (karar 5)
     conflicting_unit_nos: list[str]  # TU 177
     # TUM satirlar doner, 500 bile olsa: TU 166 "… 17 unite daha" bir FRONTEND
     # kirpmasidir. Sunucu kirpsaydi ekran "hangi satir cakisiyor" sorusunu
@@ -670,8 +706,8 @@ class UnitImportRowReport(BaseModel):
     block_name: str | None  # EI 121
     floor: str | None  # EI 122 — METIN (karar 4)
     layout: str | None  # EI 123
-    gross_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]  # EI 124
-    list_price: Annotated[Decimal | None, Gorunurluk.para]  # EI 125
+    gross_area_m2: Annotated[Decimal | None, Hassas.yok]  # EI 124
+    list_price: Annotated[Decimal | None, Hassas.satis_alici]  # EI 125
     messages: list[str]  # EI 126
     # Satirin GERCEKTEN yazilip yazilmadigi. Dogrulama ucunda DAIMA `False`:
     # "gecerli" ile "yazildi" ayri sorulardir ve tek alana indirilseydi

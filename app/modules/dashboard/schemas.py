@@ -1,11 +1,11 @@
 import enum
 import uuid
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.modules.projects.models import ProjectStatus
 
 # Yer tutucu sozlesmesi TEK yerde tanimlidir (B6/P1, spec §2.3): kopyalanmaz,
@@ -155,21 +155,23 @@ class RiskAlertsPlaceholder(BaseModel):
 
 class DashboardProjectCard(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    # Kart satırı KENDİ projesindeki rolle maskelenir (`field_mask.PROJE_ALANI_OZNITELIGI`).
+    PROJE_ALANI: ClassVar[str] = "id"
 
     id: uuid.UUID
     code: str
     name: str
     status: ProjectStatus
-    budget: Annotated[Decimal | None, Gorunurluk.para]
-    progress_pct: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    budget: Annotated[Decimal | None, Hassas.maliyet_kar]
+    progress_pct: Annotated[Decimal | None, Hassas.yok]
 
 
 class DashboardSummaryResponse(BaseModel):
     role_name: str
     active_project_count: int
     projects: list[DashboardProjectCard]
-    portfolio: Annotated[MetricPlaceholder, Gorunurluk.para]
-    receivables: Annotated[MetricPlaceholder, Gorunurluk.para]
-    average_margin: Annotated[MetricPlaceholder, Gorunurluk.para]
+    portfolio: Annotated[MetricPlaceholder, Hassas.sozlesme_fiyat]
+    receivables: Annotated[MetricPlaceholder, Hassas.sozlesme_fiyat]
+    average_margin: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
     pending_approvals: PendingApprovalsPlaceholder
     risks: RiskAlertsPlaceholder

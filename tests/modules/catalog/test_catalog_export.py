@@ -17,12 +17,14 @@ import pytest
 from sqlalchemy import event, select
 
 from app.core import last_price
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.last_price import LastPrice
+from app.core.sayfalar import HiddenCategory
 from app.modules.catalog.export import COLUMN_HEADERS
 from app.modules.catalog.models import ContractorType, EvCatalogItem, EvDiscipline
 from app.modules.catalog.service import next_poz_no
 from app.modules.users.models import User
+from tests._hassas_alan import rol_gizle
 from tests._proje_ekibi import baska_projede_disiplinli
 
 from .._boq import _auth, _login_with_access, _set_permission
@@ -173,7 +175,8 @@ async def test_limited_kapsamda_fiyat_hucreleri_bos(
     son_fiyat.veri[kalem.id] = LastPrice(
         Decimal("123.45"), datetime(2026, 3, 1, tzinfo=UTC), "SZL", "PRJ-A", None
     )
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.limited)
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await rol_gizle(db_session, "accounting", HiddenCategory.sozlesme_fiyat)
     token = await _login_with_access(
         client, db_session, user_factory, "accounting", f"lim.{uuid.uuid4().hex[:6]}@tkl.co"
     )

@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.core.ratelimit import client_ip
@@ -44,7 +45,9 @@ from app.modules.site_planning.schemas import (
 )
 from app.modules.users.models import User
 
-router = APIRouter(tags=["site-planning"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(
+    route_class=MaskeRotasi, tags=["site-planning"], responses=COMMON_ERROR_RESPONSES
+)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)

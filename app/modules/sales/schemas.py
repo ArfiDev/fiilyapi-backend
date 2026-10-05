@@ -23,7 +23,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.modules.customers.models import CustomerType
 from app.modules.projects.schemas import MetricPlaceholder
 from app.modules.sales.models import (
@@ -73,12 +73,12 @@ def unit_label(block_name: str, unit_no: str) -> str:
 class _SaleFormFields(BaseModel):
     """F56-F163'ün ortak gövdesi — `Create` ve `Update` için TEK kopya."""
 
-    discount_amount: Annotated[Decimal | None, Gorunurluk.para] = Field(
+    discount_amount: Annotated[Decimal | None, Hassas.satis_alici] = Field(
         default=None, ge=0, max_digits=18, decimal_places=2
     )
-    vat_pct: VatRate = None  # F87 — küme {1, 10, 20} (karar 9)
+    vat_pct: Annotated[VatRate, Hassas.yok] = None  # F87 — küme {1, 10, 20} (karar 9)
     advisor_user_id: uuid.UUID | None = None  # F75
-    reservation_deposit: Annotated[Decimal | None, Gorunurluk.para] = Field(
+    reservation_deposit: Annotated[Decimal | None, Hassas.satis_alici] = Field(
         default=None, ge=0, max_digits=18, decimal_places=2
     )  # S188
     reservation_due_date: date | None = None  # S188 "15 gün süre"
@@ -89,16 +89,16 @@ class _SaleFormFields(BaseModel):
     has_mortgage: bool = False  # F162
     # DOLU = gecikme faizi uygulanır, NULL = uygulanmaz (F163). Ayrı bir
     # `has_late_fee` bayrağı AÇILMAZ — iki alan birbiriyle çelişebilirdi.
-    late_fee_monthly_pct: Annotated[Decimal | None, Gorunurluk.kimlik] = Field(
+    late_fee_monthly_pct: Annotated[Decimal | None, Hassas.yok] = Field(
         default=None, ge=0, max_digits=5, decimal_places=2
     )
     payment_plan_type: PaymentPlanType | None = None  # F99
-    down_payment: Annotated[Decimal | None, Gorunurluk.para] = Field(
+    down_payment: Annotated[Decimal | None, Hassas.satis_alici] = Field(
         default=None, ge=0, max_digits=18, decimal_places=2
     )
     installment_count: int | None = Field(default=None, ge=0)  # F104
     first_installment_date: date | None = None  # F105
-    term_interest_pct: Annotated[Decimal | None, Gorunurluk.kimlik] = Field(
+    term_interest_pct: Annotated[Decimal | None, Hassas.yok] = Field(
         default=None, ge=0, max_digits=5, decimal_places=2
     )
 
@@ -111,7 +111,9 @@ class UnitSaleCreate(_SaleFormFields):
     unit_id: uuid.UUID  # F55
     customer_id: uuid.UUID  # F70-76 (T2 kartoteksinden seçilir)
     sale_type: SaleType  # F56
-    sale_price: Decimal = Field(ge=0, max_digits=18, decimal_places=2)  # F86
+    sale_price: Annotated[Decimal, Hassas.satis_alici] = Field(
+        ge=0, max_digits=18, decimal_places=2
+    )  # F86
 
 
 class UnitSaleUpdate(_SaleFormFields):
@@ -123,7 +125,9 @@ class UnitSaleUpdate(_SaleFormFields):
     `False` varsayılanı, gönderilmeyen kutucuğu her PATCH'te SESSİZCE temizlerdi.
     """
 
-    sale_price: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    sale_price: Annotated[Decimal | None, Hassas.satis_alici] = Field(
+        default=None, ge=0, max_digits=18, decimal_places=2
+    )
     has_condominium_easement: bool | None = None
     has_mortgage: bool | None = None
 
@@ -141,32 +145,32 @@ class UnitSaleResponse(BaseModel):
     block_name: str
     unit_no: str
     unit_label: str
-    customer_name: str
+    customer_name: Annotated[str | None, Hassas.satis_alici]
     customer_type: CustomerType
-    customer_national_id: str | None
-    customer_tax_number: str | None
-    list_price_snapshot: Annotated[Decimal | None, Gorunurluk.para]
-    discount_amount: Annotated[Decimal | None, Gorunurluk.para]
-    sale_price: Annotated[Decimal | None, Gorunurluk.para]
-    vat_pct: Annotated[Decimal | None, Gorunurluk.kimlik]
+    customer_national_id: Annotated[str | None, Hassas.satis_alici]
+    customer_tax_number: Annotated[str | None, Hassas.satis_alici]
+    list_price_snapshot: Annotated[Decimal | None, Hassas.satis_alici]
+    discount_amount: Annotated[Decimal | None, Hassas.satis_alici]
+    sale_price: Annotated[Decimal | None, Hassas.satis_alici]
+    vat_pct: Annotated[Decimal | None, Hassas.yok]
     advisor_user_id: uuid.UUID | None
     advisor_name: str | None
-    reservation_deposit: Annotated[Decimal | None, Gorunurluk.para]
+    reservation_deposit: Annotated[Decimal | None, Hassas.satis_alici]
     reservation_due_date: date | None
     deed_condition: DeedCondition | None
     planned_deed_date: date | None
     delivery_date: date | None
     has_condominium_easement: bool
     has_mortgage: bool
-    late_fee_monthly_pct: Annotated[Decimal | None, Gorunurluk.kimlik]
+    late_fee_monthly_pct: Annotated[Decimal | None, Hassas.yok]
     payment_plan_type: PaymentPlanType | None
-    down_payment: Annotated[Decimal | None, Gorunurluk.para]
+    down_payment: Annotated[Decimal | None, Hassas.satis_alici]
     installment_count: int | None
     first_installment_date: date | None
-    term_interest_pct: Annotated[Decimal | None, Gorunurluk.kimlik]
+    term_interest_pct: Annotated[Decimal | None, Hassas.yok]
     # --- Tahsilat türevleri (S153-155, S180) — KOLON DEĞİL ---
-    paid_amount: Annotated[Decimal | None, Gorunurluk.para]
-    remaining_amount: Annotated[Decimal | None, Gorunurluk.para]
+    paid_amount: Annotated[Decimal | None, Hassas.satis_alici]
+    remaining_amount: Annotated[Decimal | None, Hassas.satis_alici]
     installment_total: int
     installment_paid_count: int
     overdue_installment_count: int
@@ -187,8 +191,8 @@ class UnitSaleResponse(BaseModel):
     # ⚠️ SÖZLEŞME ETKİSİ (K5): iki alan artık OpenAPI'de `required`.
     # `openapi-typescript` onları zorunlu üretir — sunucu zaten HER yanıtta
     # gönderdiği için bu, sözleşmenin gerçeğe UYDURULMASIDIR.
-    unit_cost: Annotated[MetricPlaceholder, Gorunurluk.para]
-    sale_profit: Annotated[MetricPlaceholder, Gorunurluk.para]
+    unit_cost: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
+    sale_profit: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
     # F168-202 satış belgeleri + F206-207 peşinat faturası. İki modül de CANLI;
     # eksik olan MODÜL değil satışa giden BAĞdır (gerekçeler `PENDING_MODULES`
     # sabitlerinin yanında ölçüldü). `contracts` şemalarındaki desenin aynısı.
@@ -209,7 +213,9 @@ class SaleInstallmentInput(BaseModel):
     sequence_no: int = Field(ge=0)  # 0 = peşinat (T1 model notu)
     label: str = Field(min_length=1, max_length=50)  # F118
     due_date: date  # F120
-    amount: Decimal = Field(ge=0, max_digits=18, decimal_places=2)  # F121
+    amount: Annotated[Decimal, Hassas.satis_alici] = Field(
+        ge=0, max_digits=18, decimal_places=2
+    )  # F121
     payment_method: InstallmentPaymentMethod | None = None  # F122/129
 
 
@@ -226,7 +232,7 @@ class InstallmentPayInput(BaseModel):
     (geriye dönük tarih girişi bir muhasebe kaydıdır ve hazine dilimine aittir).
     """
 
-    amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
+    amount: Annotated[Decimal, Hassas.satis_alici] = Field(gt=0, max_digits=18, decimal_places=2)
 
 
 class SaleInstallmentResponse(BaseModel):
@@ -237,9 +243,9 @@ class SaleInstallmentResponse(BaseModel):
     sequence_no: int
     label: str
     due_date: date
-    amount: Annotated[Decimal | None, Gorunurluk.para]
+    amount: Annotated[Decimal | None, Hassas.satis_alici]
     payment_method: InstallmentPaymentMethod | None
-    paid_amount: Annotated[Decimal | None, Gorunurluk.para]
+    paid_amount: Annotated[Decimal | None, Hassas.satis_alici]
     paid_at: datetime | None
     # TÜREVLER (kolon DEĞİL): satırın kalanı ve S180'in "gecikmiş" göstergesi.
     # `is_overdue` T5'te EKLENDİ: satış düzeyindeki sayaç
@@ -247,7 +253,7 @@ class SaleInstallmentResponse(BaseModel):
     # plan tablosu (F110-147) satır satır boyanır. Sunucu tarafında üretilir ki
     # "bugün" tanımı TEK yerde kalsın — istemci saati ile sunucu saati ayrışırsa
     # aynı taksit iki ekranda farklı renkte görünürdü.
-    remaining_amount: Annotated[Decimal | None, Gorunurluk.para]
+    remaining_amount: Annotated[Decimal | None, Hassas.satis_alici]
     is_overdue: bool = False
 
 
@@ -265,11 +271,11 @@ class SalePlanResponse(BaseModel):
     """
 
     sale_id: uuid.UUID
-    sale_price: Annotated[Decimal | None, Gorunurluk.para]
-    total_amount: Annotated[Decimal | None, Gorunurluk.para]
-    paid_amount: Annotated[Decimal | None, Gorunurluk.para]
+    sale_price: Annotated[Decimal | None, Hassas.satis_alici]
+    total_amount: Annotated[Decimal | None, Hassas.satis_alici]
+    paid_amount: Annotated[Decimal | None, Hassas.satis_alici]
     # F106 vade farkının GÖSTERİM tutarı — plana YAZILMAZ (bkz. `plan.py` kararı).
-    term_interest_amount: Annotated[Decimal | None, Gorunurluk.para]
+    term_interest_amount: Annotated[Decimal | None, Hassas.satis_alici]
     items: list[SaleInstallmentResponse]
 
 
@@ -277,9 +283,9 @@ class UnitSaleTotals(BaseModel):
     """S205-215 TOPLAM satırı — satır türevleriyle AYNI kaynaktan toplanır."""
 
     count: int
-    sale_price_total: Annotated[Decimal | None, Gorunurluk.para]
-    paid_total: Annotated[Decimal | None, Gorunurluk.para]
-    remaining_total: Annotated[Decimal | None, Gorunurluk.para]
+    sale_price_total: Annotated[Decimal | None, Hassas.satis_alici]
+    paid_total: Annotated[Decimal | None, Hassas.satis_alici]
+    remaining_total: Annotated[Decimal | None, Hassas.satis_alici]
 
 
 class UnitSaleListResponse(BaseModel):
@@ -315,7 +321,7 @@ class SoldKpi(BaseModel):
 
     count: int
     deed_transferred_count: int
-    amount: Annotated[Decimal | None, Gorunurluk.para]  # Σ `sale_price`
+    amount: Annotated[Decimal | None, Hassas.satis_alici]  # Σ `sale_price`
 
 
 class ReservedKpi(BaseModel):
@@ -323,7 +329,7 @@ class ReservedKpi(BaseModel):
 
     count: int
     expired_count: int  # S188 "15 gün süre" — OTOMATİK İPTAL YOK, yalnız gösterge
-    amount: Annotated[Decimal | None, Gorunurluk.para]
+    amount: Annotated[Decimal | None, Hassas.satis_alici]
 
 
 class AvailableUnitsKpi(BaseModel):
@@ -335,7 +341,7 @@ class AvailableUnitsKpi(BaseModel):
     """
 
     count: int
-    list_price_total: Annotated[Decimal | None, Gorunurluk.para]
+    list_price_total: Annotated[Decimal | None, Hassas.satis_alici]
 
 
 class CollectionKpi(BaseModel):
@@ -347,14 +353,14 @@ class CollectionKpi(BaseModel):
     aynı ekrana düşürürdü.
     """
 
-    collected_amount: Annotated[Decimal | None, Gorunurluk.para]
-    contracted_amount: Annotated[Decimal | None, Gorunurluk.para]
+    collected_amount: Annotated[Decimal | None, Hassas.satis_alici]
+    contracted_amount: Annotated[Decimal | None, Hassas.satis_alici]
     # 🔴 PARA — kullanıcı kararı 2026-09-19. `tahsil edilen × 100 ÷ sözleşmeye
     #    bağlanan` (summary.py): İKİ girdisi de `para` etiketli, o hâlde türevi de
     #    paradır. `sales` satırında kapsam taşıyan TEK rol `accounting`tir, yani
     #    `operasyonel` etiketi pratikte YALNIZCA zarar üretiyordu: muhasebe
     #    "Tahsil Edilen" kartında ₺ tutarı görüyor ama oranı "—" görüyordu.
-    collection_pct: Annotated[Decimal | None, Gorunurluk.para]
+    collection_pct: Annotated[Decimal | None, Hassas.satis_alici]
 
 
 class OverdueKpi(BaseModel):
@@ -366,8 +372,8 @@ class OverdueKpi(BaseModel):
     """
 
     installment_count: int
-    amount: Annotated[Decimal | None, Gorunurluk.para]
-    late_fee_amount: Annotated[Decimal | None, Gorunurluk.para]
+    amount: Annotated[Decimal | None, Hassas.satis_alici]
+    late_fee_amount: Annotated[Decimal | None, Hassas.satis_alici]
 
 
 class UpcomingCollection(BaseModel):
@@ -376,17 +382,17 @@ class UpcomingCollection(BaseModel):
     installment_id: uuid.UUID
     sale_id: uuid.UUID
     unit_label: str  # S159 "A · Daire 12"
-    customer_name: str
+    customer_name: Annotated[str | None, Hassas.satis_alici]
     sequence_no: int
     label: str
     due_date: date
-    amount: Annotated[Decimal | None, Gorunurluk.para]
-    paid_amount: Annotated[Decimal | None, Gorunurluk.para]
-    remaining_amount: Annotated[Decimal | None, Gorunurluk.para]
+    amount: Annotated[Decimal | None, Hassas.satis_alici]
+    paid_amount: Annotated[Decimal | None, Hassas.satis_alici]
+    remaining_amount: Annotated[Decimal | None, Hassas.satis_alici]
     is_overdue: bool
     days_overdue: int  # S222 "Vadesi 15 gün geçti"
     late_fee_amount: Annotated[
-        Decimal | None, Gorunurluk.para
+        Decimal | None, Hassas.satis_alici
     ]  # S223 "Gecikme faizi: ₺4.200" — GÖSTERİM türevi
 
 
@@ -399,10 +405,10 @@ class ExpiredReservation(BaseModel):
 
     sale_id: uuid.UUID
     unit_label: str
-    customer_name: str
+    customer_name: Annotated[str | None, Hassas.satis_alici]
     reservation_due_date: date
     days_expired: int
-    reservation_deposit: Annotated[Decimal | None, Gorunurluk.para]
+    reservation_deposit: Annotated[Decimal | None, Hassas.satis_alici]
 
 
 class SalesSummaryResponse(BaseModel):

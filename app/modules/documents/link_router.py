@@ -74,6 +74,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -94,7 +95,9 @@ from app.modules.documents.models.links import EntityDocumentScope
 from app.modules.documents.schemas import DocumentRead
 from app.modules.users.models import User
 
-router = APIRouter(tags=["entity-documents"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(
+    route_class=MaskeRotasi, tags=["entity-documents"], responses=COMMON_ERROR_RESPONSES
+)
 
 #: Katalog okuma kapısı: `documents` modülünde hiçbir rol `none` değildir
 #: (spec §6) — slot listesini her rol görebilir.

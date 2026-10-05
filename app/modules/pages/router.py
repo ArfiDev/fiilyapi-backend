@@ -3,12 +3,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.sayfalar import GRUP_ADLARI, SAYFALAR
 from app.modules.pages.schemas import PageResponse
 from app.modules.users.models import User
 
-router = APIRouter(tags=["pages"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(route_class=MaskeRotasi, tags=["pages"], responses=COMMON_ERROR_RESPONSES)
 
 
 @router.get("/pages", response_model=list[PageResponse])

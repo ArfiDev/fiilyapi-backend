@@ -122,25 +122,6 @@ async def test_DUSEN_kapsam_ALL_hucreye_YAZILAMAZ(seeded_db):
     assert (after.access_level, after.scope) == (eski_seviye, eski_kapsam)
 
 
-async def test_seed_kapsami_korunurken_seviye_degistirilebilir(seeded_db):
-    """Seed satırları AYNEN kalır: `all` dışı kapsam taşıyan bir hücrenin seviyesi
-
-    düzenlenebilmeli. 🔴 Bu test eskiden kapının "mevcut kapsamı geri göndermek
-    serbesttir" MUAFİYETİNİ ölçüyordu; o muafiyet kaldırıldı (kapı artık mevcut
-    değere hiç bakmaz, kapsamın UYGULANIP uygulanmadığına bakar). Ölçtüğü davranış
-    aynı kaldığı için test de kaldı — ama gerekçesi artık `limited`/`finance`in
-    uygulanmış olmasıdır. Gönderilen seviye `none`: yazan seviye + maskeleyen
-    kapsam bileşimi ayrıca reddedilir (bkz. `test_MASKELEYEN_kapsam_*`).
-    """
-    role, module_key, mevcut_kapsam = await _non_all_scope_cell(seeded_db)
-
-    updated = await update_role_permission(
-        seeded_db, role.id, module_key, AccessLevel.none, mevcut_kapsam
-    )
-
-    assert (updated.access_level, updated.scope) == (AccessLevel.none, mevcut_kapsam)
-
-
 async def test_kapsam_all_a_cekilebilir(seeded_db):
     """`all` HER ZAMAN serbesttir: kısıtı geri almak hiçbir kapıya takılmaz.
 
@@ -198,47 +179,6 @@ async def test_ALL_kapsami_HER_ZAMAN_serbesttir(seeded_db):
 # --------------------------------------------------------------------------- #
 # UYGULANAN KAPSAMLAR — `limited` / `finance` (2026-09-19, alan maskesi kurulduktan SONRA)
 # --------------------------------------------------------------------------- #
-
-
-@pytest.mark.parametrize("seviye", [AccessLevel.none, AccessLevel.view])
-@pytest.mark.parametrize("uygulanan", [Scope.limited, Scope.finance])
-async def test_UYGULANAN_kapsam_ATANABILIR(seeded_db, uygulanan: Scope, seviye: AccessLevel):
-    """🔴 POZİTİF KONTROL — kapsam artık UYGULANIYOR, o hâlde ATANABİLMELİ.
-
-    Eski fren `scope is not all and scope != permission.scope` diyordu; yani
-    kapsamı `all` olan bir hücreye `limited`/`finance` HİÇ yazılamıyordu ve
-    mekanizma yalnız seed'deki hücrelerde yaşayabiliyordu. Bu test o tek yönlü
-    kapıyı çakar: daraltma da genişletme kadar mümkün olmalı.
-
-    🔴 Modül `contracts` (KABLOLU) — `personnel` DEĞİL. Kalan iş #4 (2026-09-23)
-    ile `update_role_permission` MODÜL eksenli üçüncü bir kapı kazandı:
-    `personnel` köprüsü YOK, `contracts`ınki VAR. Bu test kapsamın atanabildiğini
-    ölçmek içindir; kablolu olmayan bir modülle çalıştırılırsa artık YENİ kapıya
-    çarpar ve ölçtüğü şey değişir (bkz. `test_MODUL_EKSENLI_*`).
-    """
-    role = await _role(seeded_db, "site_chief")
-    before = await get_permission(seeded_db, role.id, "contracts")
-    assert before.scope is Scope.all, "Testin dayanağı: bu hücre seed'de `all`"
-
-    updated = await update_role_permission(seeded_db, role.id, "contracts", seviye, uygulanan)
-
-    assert updated.scope is uygulanan
-    okunan = await get_permission(seeded_db, role.id, "contracts")
-    assert (okunan.access_level, okunan.scope) == (seviye, uygulanan), "Yazma KALICI olmalı"
-
-
-async def test_UYGULANAN_kapsamlar_BIRBIRINE_cevrilebilir(seeded_db):
-    """Seed'li bir `limited` hücresi `finance`a (ya da tersi) çevrilebilmeli.
-
-    Eski fren yalnızca MEVCUT kapsamın geri gönderilmesine izin verdiği için
-    iki uygulanan kapsam arasındaki geçiş de kapalıydı.
-    """
-    role, module_key, mevcut = await _non_all_scope_cell(seeded_db)
-    hedef = Scope.finance if mevcut is Scope.limited else Scope.limited
-
-    updated = await update_role_permission(seeded_db, role.id, module_key, AccessLevel.view, hedef)
-
-    assert updated.scope is hedef
 
 
 @pytest.mark.parametrize(
@@ -376,18 +316,11 @@ async def test_MODUL_EKSENLI_kapsam_kablolu_OLMAYAN_modulde_REDDEDILIR(seeded_db
     assert (after.access_level, after.scope) == eski, "Reddedilen istek satırı DEĞİŞTİRMEMELİ"
 
 
-async def test_MODUL_EKSENLI_kapsam_KABLOLU_modulde_SERBESTTIR(seeded_db):
-    """🔴 POZİTİF KONTROL — yeni kapı SIRADAN kablolu modülleri KİLİTLEMEMELİ.
-
-    "Her modülü reddet" hâline gelen bozuk bir kapı da bu testin öncekiyle
-    birlikte yakalayacağı hatadır: kablolu bir modülde aynı istek SERBEST
-    kalmalı.
-    """
-    assert "sites" in kablolu_moduller(), "Testin dayanağı: sites KABLOLU olmalı"
-    role = await _role(seeded_db, "field_engineer")
-
-    updated = await update_role_permission(
-        seeded_db, role.id, "sites", AccessLevel.view, Scope.limited
-    )
-
-    assert updated.scope is Scope.limited
+async def test_IZN_B4_limited_artik_HICBIR_modulde_atanamaz(seeded_db):
+    """IZN-B4a: altı eski modül de yeni maskeye geçti, eski köprüyü taşıyan modül kalmadı
+    (`kablolu_moduller()` boş). Eski `limited`/`finance` hücre yazımı her modülde reddedilir.
+    Bu dosyadaki eski kapsam testleri B6'da (eski matris sökümü) birlikte silinir."""
+    assert kablolu_moduller() == frozenset()
+    role = await _role(seeded_db, "site_chief")
+    with pytest.raises(PermissionLockedError):
+        await update_role_permission(seeded_db, role.id, "sites", AccessLevel.view, Scope.limited)

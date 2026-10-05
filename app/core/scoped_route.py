@@ -86,6 +86,7 @@ from pydantic import BaseModel
 
 from app.core.access import Scope
 from app.core.field_scope import gizlenen_kova, maskele
+from app.core.mask_route import MaskeRotasi
 
 __all__ = ["kapsam_bagimligi_kur", "kapsam_rotasi", "kapsamdan_oku", "kapsamla_maskele"]
 
@@ -114,7 +115,7 @@ KapsamSaglayici = Callable[..., Scope | Awaitable[Scope]]
 def kapsam_rotasi(modul_key: str, saglayici: KapsamSaglayici) -> type[APIRoute]:
     """`APIRouter(route_class=...)` için bir rota sınıfı üretir."""
 
-    class _KapsamRotasi(APIRoute):
+    class _KapsamRotasi(MaskeRotasi):
         def __init__(self, path: str, endpoint: Callable[..., Any], **kwargs: Any) -> None:
             # 🔴 Metot BURADA okunur, `_sarili` içinde DEĞİL: sarmalayıcı bir
             # fonksiyonu sarar, bir ucu değil — aynı fonksiyon iki metoda

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 # B6/P1 yer tutucu sozlesmesi TEK yerde tanimlidir (spec §3): kopyalanmaz,
 # projects modulunden import edilir.
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.modules.projects.schemas import CountPlaceholder, MetricPlaceholder
 from app.modules.sites.models import SECTION_TYPE_NAME_MAX_LEN, SectionStatus, SiteStatus
 
@@ -133,9 +133,9 @@ class SectionResponse(BaseModel):
     start_date: date | None
     end_date: date | None
     sort_order: int
-    progress_pct: Annotated[MetricPlaceholder, Gorunurluk.operasyonel]
+    progress_pct: Annotated[MetricPlaceholder, Hassas.yok]
     boq_item_count: CountPlaceholder
-    budget: Annotated[MetricPlaceholder, Gorunurluk.para]
+    budget: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
     worker_count: CountPlaceholder
     # --- BLM-SAY: LISTE ucuna TASINDI (kullanicinin canlida bildirdigi kusur) ---
     #
@@ -215,7 +215,7 @@ class SiteCard(BaseModel):
     slug: str | None = None
     name: str
     status: SiteStatus
-    address: str | None
+    address: Annotated[str | None, Hassas.yok]
     city: str | None
     city_inherited: bool
     site_manager_name: str | None
@@ -225,7 +225,7 @@ class SiteCard(BaseModel):
     remaining_days: int | None
     section_count: int
     worker_count: CountPlaceholder
-    progress_pct: Annotated[MetricPlaceholder, Gorunurluk.operasyonel]
+    progress_pct: Annotated[MetricPlaceholder, Hassas.yok]
 
     # --- Santiye formu genislemesi (§6.2). YALNIZ EKLEME yapildi: yukaridaki
     # P2 alanlarinin hicbiri kaldirilmadi/yeniden adlandirilmadi, aksi hâlde
@@ -239,10 +239,10 @@ class SiteCard(BaseModel):
     neighborhood: str | None
     parcel: str | None
     gps_coordinates: str | None
-    land_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    construction_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    land_area_m2: Annotated[Decimal | None, Hassas.yok]
+    construction_area_m2: Annotated[Decimal | None, Hassas.yok]
     floor_info: str | None
-    budget: Annotated[Decimal | None, Gorunurluk.para]
+    budget: Annotated[Decimal | None, Hassas.maliyet_kar]
     facilities: SiteFacilities
     electricity_subscription_no: str | None
     water_subscription_no: str | None
@@ -268,8 +268,8 @@ class SiteDetailResponse(SiteCard):
     project: SiteProjectSummary
     section_status_counts: SectionStatusCounts
     sections: list[SectionResponse]
-    total_progress_payment: Annotated[MetricPlaceholder, Gorunurluk.para]
-    contract_amount: Annotated[MetricPlaceholder, Gorunurluk.para]
+    total_progress_payment: Annotated[MetricPlaceholder, Hassas.sozlesme_fiyat]
+    contract_amount: Annotated[MetricPlaceholder, Hassas.sozlesme_fiyat]
 
 
 class SiteCounts(BaseModel):
@@ -290,10 +290,10 @@ class SiteListTotals(BaseModel):
     yerdedir — `sites/service/presenters.py:_totals`.
     """
 
-    total_progress_payment: Annotated[MetricPlaceholder, Gorunurluk.para]
+    total_progress_payment: Annotated[MetricPlaceholder, Hassas.sozlesme_fiyat]
     subcontractor_count: CountPlaceholder
     active_worker_count: CountPlaceholder
-    average_margin: Annotated[MetricPlaceholder, Gorunurluk.para]
+    average_margin: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
 
 
 class SiteListResponse(BaseModel):
@@ -378,17 +378,17 @@ class SiteCreate(BaseModel):
     city: str | None = Field(default=None, max_length=100)
     neighborhood: str | None = Field(default=None, max_length=150)
     parcel: str | None = Field(default=None, max_length=50)
-    address: str | None = Field(default=None, max_length=300)
+    address: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=300)
     # BICIM DOGRULAMASI YOK (§3.5): yalniz uzunluk sinirlanir.
     gps_coordinates: str | None = Field(default=None, max_length=50)
-    land_area_m2: Decimal | None = Field(default=None, ge=0)
-    construction_area_m2: Decimal | None = Field(default=None, ge=0)
+    land_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0)
+    construction_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0)
     # Serbest metin ("2 bodrum + 10 normal") — sayi DEGIL (mockup 86).
     floor_info: str | None = Field(default=None, max_length=100)
     # --- takvim & butce (mockup 91-99) ---
     start_date: date | None = None
     end_date: date | None = None
-    budget: Decimal | None = Field(default=None, ge=0)
+    budget: Annotated[Decimal | None, Hassas.maliyet_kar] = Field(default=None, ge=0)
     # --- tesisler (mockup 147-174) ---
     facilities: SiteFacilitiesInput = Field(default_factory=SiteFacilitiesInput)
     electricity_subscription_no: str | None = Field(default=None, max_length=50)
@@ -420,14 +420,14 @@ class SiteUpdate(BaseModel):
     city: str | None = Field(default=None, max_length=100)
     neighborhood: str | None = Field(default=None, max_length=150)
     parcel: str | None = Field(default=None, max_length=50)
-    address: str | None = Field(default=None, max_length=300)
+    address: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=300)
     gps_coordinates: str | None = Field(default=None, max_length=50)
-    land_area_m2: Decimal | None = Field(default=None, ge=0)
-    construction_area_m2: Decimal | None = Field(default=None, ge=0)
+    land_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0)
+    construction_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0)
     floor_info: str | None = Field(default=None, max_length=100)
     start_date: date | None = None
     end_date: date | None = None
-    budget: Decimal | None = Field(default=None, ge=0)
+    budget: Annotated[Decimal | None, Hassas.maliyet_kar] = Field(default=None, ge=0)
     facilities: SiteFacilitiesInput | None = None
     electricity_subscription_no: str | None = Field(default=None, max_length=50)
     water_subscription_no: str | None = Field(default=None, max_length=50)

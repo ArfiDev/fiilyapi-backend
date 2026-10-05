@@ -21,10 +21,10 @@ from fastapi import APIRouter, Depends, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
+from app.core.permissions import require_permission
 from app.core.ratelimit import client_ip
-from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -37,22 +37,13 @@ from app.modules.customers.schemas import (
 )
 from app.modules.users.models import User
 
-# 🔴 KAPSAM MASKESI — IKI PARCA DA GEREKLI (kullanici karari 2026-09-19).
-#    Anahtar `customers` DEGIL `sales`: `customers` bir izin modulu degildir,
-#    uclari `sales` seviyeleriyle korunur (yukaridaki docstring) ve kapsam da
-#    o satirdan okunur.
-#
-#    BUGUN HICBIR ALANI MASKELENMEZ (olculdu: `CustomerResponse` tamami kimlik
-#    alani — ad, TCKN/VKN, telefon, adres; tek bir `Decimal` yok). Kopru YINE DE
-#    kurulur ve bu ihtiyati DEGILDIR: kartoteks yarin bir bakiye/alacak alani
-#    kazanirsa maske KENDILIGINDEN calisir. Kopruyu "simdilik gereksiz" diye
-#    atlamak, o alani ekleyen kisinin buraya bakmasini gerektirirdi — yani tam
-#    olarak `units` routerini 15 uc boyunca maskesiz birakan hatanin kendisi.
+# 🔴 HASSAS ALAN MASKESİ (IZN-B4): alıcı bilgisi (TCKN/VKN, telefon, e-posta, adres) `satis_alici`
+#    kategorisiyle etiketlidir; `MaskeRotasi` etkin rolün bayrağına göre `null` yazar.
+#    (Eski `sales` kapsam köprüsü bu routerda hiçbir alanı maskelemiyordu: tek `Decimal` yoktu.)
 router = APIRouter(
     tags=["customers"],
     responses=COMMON_ERROR_RESPONSES,
-    route_class=kapsam_rotasi("sales", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("sales")],
+    route_class=MaskeRotasi,
 )
 
 _VIEW = require_permission("sales", AccessLevel.view)

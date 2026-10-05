@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field, model_validator
 # `ProgressPaymentSummary`nin docstring'indedir. Etiket, şemanın TANIMLI olduğu
 # yerde durur; ikinci bir kopya tanımlamak (ör. `contracts` içinde aynalanmış
 # bir özet şeması) iki gövdeyi zamanla ayrıştırırdı.
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.modules.progress_payments.models import ProgressPaymentStatus
 
 # Enum PAYLAŞILIR (models.py'deki aynı gerekçe): iki hakediş ailesi AYNI rozeti
@@ -296,24 +296,14 @@ class ProgressPaymentSummary(BaseModel):
     sekmesi + SHK kartları, spec §9.6). Eksik sözleşme bedeli → `progress_pct`/
     `remaining` `None` (zarif düşüş, §8 deseninin aynısı).
 
-    ## 🔴 Bu şema İKİ uçtan döner ve İKİNCİSİ KAPSAM KISITLIDIR
+    ## 🔴 Bu şema İKİ uçtan döner ve İKİNCİSİ MASKELİDİR
 
-    Kendi ucunun yanında `contracts.schemas.EmployerContractDetail.
-    progress_payment_summary` olarak E14 detayına GÖMÜLÜR. `contracts` kapsam
-    kısıtlı bir modüldür; `field_scope.maskele()` iç içe `BaseModel`lere İNER,
-    yani maske buraya ULAŞIR. 2026-09-19 denetimine kadar alanlar ETİKETSİZDİ ve
-    etiketsiz alan `kimlik` sayıldığı için (fail-OPEN, gerekçe
-    `core/field_scope.py`) hiçbir kapsamda gizlenmiyordu: `limited` kapsamda
-    `EmployerContractDetail.amount` `null` dönerken AYNI sözleşme bedeli gömülü
-    `contract_amount`ta AÇIKTA kalıyordu. Bekçisi
-    `tests/modules/test_kapsam_capraz_sizinti.py`.
-
-    🔴 **Etiketler KENDİ ucunu DEĞİŞTİRMEZ** ve bu ölçüldü: `progress_payments`
-    matriste kısıtlı değildir (bütün hücreleri `Scope.all`) ve routerı
-    `kapsam_rotasi`ya bağlı değildir — o uçta maske hiç koşmaz. Yani etiketler
-    burada ATIL durur, yalnız gömüldükleri bağlamda iş görürler. Bağlamdan
-    bağımsız olarak doğrudurlar da: `contract_amount`/`net_total` HER iki uçta
-    da paradır, `progress_pct` HER iki uçta da ilerlemedir.
+    Kendi ucunun yanında `contracts.schemas.EmployerContractDetail.progress_payment_summary`
+    olarak E14 detayına GÖMÜLÜR. IZN-B4: alanlar `Hassas` etiketlidir (`contract_amount`/tutarlar
+    = `sozlesme_fiyat`; `progress_pct` bedelden türediği için `sozlesme_fiyat`, fail-closed) ve
+    gömüldüğü `contracts` yanıtında `MaskeRotasi` ile maskelenir. Kendi ucu (`progress_payments`
+    router) B4b'ye kadar maskelenmez; bekçide yalnız bu şema ZORUNLU, kalanı RAPOR modundadır
+    (`tests/core/test_hassas_alan_bekcisi.py`).
 
     ## 🔴 Neden dört alan `| None` OLDU (şema değişikliği)
 
@@ -327,9 +317,9 @@ class ProgressPaymentSummary(BaseModel):
     emsalidir, yeni bir desen değildir.
     """
 
-    contract_amount: Annotated[Decimal | None, Gorunurluk.para]
-    cumulative_gross: Annotated[Decimal | None, Gorunurluk.para]
-    progress_pct: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    contract_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    cumulative_gross: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    progress_pct: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     """🔴 `para` DEĞİL `operasyonel`: ikizi `contracts.schemas.ContractListItem.
     progress_pct` (aynı formül, aynı ad) 2026-09-19'da `operasyonel`
     etiketlendi. Burada `para` denseydi AYNI kavram sözleşme LİSTESİNDE
@@ -339,9 +329,9 @@ class ProgressPaymentSummary(BaseModel):
     Oran maskeli girdilerden geri hesaplanamaz: `limited` kapsamda hem
     `cumulative_gross` hem `contract_amount` gizlidir, elde yalnız yüzde kalır
     ve yüzde tek başına hiçbir mutlak tutarı açığa çıkarmaz."""
-    advance_deduction_total: Annotated[Decimal | None, Gorunurluk.para]
-    retention_total: Annotated[Decimal | None, Gorunurluk.para]
-    net_total: Annotated[Decimal | None, Gorunurluk.para]
+    advance_deduction_total: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    retention_total: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    net_total: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     payment_count: int
     pending_count: int
     """🔴 İki sayaç ETİKETSİZDİR (= `kimlik`, hiçbir kapsamda gizlenmez).
@@ -349,7 +339,7 @@ class ProgressPaymentSummary(BaseModel):
     `contracts.ContractSummary.active_count`/`expiring_this_month_count` de
     etiketsizdir. `operasyonel` deseydik muhasebe E14'te onay bekleyen evrak
     sayısını göremezdi — oysa onaylayan roldür."""
-    remaining: Annotated[Decimal | None, Gorunurluk.para]
+    remaining: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     """🔴 TÜREV ve bu yüzden `para`: `bedel − kümülatif brüt`. Gizlenmeseydi
     sözleşme bedeli `remaining + cumulative_gross` ile geri hesaplanırdı —
     `net_total` için de aynısı geçerlidir (`net + avans + teminat`)."""

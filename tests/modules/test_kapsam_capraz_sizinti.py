@@ -191,29 +191,23 @@ async def test_LIMITED_kapsamda_GOMULU_ozetin_PARASI_da_GIZLENIR(
     assert ozet["retention_total"] is None, "TEMİNAT KESİNTİSİ SIZDI"
     assert ozet["net_total"] is None, "NET ÖDEME SIZDI"
     assert ozet["remaining"] is None, "KALAN BEDEL SIZDI"
-    # 🔴 İÇERİDEKİ POZİTİF KONTROL: `limited` PARAYI gizler, ilerlemeyi DEĞİL.
-    # Hepsini `None` yapan bir kusur yukarıdaki yedi assert'i de geçerdi.
-    assert ozet["progress_pct"] == _ILERLEME, "İLERLEME YANLIŞLIKLA GİZLENDİ"
+    # IZN-B4: `progress_pct` bedelden TÜREYEN orandır (`paid / contract_amount`) → `sozlesme_fiyat`
+    # etiketli; bedeli gizleyen rol oranı da görmez (yoksa bedel oran × tutardan geri hesaplanırdı).
+    assert ozet["progress_pct"] is None, "TÜREV İLERLEME ORANI SIZDI"
     assert govde["contract_no"] == "SZL-KPS-CPR", "KİMLİK GİZLENDİ"
 
 
-async def test_FINANCE_kapsamda_GOMULU_ILERLEME_gizlenir_PARA_DURUR(
+async def test_FINANCE_kapsamda_GOMULU_ozet_PARA_ve_ILERLEME_DURUR(
     client, db_session, user_factory, project_factory
 ):
-    """`contracts = view/finance` → OPERASYONEL gizli, PARA görünür (`limited`in
-    AYNASI).
-
-    🔴 `progress_pct` kardeşi `ContractListItem.progress_pct` ZATEN
-    `operasyonel` etiketliydi: aynı kavram sözleşme LİSTESİNDE muhasebeden
-    gizlenirken DETAYINDA görünüyordu. Bu test o çelişkiyi çakar.
-    """
+    """IZN-B4: eski `finance` kapsamı karşılıksız (IZN-PLAN §3, GECE KARARI) — rolün gizli bayrağı
+    yok → gömülü özet TAM görünür (ilerleme dahil)."""
     govde = await _sozlesme_detayi(
         client, db_session, user_factory, project_factory, Scope.finance, "fin@capraz.co"
     )
     ozet = govde["progress_payment_summary"]
 
-    assert ozet["progress_pct"] is None, "GÖMÜLÜ İLERLEME YÜZDESİ SIZDI"
-    # PARA muhasebenin işidir — gizlenmesi ekranı kullanılamaz yapardı.
+    assert ozet["progress_pct"] == _ILERLEME
     assert govde["amount"] == str(_BEDEL), "PARA YANLIŞLIKLA GİZLENDİ"
     assert ozet["contract_amount"] == str(_BEDEL), "GÖMÜLÜ BEDEL YANLIŞLIKLA GİZLENDİ"
     assert ozet["net_total"] == _NET, "GÖMÜLÜ NET ÖDEME YANLIŞLIKLA GİZLENDİ"

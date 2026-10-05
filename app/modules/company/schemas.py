@@ -1,8 +1,10 @@
 import uuid
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.core.field_mask import Hassas
 from app.modules.company.models import Company
 
 _HEX_COLOR = r"^#[0-9A-Fa-f]{6}$"
@@ -14,18 +16,19 @@ class CompanyUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, max_length=200)
-    tax_number: str | None = Field(default=None, max_length=50)
+    # IZN-B4: şirket KÜNYESİ kişisel veri değil, belge başlıklarında HERKES kullanır → `yok`.
+    tax_number: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=50)
     tax_office: str | None = Field(default=None, max_length=100)
     trade_registry_no: str | None = Field(default=None, max_length=100)
-    kep_address: str | None = Field(default=None, max_length=255)
-    phone: str | None = Field(default=None, max_length=50)
+    kep_address: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=255)
+    phone: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=50)
     email: EmailStr | None = None
     website: str | None = Field(default=None, max_length=255)
-    address: str | None = None
+    address: Annotated[str | None, Hassas.yok] = None
     brand_color: str | None = Field(default=None, pattern=_HEX_COLOR)
     gib_integration_code: str | None = Field(default=None, max_length=100)
     earsiv_portal: str | None = Field(default=None, max_length=255)
-    default_vat_rate: Decimal | None = Field(default=None, ge=0, le=100)
+    default_vat_rate: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0, le=100)
     auto_einvoice: bool | None = None
 
 
@@ -34,18 +37,18 @@ class CompanyRead(BaseModel):
 
     id: uuid.UUID
     name: str | None
-    tax_number: str | None
+    tax_number: Annotated[str | None, Hassas.yok]
     tax_office: str | None
     trade_registry_no: str | None
-    kep_address: str | None
-    phone: str | None
+    kep_address: Annotated[str | None, Hassas.yok]
+    phone: Annotated[str | None, Hassas.yok]
     email: str | None
     website: str | None
-    address: str | None
+    address: Annotated[str | None, Hassas.yok]
     brand_color: str
     gib_integration_code: str | None
     earsiv_portal: str | None
-    default_vat_rate: Decimal
+    default_vat_rate: Annotated[Decimal, Hassas.yok]
     auto_einvoice: bool
     has_logo: bool
     logo_url: str

@@ -8,10 +8,10 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
+from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
-from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku, kapsamla_maskele
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -40,15 +40,12 @@ XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 # Uc kokleri bilincli karisiktir (plan §Frontend notu): GET + POST'lar
 # `/sites/...` altinda, PATCH'lar `/boq/...` kokunde (dolayli kimlik
 # cozumlemesi kullandiklari icin yol parametreleri farkli).
-# 🔴 KAPSAM MASKESİ — İKİ PARÇA DA GEREKLİ (kullanıcı kararı 2026-09-19):
-#    `route_class` dönen modeli maskeler, `dependencies` aktörün kapsamını
-#    köprüye yazar. Biri eksikse maske SESSİZCE `all` görür ve hiçbir şey
-#    gizlemez. Çifti `tests/core/test_kapsam_baglantisi.py` çakar.
+# 🔴 HASSAS ALAN MASKESİ (IZN-B4): `MaskeRotasi` yanıtı etkin rolün `hidden_fields`ına göre
+#    maskeler ve kendi bağlam bağımlılığını ekler — başka bir parça GEREKMEZ.
 router = APIRouter(
     tags=["boq"],
     responses=COMMON_ERROR_RESPONSES,
-    route_class=kapsam_rotasi("boq", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("boq")],
+    route_class=MaskeRotasi,
 )
 
 _VIEW = require_permission("boq", AccessLevel.view)
@@ -130,7 +127,7 @@ async def export_boq_endpoint(
     Bekcisi `tests/core/test_kapsam_kacak_uclar.py`.
     """
     site, boq = await service.get_boq_export_for_site(session, user, site_id, section_id, scope)
-    buffer = build_boq_workbook(kapsamla_maskele(boq, "boq"))
+    buffer = build_boq_workbook(await maskele_baglamli(boq))
     filename = f"is-kalemleri-{site.code}.xlsx"
     return Response(
         content=buffer.getvalue(),

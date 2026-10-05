@@ -22,7 +22,7 @@ from typing import Annotated
 
 from pydantic import BaseModel
 
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.modules.units.models import UnitKind, UnitOwnerSide, UnitSalesStatus
 
 __all__ = [
@@ -53,22 +53,22 @@ class LandShareContract(BaseModel):
     """
 
     landowner_name: str
-    our_share_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    owner_share_pct: Annotated[Decimal, Gorunurluk.kimlik]
+    our_share_pct: Annotated[Decimal, Hassas.yok]
+    owner_share_pct: Annotated[Decimal, Hassas.yok]
     contract_no: str | None
     notary_date: date | None
-    land_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    construction_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    land_area_m2: Annotated[Decimal | None, Hassas.yok]
+    construction_area_m2: Annotated[Decimal | None, Hassas.yok]
     delivery_date: date | None
-    daily_penalty: Annotated[Decimal | None, Gorunurluk.para]
-    guarantee_amount: Annotated[Decimal | None, Gorunurluk.para]
+    daily_penalty: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    guarantee_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
 
 
 class LandSharePartition(BaseModel):
     """Bir kümenin (arsa sahibi payı · atanmamış) adet + değer toplamı."""
 
     unit_count: int
-    value_total: Annotated[Decimal | None, Gorunurluk.para]
+    value_total: Annotated[Decimal | None, Hassas.satis_alici]
 
 
 class LandShareOwnerSide(LandSharePartition):
@@ -90,8 +90,8 @@ class LandShareOurSide(LandSharePartition):
     sold_count: int
     reserved_count: int
     available_count: int
-    sold_value: Annotated[Decimal | None, Gorunurluk.para]
-    remaining_value: Annotated[Decimal | None, Gorunurluk.para]
+    sold_value: Annotated[Decimal | None, Hassas.satis_alici]
+    remaining_value: Annotated[Decimal | None, Hassas.satis_alici]
 
 
 class LandShareShareholderRow(BaseModel):
@@ -105,9 +105,9 @@ class LandShareShareholderRow(BaseModel):
 
     shareholder_id: uuid.UUID
     name: str
-    share_pct: Annotated[Decimal, Gorunurluk.kimlik]
+    share_pct: Annotated[Decimal, Hassas.yok]
     unit_count: int
-    value_total: Annotated[Decimal | None, Gorunurluk.para]
+    value_total: Annotated[Decimal | None, Hassas.satis_alici]
 
 
 class LandShareCountBalance(BaseModel):
@@ -144,13 +144,13 @@ class LandShareValueBalance(BaseModel):
     yaşarsa ayrışır).
     """
 
-    our_value: Annotated[Decimal | None, Gorunurluk.para]
-    owner_value: Annotated[Decimal | None, Gorunurluk.para]
-    assigned_value_total: Annotated[Decimal | None, Gorunurluk.para]
-    our_actual_pct: Annotated[Decimal | None, Gorunurluk.para]
-    owner_actual_pct: Annotated[Decimal | None, Gorunurluk.para]
-    deviation_pct: Annotated[Decimal | None, Gorunurluk.para]
-    tolerance_pct: Annotated[Decimal, Gorunurluk.kimlik]
+    our_value: Annotated[Decimal | None, Hassas.satis_alici]
+    owner_value: Annotated[Decimal | None, Hassas.satis_alici]
+    assigned_value_total: Annotated[Decimal | None, Hassas.satis_alici]
+    our_actual_pct: Annotated[Decimal | None, Hassas.satis_alici]
+    owner_actual_pct: Annotated[Decimal | None, Hassas.satis_alici]
+    deviation_pct: Annotated[Decimal | None, Hassas.satis_alici]
+    tolerance_pct: Annotated[Decimal, Hassas.yok]
     is_within_tolerance: bool | None
 
 
@@ -195,8 +195,8 @@ class LandShareUnitRow(BaseModel):
     unit_kind: UnitKind
     layout: str | None
     floor: str | None
-    gross_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    appraisal_value: Annotated[Decimal | None, Gorunurluk.para]
+    gross_area_m2: Annotated[Decimal | None, Hassas.yok]
+    appraisal_value: Annotated[Decimal | None, Hassas.satis_alici]
     owner_side: UnitOwnerSide | None
     shareholder_id: uuid.UUID | None
     shareholder_name: str | None

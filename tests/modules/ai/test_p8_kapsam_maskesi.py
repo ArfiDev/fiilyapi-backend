@@ -54,15 +54,16 @@ from decimal import Decimal
 
 import pytest
 from fastapi.routing import APIRoute
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.core.access import Scope
+from app.core.sayfalar import HiddenCategory
 from app.main import app
 from app.modules.ai import audit as ai_audit
 from app.modules.ai.registry import ToolRegistry, ToolSpec
 from app.modules.ai.result import Ok, ToolError, Truncated
 from app.modules.ai.tools.catalog import READ_TOOLS
-from app.modules.roles.models import Module, Role, RolePermission
+from app.modules.roles.models import Module, Role, RoleHiddenField, RolePermission
 from app.modules.users.models import ProjectMember
 
 # `asyncio_mode = "auto"` (pyproject) — ayrıca `pytestmark` YAZILMAZ: yazılsaydı bu
@@ -179,6 +180,12 @@ _ARGUMANLAR = {
 }
 
 
+#: IZN-B4: ucu YENİ maskeye (`MaskeRotasi`/`Hassas`) geçen araç eski köprü keşfinden düşer; onun
+#: bekçisi `test_hassas_alan_bekcisi.py` + bu dosyadaki `_gizli` testleridir. Modüller geçtikçe
+#: büyür; eski köprü B6'da sökülünce bu dosya yeniden yazılır.
+_YENI_MASKELI_ARACLAR = {"is_kalemleri"}
+
+
 def test_MASKELI_ARAC_KUMESI_ARGUMAN_HARITASIYLA_ESITTIR() -> None:
     """🔴 Parametrize bir test EKSİK girdi için kırmızı OLMAZ, sadece az koşar.
 
@@ -187,7 +194,7 @@ def test_MASKELI_ARAC_KUMESI_ARGUMAN_HARITASIYLA_ESITTIR() -> None:
     sessizliği kapatır.
     """
     assert MASKELI_ARACLAR, "maskeye bağlı HİÇ araç bulunamadı — keşif kırık"
-    assert {s.ad for s in MASKELI_ARACLAR} == set(_ARGUMANLAR)
+    assert {s.ad for s in MASKELI_ARACLAR} == set(_ARGUMANLAR) - _YENI_MASKELI_ARACLAR
 
 
 # --------------------------------------------------------------------------- #
@@ -295,6 +302,15 @@ async def _kapsam(seeded_db, kapsam: Scope, *, moduller: set[str] | None = None)
             )
         ).scalar_one()
         izin.scope = kapsam
+    await seeded_db.flush()
+
+
+async def _gizli(seeded_db, kategoriler: set[HiddenCategory]) -> None:
+    """Rolün YENİ maske bayraklarını (`role_hidden_fields`) TAM değiştirir."""
+    rol_id = (await seeded_db.execute(select(Role.id).where(Role.key == _ROL))).scalar_one()
+    await seeded_db.execute(delete(RoleHiddenField).where(RoleHiddenField.role_id == rol_id))
+    for kategori in kategoriler:
+        seeded_db.add(RoleHiddenField(role_id=rol_id, category=kategori))
     await seeded_db.flush()
 
 
@@ -430,15 +446,14 @@ async def test_MASKELI_proje_detayi_PARAYI_gizler_OPERASYONELI_BIRAKIR(
     assert sonuc.data["progress_pct"] == "13.50"
 
 
-async def test_MASKELI_is_kalemleri_IKI_KOVAYI_AYRI_gizler(
+async def test_MASKELI_is_kalemleri_KATEGORIYE_gore_gizler(
     seeded_db, maske_kurulumu, transport_factory, actor_factory
 ) -> None:
-    """`boq` iki kovadan da alan taşır: `unit_price` PARA, `quantity` OPERASYONEL.
+    """IZN-B4: AI aracı ucu saran gerçek `GET`tir; ucun YENİ maskesi (`Hassas`) aynen geçerlidir.
 
-    Tek bir kapsamla ölçmek yetmezdi: "hepsini gizle" diyen bozuk bir maske de
-    `limited` iddiasını geçerdi. İki kapsam birbirinin pozitif kontrolüdür.
-    """
-    await _kapsam(seeded_db, Scope.limited, moduller={"boq"})
+    `sozlesme_fiyat` gizliyken birim fiyat + türevler düşer, metraj durur; ilgisiz kategori
+    (`maliyet_kar`) gizliyken fiyat AÇIK: iki durum birbirinin pozitif kontrolüdür."""
+    await _gizli(seeded_db, {HiddenCategory.sozlesme_fiyat})
     sinirli = await _cagir("is_kalemleri", maske_kurulumu, transport_factory, actor_factory)
     assert isinstance(sinirli, Ok)
     kalem = sinirli.data["gruplar"][0]["items"][0]
@@ -446,12 +461,11 @@ async def test_MASKELI_is_kalemleri_IKI_KOVAYI_AYRI_gizler(
     assert kalem["quantity"] == "21500.000"
     assert sinirli.data["grand_total"] is None
 
-    await _kapsam(seeded_db, Scope.finance, moduller={"boq"})
-    mali = await _cagir("is_kalemleri", maske_kurulumu, transport_factory, actor_factory)
-    assert isinstance(mali, Ok)
-    mali_kalem = mali.data["gruplar"][0]["items"][0]
-    assert mali_kalem["quantity"] is None
-    assert mali_kalem["unit_price"] == "312.00"
+    await _gizli(seeded_db, {HiddenCategory.maliyet_kar})
+    acik = await _cagir("is_kalemleri", maske_kurulumu, transport_factory, actor_factory)
+    assert isinstance(acik, Ok)
+    assert acik.data["gruplar"][0]["items"][0]["unit_price"] == "312.00"
+    assert acik.data["grand_total"] == _POZ_TUTAR
 
 
 async def test_MASKELI_arsa_payi_PAY_YUZDESINI_gizlemez(
@@ -502,7 +516,7 @@ async def test_ARDISIK_ARAC_CAGRILARI_BIRBIRININ_KAPSAMINI_TASIMAZ(
     tek yönlü bir deney yalnız "önceki dar" hâlini ölçerdi.
     """
     await _kapsam(seeded_db, Scope.limited, moduller={"projects"})
-    await _kapsam(seeded_db, Scope.all, moduller={"boq"})
+    await _gizli(seeded_db, set())
 
     proje = await _cagir("proje_detayi", maske_kurulumu, transport_factory, actor_factory)
     boq = await _cagir("is_kalemleri", maske_kurulumu, transport_factory, actor_factory)
@@ -513,7 +527,7 @@ async def test_ARDISIK_ARAC_CAGRILARI_BIRBIRININ_KAPSAMINI_TASIMAZ(
 
     # Ters sıra: bu kez geniş kapsam önce koşar ve dar olanı AÇMAMALIDIR.
     await _kapsam(seeded_db, Scope.all, moduller={"projects"})
-    await _kapsam(seeded_db, Scope.limited, moduller={"boq"})
+    await _gizli(seeded_db, {HiddenCategory.sozlesme_fiyat})
 
     proje2 = await _cagir("proje_detayi", maske_kurulumu, transport_factory, actor_factory)
     boq2 = await _cagir("is_kalemleri", maske_kurulumu, transport_factory, actor_factory)

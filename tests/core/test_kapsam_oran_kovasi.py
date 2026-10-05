@@ -1,35 +1,37 @@
-"""PARADAN TÜREYEN ORANLAR `para` kovasındadır (kullanıcı kararı 2026-09-19).
+"""PARADAN TÜREYEN ORANLAR para KATEGORİSİNDEDİR (kullanıcı kararı 2026-09-19).
+
+IZN-B4'te eski `Gorunurluk` kovaları `Hassas` etiketlerine taşındı.
 
 ## Neden ayrı bir bekçi
 
-`test_para_alani_siniflandirmasi` bir alanın ETİKETLİ OLDUĞUNU şart koşar, ama
-HANGİ KOVADA olduğunu ölçmez. Bu ayrım ölçülmezse bir etiketi sessizce ters
+`test_hassas_alan_bekcisi` bir alanın ETİKETLİ OLDUĞUNU şart koşar, ama
+HANGİ KATEGORİDE olduğunu ölçmez. Bu ayrım ölçülmezse bir etiketi sessizce ters
 çevirmek hiçbir testi kırmaz — nitekim mutasyonla ölçüldü: `progress_pct`i
-`operasyonel`e geri almak TÜM kümeyi yeşil bıraktı. Kararın kendisi bekçisizdi.
+`Hassas.yok`a geri almak TÜM kümeyi yeşil bıraktı. Kararın kendisi bekçisizdi.
 
 ## Karar
 
 Bir oran, GİRDİLERİ paradan geliyorsa PARADIR. Aksi hâlde iki kusur birden doğar:
 
-* `limited` rol bedeli göremezken ORANI görür — ve oran, gizlenen bedeli dolaylı
+* bedeli gizli rol bedeli göremezken ORANI görür — ve oran, gizlenen bedeli dolaylı
   olarak ele verir (kümülatif brüt biliniyorsa bedel `brüt / oran`dır).
-* `finance` rol (muhasebe) kendi ASIL metriğini göremez: tahsilat oranı ve
-  finansal ilerleme muhasebenin işidir.
+* (IZN-B4: eski `finance` kapsamı karşılıksızdır; muhasebe artık hiçbir şeyi gizlemez, yani
+  "muhasebe kendi metriğini görür" kuralı gizli kategorisi olmayan rol için geçerlidir.)
 
 Emsal: `projects/land_share_schemas.py`deki `our_actual_pct` · `owner_actual_pct`
-· `deviation_pct` — üçü de değerden türer ve ÜÇÜ DE `para` etiketlidir.
+· `deviation_pct` — üçü de değerden türer ve ÜÇÜ DE para kategorili etiketlidir.
 
 ## Karşıt emsal (bilerek DIŞARIDA)
 
 FİZİKSEL ilerleme (`projects` kartlarındaki `physical_progress`, BOQ'un
-`progress_pct`i) şantiye günlüğünden türer, paradan DEĞİL — o `operasyonel`
+`progress_pct`i) şantiye günlüğünden türer, paradan DEĞİL — o `Hassas.yok`
 kalır ve bu ayrım KASITLIDIR (`boq/schemas.py` docstring'i gerekçelendirir).
 """
 
 from decimal import Decimal
 
-from app.core.access import Scope
-from app.core.field_scope import Gorunurluk, maskele
+from app.core.field_mask import MaskeKumeleri, etiketler, maskele
+from app.core.sayfalar import HiddenCategory
 
 #: Paradan türediği ÖLÇÜLMÜŞ oranlar: (şema, alan, üreticisinin formülü).
 #: Yeni bir para-oranı eklendiğinde buraya da eklenir; liste kararın kendisidir.
@@ -39,32 +41,32 @@ PARA_ORANLARI = [
 ]
 
 
-def _alan_kovalari(modul_key: str, sema_adi: str, alan_adi: str) -> set[Gorunurluk]:
+def _alan_etiketleri(modul_key: str, sema_adi: str, alan_adi: str) -> frozenset:
     import importlib
 
     mod = importlib.import_module(f"app.modules.{modul_key}.schemas")
-    alan = getattr(mod, sema_adi).model_fields[alan_adi]
-    return {meta for meta in alan.metadata if isinstance(meta, Gorunurluk)}
+    return etiketler(getattr(mod, sema_adi).model_fields[alan_adi])
 
 
-def test_PARADAN_tureyen_oranlar_PARA_kovasindadir() -> None:
+def test_PARADAN_tureyen_oranlar_PARA_kategorisindedir() -> None:
+    from app.core.field_mask import Hassas
+
     yanlis = {
-        f"{sema}.{alan} ({formul})": sorted(k.value for k in _alan_kovalari(modul, sema, alan))
+        f"{sema}.{alan} ({formul})": sorted(k.value for k in _alan_etiketleri(modul, sema, alan))
         for modul, sema, alan, formul in PARA_ORANLARI
-        if Gorunurluk.para not in _alan_kovalari(modul, sema, alan)
+        if not (_alan_etiketleri(modul, sema, alan) - {Hassas.yok})
     }
     assert not yanlis, (
-        "Paradan türeyen bir oran `para` kovasında DEĞİL. `operasyonel` etiketlemek "
-        "iki kusur birden üretir: `limited` rol oranı görüp gizlenen bedeli dolaylı "
-        f"öğrenir, `finance` rol kendi asıl metriğini göremez. {yanlis}"
+        "Paradan türeyen bir oran para kategorisinde DEĞİL (`Hassas.yok`/etiketsiz): bedeli "
+        "gizli rol oranı görüp gizlenen bedeli dolaylı öğrenir (brüt ÷ oran = bedel). "
+        f"{yanlis}"
     )
 
 
-def test_oran_LIMITEDDE_gizlenir_FINANCETA_GORUNUR() -> None:
+def test_oran_SOZLESME_FIYATI_gizliyken_gizlenir_gizli_olmayan_rolde_GORUNUR() -> None:
     """🔴 Etiket bir NİYETTİR; bu test onun DAVRANIŞA dönüştüğünü ölçer.
 
-    Yalnız etiketi çakan bir test, maskenin kova eşlemesi bozulursa (ör. `para`
-    artık `limited`te gizlenmez olursa) yine yeşil kalırdı.
+    Yalnız etiketi çakan bir test, maskenin kategori eşlemesi bozulursa yine yeşil kalırdı.
     """
     from app.modules.contracts.schemas import ContractListItem
 
@@ -80,12 +82,14 @@ def test_oran_LIMITEDDE_gizlenir_FINANCETA_GORUNUR() -> None:
         status="active",
         is_draft=False,
     )
+    sozlesme_gizli = MaskeKumeleri(varsayilan=frozenset({HiddenCategory.sozlesme_fiyat}))
+    maas_gizli = MaskeKumeleri(varsayilan=frozenset({HiddenCategory.maas_kisisel}))
 
-    assert maskele(kayit, Scope.limited).progress_pct is None, "oran `limited`te SIZDI"
-    assert maskele(kayit, Scope.finance).progress_pct == Decimal("42.50"), (
-        "oran `finance`ta YANLIŞLIKLA gizlendi — muhasebe kendi metriğini göremez"
+    assert maskele(kayit, sozlesme_gizli).progress_pct is None, "oran gizli kümede SIZDI"
+    assert maskele(kayit, maas_gizli).progress_pct == Decimal("42.50"), (
+        "oran ALAKASIZ kategoride YANLIŞLIKLA gizlendi"
     )
-    # 🔴 POZİTİF KONTROL: kısıtsız kapsamda değer BOZULMAZ.
-    assert maskele(kayit, Scope.all).progress_pct == Decimal("42.50")
-    # Kimlik alanı hiçbir kapsamda gizlenmez.
-    assert maskele(kayit, Scope.limited).title == "A Blok Kaba İnşaat"
+    # 🔴 POZİTİF KONTROL: hiçbir şey gizli değilken değer BOZULMAZ.
+    assert maskele(kayit, MaskeKumeleri()).progress_pct == Decimal("42.50")
+    # Kimlik alanı hiçbir kümede gizlenmez.
+    assert maskele(kayit, sozlesme_gizli).title == "A Blok Kaba İnşaat"

@@ -15,7 +15,8 @@ import pytest
 from sqlalchemy import event, select
 
 from app.core import last_price
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
+from app.core.sayfalar import HiddenCategory
 from app.modules.catalog.models import ContractorType, EvCatalogItem, EvDiscipline
 from app.modules.catalog.service import next_poz_no
 from app.modules.contracts.models import EmployerContractGroup, EmployerContractItem
@@ -26,6 +27,7 @@ from app.modules.progress_payments.models import (
 )
 from app.modules.projects.models import ProjectContract
 from app.modules.sites.models import Site
+from tests._hassas_alan import rol_gizle
 
 from .._boq import _auth, _login_with_access, _set_permission
 
@@ -385,7 +387,8 @@ async def test_limited_kapsamda_last_price_none_fiyatli_kalemde(
 ) -> None:
     p, g, _ = await _proje(seeded_db, project_factory, "PRJ-A")
     await _kalem(seeded_db, p, g, katalog[0], "75.00", T0)
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.limited)
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await rol_gizle(db_session, "accounting", HiddenCategory.sozlesme_fiyat)
     token = await _login_with_access(
         client, db_session, user_factory, "accounting", f"l.{uuid.uuid4().hex[:6]}@tkl.co"
     )

@@ -16,21 +16,20 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.discipline_scope import UNRESTRICTED
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
-from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku, kapsamla_maskele
+from app.core.permissions import require_permission
 from app.modules.catalog import queries
 from app.modules.catalog.export import FILENAME, build_catalog_workbook
 from app.modules.catalog.schemas import WorkItemListResponse
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-# 🔴 KAPSAM MASKESI — IKI PARCA DA GEREKLI (bkz. `catalog/router.py`).
+# HASSAS ALAN MASKESİ (IZN-B4): `MaskeRotasi` tek parça (bağlamı kendisi ekler).
 router = APIRouter(
     tags=["catalog"],
     responses=COMMON_ERROR_RESPONSES,
-    route_class=kapsam_rotasi("contracts", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("contracts")],
+    route_class=MaskeRotasi,
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)
@@ -49,7 +48,7 @@ async def export_catalog_endpoint(
 ) -> Response:
     """Fiyatli katalog xlsx — liste ucuyla AYNI suzgecler (`q`, `discipline_id`)."""
     items = await queries.list_items(session, UNRESTRICTED, q=q, discipline_id=discipline_id)
-    masked = kapsamla_maskele(WorkItemListResponse(items=items), "contracts")
+    masked = await maskele_baglamli(WorkItemListResponse(items=items))
     return Response(
         content=build_catalog_workbook(masked.items).getvalue(),
         media_type=XLSX_MEDIA_TYPE,

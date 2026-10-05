@@ -13,11 +13,11 @@ from typing import Annotated
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.offers.offer_schemas import GroupName, Pct, ProfitPct, SortOrder
 
-_Id = Gorunurluk.kimlik
+_Id = Hassas.yok
 _STRICT = ConfigDict(extra="forbid")
 _NULL_REJECTED = "Alan boşaltılamaz; değiştirmemek için gövdeden çıkarın."
 
@@ -46,8 +46,8 @@ class TemplateCreate(BaseModel):
 
     name: TemplateName
     description: TemplateDescription | None = None
-    overhead_pct: Pct | None = None
-    profit_pct: ProfitPct | None = None
+    overhead_pct: Annotated[Pct | None, Hassas.yok] = None
+    profit_pct: Annotated[ProfitPct | None, Hassas.yok] = None
 
 
 class TemplateUpdate(BaseModel):
@@ -58,8 +58,8 @@ class TemplateUpdate(BaseModel):
 
     name: TemplateName | None = None
     description: TemplateDescription | None = None
-    overhead_pct: Pct | None = None
-    profit_pct: ProfitPct | None = None
+    overhead_pct: Annotated[Pct | None, Hassas.yok] = None
+    profit_pct: Annotated[ProfitPct | None, Hassas.yok] = None
     is_default: bool | None = None
     expected_updated_at: ExpectedUpdatedAt
 

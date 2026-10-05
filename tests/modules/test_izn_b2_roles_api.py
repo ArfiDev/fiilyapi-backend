@@ -449,34 +449,27 @@ async def test_put_pages_tekrar_yazimi_yinelenen_satir_acmaz(client, izn_db, use
 
 
 # ---------------------------------------------------------------------------
-# hidden_fields_effective (CEO hibrit kapsam kararı)
+# hidden_fields_effective (IZN-B4: yeni maske her rolde geçerli -> HER ZAMAN true)
 # ---------------------------------------------------------------------------
 
 
-async def test_hidden_fields_effective_eski_satirli_rolde_false_satirsiz_rolde_true(
-    client, izn_db, user_factory
-):
+async def test_hidden_fields_effective_her_rolde_true(client, izn_db, user_factory):
     admin = await _giris(client, user_factory, "system_admin")
-    muhasebe = await _rol(izn_db, "accounting")  # 8 seed rolden: eski satırları var
-    viewer = await _rol(izn_db, "viewer")  # satırsız yeni rol
+    muhasebe = await _rol(izn_db, "accounting")  # eski satırlı seed rol (eskiden false)
+    viewer = await _rol(izn_db, "viewer")
     eski = (await client.get(f"/roles/{muhasebe.id}/pages", headers=admin)).json()
     yeni = (await client.get(f"/roles/{viewer.id}/pages", headers=admin)).json()
-    assert eski["hidden_fields_effective"] is False
+    assert eski["hidden_fields_effective"] is True
     assert yeni["hidden_fields_effective"] is True
-    # PUT yanıtında da bulunur ve aynı kuralı izler.
+    # PUT yanıtında da true.
     govde = {"pages": eski["pages"], "hidden_fields": ["maas_kisisel"]}
     put = await client.put(f"/roles/{muhasebe.id}/pages", json=govde, headers=admin)
-    assert put.json()["hidden_fields_effective"] is False
-    # Kopya kaynakla AYNI davranır: eski satırlı kaynağın kopyası false, satırsız kaynağınki true.
+    assert put.json()["hidden_fields_effective"] is True
+    # Kopya rol da true.
     kopya = await client.post(
         f"/roles/{muhasebe.id}/copy", json={"name": "Muh Kopya"}, headers=admin
     )
     govde = (await client.get(f"/roles/{kopya.json()['id']}/pages", headers=admin)).json()
-    assert govde["hidden_fields_effective"] is False
-    viewer_kopya = await client.post(
-        f"/roles/{viewer.id}/copy", json={"name": "Viewer Kopya"}, headers=admin
-    )
-    govde = (await client.get(f"/roles/{viewer_kopya.json()['id']}/pages", headers=admin)).json()
     assert govde["hidden_fields_effective"] is True
 
 

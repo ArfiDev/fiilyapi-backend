@@ -16,7 +16,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.modules.offers.models import MAX_PCT, MAX_PROFIT_PCT, MAX_VALIDITY_DAYS
 
 PAYMENT_TERMS_MAX_LEN = 2000
@@ -27,9 +27,15 @@ class OfferSettingsUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    default_overhead_pct: Decimal = Field(ge=0, le=MAX_PCT, max_digits=5, decimal_places=2)
-    default_profit_pct: Decimal = Field(ge=0, le=MAX_PROFIT_PCT, max_digits=6, decimal_places=2)
-    default_vat_pct: Decimal = Field(ge=0, le=MAX_PCT, max_digits=5, decimal_places=2)
+    default_overhead_pct: Annotated[Decimal, Hassas.yok] = Field(
+        ge=0, le=MAX_PCT, max_digits=5, decimal_places=2
+    )
+    default_profit_pct: Annotated[Decimal, Hassas.yok] = Field(
+        ge=0, le=MAX_PROFIT_PCT, max_digits=6, decimal_places=2
+    )
+    default_vat_pct: Annotated[Decimal, Hassas.yok] = Field(
+        ge=0, le=MAX_PCT, max_digits=5, decimal_places=2
+    )
     default_validity_days: int = Field(ge=1, le=MAX_VALIDITY_DAYS)
     default_payment_terms: str = Field(min_length=1, max_length=PAYMENT_TERMS_MAX_LEN)
 
@@ -45,9 +51,9 @@ class OfferSettingsUpdate(BaseModel):
 class OfferSettingsRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    default_overhead_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    default_profit_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    default_vat_pct: Annotated[Decimal, Gorunurluk.kimlik]
+    default_overhead_pct: Annotated[Decimal, Hassas.yok]
+    default_profit_pct: Annotated[Decimal, Hassas.yok]
+    default_vat_pct: Annotated[Decimal, Hassas.yok]
     default_validity_days: int
     default_payment_terms: str
     updated_at: datetime
