@@ -139,8 +139,8 @@ async def me(
         cells = {cell.page_key: (cell.level, cell.can_approve) for cell in rows}
         hidden_fields = await list_role_hidden_categories(session, user.role_id)
     matrix = await derived_role_matrix(session, user.role_id, user.role.key, cells)
-    # "Tüm projeler" kişide ekip satırı YOK SAYILIR: ana rolle çalışır (KARARLAR §1.7).
-    team = [] if user.all_projects else await load_team(session, user.id)
+    # "Tüm projeler" ve Sistem Yöneticisi kişide ekip satırı YOK SAYILIR: ana rolle çalışır.
+    team = [] if (user.all_projects or admin) else await load_team(session, user.id)
     return MeResponse(
         id=user.id,
         email=user.email,

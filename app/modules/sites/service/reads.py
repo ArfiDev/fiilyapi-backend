@@ -2,12 +2,13 @@
 
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # BOLUM BOQ SAYACLARININ (`boq_item_count` · `budget`) TEK kaynagi (BLM-SAY):
 # `timesheet` ile ayni gerekce — `sites` kendi tahsis sorgusunu yazmaz.
 from app.core.discipline_scope import DisciplineScope
-from app.core.permissions import can_read
+from app.core.permissions import can_read_projects
 from app.modules.boq import counts as boq_counts
 from app.modules.boq import progress as boq_progress
 from app.modules.projects.models import Project
@@ -79,9 +80,24 @@ async def section_progress_map(
     `to_section` varsayilani `restricted()`e duser — yani gunlukten turemis
     hicbir sayi o role ULASMAZ ve zarf sahte bir gerekce de SOYLEMEZ.
     """
-    if not section_ids or not await can_read(session, actor, _SITE_DIARY):
+    if not section_ids:
         return {}
-    yuzdeler = await boq_progress.physical_for_sections(session, section_ids, scope)
+    # IZN-B3: alan kapisi PROJE BASINA (bolumun projesindeki rol); ana rol degil.
+    proje_of = {
+        sid: pid
+        for sid, pid in (
+            await session.execute(
+                select(Section.id, Site.project_id)
+                .join(Site, Site.id == Section.site_id)
+                .where(Section.id.in_(section_ids))
+            )
+        ).all()
+    }
+    izin = await can_read_projects(session, actor, _SITE_DIARY, sorted(set(proje_of.values())))
+    izinli_ids = [sid for sid in section_ids if izin.get(proje_of.get(sid), False)]
+    if not izinli_ids:
+        return {}
+    yuzdeler = await boq_progress.physical_for_sections(session, izinli_ids, scope)
     return {sid: metric(pct, _SITE_DIARY) for sid, pct in yuzdeler.items()}
 
 
@@ -90,9 +106,19 @@ async def site_progress_map(
 ) -> dict[uuid.UUID, MetricPlaceholder]:
     """Santiye -> fiziksel ilerleme zarfi. `section_progress_map`in kardesi;
     ayni izin kapisina (K4) bakar, yalniz kapsami SANTIYE'dir."""
-    if not site_ids or not await can_read(session, actor, _SITE_DIARY):
+    if not site_ids:
         return {}
-    yuzdeler = await boq_progress.physical_for_sites(session, site_ids, scope)
+    proje_of = {
+        sid: pid
+        for sid, pid in (
+            await session.execute(select(Site.id, Site.project_id).where(Site.id.in_(site_ids)))
+        ).all()
+    }
+    izin = await can_read_projects(session, actor, _SITE_DIARY, sorted(set(proje_of.values())))
+    izinli_ids = [sid for sid in site_ids if izin.get(proje_of.get(sid), False)]
+    if not izinli_ids:
+        return {}
+    yuzdeler = await boq_progress.physical_for_sites(session, izinli_ids, scope)
     return {sid: metric(pct, _SITE_DIARY) for sid, pct in yuzdeler.items()}
 
 

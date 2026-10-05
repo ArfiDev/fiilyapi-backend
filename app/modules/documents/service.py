@@ -23,12 +23,14 @@ from typing import NamedTuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import AccessLevel
 from app.core.errors import (
     DocumentValidationError,
     DuplicateError,
     NotFoundError,
     RelatedRecordsExistError,
 )
+from app.core.page_gate import gate_flags
 from app.modules.audit import messages
 from app.modules.documents import files, guards, repository
 from app.modules.documents.models import Document, DocumentFolder
@@ -41,6 +43,10 @@ from app.modules.sites.models import Site
 from app.modules.users.models import User
 
 PERMISSION_MODULE = "documents"
+
+#: IZN-B3: belge görünürlüğü O PROJEDEKİ rolün belge sayfalarını Görmesine bağlıdır; çiftler AÇIKÇA
+#: verilir (kapısız yollar — örn. personel kendi izin talebine belge bağlar — üyelikle yetinemez).
+_BELGE_GORUR = gate_flags(PERMISSION_MODULE, AccessLevel.view)
 """Spec §7 S2 (ONAYLI): arşivin kendi izin modülü (20., grup MALI).
 
 `contracts`/`sales` satırlarından bilinçli olarak ayrışır — arşiv gizli veri
@@ -74,7 +80,7 @@ async def visible_project(session: AsyncSession, actor: User, project_id: uuid.U
     Metin `sites` modülünün TEK cümlesidir (kopya üretilmez): iki modül aynı
     kayıt için farklı cümle dönerse fark, kaydın varlığını sızdırır.
     """
-    visible = await visible_projects(session, actor)
+    visible = await visible_projects(session, actor, pairs=_BELGE_GORUR)
     project = next((p for p in visible if p.id == project_id), None)
     if project is None:
         raise NotFoundError(guards.PROJECT_MISSING)
@@ -90,7 +96,7 @@ async def visible_folder(session: AsyncSession, actor: User, folder_id: uuid.UUI
     folder = await repository.get_folder(session, folder_id)
     if folder is None:
         raise NotFoundError(guards.FOLDER_MISSING)
-    visible = await visible_projects(session, actor)
+    visible = await visible_projects(session, actor, pairs=_BELGE_GORUR)
     project = next((p for p in visible if p.id == folder.project_id), None)
     if project is None:
         raise NotFoundError(guards.FOLDER_MISSING)
@@ -325,7 +331,7 @@ async def visible_document(
     document = await repository.get_document(session, document_id)
     if document is None:
         raise NotFoundError(guards.DOCUMENT_MISSING)
-    visible = await visible_projects(session, actor)
+    visible = await visible_projects(session, actor, pairs=_BELGE_GORUR)
     project = next((p for p in visible if p.id == document.project_id), None)
     if project is None:
         raise NotFoundError(guards.DOCUMENT_MISSING)

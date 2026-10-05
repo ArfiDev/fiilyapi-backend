@@ -12,6 +12,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import restricted_project_ids
 from app.modules.progress_payments import calculations
 from app.modules.projects.service import visible_projects
 from app.modules.subcontractor_progress_payments import amounts, repository
@@ -136,7 +137,9 @@ async def list_payments(
 ) -> SubcontractorProgressPaymentListResponse:
     """Kapsam SQL'de kalır: süzgeç `visible_projects`ten türeyen kimlik listesidir,
     ikinci bir görünürlük kararı VERİLMEZ (spec §9.0)."""
-    visible_ids = [p.id for p in await visible_projects(session, actor)]
+    # IZN-B3: disiplinle KISITLI projelerin hakedisleri listeden DISARIDA kalir (Ü2).
+    kisitli = await restricted_project_ids(session, actor.id)
+    visible_ids = [p.id for p in await visible_projects(session, actor) if p.id not in kisitli]
     filters = {
         "project_id": project_id,
         "site_id": site_id,

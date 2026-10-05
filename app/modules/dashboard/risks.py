@@ -73,8 +73,8 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
-from app.core.permissions import can_read
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, restricted_project_ids
+from app.core.permissions import can_read, can_read_projects
 from app.core.timezone import today
 from app.modules.contracts.models import SubcontractorContract
 from app.modules.dashboard.schemas import (
@@ -326,14 +326,26 @@ async def build_risks(
     Gorunur projeler kaynak basina degil BIR KEZ okunur; hicbir kaynagin izni
     yoksa HIC okunmaz (izinsiz aktor kapsam sorgusunu odemez).
     """
-    izinler = {
-        STOCK_MODULE: await can_read(session, actor, STOCK_MODULE),
-        # DSC-B5 (Ü2): hakedis kaynagi ticari → disiplin kisitlisina KAPALI (gecikme uyarisi yok).
-        PROGRESS_PAYMENT_MODULE: (
-            await can_read(session, actor, PROGRESS_PAYMENT_MODULE) and not scope.is_restricted
-        ),
-        SCHEDULE_MODULE: await can_read(session, actor, SCHEDULE_MODULE),
-    }
+    # IZN-B3: alan kapisi PROJE BASINA (her projede O PROJEDEKI rolun Gorur'u; ekipte olmayan /
+    # "Tum projeler" kisi ana rolle). Gorunur projeler BIR KEZ okunur.
+    gorunur = [p.id for p in await visible_projects(session, actor)]
+    kisitli = await restricted_project_ids(session, actor.id)  # DSC-B5 (Ü2): hakedis ticari
+    projeler: dict[str, list[uuid.UUID]] = {}
+    for module in (STOCK_MODULE, PROGRESS_PAYMENT_MODULE, SCHEDULE_MODULE):
+        izin = await can_read_projects(session, actor, module, gorunur)
+        projeler[module] = [
+            pid
+            for pid in gorunur
+            if izin[pid] and not (module == PROGRESS_PAYMENT_MODULE and pid in kisitli)
+        ]
+    if gorunur:
+        izinler = {module: bool(ids) for module, ids in projeler.items()}
+    else:  # projesi olmayan aktor: kart, ana rolun iznini yansitir (bos liste, "restricted" degil)
+        izinler = {
+            STOCK_MODULE: await can_read(session, actor, STOCK_MODULE),
+            PROGRESS_PAYMENT_MODULE: await can_read(session, actor, PROGRESS_PAYMENT_MODULE),
+            SCHEDULE_MODULE: await can_read(session, actor, SCHEDULE_MODULE),
+        }
     sources = [
         RiskSource(
             module=module,
@@ -344,14 +356,13 @@ async def build_risks(
     if not any(izinler.values()):
         return RiskAlertsPlaceholder(available=False, items=[], sources=sources)
 
-    project_ids = [p.id for p in await visible_projects(session, actor)]
     alerts: list[RiskAlert] = []
     if izinler[STOCK_MODULE]:
-        alerts += await _stock_alerts(session, project_ids)
+        alerts += await _stock_alerts(session, projeler[STOCK_MODULE])
     if izinler[PROGRESS_PAYMENT_MODULE]:
-        alerts += await _overdue_payment_alerts(session, project_ids)
+        alerts += await _overdue_payment_alerts(session, projeler[PROGRESS_PAYMENT_MODULE])
     if izinler[SCHEDULE_MODULE]:
-        alerts += await _schedule_alerts(session, project_ids)
+        alerts += await _schedule_alerts(session, projeler[SCHEDULE_MODULE])
     # 🔴 ANAHTARDA `alert.detail` YOKTUR ve bu bir eksiklik DEGIL SARTTIR.
     # Gecikme satirlarinin `title`i SABITTIR ("Hakediş gecikmiş"); `detail`
     # anahtara girerse ayni siddet grubunun ICINDEKI tek ayirt edici anahtar o

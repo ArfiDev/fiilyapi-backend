@@ -80,9 +80,9 @@ async def test_ayni_kisi_A_da_yazar_B_de_goruntuleyici_yazamaz(
 
     ok = await client.post(_gunluk_yolu(site_a), json=_gunluk(4), headers=baslik)
     assert ok.status_code == 201, ok.text
-    # B'de rol Görüntüleyici: yazma ucu için B GÖRÜNMEZ (404); okuma 200.
+    # B'de rol Görüntüleyici: yazma kapısı O PROJEDEKİ rolle karar verir (403); okuma 200.
     yok = await client.post(_gunluk_yolu(site_b), json=_gunluk(4), headers=baslik)
-    assert yok.status_code == 404, yok.text
+    assert yok.status_code == 403, yok.text
     assert (await client.get(_gunluk_yolu(site_b), headers=baslik)).status_code == 200
     assert (await client.get(_gunluk_yolu(site_a), headers=baslik)).status_code == 200
 
@@ -103,7 +103,7 @@ async def test_ana_rolu_yazar_olan_kisi_B_de_goruntuleyiciyse_B_yi_yazamaz(
         await client.post(_gunluk_yolu(site_a), json=_gunluk(5), headers=baslik)
     ).status_code == 201
     yok = await client.post(_gunluk_yolu(site_b), json=_gunluk(5), headers=baslik)
-    assert yok.status_code == 404, yok.text
+    assert yok.status_code == 403, yok.text
     assert (await client.get(_gunluk_yolu(site_b), headers=baslik)).status_code == 200
 
 

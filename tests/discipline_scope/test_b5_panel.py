@@ -9,6 +9,8 @@ Atamasız admin gövdesinin birebirliği: `test_b4_golden_atamasiz.py::b4_panel`
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from httpx import AsyncClient
 
 from tests.discipline_scope._b4_dunya import DunyaB4
@@ -26,13 +28,17 @@ def _kaynak(govde: dict) -> dict[str, str]:
     return {s["module"]: s["state"] for s in govde["risks"]["sources"]}
 
 
-async def test_kisitlida_hakedis_kaynagi_restricted_ve_portfoy_kapali(
+async def test_kisitli_projenin_hakedisi_panelden_cikar_kisitsiz_projeninki_kalir(
     client: AsyncClient, dunya_b4: DunyaB4
 ) -> None:
+    """IZN-B3: disiplin PROJE BASINA. `civil` P1'de kisitli → P1 hakedisi portfoy toplamina GIRMEZ;
+    P2'de atamasiz → o proje (hakedissiz: 0.00) toplamda kalir; kaynak "ok" (P2 izinli)."""
     civil = await _panel(client, dunya_b4, "civil")
-    assert _kaynak(civil)[MODUL] == "restricted"
-    assert civil["portfolio"]["available"] is False
-    assert civil["portfolio"]["value"] is None
+    pm = await _panel(client, dunya_b4, "pm_atamasiz")
+    assert _kaynak(civil)[MODUL] == "ok"
+    assert civil["portfolio"]["available"] is True
+    assert Decimal(civil["portfolio"]["value"]) == Decimal("0")  # yalniz P2 (hakedissiz)
+    assert Decimal(pm["portfolio"]["value"]) > Decimal("0")  # P1 onayli hakedisi dahil
     assert all(a["module"] != MODUL for a in civil["risks"]["items"])
 
 

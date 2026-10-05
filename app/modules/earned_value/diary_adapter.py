@@ -704,7 +704,16 @@ async def submit_blockers(session: AsyncSession, ctx: SubmitContext) -> list[Sub
         return []
     reasons: list[SubmitReason] = []
     actor = await session.get(User, ctx.actor_id)
-    if actor is None or not await gate_ok(session, actor, PERMISSION_MODULE, AccessLevel.draft):
+    gunluk = await session.get(SiteDiaryEntry, ctx.entry_id)
+    # IZN-B3: planlama yazma yetkisi O PROJEDEKİ rolle ölçülür (günlüğün projesi); bağlama yazmaz.
+    if actor is None or not await gate_ok(
+        session,
+        actor,
+        PERMISSION_MODULE,
+        AccessLevel.draft,
+        project_id=gunluk.project_id if gunluk is not None else None,
+        record=False,
+    ):
         reasons.append(
             SubmitReason(
                 SUBMIT_NO_PERMISSION,

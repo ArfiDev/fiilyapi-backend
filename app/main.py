@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from app.core.bootstrap import ensure_company, ensure_first_admin
 from app.core.config import Settings, settings
 from app.core.exception_handlers import register_exception_handlers
-from app.core.project_access import gate_request_scope
+from app.core.gate_context import gate_request_scope
 from app.core.ratelimit import limiter, rate_limit_exceeded_handler
 from app.core.router_registry import ROUTERS
 

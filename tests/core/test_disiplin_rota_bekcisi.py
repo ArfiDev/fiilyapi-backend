@@ -471,11 +471,13 @@ def test_require_unrestricted_delete_isteklerini_atlar_diger_metotlarda_kisitliy
 
     from fastapi import HTTPException  # noqa: PLC0415
 
-    kisitli = SimpleNamespace(is_restricted=True)
-    asyncio.run(require_unrestricted(SimpleNamespace(method="DELETE"), kisitli))  # type: ignore[arg-type]
+    kisitli = SimpleNamespace(is_restricted=True, is_multi_project=False)
+    asyncio.run(require_unrestricted(SimpleNamespace(method="DELETE", path_params={}), kisitli))  # type: ignore[arg-type]
     for metot in ("GET", "POST", "PUT", "PATCH"):
         try:
-            asyncio.run(require_unrestricted(SimpleNamespace(method=metot), kisitli))  # type: ignore[arg-type]
+            asyncio.run(
+                require_unrestricted(SimpleNamespace(method=metot, path_params={}), kisitli)
+            )  # type: ignore[arg-type]
         except HTTPException as hata:
             assert hata.status_code == 403
         else:

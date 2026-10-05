@@ -23,7 +23,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_page, require_permission
+from app.core.permissions import require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -36,9 +36,12 @@ router = APIRouter(tags=["site-diary"], responses=COMMON_ERROR_RESPONSES)
 
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
 #: IZN-B2 §2.4: "günlüğü yeniden aç" = Günlük Kayıt sayfası ONAYLAR (eşik eski `admin` ile aynı).
-#: NOT: `santiye.gunluk_kayit` (73) ve `bolum.gunluk_kayit_detay` (88) sayfalarının Onaylar biti
-#: B3'e kadar HİÇBİR uca bağlı değildir; yalnız kök sayfa (12) "Yeniden Aç"ı açar.
-_ADMIN = require_page("saha.gunluk_kayit", "approve")
+#: IZN-B3: kök sayfa (12) + proje içi ikizleri (73 şantiye, 88 bölüm detay): rol PROJE BAŞINA,
+#: ikizler olmadan kapı yalnız şirket geneli sayfaya bakar ve ana rol başka projedeki günlüğü
+#: açabilirdi (onarım Orta-1). Seed rollerinde üç sayfanın hücreleri AYNIDIR (karar değişmez).
+_ADMIN = require_pages(
+    ("saha.gunluk_kayit", "santiye.gunluk_kayit", "bolum.gunluk_kayit_detay"), "approve"
+)
 
 
 @router.post("/diary/{entry_id}/submit", response_model=SiteDiaryEntryDetail, dependencies=[_FULL])

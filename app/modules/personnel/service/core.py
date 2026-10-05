@@ -196,7 +196,7 @@ async def has_personnel_admin(session: AsyncSession, actor: User) -> bool:
     zorlar, oysa buradaki kurallar İKİ ayrı yoldan (seviye VEYA sahiplik) açılıp
     kapanır.
     """
-    return await gate_ok(session, actor, PERMISSION_MODULE, AccessLevel.admin)
+    return await gate_ok(session, actor, PERMISSION_MODULE, AccessLevel.admin, record=False)
 
 
 def is_own_personnel_record(personnel: Personnel, actor: User) -> bool:

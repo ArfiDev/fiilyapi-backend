@@ -27,7 +27,7 @@ from fastapi import Depends, HTTPException, Request, status
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, user_scope
-from app.modules.projects.context import resolve_project
+from app.modules.projects.context import request_project
 from app.modules.users.models import User
 
 
@@ -46,7 +46,7 @@ async def resolve_discipline_scope(
     """
     if user.all_projects:
         return UNRESTRICTED
-    project_id = await resolve_project(session, request.url.path, request.path_params)
+    project_id = await request_project(session, request)
     return await user_scope(session, user.id, project_id)
 
 
@@ -65,6 +65,11 @@ async def require_unrestricted(request: Request, scope: DisciplineScoped) -> Non
     yazma uclarinin davranisi DEGISMEDI.
     """
     if request.method == "DELETE":
+        return
+    # IZN-B3: proje baglamsiz LISTE ucu (GET, yol parametresi yok) kisitli oldugu projeler icin 403
+    # DEGIL: kisitli projelerin satirlari servis katmaninda DISARIDA birakilir
+    # (`restricted_project_ids`) — tek-proje ucunun 403'uyle ayni sonuc ("o projenin hakedisi yok").
+    if request.method == "GET" and scope.is_multi_project and not request.path_params:
         return
     if scope.is_restricted:
         raise HTTPException(

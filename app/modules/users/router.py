@@ -236,13 +236,15 @@ async def get_user_access_endpoint(user_id: uuid.UUID, session: DbSession) -> Us
     responses={
         400: {"description": "Son aktif Sistem Yöneticisi düşürülemez"},
         403: {
-            "description": "Atanan rol aktörün yetkilerini aşıyor / Sistem Yöneticisi rolünü "
-            "yalnız Sistem Yöneticisi atar"
+            "description": "Atanan rol aktörün yetkilerini aşıyor · Sistem Yöneticisi rolünü "
+            "yalnız Sistem Yöneticisi atar · Sistem Yöneticisi olmayan aktör KENDİ erişimini "
+            "değiştiremez · `all_projects` işaretini yalnız Sistem Yöneticisi verir/kaldırır · "
+            "Sistem Yöneticisi'nin ana rolünü yalnız Sistem Yöneticisi değiştirir"
         },
         404: {"description": "Kullanıcı ya da rol bulunamadı"},
         422: {
             "description": "`all_projects=true` iken ekip dolu · aynı proje iki kez · bilinmeyen "
-            "proje/rol/disiplin · proje rolü Sistem Yöneticisi"
+            "proje/rol/disiplin · proje rolü Sistem Yöneticisi · Sistem Yöneticisi'ne ekip satırı"
         },
     },
     dependencies=[require_permission("user_management", AccessLevel.full)],

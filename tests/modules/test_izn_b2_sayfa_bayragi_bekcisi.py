@@ -214,7 +214,9 @@ APPROVE_ROUTE_PAGES: dict[tuple[str, str], frozenset[str]] = {
     ("POST", "/subcontractor-progress-payments/{payment_id}/approve"): _HAKEDIS_TASERON,
     ("POST", "/subcontractor-progress-payments/{payment_id}/reject"): _HAKEDIS_TASERON,
     ("POST", "/subcontractor-progress-payments/{payment_id}/mark-paid"): _HAKEDIS_TASERON,
-    ("POST", "/diary/{entry_id}/reopen"): _p("saha.gunluk_kayit"),
+    ("POST", "/diary/{entry_id}/reopen"): _p(
+        "saha.gunluk_kayit", "santiye.gunluk_kayit", "bolum.gunluk_kayit_detay"
+    ),
     ("POST", "/accounting-periods/{year}/{month}/reopen"): _p("mali.donem_kapanisi"),
     ("POST", f"{_DAY}/budget/freeze"): _EV_FREEZE,
     ("POST", f"{_DAY}/reports/daily/{{day}}/approve"): _EV_DAILY,

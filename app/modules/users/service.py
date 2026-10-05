@@ -62,7 +62,7 @@ async def require_assignable_role(session: AsyncSession, actor: User, role_id: u
             "Sistem Yöneticisi rolü yalnızca Sistem Yöneticisi tarafından atanabilir"
         )
 
-    if await page_ok(session, actor, "ayarlar.rol_yonetimi", "edit"):
+    if await page_ok(session, actor, "ayarlar.rol_yonetimi", "edit", record=False):
         return role
 
     if role.is_system:
@@ -101,6 +101,18 @@ async def update_user(
     user = await repository.get_user(session, user_id)
     if user is None:
         raise NotFoundError("Kullanıcı bulunamadı")
+
+    # IZN-B3 (c): hedef Sistem Yöneticisiyse ana rolünü YALNIZ Sistem Yöneticisi değiştirir
+    # (`PUT /users/{id}/access` ile aynı kural; geri alma yönü: yetkisiz aktör SisYön'ü düşüremez).
+    if (
+        data.role_id is not None
+        and data.role_id != user.role_id
+        and await is_admin_role(session, user)
+        and not await is_admin_role(session, actor)
+    ):
+        raise PermissionLockedError(
+            "Sistem Yöneticisi'nin ana rolünü yalnızca Sistem Yöneticisi değiştirebilir"
+        )
 
     demotes_role = data.role_id is not None and data.role_id != user.role_id
     deactivates = data.status is not None and data.status is not UserStatus.active

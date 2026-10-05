@@ -2,6 +2,7 @@ import uuid
 from collections.abc import Iterable
 from decimal import Decimal
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.discipline_scope import (
@@ -155,7 +156,9 @@ async def item_response(session: AsyncSession, item: BoqItem, actor: User) -> Bo
     yuzdeyi KAYBEDER (`build_site_detail` docstring'indeki ayni kanon). Izin de
     burada olculur — yazma ucu okuma kapisini atlayamaz.
     """
-    izinli = await can_read(session, actor, _SITE_DIARY)
+    # IZN-B3: alan kapisi O PROJEDEKI rolle (kalemin santiyesinin projesi).
+    proje_id = await session.scalar(select(Site.project_id).where(Site.id == item.site_id))
+    izinli = await can_read(session, actor, _SITE_DIARY, proje_id)
     realized = (
         (await progress.realized_by_item(session, [item.id])).get(item.id) if izinli else None
     )
@@ -300,7 +303,7 @@ async def get_boq_export_for_site(
     # 🔴 K4: `boq`yu okuyup `site_diary`yi OKUYAMAYAN roller VAR (olculdu:
     # `accounting`, `procurement`). Onlara gunlukten turemis bir yuzde basmak,
     # `site_diary` kapisi hic calismadan o veriyi BOQ ekranindan acardi.
-    izinli = await can_read(session, actor, _SITE_DIARY)
+    izinli = await can_read(session, actor, _SITE_DIARY, site.project_id)  # IZN-B3: proje basina
     realized_totals: dict[uuid.UUID, Decimal] = {}
     grand_progress: MetricPlaceholder | None = restricted()
     if izinli:

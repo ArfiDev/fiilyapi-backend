@@ -211,6 +211,12 @@ def partition_by_project(
     return [(kapsam, parcalar[kapsam]) for kapsam in sirali]
 
 
+async def restricted_project_ids(session: AsyncSession, user_id: uuid.UUID) -> set[uuid.UUID]:
+    """Kullanicinin disiplinle KISITLI oldugu projeler (IZN-B3). "Hakedis kisitliya kapali" (Ü2)
+    kurali liste uclarinda bu projelerin satirlarini DISARIDA birakir (tek-proje ucu 403 verir)."""
+    return set((await user_scope(session, user_id)).by_project or ())
+
+
 def item_discipline_expr(item: Any) -> ColumnElement[Any]:
     """Kalemin disiplini (SQL, tek tanim). Kayit yoksa `NULL` sabiti."""
     if _provider is None:

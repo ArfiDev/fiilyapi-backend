@@ -63,7 +63,11 @@ _HAKEDIS_TASERON = frozenset(
 PAGE_GATE_OLD: dict[tuple[frozenset[str], str], list[tuple[str, AccessLevel]]] = {
     (frozenset({"mali.donem_kapanisi"}), "approve"): [("accounting", L.admin)],
     (frozenset({"ayarlar.onay_rolleri"}), "edit"): [("approvals", L.admin)],
-    (frozenset({"saha.gunluk_kayit"}), "approve"): [("site_diary", L.admin)],
+    # IZN-B3 onarımı: yeniden aç kapısı kök sayfa + proje içi ikizleri (73, 88); hücreler aynı.
+    (
+        frozenset({"saha.gunluk_kayit", "santiye.gunluk_kayit", "bolum.gunluk_kayit_detay"}),
+        "approve",
+    ): [("site_diary", L.admin)],
     (frozenset({"teklif.teklif_hazirlama"}), "approve"): [
         ("projects", L.admin),
         ("contracts", L.full),

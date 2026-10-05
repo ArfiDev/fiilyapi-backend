@@ -67,10 +67,16 @@ def test_her_kapsamli_rota_cozuculu_ya_da_projesizdir() -> None:
     assert not sorunlu, sorunlu
 
 
+def _tum_rota_parametreleri() -> set[tuple[str, str]]:
+    sonuc: set[tuple[str, str]] = set()
+    for ctx in iter_route_contexts(app.routes):
+        if isinstance(ctx.original_route, APIRoute):
+            sonuc |= {(_onek(ctx.path), p) for p in PARAM.findall(ctx.path)}
+    return sonuc
+
+
 def test_cozucu_tablosu_ve_projesiz_liste_bayat_girdi_icermez() -> None:
-    rotalar = _kapsamli_rotalar()
-    kullanilan = {(_onek(yol), p) for _yontem, yol in rotalar for p in PARAM.findall(yol)}
-    bayat = sorted(set(RESOLVERS) - kullanilan)
-    assert not bayat, f"hiçbir kapsamlı rota kullanmıyor: {bayat}"
-    assert set(PROJESIZ_ROTALAR) <= set(rotalar), set(PROJESIZ_ROTALAR) - set(rotalar)
+    bayat = sorted(set(RESOLVERS) - _tum_rota_parametreleri())
+    assert not bayat, f"hiçbir rota kullanmıyor: {bayat}"
+    assert set(PROJESIZ_ROTALAR) <= set(_kapsamli_rotalar()), "bayat projesiz rota"
     assert resolve_discipline_scope  # bağımlılık adı değişirse import kırılır

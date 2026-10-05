@@ -51,6 +51,9 @@ router = APIRouter(
 last_price_provider.register()
 
 _VIEW = require_permission("progress_payments", AccessLevel.view)
+# IZN-B3: çok proje LİSTE uçları: ana rol VEYA ekip rolü açar, satırlar `visible_projects`te proje
+# başına o projedeki rolle süzülür.
+_VIEW_LISTE = require_permission("progress_payments", AccessLevel.view, multi_project=True)
 _DRAFT = require_permission("progress_payments", AccessLevel.draft)
 #: IZN-B2: Onayla/Reddet/Ödendi = hakediş sayfaları ONAYLAR (işveren + proje sekmesi + şantiye).
 _APPROVE_PAGES = ("mali.hakedis_isveren", "proje.isveren_hakedis", "santiye.hakedisler")
@@ -70,7 +73,7 @@ _CHAIN_APPROVE = require_pages_or_chain_step(
 @router.get(
     "/progress-payments",
     response_model=ProgressPaymentListResponse,
-    dependencies=[_VIEW],
+    dependencies=[_VIEW_LISTE],
 )
 async def list_progress_payments_endpoint(
     user: Annotated[User, Depends(get_current_user)],

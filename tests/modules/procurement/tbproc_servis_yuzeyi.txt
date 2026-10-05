@@ -92,7 +92,7 @@ async def update_request(session: sqlalchemy.ext.asyncio.session.AsyncSession, a
 async def update_supplier(session: sqlalchemy.ext.asyncio.session.AsyncSession, supplier_id: uuid.UUID, data: app.modules.procurement.schemas.SupplierUpdate) -> tuple[app.modules.procurement.models.Supplier, str]
 module uuid -> uuid
 async def visible_order(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, order_id: uuid.UUID) -> app.modules.procurement.models.PurchaseOrder
-async def visible_projects(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User) -> list[app.modules.projects.models.Project]
+async def visible_projects(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, *, pairs: tuple[tuple[str, typing.Literal['view', 'edit', 'approve']], ...] | None = None) -> list[app.modules.projects.models.Project]
 async def visible_request(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, request_ref: uuid.UUID | str) -> app.modules.procurement.models.PurchaseRequest
 async def visible_request_locked(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, request_id: uuid.UUID) -> app.modules.procurement.models.PurchaseRequest
 

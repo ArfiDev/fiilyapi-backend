@@ -21,7 +21,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.core.discipline_ref import DisciplineRef
-from app.core.errors import DomainError, NotFoundError, UserAccessValidationError
+from app.core.errors import (
+    DomainError,
+    NotFoundError,
+    PermissionLockedError,
+    UserAccessValidationError,
+)
+from app.core.page_gate import is_admin_role
 from app.modules.catalog.models import EvDiscipline
 from app.modules.projects.models import Project
 from app.modules.roles.models import SYSTEM_ADMIN_KEY, Role
@@ -49,6 +55,16 @@ SYSTEM_ADMIN_AS_PROJECT_ROLE = (
     "Sistem Yöneticisi rolü proje rolü olarak atanamaz; yalnız ana rol olarak atanır"
 )
 LAST_ADMIN_DEMOTION = "Son aktif Sistem Yöneticisi düşürülemez"
+SELF_ACCESS_FORBIDDEN = (
+    "Kendi erişiminizi değiştiremezsiniz; yalnızca Sistem Yöneticisi değiştirebilir"
+)
+ALL_PROJECTS_ADMIN_ONLY = (
+    "'Tüm projeler' işaretini yalnızca Sistem Yöneticisi verebilir ya da kaldırabilir"
+)
+ADMIN_ROLE_CHANGE_ADMIN_ONLY = (
+    "Sistem Yöneticisi'nin ana rolünü yalnızca Sistem Yöneticisi değiştirebilir"
+)
+ADMIN_NO_TEAM_ROWS = "Sistem Yöneticisi her projeyi görür; proje ekibi satırı eklenemez"
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,6 +172,26 @@ async def _validate_references(
     return roles
 
 
+async def _assert_privilege_rules(
+    session: AsyncSession, actor: User, target: User, data: UserAccessInput
+) -> None:
+    """Yetki yükseltme kapıları (IZN-B3 onarımı): erişimi değiştirme yetkisi (`Kullanıcılar
+    Düzenler`) kendi başına KENDİNE ya da herkese sınırsız erişim vermeye yetmez.
+
+    * (a) Sistem Yöneticisi OLMAYAN aktör KENDİ erişimini değiştiremez.
+    * (b) `all_projects` işaretini yalnız Sistem Yöneticisi verir / kaldırır.
+    * (c) Hedef Sistem Yöneticisiyse ana rolünü yalnız Sistem Yöneticisi değiştirir.
+    """
+    if await is_admin_role(session, actor):
+        return
+    if actor.id == target.id:
+        raise PermissionLockedError(SELF_ACCESS_FORBIDDEN)
+    if data.all_projects != target.all_projects:
+        raise PermissionLockedError(ALL_PROJECTS_ADMIN_ONLY)
+    if data.role_id != target.role_id and await is_admin_role(session, target):
+        raise PermissionLockedError(ADMIN_ROLE_CHANGE_ADMIN_ONLY)
+
+
 async def replace_access(
     session: AsyncSession, actor: User, user_id: uuid.UUID, data: UserAccessInput
 ) -> AccessChange:
@@ -169,8 +205,11 @@ async def replace_access(
     user = await repository.get_user_locked(session, user_id)
     if user is None:
         raise NotFoundError(USER_MISSING)
+    await _assert_privilege_rules(session, actor, user, data)
     projects = _validate_shape(data)
     roles = await _validate_references(session, data, projects)
+    if projects and roles[data.role_id].key == SYSTEM_ADMIN_KEY:
+        raise UserAccessValidationError(ADMIN_NO_TEAM_ROWS)
 
     existing = {
         member.project_id: member

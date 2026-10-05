@@ -104,7 +104,7 @@ async def create_employer_endpoint(
 @router.get(
     "",
     response_model=ProjectListResponse,
-    dependencies=[require_permission("projects", AccessLevel.view)],
+    dependencies=[require_permission("projects", AccessLevel.view, multi_project=True)],
 )
 async def list_projects_endpoint(
     user: Annotated[User, Depends(get_current_user)],
@@ -134,7 +134,7 @@ async def list_projects_endpoint(
     response_model=ProjectTimelineResponse,
     # OKUMA ucu: `view` yeter (spec §3). Yeni izin modulu ACILMAZ. Audit
     # YAZILMAZ — turev okuma hicbir sey degistirmez (costs ucuyla ayni karar).
-    dependencies=[require_permission("projects", AccessLevel.view)],
+    dependencies=[require_permission("projects", AccessLevel.view, multi_project=True)],
 )
 async def get_projects_timeline_endpoint(
     user: Annotated[User, Depends(get_current_user)],

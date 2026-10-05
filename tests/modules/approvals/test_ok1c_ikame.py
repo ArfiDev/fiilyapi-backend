@@ -481,7 +481,8 @@ async def test_MODUL_KAPISINDAN_GECEN_aktorun_sorgu_sayisi_ARTMAMALIDIR(
     # 27 → 28 (DSC-B5, 2026-10-01): hakediş router'ları `RequireUnrestricted` taşır; kapı istek
     # başına TEK disiplin okuması koşar. 28 → 25 (IZN-B3): "Tüm projeler" aktörü için kapsam kapısı
     # sorgusuz (`all_projects` → kısıtsız; −1) ve `visible_projects` tek üyelik okumasıdır (−2).
-    # İkame sıcak yola sızmadı.
-    assert len(ifadeler) == 25, (
-        f"sıcak yol sorgu sayısı 25 iken {len(ifadeler)} oldu — ikame sıcak yola sızdı mı?"
+    # İkame sıcak yola sızmadı. 25 → 26 (IZN-B3 onarımı): onay kapısı isteğin PROJESİNİ çözer (yol
+    # parametresindeki hakedişten proje: +1 sorgu) ve o projedeki rolle karar verir.
+    assert len(ifadeler) == 26, (
+        f"sıcak yol sorgu sayısı 26 iken {len(ifadeler)} oldu — ikame sıcak yola sızdı mı?"
     )

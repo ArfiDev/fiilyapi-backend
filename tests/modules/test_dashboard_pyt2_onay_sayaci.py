@@ -408,10 +408,12 @@ async def test_onay_rolu_OLAN_aktorun_panel_MALIYETI_CAKILDI(seeded_db, aktor, p
         ozet = await build_summary(seeded_db, sef)
 
     assert ozet.pending_approvals.count == 2
-    # IZN-B3: 47 → 41. `visible_projects` artık 1 okumadır (üyelik JOIN `projects`; eskiden izin
-    # okuması + `user_project_access` + `projects`): panelin ÜÇ çağrısında −2'şer = −6.
-    assert len(sorgular) == 41, (
-        f"onay rolu tasiyan aktorun panel maliyeti {len(sorgular)} sorgu oldu (beklenen 41) — "
+    # IZN-B3: 47 → 41 (`visible_projects` artık 1 üyelik okuması: −2 × 3 çağrı). IZN-B3 onarımı:
+    # 41 → 49 (+8): alan kapısı PROJE BAŞINA (portföy + risk modülleri: ekip rolü + hücre okuması),
+    # `restricted_project_ids` (+1 disiplin okuması × 2), gelen kutusu evrak modülü başına proje
+    # süzgeci. Hepsi PROJE SAYISINDAN bağımsızdır (N+1 yok).
+    assert len(sorgular) == 49, (
+        f"onay rolu tasiyan aktorun panel maliyeti {len(sorgular)} sorgu oldu (beklenen 49) — "
         "rozet icin sayfa GOVDESI de cekiliyor olabilir (`limit` degisti mi?)"
     )
 
@@ -438,8 +440,9 @@ async def test_onay_rolu_YOKSA_panel_TEK_ek_sorgu_oder(seeded_db, aktor, project
     assert ozet.pending_approvals.count == 0
     # IZN-B2: 35 → 37. Proje kartı izni artık İKİ okumadır (seviye: sayfa hücreleri `gate_ok`;
     # kapsam: eski satır / `tum_tutarlar` hibriti `actor_scope`) + rolün tek seferlik okunması.
-    # IZN-B3: 37 → 33 (`visible_projects` −2 × iki çağrı: portföy + risk).
-    assert len(sorgular) == 33, (
+    # IZN-B3: 37 → 33 (`visible_projects` −2 × iki çağrı: portföy + risk); onarım: 33 → 35 (+2:
+    # `restricted_project_ids` + proje başına alan kapısı toplu okuması).
+    assert len(sorgular) == 35, (
         f"rolsüz aktörün panel maliyeti {len(sorgular)} sorgu — "
         "taban 8 + onay rolü 1 + portföy 10 + risk 15 + proje kartı izin kapısı 3 (IZN-B2)"
     )

@@ -36,9 +36,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.gate_context import record_gate
 from app.core.page_gate import pages_ok
 from app.modules.approvals import service
 from app.modules.approvals.models import ApprovalDocumentType
+from app.modules.projects.context import request_project
 from app.modules.users.models import User
 
 __all__ = ["require_pages_or_chain_step"]
@@ -99,7 +101,11 @@ def require_pages_or_chain_step(
         session: DbSession,
     ) -> None:
         _kimlik = (module_key, min_level)  # yapısal bekçilerin okuduğu kapanış değişkenleri
-        if await pages_ok(session, user, page_keys, "approve"):
+        # IZN-B3: proje bağlamı (yol/gövde) çözülürse O PROJEDEKİ rolle karar verilir ve geçen kapı
+        # bağlama `pages_ok`un İÇİNDE yazılır (eskiden yazılmıyordu: başka projedeki ekip rolü ve
+        # ana rol onay uçlarını açıyordu — KRİTİK bulgu).
+        project_id = await request_project(session, request)
+        if await pages_ok(session, user, page_keys, "approve", project_id=project_id):
             return
         ikame = await _zincir_adimi_ikame_ediyor(
             request,
@@ -112,5 +118,7 @@ def require_pages_or_chain_step(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Bu işlem için yetkiniz yok"
             )
+        # Zincir adımı sahibi: sayfa kapısı geçmedi ama kapı ÇALIŞTI (üyelik süzgeci yeterli).
+        record_gate(session, ())
 
     return Depends(_check)
