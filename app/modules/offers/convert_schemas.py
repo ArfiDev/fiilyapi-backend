@@ -38,6 +38,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.field_mask import Hassas
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.offers.offer_schemas import GroupName, Pct, Quantity, UnitPrice
 from app.modules.projects.models import PriceIndexType
@@ -88,7 +89,7 @@ class ConvertProject(BaseModel):
     end_date: date
     category: _Short | None = None
     parcel: _Parcel | None = None
-    address: _Address | None = None
+    address: Annotated[_Address | None, Hassas.yok] = None
 
 
 class ConvertContract(BaseModel):
@@ -99,17 +100,17 @@ class ConvertContract(BaseModel):
     contract_no: _Short
     signature_date: date
     #: `None` = Σ kalem tutari (S-D3). Verilirse o yazilir (kalem toplamindan bagimsiz olabilir).
-    amount: _Money | None = None
+    amount: Annotated[_Money | None, Hassas.sozlesme_fiyat] = None
     #: `None` = teklif revizyonunun KDV'si.
-    vat_pct: Pct | None = None
+    vat_pct: Annotated[Pct | None, Hassas.yok] = None
     #: `None` = sozlesme semasi varsayilani (SO-39).
-    advance_pct: Pct | None = None
-    retainage_pct: Pct | None = None
-    late_penalty_daily: _Money | None = None
+    advance_pct: Annotated[Pct | None, Hassas.yok] = None
+    retainage_pct: Annotated[Pct | None, Hassas.yok] = None
+    late_penalty_daily: Annotated[_Money | None, Hassas.sozlesme_fiyat] = None
     has_price_escalation: bool
     #: `None` ve fiyat farki varsa: teklif `tuik` ise teklifin endeks turu; degilse 422.
     index_type: PriceIndexType | None = None
-    base_index_value: _BaseIndex | None = None
+    base_index_value: Annotated[_BaseIndex | None, Hassas.yok] = None
 
 
 class ConvertItem(BaseModel):
@@ -121,8 +122,8 @@ class ConvertItem(BaseModel):
     code: _Code
     description: _Description
     unit: _Unit
-    quantity: Quantity
-    unit_price: UnitPrice
+    quantity: Annotated[Quantity, Hassas.yok]
+    unit_price: Annotated[UnitPrice, Hassas.sozlesme_fiyat]
 
 
 class ConvertGroup(BaseModel):

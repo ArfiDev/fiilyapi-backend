@@ -25,15 +25,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import (
-    kapsam_kapisi,
-    require_pages,
-    require_permission,
-    require_system_admin,
-)
+from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
-from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.sales import installments, service, transitions
@@ -51,15 +46,11 @@ from app.modules.sales.schemas import (
 )
 from app.modules.users.models import User
 
-# 🔴 KAPSAM MASKESİ — İKİ PARÇA DA GEREKLİ (kullanıcı kararı 2026-09-19):
-#    `route_class` dönen modeli maskeler, `dependencies` aktörün kapsamını
-#    köprüye yazar. Biri eksikse maske SESSİZCE `all` görür ve hiçbir şey
-#    gizlemez. Çifti `tests/core/test_kapsam_baglantisi.py` çakar.
+# HASSAS ALAN MASKESİ (IZN-B4): `MaskeRotasi` tek parça (bağlamı kendisi ekler).
 router = APIRouter(
     tags=["sales"],
     responses=COMMON_ERROR_RESPONSES,
-    route_class=kapsam_rotasi("sales", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("sales")],
+    route_class=MaskeRotasi,
 )
 
 # Spec §8 S1 (kullanıcı kararı): satış yetkisi proje yetkisinden AYRILIR —

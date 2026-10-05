@@ -447,9 +447,12 @@ async def test_baska_santiyenin_kalemi_ve_bolumu_olmayanla_ayni_422(
 # --- Rol maskesi ------------------------------------------------------------
 
 
-async def test_finance_rolde_miktarlar_null_sayaclar_ve_kodlar_dolu_PUT_403(
+async def test_muhasebe_finance_KARSILIGI_YOK_hicbir_alan_gizlenmez_PUT_403(
     client, db_session, user_factory, project_factory
 ):
+    """IZN-B4: eski `finance` (metrajı gizler) yeni modelde karşılıksızdır; Muhasebe'nin
+    `hidden_fields`ı B1 göçünde BOŞ türedi → metraj, fiyat, tutar, sayaçlar HEPSİ dolu.
+    PUT yine 403: yazma kapısı (`boq:full`) Muhasebe'de yok, maskeyle ilgisi yok."""
     site, (s1, _s2), (i1, i2), _admin_h = await _kur(
         client, db_session, user_factory, project_factory, "BDG-M1"
     )
@@ -464,21 +467,15 @@ async def test_finance_rolde_miktarlar_null_sayaclar_ve_kodlar_dolu_PUT_403(
     assert resp.status_code == 200, resp.text
     govde = resp.json()
     kalem = govde["groups"][0]["items"][0]
-    assert kalem["quantity"] is None
-    assert kalem["allocated_quantity"] is None
-    assert kalem["unallocated_quantity"] is None
-    assert all(a["quantity"] is None for a in kalem["allocations"])
-    assert kalem["unit_price"] == "10.00"  # para kovasi acik (finance)
+    assert kalem["quantity"] == "100"
+    assert kalem["allocated_quantity"] is not None
+    assert kalem["unallocated_quantity"] is not None
+    assert kalem["unit_price"] == "10.00"
     ozet = govde["section_summaries"][0]
-    assert ozet["items"][0]["quantity"] is None
-    assert ozet["items"][0]["amount"] is None  # iki kova: miktar geri hesaplanamaz
-    assert ozet["total_amount"] is None
-    assert ozet["items"][0]["unit"] == "m³"
-    # Sayaclar ve kodlar MASKELENMEZ
+    assert ozet["items"][0]["quantity"] is not None
+    assert ozet["items"][0]["amount"] is not None
+    assert ozet["total_amount"] is not None
     assert govde["total_item_count"] == 2
-    assert govde["unallocated_item_count"] == 1
-    assert govde["distributed_item_count"] == 1
-    assert govde["unallocated_item_codes"] == ["01.001"]
     _invariant(govde)
 
     put = await client.put(_url(site.id), json={"allocations": [_cell(i1, s1, "1")]}, headers=fin)

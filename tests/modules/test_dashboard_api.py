@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from sqlalchemy import select
+
 from app.core.access import AccessLevel, Scope
 from app.modules.dashboard.schemas import (
     DashboardSummaryResponse,
@@ -7,6 +9,8 @@ from app.modules.dashboard.schemas import (
     PendingApprovalsPlaceholder,
     RiskAlertsPlaceholder,
 )
+from app.modules.roles.models import Role
+from tests._hassas_alan import gizli_alanlar_ayarla
 
 from ._boq import _set_permission
 
@@ -161,6 +165,9 @@ async def test_projects_izni_KAPALIYKEN_panel_proje_karti_BASMAZ(
     #    `all`a çekilir ki ölçülen tek şey izin hücresi olsun.
     await _set_permission(seeded_db, "hr_manager", "dashboard", AccessLevel.view, Scope.all)
     await _set_permission(seeded_db, "hr_manager", "projects", AccessLevel.view, Scope.all)
+    # IZN-B4: maske `role_hidden_fields`tan gelir; seed `limited` rolü tutarları gizler → sıfırla.
+    rol = (await seeded_db.execute(select(Role).where(Role.key == "hr_manager"))).scalar_one()
+    await gizli_alanlar_ayarla(seeded_db, rol, [])
 
     # (a) OLUMLU KONTROL — `projects` izni VARKEN kart DOLU.
     izinli = await _ozet(client, "ik-panel@t.co")

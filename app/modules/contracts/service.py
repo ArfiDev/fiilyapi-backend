@@ -110,6 +110,7 @@ def _employer_item(
 
     return ContractListItem(
         id=project.id,
+        project_id=project.id,
         title=project.name,
         contract_no=contract.contract_no,
         counterparty_name=project.employer_name,
@@ -186,6 +187,7 @@ def _subcontractor_item(
 
     return ContractListItem(
         id=contract.id,
+        project_id=contract.project_id,
         title=_subcontractor_title(contract),
         contract_no=contract.contract_no,
         counterparty_name=contract.subcontractor_name,

@@ -36,6 +36,7 @@ import uuid
 from decimal import Decimal
 
 from app.core.access import AccessLevel, Scope
+from app.core.sayfalar import HiddenCategory
 from app.modules.contracts.models import EmployerContractGroup, EmployerContractItem
 from app.modules.progress_payments.models import (
     ProgressPayment,
@@ -44,6 +45,7 @@ from app.modules.progress_payments.models import (
 )
 from app.modules.projects.models import ProjectContract
 from app.modules.sites.models import Site
+from tests._hassas_alan import rol_gizle
 
 from ._boq import _auth, _login_with_access, _set_permission
 
@@ -191,50 +193,37 @@ async def test_LIMITED_kapsamda_GOMULU_ozetin_PARASI_da_GIZLENIR(
     assert ozet["retention_total"] is None, "TEMİNAT KESİNTİSİ SIZDI"
     assert ozet["net_total"] is None, "NET ÖDEME SIZDI"
     assert ozet["remaining"] is None, "KALAN BEDEL SIZDI"
-    # 🔴 İÇERİDEKİ POZİTİF KONTROL: `limited` PARAYI gizler, ilerlemeyi DEĞİL.
-    # Hepsini `None` yapan bir kusur yukarıdaki yedi assert'i de geçerdi.
-    assert ozet["progress_pct"] == _ILERLEME, "İLERLEME YANLIŞLIKLA GİZLENDİ"
+    # IZN-B4: `progress_pct` bedelden TÜREYEN orandır (`paid / contract_amount`) → `sozlesme_fiyat`
+    # etiketli; bedeli gizleyen rol oranı da görmez (yoksa bedel oran × tutardan geri hesaplanırdı).
+    assert ozet["progress_pct"] is None, "TÜREV İLERLEME ORANI SIZDI"
     assert govde["contract_no"] == "SZL-KPS-CPR", "KİMLİK GİZLENDİ"
 
 
-async def test_FINANCE_kapsamda_GOMULU_ILERLEME_gizlenir_PARA_DURUR(
+async def test_FINANCE_kapsamda_GOMULU_ozet_PARA_ve_ILERLEME_DURUR(
     client, db_session, user_factory, project_factory
 ):
-    """`contracts = view/finance` → OPERASYONEL gizli, PARA görünür (`limited`in
-    AYNASI).
-
-    🔴 `progress_pct` kardeşi `ContractListItem.progress_pct` ZATEN
-    `operasyonel` etiketliydi: aynı kavram sözleşme LİSTESİNDE muhasebeden
-    gizlenirken DETAYINDA görünüyordu. Bu test o çelişkiyi çakar.
-    """
+    """IZN-B4: eski `finance` kapsamı karşılıksız (IZN-PLAN §3, GECE KARARI) — rolün gizli bayrağı
+    yok → gömülü özet TAM görünür (ilerleme dahil)."""
     govde = await _sozlesme_detayi(
         client, db_session, user_factory, project_factory, Scope.finance, "fin@capraz.co"
     )
     ozet = govde["progress_payment_summary"]
 
-    assert ozet["progress_pct"] is None, "GÖMÜLÜ İLERLEME YÜZDESİ SIZDI"
-    # PARA muhasebenin işidir — gizlenmesi ekranı kullanılamaz yapardı.
+    assert ozet["progress_pct"] == _ILERLEME
     assert govde["amount"] == str(_BEDEL), "PARA YANLIŞLIKLA GİZLENDİ"
     assert ozet["contract_amount"] == str(_BEDEL), "GÖMÜLÜ BEDEL YANLIŞLIKLA GİZLENDİ"
     assert ozet["net_total"] == _NET, "GÖMÜLÜ NET ÖDEME YANLIŞLIKLA GİZLENDİ"
 
 
-async def test_OZETIN_KENDI_UCU_ETIKETLERDEN_ETKILENMEZ(
-    client, db_session, user_factory, project_factory
-):
-    """Aynı şema KENDİ ucundan (`/projects/{id}/progress-payments/summary`)
-    dönerken etiketler İŞLEMEZ — ve bu BİLİNÇLİDİR.
+async def test_OZETIN_KENDI_UCU_DA_MASKELENIR_K2(client, db_session, user_factory, project_factory):
+    """IZN-B4a K2: aynı şema KENDİ ucundan (`/projects/{id}/progress-payments/summary`) dönerken
+    de maskelenir.
 
-    🔴 Etiket şemanın TANIMLI olduğu yerdedir ama anlamı KULLANIM yerinden
-    gelir. `progress_payments` izin matrisinde kapsam kısıtı taşımaz (bütün
-    hücreleri `Scope.all`) ve routerı `kapsam_rotasi`ya BAĞLI DEĞİLDİR; yani bu
-    uçta maske hiç koşmaz. Etiketlemek bu ucun davranışını DEĞİŞTİRMEMELİDİR —
-    değiştirseydi, `contracts` sızıntısını kapatmak `progress_payments`
-    ekranlarını sessizce boşaltırdı.
-
-    Bu test aynı zamanda B maddesinin (sözleşme birim fiyatının hakediş ucundan
-    maskesiz dönmesi) ÜRÜN KARARI olduğunu belgeler: kapanması matrisin
-    değişmesini gerektirir, etiket eklemek YETMEZ.
+    🔴 Eski sürümde bu uç BİLİNÇLİ maskesizdi (router `kapsam_rotasi`ya bağlı değildi) ve bu test
+    onu belgeliyordu; opus çürütücü bunu SIZINTI olarak ölçtü: `sozlesme_fiyat` gizli bir rol
+    sözleşme bedelini ve türevlerini (hakediş toplamı, ilerleme, kesintiler, net) bu uçtan
+    okuyabiliyordu. Router artık `MaskeRotasi` taşır; bayraksız rol ise HER ŞEYİ görür (pozitif
+    kontrol) ve sayaçlar (`payment_count`) gizli rolde de durur.
     """
     olusturan = await user_factory(
         email="kurucu@ozet.co", password="parola1234", role_key="system_admin"
@@ -243,18 +232,27 @@ async def test_OZETIN_KENDI_UCU_ETIKETLERDEN_ETKILENMEZ(
     token = await _login_with_access(
         client, db_session, user_factory, "project_manager", "ozet@capraz.co"
     )
-    # `contracts` kapsamı EN DAR hâlde olsa bile bu uç ETKİLENMEZ: ölçülen şey
-    # tam olarak "maske başka modülün ucuna TAŞMIYOR" olgusudur.
-    await _set_permission(
-        db_session, "project_manager", "contracts", AccessLevel.view, Scope.limited
-    )
+    yol = f"/projects/{project_id}/progress-payments/summary"
 
-    resp = await client.get(
-        f"/projects/{project_id}/progress-payments/summary", headers=_auth(token)
-    )
-    assert resp.status_code == 200, resp.text
-    ozet = resp.json()
-    assert ozet["contract_amount"] == str(_BEDEL)
-    assert ozet["cumulative_gross"] == _BRUT
-    assert ozet["net_total"] == _NET
-    assert ozet["progress_pct"] == _ILERLEME
+    await rol_gizle(db_session, "project_manager")  # hiçbir kategori gizli değil
+    acik = await client.get(yol, headers=_auth(token))
+    assert acik.status_code == 200, acik.text
+    assert acik.json()["contract_amount"] == str(_BEDEL)  # POZİTİF KONTROL
+    assert acik.json()["cumulative_gross"] == _BRUT
+    assert acik.json()["net_total"] == _NET
+    assert acik.json()["progress_pct"] == _ILERLEME
+
+    await rol_gizle(db_session, "project_manager", HiddenCategory.sozlesme_fiyat)
+    gizli = await client.get(yol, headers=_auth(token))
+    assert gizli.status_code == 200, gizli.text
+    ozet = gizli.json()
+    for alan in (
+        "contract_amount",
+        "cumulative_gross",
+        "progress_pct",
+        "advance_deduction_total",
+        "retention_total",
+        "net_total",
+    ):
+        assert ozet[alan] is None, alan
+    assert ozet["payment_count"] == acik.json()["payment_count"]  # sayaç gizlenmez

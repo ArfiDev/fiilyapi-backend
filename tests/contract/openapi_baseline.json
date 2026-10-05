@@ -5436,6 +5436,11 @@
             ],
             "title": "Progress Pct"
           },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
           "start_date": {
             "anyOf": [
               {
@@ -5458,6 +5463,7 @@
         },
         "required": [
           "id",
+          "project_id",
           "title",
           "contract_no",
           "counterparty_name",
@@ -6382,8 +6388,15 @@
             "type": "string"
           },
           "name": {
-            "title": "Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
           },
           "national_id": {
             "anyOf": [
@@ -11317,8 +11330,15 @@
         "description": "S188 \"Kapora alındı · 15 gün süre\" süresi DOLMUŞ hâli (§8 S4).\n\nZamanlanmış iş YOKTUR: kayıt `reservation` KALIR, bu liste yalnızca\nkullanıcıyı elle iptale (ya da aktifleştirmeye) yönlendirir.",
         "properties": {
           "customer_name": {
-            "title": "Customer Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
           },
           "days_expired": {
             "title": "Days Expired",
@@ -16765,9 +16785,16 @@
             "type": "string"
           },
           "price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Price",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
           },
           "source": {
             "title": "Source",
@@ -20014,9 +20041,16 @@
             "type": "string"
           },
           "overhead_pct": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Overhead Pct",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overhead Pct"
           },
           "payment_terms": {
             "anyOf": [
@@ -20043,9 +20077,16 @@
             ]
           },
           "profit_pct": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Profit Pct",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Pct"
           },
           "rev_no": {
             "title": "Rev No",
@@ -20468,18 +20509,32 @@
       "OfferSettingsRead": {
         "properties": {
           "default_overhead_pct": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Default Overhead Pct",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Overhead Pct"
           },
           "default_payment_terms": {
             "title": "Default Payment Terms",
             "type": "string"
           },
           "default_profit_pct": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Default Profit Pct",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Profit Pct"
           },
           "default_validity_days": {
             "title": "Default Validity Days",
@@ -25801,7 +25856,7 @@
         "type": "string"
       },
       "ProgressPaymentSummary": {
-        "description": "`GET /projects/{project_id}/progress-payments/summary` yanıtı (E14\nsekmesi + SHK kartları, spec §9.6). Eksik sözleşme bedeli → `progress_pct`/\n`remaining` `None` (zarif düşüş, §8 deseninin aynısı).\n\n## 🔴 Bu şema İKİ uçtan döner ve İKİNCİSİ KAPSAM KISITLIDIR\n\nKendi ucunun yanında `contracts.schemas.EmployerContractDetail.\nprogress_payment_summary` olarak E14 detayına GÖMÜLÜR. `contracts` kapsam\nkısıtlı bir modüldür; `field_scope.maskele()` iç içe `BaseModel`lere İNER,\nyani maske buraya ULAŞIR. 2026-09-19 denetimine kadar alanlar ETİKETSİZDİ ve\netiketsiz alan `kimlik` sayıldığı için (fail-OPEN, gerekçe\n`core/field_scope.py`) hiçbir kapsamda gizlenmiyordu: `limited` kapsamda\n`EmployerContractDetail.amount` `null` dönerken AYNI sözleşme bedeli gömülü\n`contract_amount`ta AÇIKTA kalıyordu. Bekçisi\n`tests/modules/test_kapsam_capraz_sizinti.py`.\n\n🔴 **Etiketler KENDİ ucunu DEĞİŞTİRMEZ** ve bu ölçüldü: `progress_payments`\nmatriste kısıtlı değildir (bütün hücreleri `Scope.all`) ve routerı\n`kapsam_rotasi`ya bağlı değildir — o uçta maske hiç koşmaz. Yani etiketler\nburada ATIL durur, yalnız gömüldükleri bağlamda iş görürler. Bağlamdan\nbağımsız olarak doğrudurlar da: `contract_amount`/`net_total` HER iki uçta\nda paradır, `progress_pct` HER iki uçta da ilerlemedir.\n\n## 🔴 Neden dört alan `| None` OLDU (şema değişikliği)\n\n`cumulative_gross`/`advance_deduction_total`/`retention_total`/`net_total`\nüretimde ASLA `None` dönmez — `build_summary` her yolda sayı üretir. `None`\nhâli YALNIZ maskenin yazdığı hâldir. Tip `Decimal` KALSAYDI OpenAPI\nsözleşmesi \"bu alan hep sayıdır\" derken gövde `null` taşırdı: frontend'in\nüretilmiş tipi alanı sayı sanıp üzerinde aritmetik yapar ve ekran\nmaskelenmiş rolde ÇÖKERDİ. `contracts.EmployerContractDetail.items_total`\naynı gerekçeyle `Decimal` → `Decimal | None` oldu (2026-09-19); bu onun\nemsalidir, yeni bir desen değildir.",
+        "description": "`GET /projects/{project_id}/progress-payments/summary` yanıtı (E14\nsekmesi + SHK kartları, spec §9.6). Eksik sözleşme bedeli → `progress_pct`/\n`remaining` `None` (zarif düşüş, §8 deseninin aynısı).\n\n## 🔴 Bu şema İKİ uçtan döner ve İKİNCİSİ MASKELİDİR\n\nKendi ucunun yanında `contracts.schemas.EmployerContractDetail.progress_payment_summary`\nolarak E14 detayına GÖMÜLÜR. IZN-B4: alanlar `Hassas` etiketlidir (`contract_amount`/tutarlar\n= `sozlesme_fiyat`; `progress_pct` bedelden türediği için `sozlesme_fiyat`, fail-closed) ve\ngömüldüğü `contracts` yanıtında `MaskeRotasi` ile maskelenir. Kendi ucu (`progress_payments`\nrouter) B4b'ye kadar maskelenmez; bekçide yalnız bu şema ZORUNLU, kalanı RAPOR modundadır\n(`tests/core/test_hassas_alan_bekcisi.py`).\n\n## 🔴 Neden dört alan `| None` OLDU (şema değişikliği)\n\n`cumulative_gross`/`advance_deduction_total`/`retention_total`/`net_total`\nüretimde ASLA `None` dönmez — `build_summary` her yolda sayı üretir. `None`\nhâli YALNIZ maskenin yazdığı hâldir. Tip `Decimal` KALSAYDI OpenAPI\nsözleşmesi \"bu alan hep sayıdır\" derken gövde `null` taşırdı: frontend'in\nüretilmiş tipi alanı sayı sanıp üzerinde aritmetik yapar ve ekran\nmaskelenmiş rolde ÇÖKERDİ. `contracts.EmployerContractDetail.items_total`\naynı gerekçeyle `Decimal` → `Decimal | None` oldu (2026-09-19); bu onun\nemsalidir, yeni bir desen değildir.",
         "properties": {
           "advance_deduction_total": {
             "anyOf": [
@@ -45740,8 +45795,15 @@
             "type": "string"
           },
           "customer_name": {
-            "title": "Customer Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
           },
           "customer_national_id": {
             "anyOf": [
@@ -46903,8 +46965,15 @@
             "title": "Amount"
           },
           "customer_name": {
-            "title": "Customer Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
           },
           "days_overdue": {
             "title": "Days Overdue",

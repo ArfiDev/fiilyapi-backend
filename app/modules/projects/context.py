@@ -146,6 +146,72 @@ async def _unit_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUI
     return await _unique(session, select(Unit.project_id).where(Unit.id == ref))
 
 
+async def _block_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.units.models import Block  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    return await _unique(session, select(Block.project_id).where(Block.id == ref))
+
+
+async def _sale_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.sales.models import UnitSale  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    return await _unique(session, select(UnitSale.project_id).where(UnitSale.id == ref))
+
+
+async def _installment_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.sales.models import SaleInstallment, UnitSale  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    return await _unique(
+        session,
+        select(UnitSale.project_id)
+        .join(SaleInstallment, SaleInstallment.sale_id == UnitSale.id)
+        .where(SaleInstallment.id == ref),
+    )
+
+
+async def _employer_item_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.contracts.models import EmployerContractItem  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    model = EmployerContractItem
+    return await _unique(session, select(model.project_id).where(model.id == ref))
+
+
+async def _employer_group_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.contracts.models import EmployerContractGroup  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    model = EmployerContractGroup
+    return await _unique(session, select(model.project_id).where(model.id == ref))
+
+
+async def _sub_item_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.contracts.models import (  # döngüyü önler
+        SubcontractorContract,
+        SubcontractorContractItem,
+    )
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    return await _unique(
+        session,
+        select(SubcontractorContract.project_id)
+        .join(
+            SubcontractorContractItem,
+            SubcontractorContractItem.contract_id == SubcontractorContract.id,
+        )
+        .where(SubcontractorContractItem.id == ref),
+    )
+
+
 #: (yol öneki, yol parametresi) → çözücü. Önek `request.url.path`in ilk segmentidir.
 RESOLVERS: Mapping[tuple[str, str], Resolver] = {
     ("/projects", "project_id"): _project_itself,
@@ -157,6 +223,14 @@ RESOLVERS: Mapping[tuple[str, str], Resolver] = {
     ("/progress-payments", "payment_id"): _payment_project,
     ("/subcontractor-progress-payments", "payment_id"): _sub_payment_project,
     ("/subcontractor-contracts", "contract_id"): _sub_contract_project,
+    # IZN-B4a: maske + yazma kapısı proje başına karar verir (ekip rolü ≠ ana rol).
+    ("/subcontractor-contracts", "item_id"): _sub_item_project,
+    ("/contracts", "item_id"): _employer_item_project,
+    ("/contracts", "group_id"): _employer_group_project,
+    ("/units", "unit_id"): _unit_project,
+    ("/blocks", "block_id"): _block_project,
+    ("/sales", "sale_id"): _sale_project,
+    ("/sales", "installment_id"): _installment_project,
     # Belge bağları (`/{varlık}/{owner_id}/documents`) ve belge/klasör uçları.
     ("/sections", "owner_id"): _section_project,
     ("/subcontractor-contracts", "owner_id"): _sub_contract_project,

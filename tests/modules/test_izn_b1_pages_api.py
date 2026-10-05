@@ -25,10 +25,16 @@ from app.core.sayfalar import (
 )
 from app.main import app
 from app.modules.roles import seed_data
-from app.modules.roles.models import Role, RoleHiddenField, RolePagePermission, RolePermission
+from app.modules.roles.models import (
+    Module,
+    Role,
+    RoleHiddenField,
+    RolePagePermission,
+    RolePermission,
+)
 from app.modules.roles.schemas import RoleCreate
 from app.modules.roles.service import create_custom_role
-from tests._legacy_permission_yardimcisi import update_role_permission
+from tests._legacy_permission_yardimcisi import sync_page_cells, update_role_permission
 from tests.conftest import test_engine
 
 SIFRE = "parola1234"
@@ -477,20 +483,40 @@ async def test_write_through_CAPRAZ_modul_esigi_projects_admin(izn_db):
     assert await _sayfa(izn_db, pm, "teklif.teklif_hazirlama") == (PageLevel.view, False)
 
 
+async def _eski_hucre(izn_db, rol, modul: str, level: AccessLevel, scope: Scope) -> None:
+    """Eski matris hücresini DOĞRUDAN yazar + write-through türetimini koşar.
+
+    IZN-B4: `update_role_permission` artık `limited`i reddeder (hiçbir modül eski köprüyü
+    taşımıyor: `kablolu_moduller()` boş). Türetim (`sync_page_cells`) hâlâ eski satırlardan
+    `tum_tutarlar`ı çıkarır; B6'da bu yol söküldüğünde test birlikte silinir.
+    """
+    izin = (
+        await izn_db.execute(
+            select(RolePermission)
+            .join(Module, Module.id == RolePermission.module_id)
+            .where(RolePermission.role_id == rol.id, Module.key == modul)
+        )
+    ).scalar_one()
+    izin.access_level = level
+    izin.scope = scope
+    await izn_db.flush()
+    await sync_page_cells(izn_db, rol.id)
+
+
 async def test_write_through_limited_ac_kapa_tum_tutarlar_bayragi(izn_db):
     muhasebe = await _rol(izn_db, "accounting")
     assert await _gizli(izn_db, muhasebe) == set()
-    await update_role_permission(izn_db, muhasebe.id, "dashboard", AccessLevel.view, Scope.limited)
+    await _eski_hucre(izn_db, muhasebe, "dashboard", AccessLevel.view, Scope.limited)
     assert await _gizli(izn_db, muhasebe) == {HiddenCategory.tum_tutarlar}
-    await update_role_permission(izn_db, muhasebe.id, "dashboard", AccessLevel.view, Scope.all)
+    await _eski_hucre(izn_db, muhasebe, "dashboard", AccessLevel.view, Scope.all)
     assert await _gizli(izn_db, muhasebe) == set()
     # Şef üç `limited` hücreye sahip: birini kapatmak bayrağı DÜŞÜRMEZ, sonuncusu düşürür.
     sef = await _rol(izn_db, "site_chief")
     assert await _gizli(izn_db, sef) == {HiddenCategory.tum_tutarlar}
     for modul in ("dashboard", "projects", "sites"):
-        await update_role_permission(izn_db, sef.id, modul, AccessLevel.view, Scope.all)
+        await _eski_hucre(izn_db, sef, modul, AccessLevel.view, Scope.all)
     assert await _gizli(izn_db, sef) == {HiddenCategory.tum_tutarlar}  # boq hâlâ limited
-    await update_role_permission(izn_db, sef.id, "boq", AccessLevel.view, Scope.all)
+    await _eski_hucre(izn_db, sef, "boq", AccessLevel.view, Scope.all)
     assert await _gizli(izn_db, sef) == set()
 
 

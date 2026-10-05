@@ -6,6 +6,7 @@ from app.core.access import is_system_admin
 from app.core.config import settings
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.ratelimit import client_ip, limiter
 from app.core.sayfalar import SAYFA_BY_KEY, PageLevel, sistem_yoneticisi_sayfalari
 from app.core.security import TokenError, create_access_token, create_refresh_token, decode_token
@@ -22,7 +23,7 @@ from app.modules.roles.repository import (
 )
 from app.modules.users.models import User, UserStatus
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(route_class=MaskeRotasi, prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=TokenPair)

@@ -29,6 +29,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.field_mask import Hassas
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.offers.models import (
     MAX_PCT,
@@ -114,9 +115,9 @@ class OfferCreate(BaseModel):
     scope_summary: ScopeSummary | None = None
     offer_date: OfferDate | None = None
     validity_days: ValidityDays | None = None
-    overhead_pct: Pct | None = None
-    profit_pct: ProfitPct | None = None
-    vat_pct: Pct | None = None
+    overhead_pct: Annotated[Pct | None, Hassas.maliyet_kar] = None
+    profit_pct: Annotated[ProfitPct | None, Hassas.maliyet_kar] = None
+    vat_pct: Annotated[Pct | None, Hassas.yok] = None
     #: Gonderilmezse ayar metni; ACIK `null` = odeme kosulu bos.
     payment_terms: PaymentTerms | None = None
     delivery_days: DeliveryDays | None = None
@@ -158,9 +159,9 @@ class OfferRevisionUpdate(BaseModel):
 
     offer_date: OfferDate | None = None
     validity_days: ValidityDays | None = None
-    overhead_pct: Pct | None = None
-    profit_pct: ProfitPct | None = None
-    vat_pct: Pct | None = None
+    overhead_pct: Annotated[Pct | None, Hassas.maliyet_kar] = None
+    profit_pct: Annotated[ProfitPct | None, Hassas.maliyet_kar] = None
+    vat_pct: Annotated[Pct | None, Hassas.yok] = None
     payment_terms: PaymentTerms | None = None
     delivery_days: DeliveryDays | None = None
     price_escalation: OfferPriceEscalation | None = None
@@ -190,7 +191,7 @@ class OfferLoseRequest(BaseModel):
         Annotated[str, StringConstraints(strip_whitespace=True, max_length=FREE_TEXT_MAX_LENGTH)]
         | None
     ) = None
-    winning_amount: Money | None = None
+    winning_amount: Annotated[Money | None, Hassas.sozlesme_fiyat] = None
 
 
 # ------------------------------------------------------------------ grup / kalem
@@ -227,12 +228,12 @@ class OfferItemCreate(BaseModel):
     catalog_item_id: uuid.UUID
     group_id: uuid.UUID
     #: Gonderilmezse (ya da `null`) NULL = "miktar girilmedi" (SO-21).
-    quantity: Quantity | None = None
-    cost_unit_price: UnitPrice | None = None
-    overhead_pct: Pct | None = None
-    profit_pct: ProfitPct | None = None
-    offer_unit_price: UnitPrice | None = None
-    unit_mhr: ManHourRate | None = None
+    quantity: Annotated[Quantity | None, Hassas.yok] = None
+    cost_unit_price: Annotated[UnitPrice | None, Hassas.maliyet_kar] = None
+    overhead_pct: Annotated[Pct | None, Hassas.maliyet_kar] = None
+    profit_pct: Annotated[ProfitPct | None, Hassas.maliyet_kar] = None
+    offer_unit_price: Annotated[UnitPrice | None, Hassas.sozlesme_fiyat] = None
+    unit_mhr: Annotated[ManHourRate | None, Hassas.yok] = None
     sort_order: SortOrder | None = None
 
     @field_validator("unit_mhr", "sort_order", mode="before")
@@ -258,14 +259,14 @@ class OfferItemUpdate(BaseModel):
 
     model_config = _STRICT
 
-    quantity: Quantity | None = None
-    cost_unit_price: UnitPrice | None = None
+    quantity: Annotated[Quantity | None, Hassas.yok] = None
+    cost_unit_price: Annotated[UnitPrice | None, Hassas.maliyet_kar] = None
     #: `null` = revizyon geneli kullanilir.
-    overhead_pct: Pct | None = None
-    profit_pct: ProfitPct | None = None
+    overhead_pct: Annotated[Pct | None, Hassas.maliyet_kar] = None
+    profit_pct: Annotated[ProfitPct | None, Hassas.maliyet_kar] = None
     #: `null` = elle fiyat kilidi kalkar.
-    offer_unit_price: UnitPrice | None = None
-    unit_mhr: ManHourRate | None = None
+    offer_unit_price: Annotated[UnitPrice | None, Hassas.sozlesme_fiyat] = None
+    unit_mhr: Annotated[ManHourRate | None, Hassas.yok] = None
     group_id: uuid.UUID | None = None
     sort_order: SortOrder | None = None
 

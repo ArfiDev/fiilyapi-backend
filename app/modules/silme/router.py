@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request, status
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import SYSTEM_ADMIN_ONLY_DETAIL, require_system_admin
 from app.core.ratelimit import client_ip
@@ -16,6 +17,7 @@ from app.modules.silme.schemas import DeleteKind, DeletePreviewResponse
 from app.modules.users.models import User
 
 router = APIRouter(
+    route_class=MaskeRotasi,
     prefix="/admin/silme",
     tags=["silme"],
     responses={

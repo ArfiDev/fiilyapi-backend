@@ -1,6 +1,7 @@
 """TKL-B6.7 — kalem okumasinda acik `quantified` bayragi (kimlik kovasi, maskelenmez).
 
-`quantity` `operasyonel` kovadadir (`finance` kapsamda `None`); frontend "miktarsiz kalem"i
+`quantity` metraj alanidir (IZN-B4: hicbir gizli alan kategorisine girmez; `finance` kapsami
+kaldirildi); fiyat gizliyken para `None` olur. Frontend "miktarsiz kalem"i
 bu yuzden `quantity`den cikaramaz. `quantified` = `calc.ItemResult.quantified`, `priced`tan
 BAGIMSIZDIR.
 """
@@ -10,8 +11,11 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from sqlalchemy import select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
+from app.core.sayfalar import HiddenCategory
+from app.modules.roles.models import Role, RoleHiddenField
 
 from .._boq import _auth, _login_with_access, _set_permission
 from ._offers import URL, gecis, kalem, rev_url, revizyon, teklif, tum_kalemler
@@ -119,15 +123,18 @@ async def test_yeni_revizyon_ve_detay_bayragi_tasir(client, admin, karisik) -> N
     assert rev1_kalemleri and all(k["quantified"] is True for k in rev1_kalemleri)
 
 
-@pytest.mark.parametrize("kapsam", [Scope.finance, Scope.limited])
-async def test_maskeli_kapsamda_bayrak_DOGRU_miktar_maskeli(
-    client, admin, db_session, user_factory, karisik, kapsam
+@pytest.mark.parametrize("kategori", [HiddenCategory.sozlesme_fiyat, HiddenCategory.tum_tutarlar])
+async def test_gizli_alanlarda_bayrak_DOGRU_miktar_gorunur(
+    client, admin, db_session, user_factory, karisik, kategori
 ) -> None:
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, kapsam)
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    rol_id = (
+        await db_session.execute(select(Role.id).where(Role.key == "accounting"))
+    ).scalar_one()
+    db_session.add(RoleHiddenField(role_id=rol_id, category=kategori))
+    await db_session.flush()
     token = await _login_with_access(
         client, db_session, user_factory, "accounting", f"acc.{uuid.uuid4().hex[:6]}@tkl.co"
     )
     rev = (await client.get(rev_url(karisik["offer_id"], 0), headers=_auth(token))).json()
-    if kapsam is Scope.finance:
-        assert all(k["quantity"] is None for k in tum_kalemler(rev))  # on kosul: miktar maskeli
     assert _ozet(rev, karisik["items"]) == BEKLENEN

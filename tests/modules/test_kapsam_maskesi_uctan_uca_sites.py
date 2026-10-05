@@ -114,20 +114,19 @@ async def test_SITE_CHIEF_limited_PARAYI_goremez_ALANI_gorur(
     assert bolum["planned_worker_count"] == 12, "SAYAÇ gizlendi"
 
 
-async def test_ACCOUNTING_finance_ALANI_goremez_PARAYI_gorur(
+async def test_ACCOUNTING_eski_finance_KARSILIGI_YOK_hicbir_alan_gizlenmez(
     client, db_session, user_factory, santiye_ve_bolum
 ):
-    """`sites = view/finance` — `limited`in AYNASI."""
+    """IZN-B4 (GECE KARARI): eski `finance` kapsamı (alan/ilerleme gizler, parayı gösterir)
+    yeni modelde KARŞILIKSIZDIR (IZN-PLAN §3). Muhasebe'nin `hidden_fields`ı B1 göçünde BOŞ
+    türer: ne para ne alan gizlenir."""
     project, site, _section = santiye_ve_bolum
     basliklar = await _basliklar(client, db_session, user_factory, "accounting", "acc@site.co")
 
     kart, detay, bolum = await _uc_yuzey(client, basliklar, project, site)
 
-    assert kart["land_area_m2"] is None, "ARSA ALANI SIZDI"
-    assert kart["construction_area_m2"] is None, "İNŞAAT ALANI SIZDI"
-    assert kart["progress_pct"]["value"] is None, "İLERLEME SIZDI (zarf)"
-    assert bolum["progress_pct"]["value"] is None, "BÖLÜM İLERLEMESİ SIZDI"
-    # PARA muhasebenin işidir — gizlenmesi ekranı kullanılamaz yapardı
+    assert kart["land_area_m2"] == "5200.00", "ARSA ALANI YANLIŞLIKLA GİZLENDİ"
+    assert kart["construction_area_m2"] == "3100.00", "İNŞAAT ALANI YANLIŞLIKLA GİZLENDİ"
     assert kart["budget"] == "8400000.00", "PARA YANLIŞLIKLA GİZLENDİ"
     assert "budget_amount" not in bolum
     assert bolum["budget"]["value"] is not None, "BÖLÜM TÜREV BEDELİ YANLIŞLIKLA GİZLENDİ"

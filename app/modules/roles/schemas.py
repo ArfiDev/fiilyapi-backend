@@ -80,12 +80,8 @@ class RolePagesResponse(BaseModel):
     is_locked: bool
     pages: dict[PageKey, PageGrant]
     hidden_fields: list[HiddenCategory]
-    # IZN-B2 (CEO, hibrit kapsam): bu rolde kaydedilen `hidden_fields` alan maskesini DEĞİŞTİRİR mi?
-    # `false` = rolün eski `role_permissions` satırları var (8 seed rol + eski özel roller): maske
-    # B4'e kadar DONMUŞ eski kapsamdan okunur, kaydedilen gizli alanlar yalnız SAKLANIR.
-    # `true` = satırsız rol (6 yeni rol + B2 sonrası açılan özel/kopya roller): `tum_tutarlar`
-    # işaretliyse tutarlar gerçekten gizlenir (diğer kategoriler B4'e kadar yalnız saklanır).
-    # GET ve PUT yanıtında bulunur; frontend false iken kutucukların yanına uyarı koyar.
+    # IZN-B4: yeni alan maskesi HER rolde geçerlidir, bu yüzden bu alan HER ZAMAN `true` (eski
+    # hibrit kural kalktı). Alan yalnız frontend uyumu için KALIR; B6'da kaldırılabilir.
     hidden_fields_effective: bool
 
 

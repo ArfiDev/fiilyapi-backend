@@ -23,8 +23,7 @@ kaldirilinca gerekcesi de onunla birlikte tasinsin.
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, restricted_project_ids
-from app.core.field_scope import maskele
-from app.core.permissions import actor_scope, can_read, can_read_projects
+from app.core.permissions import can_read, can_read_projects
 from app.modules.approvals import service as approvals_service
 from app.modules.dashboard.risks import build_risks
 from app.modules.dashboard.schemas import (
@@ -309,13 +308,11 @@ async def build_summary(
     zarf isterdi ve o KIRICI olurdu, bu onarimin kapsami disindadir.
     """
     # IZN-B2: kart hem SEVİYE (K4: `projects` görünmüyorsa kart hiç dolmaz; sayfa hücrelerinden
-    # `gate_ok`) hem KAPSAM (aşağıdaki çapraz maske; `actor_scope` hibrit kuralı) kapısından
-    # geçer. Eski tek-satır okuması ikiye ayrıldı: seviye artık sayfa hücresinden, kapsam eski
-    # satırdan (ya da satırsız rolde `tum_tutarlar`dan) gelir. Sorgu sayısı
+    # `gate_ok`) hem MASKE (aşağıdaki çapraz maske; IZN-B4 `field_mask` bağlamı) kapısından
+    # geçer. Seviye sayfa hücresinden, maske rolün gizli kategorilerinden gelir. Sorgu sayısı
     # (`test_dashboard_pyt2_onay_sayaci.py`) bu yüzden güncellendi.
     # IZN-B3: proje karti izni PROJE BASINA (o projedeki rolun `projects` Gorur'u; ekipte olmayan /
     # "Tum projeler" kisi ana rolle).
-    projects_kapsami = await actor_scope(session, user, _PROJECTS_MODULE)
     uyelik = await list_projects_for_user(session, user.id)
     izin = await can_read_projects(session, user, _PROJECTS_MODULE, [p.id for p in uyelik])
     projects = [p for p in uyelik if izin[p.id]]
@@ -328,26 +325,9 @@ async def build_summary(
             1 for p in projects if p.status is ProjectStatus.active and not p.is_draft
         ),
         projects=[
-            # 🔴 KART, VERİNİN SAHİBİ OLAN MODÜLÜN KAPSAMIYLA DA MASKELENİR.
-            #
-            # Rota sınıfı `kapsam_rotasi("dashboard", …)`tır, yani sarmalayıcı
-            # bu yanıta aktörün **`dashboard`** kapsamını uygular. Ama kartın
-            # taşıdığı `budget`/`progress_pct` `projects` modülünün verisidir ve
-            # `GET /projects` ucunda aktörün **`projects`** kapsamıyla maskelenir.
-            # İki hücre AYRI AYRI ayarlanabilir (İzin Matrisi ekranı): `projects
-            # = view/limited` + `dashboard = full/all` olan bir rol, projeler
-            # ekranında göremediği bütçeyi panelden okurdu.
-            #
-            # Bu, yukarıdaki K4 notunun SEVİYE ekseninde kapattığı yan kapının
-            # KAPSAM eksenidir — aynı cümle, aynı gerekçe. Sonuç fail-CLOSED'dır:
-            # alan, iki kapsamdan HERHANGİ BİRİ gizliyorsa düşer (sarmalayıcı
-            # `dashboard` kapsamını bunun ÜSTÜNE uygular).
-            #
-            # Tohumda iki satır birebir aynı olduğu için bugün sızıntı YOKTU;
-            # kapatılan şey bir yapılandırma hâlidir. Bekçisi:
-            # `tests/modules/test_kapsam_maskesi_uctan_uca_dashboard.py`
-            # (`test_PANEL_proje_kartini_PROJECTS_kapsamiyla_da_maskeler`).
-            maskele(DashboardProjectCard.model_validate(p), projects_kapsami)
+            # Kart `budget`i satırın KENDİ projesindeki rolle maskelenir: `MaskeRotasi` kartın
+            # `PROJE_ALANI`nı (`id`) okur (IZN-B4; eski çapraz `projects` kapsamı artık gerekmez).
+            DashboardProjectCard.model_validate(p)
             for p in projects
         ],
         portfolio=await _portfolio(session, user, scope),

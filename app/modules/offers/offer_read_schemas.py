@@ -23,13 +23,14 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel
 
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.modules.offers.models import OfferPriceEscalation, OfferRevisionStatus
 from app.modules.projects.models import PriceIndexType
 
-_Para = Gorunurluk.para
-_Ops = Gorunurluk.operasyonel
-_Id = Gorunurluk.kimlik
+_Para = Hassas.sozlesme_fiyat  # teklif bedeli (müşteri görünümü)
+_Maliyet = Hassas.maliyet_kar  # iç görünüm: maliyet, genel gider, kâr
+_Ops = Hassas.yok
+_Id = Hassas.yok
 
 HistoryKind = Literal["opened", "sent", "won", "lost", "withdrawn", "converted"]
 #: Donusturme durumu (T14): `converted` = projeye donusturuldu; `won_not_converted` = son revizyon
@@ -56,11 +57,11 @@ class OfferItemCustomerRead(BaseModel):
 class OfferItemInternalRead(BaseModel):
     """IC kalem degerleri. Fiyatsiz kalemde para alanlari `None`, adam-saat DOLUDUR."""
 
-    cost: Annotated[Decimal | None, _Para]
-    overhead: Annotated[Decimal | None, _Para]
-    profit: Annotated[Decimal | None, _Para]
+    cost: Annotated[Decimal | None, _Maliyet]
+    overhead: Annotated[Decimal | None, _Maliyet]
+    profit: Annotated[Decimal | None, _Maliyet]
     #: Elle B.F. varsa TUREV kar %; yoksa uygulanan kar % (paradan turedigi icin `para`).
-    profit_pct: Annotated[Decimal | None, _Para]
+    profit_pct: Annotated[Decimal | None, _Maliyet]
     #: `None` = miktar girilmedi (SO-21): adam-saat bilinmiyor.
     man_hours: Annotated[Decimal | None, _Id]
 
@@ -78,9 +79,9 @@ class OfferItemRead(BaseModel):
     quantity: Annotated[Decimal | None, _Ops]
     unit_mhr: Annotated[Decimal, _Id]
     # girdiler (kalem degeri; `None` = revizyon geneli / hesaplanir / maliyet girilmemis)
-    cost_unit_price: Annotated[Decimal | None, _Para]
-    overhead_pct: Annotated[Decimal | None, _Id]
-    profit_pct: Annotated[Decimal | None, _Id]
+    cost_unit_price: Annotated[Decimal | None, _Maliyet]
+    overhead_pct: Annotated[Decimal | None, _Maliyet]
+    profit_pct: Annotated[Decimal | None, _Maliyet]
     offer_unit_price: Annotated[Decimal | None, _Para]
     # hesap sonucu
     priced: bool
@@ -118,11 +119,11 @@ class OfferCustomerTotalsRead(BaseModel):
 
 
 class OfferInternalTotalsRead(BaseModel):
-    cost: Annotated[Decimal | None, _Para]
-    overhead: Annotated[Decimal | None, _Para]
-    profit: Annotated[Decimal | None, _Para]
+    cost: Annotated[Decimal | None, _Maliyet]
+    overhead: Annotated[Decimal | None, _Maliyet]
+    profit: Annotated[Decimal | None, _Maliyet]
     #: Genel kar % = kar / (maliyet + GG); payda 0 ise `None`.
-    profit_pct: Annotated[Decimal | None, _Para]
+    profit_pct: Annotated[Decimal | None, _Maliyet]
     man_hours: Annotated[Decimal, _Id]
 
 
@@ -148,8 +149,8 @@ class OfferRevisionRead(BaseModel):
     offer_date: date
     validity_days: int
     valid_until: date
-    overhead_pct: Annotated[Decimal, _Id]
-    profit_pct: Annotated[Decimal, _Id]
+    overhead_pct: Annotated[Decimal | None, _Maliyet]
+    profit_pct: Annotated[Decimal | None, _Maliyet]
     vat_pct: Annotated[Decimal, _Id]
     payment_terms: str | None
     delivery_days: int | None

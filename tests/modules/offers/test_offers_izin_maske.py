@@ -12,9 +12,11 @@ import uuid
 import pytest
 from sqlalchemy import func, select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
+from app.core.sayfalar import HiddenCategory
 from app.modules.catalog.models import ContractorType, EvDiscipline
 from app.modules.offers.models import Offer
+from app.modules.roles.models import Role, RoleHiddenField
 from app.modules.roles.seed_data import MATRIX, ROLE_ORDER
 from app.modules.users.models import User
 from tests._proje_ekibi import baska_projede_disiplinli
@@ -36,6 +38,14 @@ PARA_ANAHTARLARI = {
     "gross",
     "winning_amount",
 }
+
+
+async def _gizle(db_session, role_key: str, *kategoriler: HiddenCategory) -> None:
+    """IZN-B4: rolun gizli alan kutucuklarini testte ACIKCA kurar (seede bagimli olma)."""
+    rol_id = (await db_session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
+    for kategori in kategoriler:
+        db_session.add(RoleHiddenField(role_id=rol_id, category=kategori))
+    await db_session.flush()
 
 
 async def _giris(client, db_session, user_factory, role_key: str) -> dict[str, str]:
@@ -151,7 +161,7 @@ async def test_contracts_yok_roller_TUM_uclarda_403(
 async def test_contracts_view_okur_ama_YAZAMAZ(
     client, admin, db_session, user_factory, dolu
 ) -> None:
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.all)
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     for yontem, yol, govde in _tum_uclar(dolu):
         resp = await client.request(yontem, yol, json=govde, headers=muhasebe)
@@ -200,7 +210,7 @@ async def test_proje_basina_disiplinli_kullanici_teklif_modulunu_gorur(
 async def test_gecis_uclari_da_kisitliya_kapali(
     client, admin, db_session, user_factory, isveren
 ) -> None:
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.all)
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
     o = await teklif(client, admin, isveren)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     for eylem in ("send", "win", "lose", "withdraw"):
@@ -223,7 +233,8 @@ async def test_limited_kapsamda_TUM_para_alanlari_None_diger_alanlar_gorunur(
         assert any(v is not None for _, v in alanlar), f"{ad}: yonetici hic para gormuyor"
     assert D(yonetici["rev1"]["totals"]["customer"]["net"]) == D("1528.00")
 
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.limited)
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await _gizle(db_session, "accounting", HiddenCategory.tum_tutarlar)
     sinirli = await _giris(client, db_session, user_factory, "accounting")
     gorulen = await _okumalar(client, sinirli, dolu)
     for ad, govde in gorulen.items():
@@ -234,12 +245,10 @@ async def test_limited_kapsamda_TUM_para_alanlari_None_diger_alanlar_gorunur(
         )  # alan DUSMEDI, None oldu
 
     rev = gorulen["rev1"]
-    # yuzdeler, adam-saat, miktar, durumlar GORUNUR
-    assert (D(rev["overhead_pct"]), D(rev["profit_pct"]), D(rev["vat_pct"])) == (
-        D(12),
-        D(15),
-        D(20),
-    )
+    # KDV orani, adam-saat, miktar, durumlar GORUNUR; genel gider/kar orani maliyet_kar
+    # (tum_tutarlar onu da kapsar) → None: maliyet `net`ten geri hesaplanamasin (GECE KARARI).
+    assert rev["overhead_pct"] is None and rev["profit_pct"] is None
+    assert D(rev["vat_pct"]) == D(20)
     kalemler = [k for g in rev["groups"] for k in g["items"]]
     assert {D(k["quantity"]) for k in kalemler} == {D(10), D(3), D(2)}
     assert all(k["internal"]["man_hours"] is not None for k in kalemler)
@@ -251,12 +260,17 @@ async def test_limited_kapsamda_TUM_para_alanlari_None_diger_alanlar_gorunur(
     assert gorulen["rev0"]["lost_reason"] == "Fiyat"  # metin gorunur, tutar degil
 
 
-async def test_finance_kapsamda_miktar_operasyonel_gizlenir_para_gorunur(
+async def test_yalniz_maliyet_kar_gizliyken_musteri_fiyati_gorunur_maliyet_ve_oranlar_None(
     client, admin, db_session, user_factory, dolu
 ) -> None:
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.finance)
+    """IZN-B4: eski `finance` kapsami karsiliksiz. Kategoriler BAGIMSIZDIR: `maliyet_kar` gizliyken
+    musteriye verilen fiyat (`sozlesme_fiyat`) GORUNUR; maliyet birim fiyati ve oranlar None."""
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await _gizle(db_session, "accounting", HiddenCategory.maliyet_kar)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     rev = (await client.get(rev_url(dolu["offer_id"], 1), headers=muhasebe)).json()
     kalemler = [k for g in rev["groups"] for k in g["items"]]
-    assert all(k["quantity"] is None for k in kalemler)
-    assert D(rev["totals"]["customer"]["net"]) == D("1528.00")  # para GORUNUR
+    assert {D(k["quantity"]) for k in kalemler} == {D(10), D(3), D(2)}  # miktar gizlenmez
+    assert D(rev["totals"]["customer"]["net"]) == D("1528.00")  # musteri fiyati GORUNUR
+    assert rev["overhead_pct"] is None and rev["profit_pct"] is None
+    assert all(k["cost_unit_price"] is None for k in kalemler)

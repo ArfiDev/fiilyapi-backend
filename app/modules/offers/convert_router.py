@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Path, Request
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_page
 from app.core.ratelimit import client_ip
@@ -38,7 +39,7 @@ from app.modules.offers.convert_schemas import (
 )
 from app.modules.users.models import User
 
-router = APIRouter(tags=["offers"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(route_class=MaskeRotasi, tags=["offers"], responses=COMMON_ERROR_RESPONSES)
 
 _PERMISSIONS = [
     # IZN-B2 §2.4: dönüştürme = Teklif Hazırlama sayfası ONAYLAR (eşik: projects admin VE

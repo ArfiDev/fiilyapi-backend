@@ -12,7 +12,8 @@
 🔴 ROTA SIRASI: `/offers/settings` LITERALDIR; `/offers/{offer_id}`den ONCE tanimli kalmali
 (ayni router icinde, ustte).
 
-Para alanlari `Gorunurluk.para` (kapsami `limited` olan rol gormez). Servisler commit etmez;
+Para alanlari `Hassas.sozlesme_fiyat`/`Hassas.maliyet_kar` etiketlidir (rolun gizli kategorisi
+maskeler). Servisler commit etmez;
 denetim satirlari BURADA yazilir. Kalem/grup TEKIL duzenlemeleri bilincli olarak denetim
 satiri YAZMAZ (gurultu); yapisal olaylar yazar.
 """
@@ -26,10 +27,10 @@ from fastapi import APIRouter, Depends, Path, Query, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
+from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
-from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -69,15 +70,11 @@ from app.modules.users.models import User
 
 last_price_provider.register()
 
-# 🔴 KAPSAM MASKESI — IKI PARCA DA GEREKLI (bkz. `catalog/router.py`); cifti
-#    `tests/core/test_kapsam_baglantisi.py` cakar.
-# IZN-B3: disiplin PROJE BASINA atanir; teklif sirket geneli oldugu icin `RequireUnrestricted`
-#    (eski R5/SO-19 kisiti) KALKTI — teklif yalniz sayfa izniyle yonetilir.
+# HASSAS ALAN MASKESİ (IZN-B4): `MaskeRotasi` tek parça (bağlamı kendisi ekler).
 router = APIRouter(
     tags=["offers"],
     responses=COMMON_ERROR_RESPONSES,
-    route_class=kapsam_rotasi("contracts", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("contracts")],
+    route_class=MaskeRotasi,
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)

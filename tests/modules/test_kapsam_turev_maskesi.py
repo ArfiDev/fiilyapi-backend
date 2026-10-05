@@ -1,8 +1,8 @@
-"""TÜREV alanlar maskeye DUYARLI mıdır — altı kısıtlı modülün TAMAMI için bekçi.
+"""TÜREV alanlar maskeye DUYARLI mıdır — IZN-B4 ZORUNLU modül kümesinin TAMAMI için bekçi.
 
 ## Neyi kapatıyor
 
-`core/field_scope.py` şunu kanon ilan eder: *"türev, girdisi `None` olduğunda
+`core/field_mask.py` şunu kanon ilan eder: *"türev, girdisi `None` olduğunda
 `None` DÖNMELİDİR"*. Maske `computed_field`'ı doğrudan yazamaz (property'dir);
 yalnız GİRDİLERİNİ `None`a çeker ve türevin kendiliğinden düşmesini bekler.
 Türev bu sözleşmeyi tutmazsa iki ayrı kusur doğar ve ikisi de CANLIDA görülür:
@@ -17,8 +17,10 @@ Türev bu sözleşmeyi tutmazsa iki ayrı kusur doğar ve ikisi de CANLIDA gör�
 
 ## 🔴 Neden SAYI değil BEKÇİ
 
-Bu dosya "şu üç türev şöyle davranır" demez. Kısıtlı modülleri MATRİSTEN,
-şemaları PAKETTEN, türevleri `model_computed_fields`ten okur. Yarın altıncı
+Bu dosya "şu üç türev şöyle davranır" demez. Taranan modülleri bekçinin
+`ZORUNLU_MODULLER` sabitinden (`tests/core/test_hassas_alan_bekcisi.py`; B4b/c/d
+modül ekledikçe tarama kendiliğinden genişler), şemaları PAKETTEN, türevleri
+`model_computed_fields`ten okur. Yarın bir
 modüle yeni bir `computed_field` eklendiğinde kimsenin bu dosyayı açması
 gerekmez — yeni türev kendiliğinden taranır. Elle tutulan bir liste, listeyi
 güncellemeyi unutan ilk kişide çürürdü.
@@ -42,9 +44,9 @@ yeşil kalmak"tır:
 
 * `all` kapsamında her türev GERÇEK değerini döndürmelidir (maske "her şeyi
   gizle" hâline çökerse burası kırmızı olur),
-* tarama en az altı modülü ve bir eşik sayıda şemayı görmelidir (ithal kırılırsa
+* tarama ZORUNLU kümenin tüm modüllerini ve bir eşik sayıda şemayı görmelidir (ithal kırılırsa
   kırmızı),
-* kısıtlı her kapsamda EN AZ BİR türev maskeden ETKİLENMELİDİR (etiketler
+* gizli kategori kümelerinde EN AZ BİR türev maskeden ETKİLENMELİDİR (etiketler
   kaybolur ya da fabrika boş nesne üretirse kırmızı).
 """
 
@@ -63,12 +65,23 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from app.core.access import Scope
-from app.core.field_scope import maskele
-from app.modules.roles.seed_data import MATRIX
+from app.core.field_mask import MaskeKumeleri, maskele
+from app.core.sayfalar import HiddenCategory
+from tests.core.test_hassas_alan_bekcisi import ZORUNLU_MODULLER, ZORUNLU_SEMALAR
+
+#: Gizli kategori SENARYOLARI (eski `Scope.limited`/`finance` yerine): her kategori tek başına,
+#: `tum_tutarlar` ve hepsi. `acik` = hiçbir şey gizli değil (pozitif kontrol).
+SENARYOLAR: dict[str, MaskeKumeleri] = {
+    "sozlesme_fiyat": MaskeKumeleri(varsayilan=frozenset({HiddenCategory.sozlesme_fiyat})),
+    "maliyet_kar": MaskeKumeleri(varsayilan=frozenset({HiddenCategory.maliyet_kar})),
+    "satis_alici": MaskeKumeleri(varsayilan=frozenset({HiddenCategory.satis_alici})),
+    "tum_tutarlar": MaskeKumeleri(varsayilan=frozenset({HiddenCategory.tum_tutarlar})),
+    "hepsi": MaskeKumeleri(varsayilan=frozenset(HiddenCategory)),
+}
+ACIK = MaskeKumeleri()
 
 #: İstek (request) gövdeleri taranmaz: maske YALNIZ yanıt yolunda çalışır
-#: (`core/scoped_route.py`). Bir istek şemasındaki türevi maskeye göre yargılamak
+#: (`core/mask_route.py`). Bir istek şemasındaki türevi maskeye göre yargılamak
 #: yanlış kırmızı üretirdi — o nesne hiçbir zaman `maskele`den geçmez.
 _ISTEK_EKI = ("Create", "Update", "Input", "Save", "Replace")
 
@@ -86,18 +99,13 @@ _SAYAC = itertools.count(2)
 _DERINLIK_TAVANI = 8
 
 
-def _kisitli_moduller() -> list[str]:
-    """Matriste `all` OLMAYAN bir kapsam taşıyan modüller.
+def _taranan_moduller() -> list[str]:
+    """Bekçinin ZORUNLU kümesi (+ şema-zorunlu modüller): etiketli modüller.
 
-    Liste elle yazılsaydı matrise yeni bir `limited`/`finance` hücresi ekleyen
-    kişi burayı güncellemek zorunda olmazdı ve o modülün türevleri bekçisiz
-    kalırdı.
+    Liste burada elle yazılmaz: modülünü ZORUNLU kümeye taşıyan dilim türevlerini de otomatik
+    bu bekçiye sokar.
     """
-    return sorted(
-        modul
-        for modul, hucreler in MATRIX.items()
-        if any(scope is not Scope.all for _lvl, scope in hucreler)
-    )
+    return sorted(ZORUNLU_MODULLER | set(ZORUNLU_SEMALAR))
 
 
 def _paket_semalari(modul_key: str) -> list[tuple[str, type[BaseModel]]]:
@@ -124,10 +132,10 @@ def _paket_semalari(modul_key: str) -> list[tuple[str, type[BaseModel]]]:
 
 
 def _turevli_semalar() -> list[tuple[str, type[BaseModel]]]:
-    """Kısıtlı modüllerde `computed_field` TAŞIYAN şemalar."""
+    """Taranan modüllerde `computed_field` TAŞIYAN şemalar."""
     return [
         (ad, sema)
-        for modul_key in _kisitli_moduller()
+        for modul_key in _taranan_moduller()
         for ad, sema in _paket_semalari(modul_key)
         if sema.model_computed_fields
     ]
@@ -209,20 +217,20 @@ def _turev_oku(model: BaseModel, ad: str) -> Any:
         return hata
 
 
-@pytest.mark.parametrize("kapsam", list(Scope))
-def test_TUREVLER_hicbir_kapsamda_SERILESTIRMEYI_patlatmaz(kapsam: Scope) -> None:
-    """Maskeli girdiyle türev okunurken patlayan şema, o kapsamdaki rol için
-    uca 500 döndürür (maske serileştirmeden ÖNCE uygulanır, `scoped_route`)."""
+@pytest.mark.parametrize("senaryo", list(SENARYOLAR))
+def test_TUREVLER_hicbir_senaryoda_SERILESTIRMEYI_patlatmaz(senaryo: str) -> None:
+    """Maskeli girdiyle türev okunurken patlayan şema, o gizli kümedeki rol için
+    uca 500 döndürür (maske serileştirmeden ÖNCE uygulanır, `mask_route`)."""
     patlayan: dict[str, str] = {}
     for ad, sema in _turevli_semalar():
-        model = maskele(_ornek_model(sema), kapsam)
+        model = maskele(_ornek_model(sema), SENARYOLAR[senaryo])
         try:
             model.model_dump(mode="json", warnings=False)
         except Exception as hata:  # noqa: BLE001
             patlayan[ad] = f"{type(hata).__name__}: {hata}"
     assert not patlayan, (
-        f"`{kapsam.value}` kapsamında türev alan serileştirmeyi PATLATIYOR → uç 500 verir. "
-        "Türev, girdisi maskelenmişse `None` dönmelidir (`core/field_scope.py` kanonu; "
+        f"`{senaryo}` gizli kümesinde türev alan serileştirmeyi PATLATIYOR → uç 500 verir. "
+        "Türev, girdisi maskelenmişse `None` dönmelidir (`core/field_mask.py` kanonu; "
         f"doğru emsal: `boq/schemas.py::amount`): {patlayan}"
     )
 
@@ -236,17 +244,17 @@ def test_MASKE_deger_degistiriyorsa_TUREV_None_DONER() -> None:
     kusurlu: dict[str, str] = {}
     for ad, sema in _turevli_semalar():
         ham = _ornek_model(sema)
-        for kapsam in (Scope.limited, Scope.finance):
-            maskeli = maskele(ham, kapsam)
+        for senaryo, kumeler in SENARYOLAR.items():
+            maskeli = maskele(ham, kumeler)
             for turev in sema.model_computed_fields:
                 ham_deger = _turev_oku(ham, turev)
                 maskeli_deger = _turev_oku(maskeli, turev)
                 if isinstance(maskeli_deger, Exception):
-                    kusurlu[f"{ad}.{turev}/{kapsam.value}"] = (
+                    kusurlu[f"{ad}.{turev}/{senaryo}"] = (
                         f"okunamadı: {type(maskeli_deger).__name__}"
                     )
                 elif maskeli_deger != ham_deger and maskeli_deger is not None:
-                    kusurlu[f"{ad}.{turev}/{kapsam.value}"] = (
+                    kusurlu[f"{ad}.{turev}/{senaryo}"] = (
                         f"maskesiz={ham_deger!r} → maskeli={maskeli_deger!r} (None olmalıydı)"
                     )
     assert not kusurlu, (
@@ -255,21 +263,20 @@ def test_MASKE_deger_degistiriyorsa_TUREV_None_DONER() -> None:
     )
 
 
-def test_ALL_kapsaminda_turevler_GERCEK_degeri_doner() -> None:
+def test_ACIK_kumede_turevler_GERCEK_degeri_doner() -> None:
     """🔴 POZİTİF KONTROL — maske "her şeyi gizle"ye çökerse ya da türevler
     koşulsuz `None` dönmeye başlarsa (kusuru "kapatmanın" en kolay yanlış yolu)
     burası kırmızı olur."""
     bos: list[str] = []
     for ad, sema in _turevli_semalar():
         ham = _ornek_model(sema)
-        acik = maskele(ham, Scope.all)
+        acik = maskele(ham, ACIK)
         for turev in sema.model_computed_fields:
             deger = _turev_oku(acik, turev)
             if isinstance(deger, Exception) or deger is None:
                 bos.append(f"{ad}.{turev} → {deger!r}")
     assert not bos, (
-        "`all` kapsamında (hiçbir şey gizlenmezken) türev GERÇEK değer dönmeli; "
-        f"boş dönenler: {bos}"
+        f"açık kümede (hiçbir şey gizlenmezken) türev GERÇEK değer dönmeli; boş dönenler: {bos}"
     )
 
 
@@ -278,8 +285,8 @@ def test_BEKCI_gercekten_TARIYOR() -> None:
     taramadan yeşil kalmak"tır (ithal kırılır, matris `all`a çöker, adlandırma
     süzgeci her şeyi eler). Tarama boşalırsa yukarıdaki üç bekçi de sessizce
     yeşile döner; burası o hâli çakar."""
-    moduller = _kisitli_moduller()
-    assert len(moduller) >= 6, f"Kısıtlı modül sayısı beklenenden az: {moduller}"
+    moduller = _taranan_moduller()
+    assert len(moduller) >= 10, f"Taranan modül sayısı beklenenden az: {moduller}"
 
     # 🔴 Modül BAŞINA en az bir şema: tek bir modülün ithali kırıldığında ya da
     # adlandırma süzgeci o modülün tüm sınıflarını yediğinde global bir sayı
@@ -294,11 +301,11 @@ def test_BEKCI_gercekten_TARIYOR() -> None:
     assert len(semalar) >= 50, f"Şema taraması çöktü, yalnız {len(semalar)} şema görüldü"
 
     turevli = _turevli_semalar()
-    assert turevli, "Kısıtlı modüllerde HİÇ `computed_field` bulunamadı — tarama kırık."
+    assert turevli, "Taranan modüllerde HİÇ `computed_field` bulunamadı — tarama kırık."
 
 
-@pytest.mark.parametrize("kapsam", [Scope.limited, Scope.finance])
-def test_HER_kisitli_kapsamda_en_az_bir_turev_MASKEDEN_ETKILENIR(kapsam: Scope) -> None:
+@pytest.mark.parametrize("senaryo", ["sozlesme_fiyat", "tum_tutarlar", "hepsi"])
+def test_HER_gizli_kumede_en_az_bir_turev_MASKEDEN_ETKILENIR(senaryo: str) -> None:
     """🔴 POZİTİF KONTROL — üstteki kural ("değişiyorsa `None` olmalı") hiçbir
     türev maskeden etkilenmezse BOŞ YERE yeşil kalır. Etiketler silinse ya da
     fabrika `None` dolu nesneler üretse bu hâl oluşurdu; burası onu çakar."""
@@ -308,13 +315,13 @@ def test_HER_kisitli_kapsamda_en_az_bir_turev_MASKEDEN_ETKILENIR(kapsam: Scope) 
         # örnek üretilseydi alanlar farklı sayılar alır, türevler maske yüzünden
         # değil FABRİKA yüzünden farklı çıkar ve bu kontrol yalan söylerdi.
         ham = _ornek_model(sema)
-        maskeli = maskele(ham, kapsam)
+        maskeli = maskele(ham, SENARYOLAR[senaryo])
         etkilenen += [
             f"{ad}.{turev}"
             for turev in sema.model_computed_fields
             if _turev_oku(maskeli, turev) != _turev_oku(ham, turev)
         ]
     assert etkilenen, (
-        f"`{kapsam.value}` kapsamında HİÇBİR türev maskeden etkilenmiyor — "
+        f"`{senaryo}` gizli kümesinde HİÇBİR türev maskeden etkilenmiyor — "
         "bekçi ölçtüğünü sandığı şeyi ölçmüyor olabilir."
     )

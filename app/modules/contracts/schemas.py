@@ -24,7 +24,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 # Serbest metin tavanı (TB4 S3) `boq` ailesiyle PAYLAŞILIR — tek kaynak.
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.core.text import FREE_TEXT_MAX_LENGTH
 
 # Hucre tavani BDG-B1 ile AYNI sayi, TEK sabit (boq.schemas) — ikinci kopya yok.
@@ -117,9 +117,11 @@ class ContractSummary(BaseModel):
     yenilenmeden tüketilemez.
     """
 
-    total_amount: Annotated[Decimal | None, Gorunurluk.para]
+    total_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat, Hassas.maliyet_kar]
     active_count: int
-    progress_payment_total: Annotated[Decimal | None, Gorunurluk.para] = None
+    progress_payment_total: Annotated[Decimal | None, Hassas.sozlesme_fiyat, Hassas.maliyet_kar] = (
+        None
+    )
     expiring_this_month_count: int
 
 
@@ -128,10 +130,13 @@ class ContractListItem(BaseModel):
     kaynaklardan servis tarafından doldurulur (spec §6.1 alan eşlemesi)."""
 
     id: uuid.UUID
+    # IZN-B4a (EKLEME): satırın projesi — çok proje listesinde satır KENDİ projesindeki rolle
+    # maskelenir (işveren sözleşmesinde `id` ile aynıdır).
+    project_id: uuid.UUID
     title: str
     contract_no: str | None
     counterparty_name: str | None
-    amount: Annotated[Decimal | None, Gorunurluk.para]
+    amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat, Hassas.maliyet_kar]
     start_date: date | None
     end_date: date | None
     # 🔴 PARA — kullanıcı kararı 2026-09-19. Bu oran §8 "finansal ilerleme"dir
@@ -142,7 +147,7 @@ class ContractListItem(BaseModel):
     #    bedeli dolaylı ele veriyordu; muhasebe ise kendi asıl metriğini
     #    göremiyordu. Emsali `land_share_schemas`taki `our_actual_pct`/
     #    `deviation_pct` — üçü de `para`.
-    progress_pct: Annotated[Decimal | None, Gorunurluk.para] = None
+    progress_pct: Annotated[Decimal | None, Hassas.sozlesme_fiyat, Hassas.maliyet_kar] = None
     """§8 finansal ilerleme: `kümülatif brüt / bedel × 100` (P7/H9, spec §9.6).
 
     **İKİ SEKMEDE DE GERÇEK DEĞER** (P-YT4, 2026-08-23). Eski not "taşeron
@@ -207,8 +212,8 @@ class EmployerContractItemCreate(BaseModel):
     code: str = Field(min_length=1, max_length=50)
     description: str = Field(min_length=1, max_length=FREE_TEXT_MAX_LENGTH)
     unit: str = Field(min_length=1, max_length=50)
-    quantity: Decimal = Field(gt=0)
-    unit_price: Decimal = Field(ge=0)
+    quantity: Annotated[Decimal, Hassas.yok] = Field(gt=0)
+    unit_price: Annotated[Decimal, Hassas.sozlesme_fiyat] = Field(ge=0)
     sort_order: int = Field(default=0, ge=0)
     # TKL-B3.1: degerler (kod/aciklama/birim/fiyat) istemcide katalog seciciden dolar ve
     # govdede gelir; sunucu yalniz bagin VARLIGINI dogrular (yoksa 404).
@@ -251,8 +256,8 @@ class EmployerContractItemUpdate(BaseModel):
     code: str | None = Field(default=None, min_length=1, max_length=50)
     description: str | None = Field(default=None, min_length=1, max_length=FREE_TEXT_MAX_LENGTH)
     unit: str | None = Field(default=None, min_length=1, max_length=50)
-    quantity: Decimal | None = Field(default=None, gt=0)
-    unit_price: Decimal | None = Field(default=None, ge=0)
+    quantity: Annotated[Decimal | None, Hassas.yok] = Field(default=None, gt=0)
+    unit_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat] = Field(default=None, ge=0)
     sort_order: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="before")
@@ -298,14 +303,14 @@ class EmployerContractItemResponse(BaseModel):
     code: str
     description: str
     unit: str
-    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    unit_price: Annotated[Decimal | None, Gorunurluk.para]
+    quantity: Annotated[Decimal | None, Hassas.yok]
+    unit_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     sort_order: int
     catalog_item_id: uuid.UUID | None
     #: KAT-B2.1: Bakanlık poz no'su (SNAPSHOT; bağsız/boş kalemde null). `code`'dan AYRI.
-    source_code: Annotated[str | None, Gorunurluk.kimlik]
-    distributed_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    remaining_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    source_code: Annotated[str | None, Hassas.yok]
+    distributed_quantity: Annotated[Decimal | None, Hassas.yok]
+    remaining_quantity: Annotated[Decimal | None, Hassas.yok]
 
 
 class EmployerContractItemsBulkResponse(BaseModel):
@@ -342,11 +347,11 @@ class EmployerContractDetail(BaseModel):
     project_id: uuid.UUID
     contract_no: str | None
     signature_date: date | None
-    amount: Annotated[Decimal | None, Gorunurluk.para]
-    advance_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    retainage_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    vat_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    late_penalty_daily: Annotated[Decimal | None, Gorunurluk.para]
+    amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    advance_pct: Annotated[Decimal, Hassas.yok]
+    retainage_pct: Annotated[Decimal, Hassas.yok]
+    vat_pct: Annotated[Decimal, Hassas.yok]
+    late_penalty_daily: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     has_price_escalation: bool
     index_type: PriceIndexType | None
     """T5 (spec §6 ek task, P7 bulgusu): fiyat farkı endeks tipi additive olarak
@@ -360,9 +365,9 @@ class EmployerContractDetail(BaseModel):
     end_date: date | None
     employer_name: str | None
     contractor_name: str | None
-    items_total: Annotated[Decimal | None, Gorunurluk.para]
-    items_total_diff: Annotated[Decimal | None, Gorunurluk.para]
-    advance_amount: Annotated[Decimal | None, Gorunurluk.para]
+    items_total: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    items_total_diff: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    advance_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     progress_payment_summary: ProgressPaymentSummary
     """E14 127-147 "Hakediş Özeti" kartı — P7/H9'da GERÇEK veriye bağlandı
     (spec §9.6). ZORUNLU alan (H9 denetim O2): tek üretici
@@ -411,7 +416,9 @@ class ContractAllocationInput(BaseModel):
     contract_item_id: uuid.UUID
     site_id: uuid.UUID
     # Kolon `Numeric(14, 3)` ile BIREBIR (SZK-B1): `1e30` / `0.0004` -> 422.
-    quantity: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=3)
+    quantity: Annotated[Decimal | None, Hassas.yok] = Field(
+        default=None, gt=0, max_digits=14, decimal_places=3
+    )
 
 
 class ContractDistributionSave(BaseModel):
@@ -431,20 +438,20 @@ class ContractDistributionSite(BaseModel):
 
 class ContractDistributionAllocation(BaseModel):
     site_id: uuid.UUID
-    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    quantity: Annotated[Decimal | None, Hassas.yok]
     boq_item_id: uuid.UUID
 
 
 class ContractDistributionItem(BaseModel):
     id: uuid.UUID
     code: str
-    source_code: Annotated[str | None, Gorunurluk.kimlik]
+    source_code: Annotated[str | None, Hassas.yok]
     description: str
     unit: str
-    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    unit_price: Annotated[Decimal | None, Gorunurluk.para]
+    quantity: Annotated[Decimal | None, Hassas.yok]
+    unit_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     allocations: list[ContractDistributionAllocation]
-    remaining_quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    remaining_quantity: Annotated[Decimal | None, Hassas.yok]
 
 
 class ContractDistributionGroup(BaseModel):
@@ -459,16 +466,16 @@ class ContractDistributionSiteItem(BaseModel):
 
     code: str
     description: str
-    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    unit_price: Annotated[Decimal | None, Gorunurluk.para]
-    amount: Annotated[Decimal | None, Gorunurluk.para]
+    quantity: Annotated[Decimal | None, Hassas.yok]
+    unit_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
 
 
 class ContractDistributionSiteSummary(BaseModel):
     site_id: uuid.UUID
     site_name: str
     items: list[ContractDistributionSiteItem]
-    total_amount: Annotated[Decimal | None, Gorunurluk.para]
+    total_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
 
 
 class ContractDistributionResponse(BaseModel):
@@ -488,10 +495,10 @@ class ContractDistributionResponse(BaseModel):
 
 class SubcontractorCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    tax_number: str | None = Field(default=None, max_length=11)
+    tax_number: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=11)
     contact_person: str | None = Field(default=None, max_length=200)
-    phone: str | None = Field(default=None, max_length=30)
-    email: str | None = Field(default=None, max_length=255)
+    phone: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=30)
+    email: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=255)
     # category enum DEĞİL, String — sunucu FORM 82'deki listeyi zorlamaz (spec §3.4).
     category: str | None = Field(default=None, max_length=100)
     is_active: bool = True
@@ -499,10 +506,10 @@ class SubcontractorCreate(BaseModel):
 
 class SubcontractorUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
-    tax_number: str | None = Field(default=None, max_length=11)
+    tax_number: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=11)
     contact_person: str | None = Field(default=None, max_length=200)
-    phone: str | None = Field(default=None, max_length=30)
-    email: str | None = Field(default=None, max_length=255)
+    phone: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=30)
+    email: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=255)
     category: str | None = Field(default=None, max_length=100)
     is_active: bool | None = None
 
@@ -512,10 +519,10 @@ class SubcontractorResponse(BaseModel):
 
     id: uuid.UUID
     name: str
-    tax_number: str | None
+    tax_number: Annotated[str | None, Hassas.yok]
     contact_person: str | None
-    phone: str | None
-    email: str | None
+    phone: Annotated[str | None, Hassas.yok]
+    email: Annotated[str | None, Hassas.yok]
     category: str | None
     is_active: bool
 
@@ -531,10 +538,10 @@ class SubcontractorContractItemCreate(BaseModel):
     code: str = Field(min_length=1, max_length=50)
     description: str = Field(min_length=1, max_length=FREE_TEXT_MAX_LENGTH)
     unit: str = Field(min_length=1, max_length=50)
-    quantity: Decimal = Field(gt=0)
+    quantity: Annotated[Decimal, Hassas.yok] = Field(gt=0)
     # NULL bilinçli (spec §3.6): işverenden yüklenen kalem fiyatsız gelir;
     # "girilmedi" ile "0 TL" ayrımı korunur.
-    unit_price: Decimal | None = Field(default=None, ge=0)
+    unit_price: Annotated[Decimal | None, Hassas.maliyet_kar] = Field(default=None, ge=0)
     # `None` = "istemci göndermedi" (İÇ İÇE yazma yolunda satır sırasına göre
     # otomatik atanır); bilinçli `0` bundan AYIRT edilmeli — `int = 0` iken
     # ikisi ayrışamazdı (dal geneli son inceleme, falsy `or` tuzağı).
@@ -556,8 +563,8 @@ class SubcontractorContractItemUpdate(BaseModel):
     code: str | None = Field(default=None, min_length=1, max_length=50)
     description: str | None = Field(default=None, min_length=1, max_length=FREE_TEXT_MAX_LENGTH)
     unit: str | None = Field(default=None, min_length=1, max_length=50)
-    quantity: Decimal | None = Field(default=None, gt=0)
-    unit_price: Decimal | None = Field(default=None, ge=0)
+    quantity: Annotated[Decimal | None, Hassas.yok] = Field(default=None, gt=0)
+    unit_price: Annotated[Decimal | None, Hassas.maliyet_kar] = Field(default=None, ge=0)
     sort_order: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="before")
@@ -592,11 +599,11 @@ class SubcontractorContractItemResponse(BaseModel):
     code: str
     description: str
     unit: str
-    quantity: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    unit_price: Annotated[Decimal | None, Gorunurluk.para]
+    quantity: Annotated[Decimal | None, Hassas.yok]
+    unit_price: Annotated[Decimal | None, Hassas.maliyet_kar]
     sort_order: int
     #: KAT-B2.3: Bakanlık poz no'su (SNAPSHOT; kaynak işveren kaleminden, bağsızsa null).
-    source_code: Annotated[str | None, Gorunurluk.kimlik]
+    source_code: Annotated[str | None, Hassas.yok]
     # Bağsız kalemler `group: null` ile döner (spec §3.6).
     group: SubcontractorContractItemGroup | None = None
 
@@ -657,11 +664,11 @@ class SubcontractorContractCreate(BaseModel):
     is_notarized: bool = False
     start_date: date | None = None
     end_date: date | None = None
-    late_penalty_daily: Decimal | None = Field(default=None, ge=0)
-    advance_pct: Decimal = Field(default=Decimal("10"), ge=0, le=100)
-    retainage_pct: Decimal = Field(default=Decimal("5"), ge=0, le=100)
+    late_penalty_daily: Annotated[Decimal | None, Hassas.maliyet_kar] = Field(default=None, ge=0)
+    advance_pct: Annotated[Decimal, Hassas.yok] = Field(default=Decimal("10"), ge=0, le=100)
+    retainage_pct: Annotated[Decimal, Hassas.yok] = Field(default=Decimal("5"), ge=0, le=100)
     # Taşeron hakedişi spec §8 S1: hakediş oluşturmada snapshot'lanır.
-    vat_pct: RequiredVatRate = Decimal("20")
+    vat_pct: Annotated[RequiredVatRate, Hassas.yok] = Decimal("20")
     payment_period: PaymentPeriod = PaymentPeriod.monthly
     payment_term_days: int = Field(default=30, ge=0)
     materials_by_contractor: bool = False
@@ -684,10 +691,10 @@ class SubcontractorContractUpdate(BaseModel):
     is_notarized: bool | None = None
     start_date: date | None = None
     end_date: date | None = None
-    late_penalty_daily: Decimal | None = Field(default=None, ge=0)
-    advance_pct: Decimal | None = Field(default=None, ge=0, le=100)
-    retainage_pct: Decimal | None = Field(default=None, ge=0, le=100)
-    vat_pct: VatRate = None
+    late_penalty_daily: Annotated[Decimal | None, Hassas.maliyet_kar] = Field(default=None, ge=0)
+    advance_pct: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0, le=100)
+    retainage_pct: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0, le=100)
+    vat_pct: Annotated[VatRate, Hassas.yok] = None
     payment_period: PaymentPeriod | None = None
     payment_term_days: int | None = Field(default=None, ge=0)
     materials_by_contractor: bool | None = None
@@ -718,10 +725,10 @@ class SubcontractorContractDetail(BaseModel):
     is_notarized: bool
     start_date: date | None
     end_date: date | None
-    late_penalty_daily: Annotated[Decimal | None, Gorunurluk.para]
-    advance_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    retainage_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    vat_pct: Annotated[Decimal, Gorunurluk.kimlik]
+    late_penalty_daily: Annotated[Decimal | None, Hassas.maliyet_kar]
+    advance_pct: Annotated[Decimal, Hassas.yok]
+    retainage_pct: Annotated[Decimal, Hassas.yok]
+    vat_pct: Annotated[Decimal, Hassas.yok]
     payment_period: PaymentPeriod
     payment_term_days: int
     materials_by_contractor: bool
@@ -730,7 +737,7 @@ class SubcontractorContractDetail(BaseModel):
     status: ContractStatus
     is_draft: bool
     items: list[SubcontractorContractItemResponse]
-    contract_total: Annotated[Decimal | None, Gorunurluk.para]
+    contract_total: Annotated[Decimal | None, Hassas.maliyet_kar]
     items_missing_price: int
     progress_payment_summary: None = None
     documents: None = None

@@ -72,35 +72,21 @@ async def test_SITE_CHIEF_limited_PARAYI_goremez_METRAJI_gorur(
     assert kalem["description"] == "Kazı (Makine ile)"
 
 
-async def test_ACCOUNTING_finance_METRAJI_goremez_PARAYI_gorur(
+async def test_ACCOUNTING_finance_KARSILIGI_YOK_metraj_ve_para_DOLU(
     client, db_session, user_factory, project_factory
 ):
-    """`boq = view/finance` — `limited`in AYNASI.
+    """IZN-B4: eski `finance` (metrajı gizler) yeni modelde KARŞILIKSIZDIR (IZN-PLAN §3).
 
-    🔴 KİMLİK alanları DURUR: birebir "yalnız para" uygulansaydı muhasebe pozun
-    ADINI bile göremez ve ekran kullanılamaz olurdu (kullanıcı kararı)."""
+    Muhasebe'nin `hidden_fields`ı B1 göçünde boş türer; metraj, fiyat ve tüm türevler görünür."""
     govde = await _boq_yaniti(
         client, db_session, user_factory, project_factory, "accounting", "acc@kapsam.co"
     )
     kalem = _kalem(govde)
 
-    assert kalem["quantity"] is None, "METRAJ SIZDI"
-    assert kalem["allocated_quantity"] is None
-    assert kalem["unit_price"] == "280.00", "PARA YANLIŞLIKLA GİZLENDİ"
-    assert kalem["code"] == "01.001", "KİMLİK GİZLENDİ"
-    assert kalem["description"] == "Kazı (Makine ile)"
-
-    # 🔴 TUTAR TUTARLILIĞI (kullanıcı kararı 2026-09-19) — bu bölüm bir KÖR
-    #    BEKÇİNİN onarımıdır. Test eskiden YALNIZ `unit_price`ı ölçüyordu ve
-    #    tutarlar hakkında TEK İDDİASI YOKTU; o yüzden şu tutarsızlığı hiç
-    #    görmedi: metraj gizlenince satır tutarları türev olarak düşerken
-    #    `grand_total` DÜZ bir alan olduğu için GERÇEK kalıyordu. Muhasebenin
-    #    ekranında hiçbir satır tutara katkı vermezken altta gerçek bir genel
-    #    toplam yazılıydı — ve gizlenen metraj `tutar / birim fiyat` ile GERİ
-    #    HESAPLANABİLİYORDU.
-    assert kalem["amount"] is None, "metraj gizliyken SATIR TUTARI sızdı"
-    assert govde["groups"][0]["group_total"] is None, "metraj gizliyken GRUP TOPLAMI sızdı"
-    assert govde["totals"]["grand_total"] is None, (
-        "GENEL TOPLAM sızdı: metraj gizliyken toplam hayatta kalırsa ekran "
-        "TUTARSIZDIR ve metraj `tutar / birim fiyat` ile geri hesaplanır"
-    )
+    assert kalem["quantity"] == "1240.000"
+    assert kalem["allocated_quantity"] is not None
+    assert kalem["unit_price"] == "280.00"
+    assert kalem["code"] == "01.001"
+    assert kalem["amount"] == "347200.00"
+    assert govde["groups"][0]["group_total"] == "347200.00"
+    assert govde["totals"]["grand_total"] == "347200.00"

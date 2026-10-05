@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.modules.audit import repository
@@ -22,7 +23,9 @@ from app.modules.audit.models import AuditAction
 from app.modules.audit.repository import AuditRow
 from app.modules.audit.schemas import AuditActorRead, AuditItem, AuditListResponse
 
-router = APIRouter(prefix="/audit-log", tags=["audit"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(
+    route_class=MaskeRotasi, prefix="/audit-log", tags=["audit"], responses=COMMON_ERROR_RESPONSES
+)
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 XLSX_FILENAME = "denetim-gunlugu.xlsx"

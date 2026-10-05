@@ -1,10 +1,10 @@
 """Teklif revizyonu Excel ucu (TKL-B5.2) — okuma ucudur, denetim satiri YAZMAZ.
 
-Kapi `offers/router.py` okumalariyla BIREBIR: `contracts:view` + kapsam cifti (route sinifi +
-`kapsam_kapisi`) (IZN-B3: disiplin proje basina; teklif sirket geneli). Ayri dosya: B4
+Kapi `offers/router.py` okumalariyla BIREBIR: `contracts:view` + maske (`MaskeRotasi` +
+`maskele_baglamli`) (IZN-B3: disiplin proje basina; teklif sirket geneli). Ayri dosya: B4
 router'ina dokunmadan eklenir.
 
-🔴 Maske ELLE uygulanir (`kapsamla_maskele`): rota sarmalayicisi `Response` govdesinin icine
+🔴 Maske ELLE uygulanir (`maskele_baglamli`): rota sarmalayicisi `Response` govdesinin icine
 bakamaz (bkz. `boq/router.py` kacak-uc notu). Zarf kitaba girmeden ONCE maskelenir.
 
 `limited` kullanici HER IKI gorunumu de indirebilir; para hucreleri BOS basilir (BOQ emsali,
@@ -22,9 +22,9 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.errors import NotFoundError
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import kapsam_kapisi, require_permission
-from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku, kapsamla_maskele
+from app.core.permissions import require_permission
 from app.modules.offers import offer_queries
 from app.modules.offers.export import FILE_SUFFIX, ExportView, build_offer_workbook
 from app.modules.offers.locking import OFFER_MISSING
@@ -32,12 +32,11 @@ from app.modules.offers.models import Offer
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-# 🔴 KAPSAM MASKESI — IKI PARCA DA GEREKLI (bkz. `offers/router.py`).
+# HASSAS ALAN MASKESİ (IZN-B4): `MaskeRotasi` tek parça (bağlamı kendisi ekler).
 router = APIRouter(
     tags=["offers"],
     responses=COMMON_ERROR_RESPONSES,
-    route_class=kapsam_rotasi("contracts", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("contracts")],
+    route_class=MaskeRotasi,
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)
@@ -63,7 +62,7 @@ async def export_revision_endpoint(
     offer = await session.get(Offer, offer_id)  # `get_revision_read` yukledi: kimlik haritasi
     if offer is None:  # pragma: no cover - get_revision_read 404 verirdi
         raise NotFoundError(OFFER_MISSING)
-    buffer = build_offer_workbook(offer, kapsamla_maskele(revision, "contracts"), view)
+    buffer = build_offer_workbook(offer, await maskele_baglamli(revision), view)
     filename = f"{revision.offer_no}-Rev{rev_no}-{FILE_SUFFIX[view]}.xlsx"
     return Response(
         content=buffer.getvalue(),

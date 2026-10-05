@@ -36,6 +36,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_page
 from app.core.ratelimit import client_ip
@@ -66,7 +67,12 @@ _APPROVAL_ROLES_GONE_RESPONSES = {
     }
 }
 
-router = APIRouter(prefix="/approvals", tags=["approvals"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(
+    route_class=MaskeRotasi,
+    prefix="/approvals",
+    tags=["approvals"],
+    responses=COMMON_ERROR_RESPONSES,
+)
 
 #: IZN-B2 §2.4: onay eşiği = "Onay Eşiği" (`ayarlar.onay_rolleri`) sayfası DÜZENLER.
 _ADMIN = require_page("ayarlar.onay_rolleri", "edit")

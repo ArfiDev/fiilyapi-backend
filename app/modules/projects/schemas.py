@@ -2,11 +2,11 @@ import re
 import uuid
 from datetime import date
 from decimal import Decimal
-from typing import Annotated, Self
+from typing import Annotated, ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.modules.projects.models import PriceIndexType, ProjectStatus, ProjectType
 
 # sites.models, projects.models'i import eder; projects.models hicbir sey geri
@@ -23,7 +23,7 @@ _TAX_NUMBER_MESSAGE = "VKN 10 veya 11 haneli rakam olmalıdır."
 
 class EmployerCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    tax_number: str | None = Field(default=None, max_length=11)
+    tax_number: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=11)
     contact_person: str | None = Field(default=None, max_length=200)
 
     @field_validator("tax_number")
@@ -39,7 +39,7 @@ class EmployerResponse(BaseModel):
 
     id: uuid.UUID
     name: str
-    tax_number: str | None
+    tax_number: Annotated[str | None, Hassas.yok]
     contact_person: str | None
     is_active: bool
 
@@ -58,23 +58,23 @@ class ProjectContractResponse(BaseModel):
 
     contract_no: str | None
     signature_date: date | None
-    amount: Annotated[Decimal | None, Gorunurluk.para]
-    advance_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    retainage_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    vat_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    late_penalty_daily: Annotated[Decimal | None, Gorunurluk.para]
+    amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    advance_pct: Annotated[Decimal, Hassas.yok]
+    retainage_pct: Annotated[Decimal, Hassas.yok]
+    vat_pct: Annotated[Decimal, Hassas.yok]
+    late_penalty_daily: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     has_price_escalation: bool
     index_type: PriceIndexType | None
-    base_index_value: Annotated[Decimal | None, Gorunurluk.kimlik]
+    base_index_value: Annotated[Decimal | None, Hassas.yok]
 
 
 class ProjectBudgetLines(BaseModel):
     """Dört bütçe kalemi okuma yanıtı (spec §3.3). Toplam `budget` ayrı alanda durur."""
 
-    material: Annotated[Decimal | None, Gorunurluk.para]
-    labor: Annotated[Decimal | None, Gorunurluk.para]
-    subcontractor: Annotated[Decimal | None, Gorunurluk.para]
-    overhead: Annotated[Decimal | None, Gorunurluk.para]
+    material: Annotated[Decimal | None, Hassas.maliyet_kar]
+    labor: Annotated[Decimal | None, Hassas.maliyet_kar]
+    subcontractor: Annotated[Decimal | None, Hassas.maliyet_kar]
+    overhead: Annotated[Decimal | None, Hassas.maliyet_kar]
 
 
 # --- B6 yer tutucu deseni (dashboard spec §2.3; bu ekran icin spec §5.3) ---
@@ -186,8 +186,8 @@ class CountPlaceholder(BaseModel):
 class ContractingCard(BaseModel):
     """Taahhut karti — sozlesme bedeli/isveren ustte gercek, gerisi bos durum."""
 
-    spent: Annotated[MetricPlaceholder, Gorunurluk.para]
-    physical_progress: Annotated[MetricPlaceholder, Gorunurluk.operasyonel]
+    spent: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
+    physical_progress: Annotated[MetricPlaceholder, Hassas.yok]
     # 🔴 ILR-2'DE EKLENDI — **OPSIYONEL** (`| None`, varsayilan `None`).
     # `required` yapmak frontend `typecheck`ini KIRARDI (K-DEVIR2): yol ve
     # operasyon sayisinin sabit kalmasi "kirici degil"in KANITI DEGILDIR.
@@ -196,8 +196,8 @@ class ContractingCard(BaseModel):
     # onaylanmis isveren hakedisinden (onay) turer. Mockup'in tek "Fiziksel
     # İlerleme" karosu ASLINDA mali bir sayi basiyordu (`Harcanan / Sözleşme
     # Bedeli`) — ONAYLI SAPMA, geri alinmaz.
-    financial_progress: Annotated[MetricPlaceholder | None, Gorunurluk.para] = None
-    final_progress_payment: Annotated[MetricPlaceholder, Gorunurluk.para]
+    financial_progress: Annotated[MetricPlaceholder | None, Hassas.sozlesme_fiyat] = None
+    final_progress_payment: Annotated[MetricPlaceholder, Hassas.sozlesme_fiyat]
     worker_count: CountPlaceholder
     subcontractor_count: CountPlaceholder
 
@@ -210,14 +210,14 @@ class InvestmentCard(BaseModel):
     `estimated_profit`/`margin` ise BUTCE tabanlidir. Ayrinti: `_investment_card`.
     """
 
-    sales_target: Annotated[Decimal | None, Gorunurluk.para]
-    land_cost: Annotated[Decimal | None, Gorunurluk.para]
-    sold_amount: Annotated[MetricPlaceholder, Gorunurluk.para]
-    sales_ratio: Annotated[MetricPlaceholder, Gorunurluk.operasyonel]
+    sales_target: Annotated[Decimal | None, Hassas.satis_alici]
+    land_cost: Annotated[Decimal | None, Hassas.maliyet_kar]
+    sold_amount: Annotated[MetricPlaceholder, Hassas.satis_alici]
+    sales_ratio: Annotated[MetricPlaceholder, Hassas.satis_alici]
     unit_summary: CountPlaceholder
-    total_cost: Annotated[MetricPlaceholder, Gorunurluk.para]
-    estimated_profit: Annotated[MetricPlaceholder, Gorunurluk.para]
-    margin: Annotated[MetricPlaceholder, Gorunurluk.para]
+    total_cost: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
+    estimated_profit: Annotated[MetricPlaceholder, Hassas.maliyet_kar, Hassas.satis_alici]
+    margin: Annotated[MetricPlaceholder, Hassas.maliyet_kar, Hassas.satis_alici]
 
 
 class ShareholderResponse(BaseModel):
@@ -225,32 +225,32 @@ class ShareholderResponse(BaseModel):
 
     id: uuid.UUID
     name: str
-    share_pct: Annotated[Decimal, Gorunurluk.kimlik]
+    share_pct: Annotated[Decimal, Hassas.yok]
 
 
 class LandShareCard(BaseModel):
     landowner_name: str
-    our_share_pct: Annotated[Decimal, Gorunurluk.kimlik]
-    owner_share_pct: Annotated[Decimal, Gorunurluk.kimlik]
+    our_share_pct: Annotated[Decimal, Hassas.yok]
+    owner_share_pct: Annotated[Decimal, Hassas.yok]
     land_cost: Annotated[
-        Decimal | None, Gorunurluk.para
+        Decimal | None, Hassas.maliyet_kar
     ]  # daima 0 — tanim geregi, saklanmaz (spec §3.3)
     contract_no: str | None
     notary_date: date | None
-    land_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]
-    construction_area_m2: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    land_area_m2: Annotated[Decimal | None, Hassas.yok]
+    construction_area_m2: Annotated[Decimal | None, Hassas.yok]
     delivery_date: date | None
-    daily_penalty: Annotated[Decimal | None, Gorunurluk.para]
-    guarantee_amount: Annotated[Decimal | None, Gorunurluk.para]
+    daily_penalty: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
+    guarantee_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     shareholder_count: int
     shareholders: list[ShareholderResponse]
     our_unit_count: CountPlaceholder
     owner_unit_count: CountPlaceholder
-    our_share_value: Annotated[MetricPlaceholder, Gorunurluk.para]
-    construction_cost: Annotated[MetricPlaceholder, Gorunurluk.para]
-    estimated_profit: Annotated[MetricPlaceholder, Gorunurluk.para]
-    margin: Annotated[MetricPlaceholder, Gorunurluk.para]
-    construction_progress: Annotated[MetricPlaceholder, Gorunurluk.operasyonel]
+    our_share_value: Annotated[MetricPlaceholder, Hassas.satis_alici]
+    construction_cost: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
+    estimated_profit: Annotated[MetricPlaceholder, Hassas.maliyet_kar, Hassas.satis_alici]
+    margin: Annotated[MetricPlaceholder, Hassas.maliyet_kar, Hassas.satis_alici]
+    construction_progress: Annotated[MetricPlaceholder, Hassas.yok]
 
 
 # --- Maliyet/kâr yanıtı (P10 spec §3; `GET /projects/{id}/costs`) ---
@@ -276,19 +276,19 @@ class ProjectCostBreakdown(BaseModel):
     `_ACCOUNTING`/`_TREASURY` notundadır — tek kopya orada yaşar.
     """
 
-    land_cost: Annotated[Decimal | None, Gorunurluk.para]
+    land_cost: Annotated[Decimal | None, Hassas.maliyet_kar]
     # KY 127-132 "İnşaat Maliyeti ₺10.240.000 / %68 harcandı · Bütçe: ₺15,1M".
     # `spent` taşeron hakedişlerinden (approved+paid BRÜT, S1/S2), `budget` dört
     # bütçe kaleminden gelir — arsa bütçeye DAHİL DEĞİLDİR, ayrı satırdır.
-    construction_spent: Annotated[Decimal | None, Gorunurluk.para]
-    construction_budget: Annotated[Decimal | None, Gorunurluk.para]
-    permits: Annotated[MetricPlaceholder, Gorunurluk.para]
-    financing: Annotated[MetricPlaceholder, Gorunurluk.para]
-    marketing: Annotated[MetricPlaceholder, Gorunurluk.para]
+    construction_spent: Annotated[Decimal | None, Hassas.maliyet_kar]
+    construction_budget: Annotated[Decimal | None, Hassas.maliyet_kar]
+    permits: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
+    financing: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
+    marketing: Annotated[MetricPlaceholder, Hassas.maliyet_kar]
     # KY 156-159 "Toplam Harcanan": yalnız KAYNAĞI OLAN kalemlerin toplamı
     # (arsa + inşaat). Yer tutucu üç kalem toplama GİRMEZ — bilinmeyeni 0
     # sayıp toplama katmak, ekranda eksik olduğu belli olmayan bir sayı üretir.
-    total_spent: Annotated[Decimal | None, Gorunurluk.para]
+    total_spent: Annotated[Decimal | None, Hassas.maliyet_kar]
 
 
 class ProjectProfitProjection(BaseModel):
@@ -316,12 +316,14 @@ class ProjectProfitProjection(BaseModel):
     `None`dır, çünkü ünite/satış kavramı yoktur.
     """
 
-    revenue: Annotated[Decimal | None, Gorunurluk.para]
-    cost: Annotated[Decimal | None, Gorunurluk.para]
-    profit: Annotated[Decimal | None, Gorunurluk.para]
-    margin_pct: Annotated[Decimal | None, Gorunurluk.para]
-    realized_sales: Annotated[Decimal | None, Gorunurluk.para]
-    remaining_stock_value: Annotated[Decimal | None, Gorunurluk.para]
+    revenue: Annotated[Decimal | None, Hassas.sozlesme_fiyat, Hassas.satis_alici]
+    cost: Annotated[Decimal | None, Hassas.maliyet_kar]
+    profit: Annotated[Decimal | None, Hassas.maliyet_kar, Hassas.sozlesme_fiyat, Hassas.satis_alici]
+    margin_pct: Annotated[
+        Decimal | None, Hassas.maliyet_kar, Hassas.sozlesme_fiyat, Hassas.satis_alici
+    ]
+    realized_sales: Annotated[Decimal | None, Hassas.satis_alici]
+    remaining_stock_value: Annotated[Decimal | None, Hassas.satis_alici]
 
 
 class SubcontractorCostRow(BaseModel):
@@ -375,11 +377,11 @@ class SubcontractorCostRow(BaseModel):
     work_category: str | None
     # Sözleşme bedeli TÜREVDİR: `subcontractor_contracts`ta `amount` kolonu
     # yoktur, bedel `Σ kalem quantity × unit_price`tır (contracts K3 ilkesi).
-    contract_amount: Annotated[Decimal | None, Gorunurluk.para]
-    paid: Annotated[Decimal | None, Gorunurluk.para]
-    pending: Annotated[Decimal | None, Gorunurluk.para]
+    contract_amount: Annotated[Decimal | None, Hassas.maliyet_kar]
+    paid: Annotated[Decimal | None, Hassas.maliyet_kar]
+    pending: Annotated[Decimal | None, Hassas.maliyet_kar]
     # "İlerleme" sütunu (KY 214/222/230 · KK 217/223/229). Payda tanımsızsa None.
-    progress_pct: Annotated[Decimal | None, Gorunurluk.para]
+    progress_pct: Annotated[Decimal | None, Hassas.maliyet_kar]
 
 
 class SubcontractorCostSummary(BaseModel):
@@ -396,9 +398,9 @@ class SubcontractorCostSummary(BaseModel):
     Sütun SATIR düzeyinde yaşar.
     """
 
-    contract_amount: Annotated[Decimal | None, Gorunurluk.para]
-    paid: Annotated[Decimal | None, Gorunurluk.para]
-    pending: Annotated[Decimal | None, Gorunurluk.para]
+    contract_amount: Annotated[Decimal | None, Hassas.maliyet_kar]
+    paid: Annotated[Decimal | None, Hassas.maliyet_kar]
+    pending: Annotated[Decimal | None, Hassas.maliyet_kar]
 
 
 class ProjectCostsResponse(BaseModel):
@@ -463,13 +465,16 @@ class TimelineProject(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    # Satır KENDİ projesindeki rolle maskelenir (IZN-B4a; `field_mask.PROJE_ALANI_OZNITELIGI`).
+    PROJE_ALANI: ClassVar[str] = "id"
+
     id: uuid.UUID
     code: str
     name: str
     status: ProjectStatus
     start_date: date | None
     end_date: date | None
-    contract_amount: Annotated[Decimal | None, Gorunurluk.para]
+    contract_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     sections: list[TimelineSection]
 
 
@@ -494,6 +499,9 @@ class ProjectTimelineResponse(BaseModel):
 class ProjectListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    # Satır KENDİ projesindeki rolle maskelenir (IZN-B4a; `field_mask.PROJE_ALANI_OZNITELIGI`).
+    PROJE_ALANI: ClassVar[str] = "id"
+
     id: uuid.UUID
     code: str
     # URL-2 — okunabilir URL kimligi. Frontend URL-3'te `/projeler/<slug>`u
@@ -508,7 +516,7 @@ class ProjectListItem(BaseModel):
     start_date: date | None
     end_date: date | None
     contract_no: str | None
-    contract_amount: Annotated[Decimal | None, Gorunurluk.para]
+    contract_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     # employer_name anlık görüntüsü KALIR (spec §2.3): join'siz okunur, kırılmasın.
     employer_name: str | None
     # B6: işveren/sözleşme ilişki nesneleri + bütçe kalemleri + taslak bayrağı (ekleme,
@@ -517,8 +525,8 @@ class ProjectListItem(BaseModel):
     contract: ProjectContractResponse | None
     budget_lines: ProjectBudgetLines
     is_draft: bool
-    budget: Annotated[Decimal | None, Gorunurluk.para]
-    progress_pct: Annotated[Decimal | None, Gorunurluk.operasyonel]
+    budget: Annotated[Decimal | None, Hassas.maliyet_kar]
+    progress_pct: Annotated[Decimal | None, Hassas.yok]
     contracting: ContractingCard | None
     investment: InvestmentCard | None
     land_share: LandShareCard | None
@@ -566,8 +574,8 @@ class ProjectListResponse(BaseModel):
 
 
 class ProjectInvestmentInput(BaseModel):
-    sales_target: Decimal | None = Field(default=None, ge=0)
-    land_cost: Decimal | None = Field(default=None, ge=0)
+    sales_target: Annotated[Decimal | None, Hassas.satis_alici] = Field(default=None, ge=0)
+    land_cost: Annotated[Decimal | None, Hassas.maliyet_kar] = Field(default=None, ge=0)
 
 
 class ShareholderInput(BaseModel):
@@ -581,20 +589,20 @@ class ShareholderInput(BaseModel):
 
     id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=200)
-    share_pct: Decimal = Field(gt=0, le=100)
+    share_pct: Annotated[Decimal, Hassas.yok] = Field(gt=0, le=100)
 
 
 class ProjectLandShareInput(BaseModel):
     landowner_name: str = Field(min_length=1, max_length=200)
-    our_share_pct: Decimal = Field(gt=0, lt=100)
-    owner_share_pct: Decimal = Field(gt=0, lt=100)
+    our_share_pct: Annotated[Decimal, Hassas.yok] = Field(gt=0, lt=100)
+    owner_share_pct: Annotated[Decimal, Hassas.yok] = Field(gt=0, lt=100)
     contract_no: str | None = Field(default=None, max_length=100)
     notary_date: date | None = None
-    land_area_m2: Decimal | None = Field(default=None, ge=0)
-    construction_area_m2: Decimal | None = Field(default=None, ge=0)
+    land_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0)
+    construction_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0)
     delivery_date: date | None = None
-    daily_penalty: Decimal | None = Field(default=None, ge=0)
-    guarantee_amount: Decimal | None = Field(default=None, ge=0)
+    daily_penalty: Annotated[Decimal | None, Hassas.sozlesme_fiyat] = Field(default=None, ge=0)
+    guarantee_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat] = Field(default=None, ge=0)
     shareholders: list[ShareholderInput] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -615,23 +623,23 @@ class ProjectContractInput(BaseModel):
 
     contract_no: str | None = Field(default=None, max_length=100)
     signature_date: date | None = None
-    amount: Decimal | None = Field(default=None, ge=0)
-    advance_pct: Decimal = Field(default=Decimal("20"), ge=0, le=100)
-    retainage_pct: Decimal = Field(default=Decimal("5"), ge=0, le=100)
-    vat_pct: Decimal = Field(default=Decimal("20"), ge=0, le=100)
-    late_penalty_daily: Decimal | None = Field(default=None, ge=0)
+    amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat] = Field(default=None, ge=0)
+    advance_pct: Annotated[Decimal, Hassas.yok] = Field(default=Decimal("20"), ge=0, le=100)
+    retainage_pct: Annotated[Decimal, Hassas.yok] = Field(default=Decimal("5"), ge=0, le=100)
+    vat_pct: Annotated[Decimal, Hassas.yok] = Field(default=Decimal("20"), ge=0, le=100)
+    late_penalty_daily: Annotated[Decimal | None, Hassas.sozlesme_fiyat] = Field(default=None, ge=0)
     has_price_escalation: bool = True
     index_type: PriceIndexType | None = None
-    base_index_value: Decimal | None = Field(default=None, ge=0)
+    base_index_value: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0)
 
 
 class ProjectBudgetInput(BaseModel):
     """Dört bütçe kalemi (spec §3.3). Toplam `budget`'i servis hesaplar; istemci `budget` yok."""
 
-    material: Decimal = Field(default=Decimal("0"), ge=0)
-    labor: Decimal = Field(default=Decimal("0"), ge=0)
-    subcontractor: Decimal = Field(default=Decimal("0"), ge=0)
-    overhead: Decimal = Field(default=Decimal("0"), ge=0)
+    material: Annotated[Decimal, Hassas.maliyet_kar] = Field(default=Decimal("0"), ge=0)
+    labor: Annotated[Decimal, Hassas.maliyet_kar] = Field(default=Decimal("0"), ge=0)
+    subcontractor: Annotated[Decimal, Hassas.maliyet_kar] = Field(default=Decimal("0"), ge=0)
+    overhead: Annotated[Decimal, Hassas.maliyet_kar] = Field(default=Decimal("0"), ge=0)
 
 
 class ProjectSiteInput(BaseModel):
@@ -640,7 +648,7 @@ class ProjectSiteInput(BaseModel):
     name: str = Field(min_length=1, max_length=150)
     code: str | None = Field(default=None, max_length=50)
     site_manager_name: str | None = Field(default=None, max_length=200)
-    construction_area_m2: Decimal | None = Field(default=None, ge=0)
+    construction_area_m2: Annotated[Decimal | None, Hassas.yok] = Field(default=None, ge=0)
 
 
 class ProjectCreate(BaseModel):
@@ -652,7 +660,7 @@ class ProjectCreate(BaseModel):
     category: str | None = Field(default=None, max_length=100)
     city: str | None = Field(default=None, max_length=100)
     parcel: str | None = Field(default=None, max_length=50)
-    address: str | None = Field(default=None, max_length=300)
+    address: Annotated[str | None, Hassas.yok] = Field(default=None, max_length=300)
     start_date: date | None = None
     end_date: date | None = None
     # employer_name gövdeden KALDIRILDI (spec §3.3): serbest metin işveren yolu kapandı.
@@ -675,7 +683,7 @@ class ProjectUpdate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     contract_no: str | None = Field(default=None, max_length=100)
-    contract_amount: Decimal | None = Field(default=None, ge=0)
+    contract_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat] = Field(default=None, ge=0)
     employer_name: str | None = Field(default=None, max_length=200)
     # İşveren sözleşmesi KURULDUKTAN SONRA da düzeltilebilir olmalı: avans /
     # teminat / KDV oranları yalnız create'ten yazılabildiği sürece yanlış girilen

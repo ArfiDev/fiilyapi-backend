@@ -26,8 +26,11 @@ gordugunu olcmelidir.
 
 from decimal import Decimal
 
+from sqlalchemy import delete, select
+
 from app.core.access import AccessLevel, Scope
 from app.modules.progress_payments.models import ProgressPaymentStatus
+from app.modules.roles.models import Role, RoleHiddenField
 from app.modules.users.models import ProjectMember
 
 from . import _ilr
@@ -276,6 +279,13 @@ async def test_portfoy_hakedis_izni_OLMAYAN_role_SAYIYI_SIZDIRMAZ(
     #    KANITLAR — maske hâlâ isleseydi izin acilsa bile deger `None` kalirdi,
     #    yani yukaridaki kapsam satiri curuse bu yari KIRILIR.
     await _set_permission(db_session, "hr_manager", "progress_payments", AccessLevel.view)
+    # IZN-B1+: gizli alan bayraklari rol satirlarindadir (kapsamdan turetilmez) → "kapsam all"
+    # tek basina maskeyi kaldirmaz; acik hâl icin rolun bayraklari da temizlenir.
+    rol_id = (
+        await db_session.execute(select(Role.id).where(Role.key == "hr_manager"))
+    ).scalar_one()
+    await db_session.execute(delete(RoleHiddenField).where(RoleHiddenField.role_id == rol_id))
+    await db_session.flush()
 
     acik = await _portfoy(client, headers)
 

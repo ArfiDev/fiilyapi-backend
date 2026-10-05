@@ -38,7 +38,7 @@ from pydantic import (
 )
 
 from app.core.discipline_ref import DisciplineRef
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.core.timezone import today
 from app.modules.catalog import guards
@@ -131,12 +131,12 @@ class WorkItemCreate(BaseModel):
     discipline_id: uuid.UUID
     name: ItemName
     uom: Uom
-    standard_unit_mhr: StandardRate
+    standard_unit_mhr: Annotated[StandardRate, Hassas.yok]
     default_contractor_type: WorkContractorType
     description: Description | None = None
-    ref_price: RefPrice | None = None
+    ref_price: Annotated[RefPrice | None, Hassas.sozlesme_fiyat] = None
     source_code: SourceCode | None = None
-    ref_price_date: date | None = None
+    ref_price_date: Annotated[date | None, Hassas.sozlesme_fiyat] = None
 
     _clean_code = field_validator("source_code", mode="after")(_clean_source_code)
     _price_date_range = field_validator("ref_price_date", mode="after")(_check_price_date)
@@ -150,12 +150,12 @@ class WorkItemUpdate(BaseModel):
     discipline_id: uuid.UUID | None = None
     name: ItemName | None = None
     uom: Uom | None = None
-    standard_unit_mhr: StandardRate | None = None
+    standard_unit_mhr: Annotated[StandardRate | None, Hassas.yok] = None
     default_contractor_type: WorkContractorType | None = None
     description: Description | None = None
-    ref_price: RefPrice | None = None
+    ref_price: Annotated[RefPrice | None, Hassas.sozlesme_fiyat] = None
     source_code: SourceCode | None = None
-    ref_price_date: date | None = None
+    ref_price_date: Annotated[date | None, Hassas.sozlesme_fiyat] = None
 
     _clean_code = field_validator("source_code", mode="after")(_clean_source_code)
     _price_date_range = field_validator("ref_price_date", mode="after")(_check_price_date)
@@ -183,7 +183,7 @@ class LastPriceRead(BaseModel):
 
     # Iceride de `para`: maske ust alani zaten bosaltir; etiket para-alani bekcisinin ic modeli
     # de acik siniflandirmasi icin gerekir (savunma derinligi).
-    price: Annotated[Decimal, Gorunurluk.para]
+    price: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     at: datetime
     source: str
     doc_no: str
@@ -201,19 +201,19 @@ class WorkItemRead(BaseModel):
     description: str | None
     # Adam-saat/birim standardi: para DEGIL, miktar da DEGIL (katalog standardi; EV KAT'ta her
     # gorene acik) → ACIKCA `kimlik` (hicbir kapsamda gizlenmez; zorunlu alan `null` olmaz).
-    standard_unit_mhr: Annotated[Decimal, Gorunurluk.kimlik]
+    standard_unit_mhr: Annotated[Decimal, Hassas.yok]
     default_contractor_type: WorkContractorType
     # KDV haric TL birim fiyat: PARA → `limited` rol GORMEZ (alan maskesi).
-    ref_price: Annotated[Decimal | None, Gorunurluk.para]
+    ref_price: Annotated[Decimal | None, Hassas.sozlesme_fiyat]
     # `ref_price` ile ayni gizlilik: fiyatin NE ZAMAN degistigi de fiyat bilgisidir.
-    price_updated_at: Annotated[datetime | None, Gorunurluk.para]
+    price_updated_at: Annotated[datetime | None, Hassas.sozlesme_fiyat]
     # Son fiyat: TAMAMI para (fiyat + tarih + kaynak) → `limited` rol hicbirini gormez;
     # `price_updated_at` ile ayni gerekce. Kaynaksiz kalemde `null`.
-    last_price: Annotated[LastPriceRead | None, Gorunurluk.para] = None
+    last_price: Annotated[LastPriceRead | None, Hassas.sozlesme_fiyat] = None
     # Fiyatin gecerlilik tarihi: `ref_price` ile ayni gizlilik (tutarlilik: fiyat gizliyken
     # tarihi de gorunmez). Kaynak kodu para DEGIL → ACIKCA `kimlik`.
-    ref_price_date: Annotated[date | None, Gorunurluk.para] = None
-    source_code: Annotated[str | None, Gorunurluk.kimlik] = None
+    ref_price_date: Annotated[date | None, Hassas.sozlesme_fiyat] = None
+    source_code: Annotated[str | None, Hassas.yok] = None
     standard_updated_at: datetime
     created_at: datetime
     updated_at: datetime

@@ -13,9 +13,11 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.access import AccessLevel, Scope
+from app.core.sayfalar import HiddenCategory
 from app.modules.audit.models import AuditAction
 from app.modules.offers.models import OfferSettings
 from app.modules.users.models import User
+from tests._hassas_alan import rol_gizle
 from tests._proje_ekibi import baska_projede_disiplinli
 
 from .._boq import _audit_details, _auth, _login_with_access, _set_permission
@@ -258,12 +260,23 @@ async def test_proje_basina_disiplinli_kullanici_ayarlari_gorur_ve_yazar(
     )
 
 
-async def test_limited_kapsamda_varsayilan_oranlar_kimliktir_gizlenmez(
+async def test_maliyet_kar_gizli_rolde_genel_gider_ve_kar_varsayilani_gizlenir_KDV_ve_gun_durur(
     client, admin, db_session, user_factory
 ) -> None:
-    """Ayar yuzdeleri hicbir tutardan turemez (`contracts.advance_pct` emsali) → `kimlik`."""
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.limited)
-    sinirli = await _giris(client, db_session, user_factory, "accounting")
-    body = (await client.get(URL, headers=sinirli)).json()
-    assert Decimal(body["default_profit_pct"]) == 15
-    assert body["default_validity_days"] == 30
+    """IZN-B4a: varsayılan genel gider/kâr oranları `maliyet_kar` (revizyon oranlarıyla geri
+    hesaplanabilir); KDV oranı ve geçerlilik günü herkese açık. Bayraksız rol hepsini görür."""
+    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await rol_gizle(db_session, "accounting")
+    acik = (
+        await client.get(URL, headers=await _giris(client, db_session, user_factory, "accounting"))
+    ).json()
+    assert Decimal(acik["default_profit_pct"]) == 15  # POZİTİF KONTROL
+
+    await rol_gizle(db_session, "accounting", HiddenCategory.maliyet_kar)
+    gizli = (
+        await client.get(URL, headers=await _giris(client, db_session, user_factory, "accounting"))
+    ).json()
+    assert gizli["default_profit_pct"] is None
+    assert gizli["default_overhead_pct"] is None
+    assert Decimal(gizli["default_vat_pct"]) == 20
+    assert gizli["default_validity_days"] == 30

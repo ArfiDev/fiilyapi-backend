@@ -444,6 +444,7 @@ def test_contract_list_response_ozet_ve_kalemler():
         items=[
             ContractListItem(
                 id=uuid.uuid4(),
+                project_id=uuid.uuid4(),
                 title="ABC Konut Projesi",
                 contract_no="SZL-2025-001",
                 counterparty_name="ABC Insaat",

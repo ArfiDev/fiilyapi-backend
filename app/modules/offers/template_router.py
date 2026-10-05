@@ -25,10 +25,10 @@ from fastapi import APIRouter, Depends, Path, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
+from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
-from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -44,12 +44,11 @@ from app.modules.offers.template_schemas import (
 )
 from app.modules.users.models import User
 
-# 🔴 KAPSAM MASKESI — IKI PARCA DA GEREKLI (bkz. `offers/router.py`, `catalog/router.py`).
+# HASSAS ALAN MASKESİ (IZN-B4): `MaskeRotasi` tek parça (bağlamı kendisi ekler).
 router = APIRouter(
     tags=["offers"],
     responses=COMMON_ERROR_RESPONSES,
-    route_class=kapsam_rotasi("contracts", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("contracts")],
+    route_class=MaskeRotasi,
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)

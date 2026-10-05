@@ -13,11 +13,10 @@ from typing import Annotated
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
-from app.core.field_scope import Gorunurluk
+from app.core.field_mask import Hassas
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.offers.offer_schemas import GroupName, Pct, ProfitPct, SortOrder
 
-_Id = Gorunurluk.kimlik
 _STRICT = ConfigDict(extra="forbid")
 _NULL_REJECTED = "Alan boşaltılamaz; değiştirmemek için gövdeden çıkarın."
 
@@ -46,8 +45,8 @@ class TemplateCreate(BaseModel):
 
     name: TemplateName
     description: TemplateDescription | None = None
-    overhead_pct: Pct | None = None
-    profit_pct: ProfitPct | None = None
+    overhead_pct: Annotated[Pct | None, Hassas.maliyet_kar] = None
+    profit_pct: Annotated[ProfitPct | None, Hassas.maliyet_kar] = None
 
 
 class TemplateUpdate(BaseModel):
@@ -58,8 +57,8 @@ class TemplateUpdate(BaseModel):
 
     name: TemplateName | None = None
     description: TemplateDescription | None = None
-    overhead_pct: Pct | None = None
-    profit_pct: ProfitPct | None = None
+    overhead_pct: Annotated[Pct | None, Hassas.maliyet_kar] = None
+    profit_pct: Annotated[ProfitPct | None, Hassas.maliyet_kar] = None
     is_default: bool | None = None
     expected_updated_at: ExpectedUpdatedAt
 
@@ -141,8 +140,8 @@ class TemplateListItem(BaseModel):
     id: uuid.UUID
     name: str
     description: str | None
-    overhead_pct: Annotated[Decimal | None, _Id]
-    profit_pct: Annotated[Decimal | None, _Id]
+    overhead_pct: Annotated[Decimal | None, Hassas.maliyet_kar]
+    profit_pct: Annotated[Decimal | None, Hassas.maliyet_kar]
     is_default: bool
     group_count: int
     item_count: int

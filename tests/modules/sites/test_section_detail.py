@@ -23,12 +23,12 @@ baska bir projenin bolumu dogrudan okunabilir. Bu dosya o zinciri ve
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.core.access import AccessLevel, Scope
 from app.modules.audit.messages import section_updated
 from app.modules.audit.models import AuditAction, AuditLog
-from app.modules.roles.models import Module, Role, RolePermission
+from app.modules.roles.models import Module, Role, RoleHiddenField, RolePermission
 from app.modules.sites.models import Section, SectionStatus, Site
 from tests._legacy_permission_yardimcisi import sync_page_cells
 from tests._section_types import seed_section_types
@@ -171,6 +171,10 @@ async def test_get_section_keeps_placeholder_metrics(
     # Bu testler KOLON VARLIĞINI ölçer, kapsam maskesini değil; `site_chief`in
     # seed kapsamı `limited` olduğu için izin AÇIKÇA kurulur (varsayılan `all`).
     await _set_permission(db_session, VIEW_ROLE, "sites", AccessLevel.view)
+    # IZN-B4: bu test BÜTÇE DEĞERİNİ okur; seed rolün gizli kategorileri (maliyet_kar) maskelerdi.
+    role_id = (await db_session.execute(select(Role.id).where(Role.key == VIEW_ROLE))).scalar_one()
+    await db_session.execute(delete(RoleHiddenField).where(RoleHiddenField.role_id == role_id))
+    await db_session.flush()
     token = await _login(client, db_session, user_factory, VIEW_ROLE, grant_all=True)
 
     body = (await client.get(f"/sections/{section.id}", headers=_auth(token))).json()

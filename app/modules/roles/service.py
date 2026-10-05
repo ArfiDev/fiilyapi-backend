@@ -30,7 +30,6 @@ from app.modules.roles.models import (
     RolePermission,
 )
 from app.modules.roles.repository import (
-    has_legacy_cells,
     list_role_hidden_categories,
     list_role_page_cells,
     role_user_counts,
@@ -85,8 +84,8 @@ async def create_custom_role(session: AsyncSession, data: RoleCreate) -> Role:
     """Yeni özel rol oluşturur; her sayfa için "Görmez" hücre açar (hücre sayısı = rol × 100).
 
     IZN-B2: eski `role_permissions` satırı AÇILMAZ (donmuş tablo): kapılar sayfa hücrelerinden
-    karar verir ve rol, alan maskesinde `tum_tutarlar`ı izleyen "satırsız rol" olur
-    (`RolePagesResponse.hidden_fields_effective=true`).
+    karar verir. IZN-B4: alan maskesi bu rolün `hidden_fields` kategorilerinden okunur
+    (`RolePagesResponse.hidden_fields_effective` her rolde `true`).
     """
     existing = (
         await session.execute(select(Role).where(Role.key == data.key))
@@ -172,7 +171,7 @@ async def get_role_pages(session: AsyncSession, role_id: uuid.UUID) -> RolePages
         is_locked=locked,
         pages=await role_page_grants(session, role),
         hidden_fields=[] if locked else await list_role_hidden_categories(session, role.id),
-        hidden_fields_effective=not await has_legacy_cells(session, role.id),
+        hidden_fields_effective=True,  # IZN-B4: yeni maske HER rolde geçerli (hibrit kural kalktı)
     )
 
 

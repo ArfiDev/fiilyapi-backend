@@ -91,17 +91,18 @@ async def test_SITE_CHIEF_limited_PARAYI_goremez_ILERLEMEYI_gorur(
     assert kart["status"] == "active"
 
 
-async def test_ACCOUNTING_finance_ILERLEMEYI_goremez_PARAYI_gorur(
+async def test_ACCOUNTING_finance_ILERLEMEYI_ve_PARAYI_gorur(
     client, db_session, user_factory, dashboard_projesi
 ):
-    """`dashboard = view/finance` — `limited`in AYNASI."""
+    """IZN-B4: eski `finance` kapsamı karşılıksız (IZN-PLAN §3, GECE KARARI) — `accounting`
+    rolünün gizli bayrağı yok, ilerleme DE para DA görünür (ilerleme hiçbir kategoride değil)."""
     govde = await _panel(client, db_session, user_factory, "accounting", "acc@dash.co")
     kart = _kart(govde)
 
-    assert kart["progress_pct"] is None, "İLERLEME SIZDI"
+    assert kart["progress_pct"] == "37.50", "ilerleme yanlışlıkla gizlendi"
     assert kart["budget"] == "12500000.00", "PARA YANLIŞLIKLA GİZLENDİ"
     assert kart["name"] == "Test Proje", "KİMLİK gizlendi"
-    assert govde["portfolio"]["available"] is True, "portföy PARA kovasında, gizlenmemeliydi"
+    assert govde["portfolio"]["available"] is True, "portföy gizlenmemeliydi"
 
 
 async def test_LIMITED_rolde_ZARF_ucuncu_hale_duser_NONE_olmaz(
@@ -194,15 +195,15 @@ async def test_PANEL_proje_kartini_PROJECTS_kapsamiyla_da_maskeler(
     assert kart["progress_pct"] == "37.50", "operasyonel alan yanlışlıkla gizlendi"
 
 
-async def test_PANEL_PROJECTS_finance_kapsaminda_ILERLEMEYI_dusurur(
+async def test_PANEL_PROJECTS_finance_kapsaminda_ILERLEME_DE_PARA_DA_gorunur(
     client, db_session, user_factory, dashboard_projesi
 ):
-    """AYNA — tek yönlü bir test "her şeyi gizle" hâlini yakalayamazdı."""
+    """AYNA — eski `finance` kapsamı artık hiçbir şeyi gizlemez (GECE KARARI, bkz. yukarısı)."""
     govde = await _kapsamli_panel(client, db_session, user_factory, "cpf@dash.co", Scope.finance)
     kart = _kart(govde)
 
-    assert kart["progress_pct"] is None, "`projects = finance` iken ilerleme SIZDI"
-    assert kart["budget"] == "12500000.00", "PARA yanlışlıkla gizlendi"
+    assert kart["progress_pct"] == "37.50"
+    assert kart["budget"] == "12500000.00"
 
 
 async def test_POZITIF_KONTROL_PROJECTS_all_iken_kart_DOLU(

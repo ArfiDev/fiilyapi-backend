@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -26,7 +27,9 @@ from app.modules.company import service
 from app.modules.company.schemas import CompanyRead, CompanyUpdate
 from app.modules.users.models import User
 
-router = APIRouter(prefix="/company", tags=["company"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(
+    route_class=MaskeRotasi, prefix="/company", tags=["company"], responses=COMMON_ERROR_RESPONSES
+)
 
 
 @router.get("", response_model=CompanyRead)
