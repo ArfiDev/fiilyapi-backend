@@ -41,6 +41,8 @@ class Kenar:
     #: Karşılıklı kancalar (çek ↔ ödeme, hakediş satırı → başlık) FK yönüyle zaten sıralıdır;
     #: ikinci yön sıralamaya girseydi döngü doğardı.
     sirayi_etkilemez: bool = False
+    #: Silme yolunda alt satırın DURUMDAN BAĞIMSIZ kilitlenmesi (bkz. `FkDisiBag.kilit_kosulu`).
+    kilit_kosulu: Kosul | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,11 @@ class FkDisiBag:
     alt_tablo: str
     kosul: Kosul
     sirayi_etkilemez: bool = False
+    #: `kosul` alt satırı YALNIZ bir duruma bağlı seçiyorsa (ör. "yalnız onaylı başlık"), o durum
+    #: kilitsiz okunduğunda yarışta DEĞİŞEBİLİR (onay bekleyen başlık silme sürerken onaylanır).
+    #: Bu koşul durumsuz bağdır (ör. satır → başlık): silme yolu ilgili alt satırları durumuna
+    #: BAKMADAN `FOR UPDATE` ile kilitler, sonra `kosul`u kilit ALTINDA yeniden değerlendirir.
+    kilit_kosulu: Kosul | None = None
 
 
 _KANCALAR: list[FkDisiBag] = []
@@ -123,6 +130,7 @@ def tum_kenarlar(metadata: MetaData) -> list[Kenar]:
                 kosul=kanca.kosul,
                 ad=kanca.ad,
                 sirayi_etkilemez=kanca.sirayi_etkilemez,
+                kilit_kosulu=kanca.kilit_kosulu,
             )
         )
     return kenarlar

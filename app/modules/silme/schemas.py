@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DeleteKind(str, enum.Enum):
@@ -96,6 +96,34 @@ class DeleteClosedPayrollPeriod(BaseModel):
     status: str = Field(description="`pending_approval` | `approved` | `paid`.")
 
 
+class DeleteOtherProject(BaseModel):
+    """Kökün projesi DIŞINDAKİ bir projede silinecek kayıtlar (zincirleme kapsam)."""
+
+    project_id: uuid.UUID
+    name: str
+    count: int = Field(
+        ge=1,
+        description="Bu projeden silinecek kayıt sayısı (`groups` ile aynı sayım biriminde). "
+        "Projesi belirlenemeyen kayıtlar (muhasebe fişi, onay zinciri) sayılmaz.",
+    )
+
+
+class DeleteStatusChange(BaseModel):
+    """Ağaç DIŞINDA kalan bir kaydın silme sonrası durum değişikliği (önizleme + denetim)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    kind: str = Field(
+        description="`invoice` | `progress_payment` | `subcontractor_progress_payment` | "
+        "`equipment_rental_invoice`."
+    )
+    label: str = Field(
+        description="Görünen ad (ör. `Fatura F-0007`, `İşveren hakedişi #3 · Kule`)."
+    )
+    from_: str = Field(alias="from", description="Mevcut durum (ham değer; ör. `collected`).")
+    to: str = Field(description="Silme sonrası durum (ham değer; ör. `sent`).")
+
+
 class DeleteSourceWithoutEntry(BaseModel):
     """Fişi silinecek ama KENDİSİ silinmeyecek kaynak belge (yalnız kök fiş silmede)."""
 
@@ -128,6 +156,15 @@ class DeletePreviewResponse(BaseModel):
         description="Silinecek fişlerin dökümü: fiş no artan, en çok "
         f"{JOURNAL_ENTRY_PREVIEW_LIMIT} satır. Kalan sayı `journal_entry_count`tan okunur; "
         "denetim satırı TAM listeyi taşır."
+    )
+    other_projects: list[DeleteOtherProject] = Field(
+        description="Kökün projesi DIŞINDAKİ projelerde silinecek kayıtlar (ör. şantiye → onaylı "
+        "hakediş → fatura → ödeme → ortak çek → başka projenin ödemesi): sayı azalan. Boş = "
+        "silme yalnız kökün projesinde kalır."
+    )
+    status_changes: list[DeleteStatusChange] = Field(
+        description="Silinmeyecek kayıtların silme sonrası durum değişiklikleri (fatura "
+        "`collected → sent`, hakediş `paid → approved`). Ağaçta DEĞİLDİR; kancalar uygular."
     )
     closed_period_entry_count: int = Field(
         ge=0, description="Bu fişlerden kaçının muhasebe dönemi KAPALI (dönem kilidi atlanacak)."

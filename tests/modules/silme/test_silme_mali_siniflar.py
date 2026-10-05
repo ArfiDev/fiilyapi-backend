@@ -215,6 +215,8 @@ async def test_kapali_bordro_ayina_dusen_puantaj_silinir_bordro_fisi_ve_mizan_ka
     assert await d.sayim(db_session, JournalEntry) == 1  # bordro fişi yerinde
     assert await m.mizan(db_session) == mizan_once  # mizan DEĞİŞMEDİ
     assert set((await m.tutarsizliklar(db_session)).values()) == {0}
+    # Önizlemedeki uyarı DENETİM satırına da yazılır (kapalı dönem fişlerindeki gibi).
+    assert onizleme["closed_payroll_message"] in await m.son_silme_denetimi(db_session)
 
 
 async def test_acik_taslak_donemdeki_puantajda_uyari_yok(

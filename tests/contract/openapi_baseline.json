@@ -7381,6 +7381,33 @@
         "title": "DeleteKind",
         "type": "string"
       },
+      "DeleteOtherProject": {
+        "description": "Kökün projesi DIŞINDAKİ bir projede silinecek kayıtlar (zincirleme kapsam).",
+        "properties": {
+          "count": {
+            "description": "Bu projeden silinecek kayıt sayısı (`groups` ile aynı sayım biriminde). Projesi belirlenemeyen kayıtlar (muhasebe fişi, onay zinciri) sayılmaz.",
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "name",
+          "count"
+        ],
+        "title": "DeleteOtherProject",
+        "type": "object"
+      },
       "DeletePreviewGroup": {
         "description": "Silinecek bağlı kayıtların bir türü.",
         "properties": {
@@ -7523,10 +7550,26 @@
             "title": "Label",
             "type": "string"
           },
+          "other_projects": {
+            "description": "Kökün projesi DIŞINDAKİ projelerde silinecek kayıtlar (ör. şantiye → onaylı hakediş → fatura → ödeme → ortak çek → başka projenin ödemesi): sayı azalan. Boş = silme yalnız kökün projesinde kalır.",
+            "items": {
+              "$ref": "#/components/schemas/DeleteOtherProject"
+            },
+            "title": "Other Projects",
+            "type": "array"
+          },
           "preview_token": {
             "description": "Bu ağacın karması. DELETE'e `preview_token` olarak AYNEN verilir; ağaç arada değişirse DELETE 409 `preview_stale` döner.",
             "title": "Preview Token",
             "type": "string"
+          },
+          "status_changes": {
+            "description": "Silinmeyecek kayıtların silme sonrası durum değişiklikleri (fatura `collected → sent`, hakediş `paid → approved`). Ağaçta DEĞİLDİR; kancalar uygular.",
+            "items": {
+              "$ref": "#/components/schemas/DeleteStatusChange"
+            },
+            "title": "Status Changes",
+            "type": "array"
           }
         },
         "required": [
@@ -7539,6 +7582,8 @@
           "detached",
           "journal_entry_count",
           "journal_entries",
+          "other_projects",
+          "status_changes",
           "closed_period_entry_count",
           "closed_payroll_timesheet_count",
           "closed_payroll_periods",
@@ -7589,6 +7634,39 @@
           "message"
         ],
         "title": "DeleteSourceWithoutEntry",
+        "type": "object"
+      },
+      "DeleteStatusChange": {
+        "description": "Ağaç DIŞINDA kalan bir kaydın silme sonrası durum değişikliği (önizleme + denetim).",
+        "properties": {
+          "from": {
+            "description": "Mevcut durum (ham değer; ör. `collected`).",
+            "title": "From",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`invoice` | `progress_payment` | `subcontractor_progress_payment` | `equipment_rental_invoice`.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "description": "Görünen ad (ör. `Fatura F-0007`, `İşveren hakedişi #3 · Kule`).",
+            "title": "Label",
+            "type": "string"
+          },
+          "to": {
+            "description": "Silme sonrası durum (ham değer; ör. `sent`).",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "from",
+          "to"
+        ],
+        "title": "DeleteStatusChange",
         "type": "object"
       },
       "DiaryStatus": {

@@ -14,14 +14,16 @@ için `approved`a geri alınır: `paid` damgası ödemeye dayanır, boş bir "Ö
 """
 
 import uuid
+from decimal import Decimal
 
 from sqlalchemy import ColumnElement, String, Table, and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import Base
 from app.core.silme.cozucu import SilmeAgaci, kolon_in
+from app.core.silme.etiketler import tablo_bilgisi
 from app.core.silme.graf import FkDisiBag, kanca_kaydet
-from app.core.silme.sonrasi import Sonra, SonrasiKancasi, sonrasi_kaydet
+from app.core.silme.sonrasi import DurumDegisimi, Sonra, SonrasiKancasi, sonrasi_kaydet
 from app.core.silme.turler import KokBilgisi, SilmeTuru, tur_kaydet
 from app.modules.audit import messages
 from app.modules.invoicing.models import Invoice
@@ -121,7 +123,36 @@ _FATURA_KAYNAKLARI: dict[str, str] = {
 }
 
 
-async def _odeme_sonrasi_hazirla(session: AsyncSession, agac: SilmeAgaci) -> Sonra | None:
+async def _kaynak_hakedisleri_kilitle(
+    session: AsyncSession, kaynaklar: dict[str, set[uuid.UUID]]
+) -> None:
+    """Kaynak hakediş / kira hakedişi BAŞLIKLARINI `FOR UPDATE` kilitler (silme yolu, `once`).
+
+    `mark-paid` başlığı kilitler (`visible_payment_locked`) ama ödemeleri KİLİTSİZ okur
+    (`realized.assert_realized_covers`). Silme başlığı kilitlemezse: mark-paid ödemeyi görür,
+    silme ödemeyi siler ve `paid` demotion'ı koşar (henüz `paid` değil → etkisiz), sonra mark-paid
+    `paid` yazar: ödemesiz `paid` hakediş. Kilitle: mark-paid önce kilitlediyse silme BEKLER ve
+    demotion `paid`i görür; silme önce kilitlediyse mark-paid bekler, ödemeyi gitmiş görüp 409
+    verir.
+
+    KİLİT SIRASI: ödeme (kök/ağaç) → başlık. `mark-paid` ödeme satırını KİLİTLEMEZ (yalnız okur);
+    onun sırası sözleşme → başlıktır. Böylece iki yol arasında ters sıra döngüsü doğmaz. Başlıklar
+    tablo adı ve `id` sırasıyla kilitlenir (silme ↔ silme çakışmasında deterministik sıra)."""
+    for tablo in sorted(kaynaklar):
+        t = Base.metadata.tables[tablo]
+        await session.execute(
+            select(t.c.id)
+            .where(kolon_in(t.c.id, sorted(kaynaklar[tablo], key=str)))
+            .order_by(t.c.id)
+            .with_for_update()
+        )
+
+
+async def _kaynaklari_bul(
+    session: AsyncSession, agac: SilmeAgaci
+) -> tuple[set[uuid.UUID], dict[str, set[uuid.UUID]]]:
+    """Ağaçtaki ödemelerin AĞAÇ DIŞI kalan faturaları ve o faturaların AĞAÇ DIŞI kaynak
+    hakedişleri (`tablo -> kimlikler`). `once` ve `degisiklikler` AYNI seçimi kullanır."""
     odeme_idler = [pk[0] for pk in agac.kayitlar.get("payments", set())]
     fatura_idler = set(
         (
@@ -131,7 +162,7 @@ async def _odeme_sonrasi_hazirla(session: AsyncSession, agac: SilmeAgaci) -> Son
         ).scalars()
     )
     if not fatura_idler:
-        return None
+        return set(), {}
     kalan_faturalar = fatura_idler - {pk[0] for pk in agac.kayitlar.get("invoices", set())}
     kaynaklar: dict[str, set[uuid.UUID]] = {}
     for kolon, tablo in _FATURA_KAYNAKLARI.items():
@@ -142,6 +173,14 @@ async def _odeme_sonrasi_hazirla(session: AsyncSession, agac: SilmeAgaci) -> Son
         bulunan -= {pk[0] for pk in agac.kayitlar.get(tablo, set())}
         if bulunan:
             kaynaklar[tablo] = bulunan
+    return kalan_faturalar, kaynaklar
+
+
+async def _odeme_sonrasi_hazirla(session: AsyncSession, agac: SilmeAgaci) -> Sonra | None:
+    kalan_faturalar, kaynaklar = await _kaynaklari_bul(session, agac)
+    if not kalan_faturalar and not kaynaklar:
+        return None
+    await _kaynak_hakedisleri_kilitle(session, kaynaklar)
 
     async def sonra(oturum: AsyncSession) -> None:
         for fatura_id in sorted(kalan_faturalar, key=str):
@@ -165,4 +204,73 @@ async def _odeme_sonrasi_hazirla(session: AsyncSession, agac: SilmeAgaci) -> Son
     return sonra
 
 
-sonrasi_kaydet(SonrasiKancasi(ad="payments.sonrasi", tablo="payments", once=_odeme_sonrasi_hazirla))
+async def _odeme_durum_degisiklikleri(
+    session: AsyncSession, agac: SilmeAgaci
+) -> list[DurumDegisimi]:
+    """`sonra`nın YAZACAĞI durumların önizlemesi (kilitsiz, yazmaz): faturanın `collected`
+    damgası (`payments_service.derived_status`: yazma yoluyla AYNI saf kod) ve `paid` hakedişin
+    `approved`a dönüşü. Ağaçtaki satırlar kalan toplamdan düşülür."""
+    silinen: dict[uuid.UUID, Decimal] = {}
+    odeme_idler = [pk[0] for pk in agac.kayitlar.get("payments", set())]
+    satirlar = await session.execute(
+        select(Payment.invoice_id, Payment.amount).where(kolon_in(Payment.id, odeme_idler))
+    )
+    for fatura_id, tutar in satirlar:
+        silinen[fatura_id] = silinen.get(fatura_id, Decimal("0")) + tutar
+    kalan_faturalar, kaynaklar = await _kaynaklari_bul(session, agac)
+    sonuc: list[DurumDegisimi] = []
+    for fatura_id in sorted(kalan_faturalar, key=str):
+        fatura = await session.get(Invoice, fatura_id)
+        if fatura is None:
+            continue
+        kalan = await repository.paid_total_for_invoice(session, fatura_id) - silinen[fatura_id]
+        yeni = payments_service.derived_status(fatura, kalan)
+        if yeni is not fatura.status:
+            sonuc.append(
+                DurumDegisimi(
+                    "invoice", f"Fatura {fatura.invoice_no}", fatura.status.value, yeni.value
+                )
+            )
+    for tablo, idler in sorted(kaynaklar.items()):
+        sonuc.extend(await _paid_hakedisler(session, tablo, idler))
+    return sonuc
+
+
+async def _paid_hakedisler(
+    session: AsyncSession, tablo: str, idler: set[uuid.UUID]
+) -> list[DurumDegisimi]:
+    """`paid` kaynak hakedişler (silinince `approved`a döner). Etiket: `İşveren hakedişi #3 ·
+    Proje`; kira hakedişinde fatura no."""
+    t = Base.metadata.tables[tablo]
+    etiket = tablo_bilgisi(tablo).etiket
+    if "sequence_no" in t.c:
+        projeler = Base.metadata.tables["projects"]
+        sorgu = (
+            select(t.c.sequence_no, projeler.c.name)
+            .select_from(t.outerjoin(projeler, projeler.c.id == t.c.project_id))
+            .order_by(t.c.sequence_no)
+        )
+        ad = lambda satir: f"{etiket} #{satir[0]} · {satir[1] or ''}".rstrip(" ·")  # noqa: E731
+    else:
+        sorgu = select(t.c.invoice_no).order_by(t.c.invoice_no)
+        ad = lambda satir: f"{etiket} {satir[0]}"  # noqa: E731
+    sorgu = sorgu.where(kolon_in(t.c.id, sorted(idler, key=str)), t.c.status.cast(String) == "paid")
+    kind = {
+        "progress_payments": "progress_payment",
+        "subcontractor_progress_payments": "subcontractor_progress_payment",
+        "equipment_rental_invoices": "equipment_rental_invoice",
+    }[tablo]
+    return [
+        DurumDegisimi(kind, ad(satir), "paid", "approved")
+        for satir in (await session.execute(sorgu)).all()
+    ]
+
+
+sonrasi_kaydet(
+    SonrasiKancasi(
+        ad="payments.sonrasi",
+        tablo="payments",
+        once=_odeme_sonrasi_hazirla,
+        degisiklikler=_odeme_durum_degisiklikleri,
+    )
+)

@@ -47,6 +47,11 @@ tur_kaydet(
 )
 
 
+def _satir_baslik(alt: Table, ust: Table) -> ColumnElement[bool]:
+    """Satır → ÜSTBİLGİ, DURUMDAN BAĞIMSIZ (silme yolu başlığı bununla `FOR UPDATE` kilitler)."""
+    return alt.c.id == ust.c.payment_id
+
+
 def _satir_onayli_baslik(alt: Table, ust: Table) -> ColumnElement[bool]:
     """Satır → ÜSTBİLGİ, yalnız başlık onaylı/ödenmişse (muhasebeleşmiş)."""
     return and_(
@@ -58,7 +63,8 @@ def _satir_onayli_baslik(alt: Table, ust: Table) -> ColumnElement[bool]:
 # Şantiye/bölüm silinince bir hakedişin yalnız BAZI satırları gidebilir. Hakediş onaylı/ödenmişse
 # fişi ve faturası eski toplamı taşır ve bayat kalırdı: başlık, fişi/faturası/ödemeleriyle birlikte
 # silinir (GECE KARARI; önizlemede görünür). Taslak/onay bekleyen hakedişte toplam satırlardan
-# türer, başlık kalır.
+# türer, başlık kalır. Başlık durumu YARIŞTA değişebilir (onay): silme yolu başlığı durumdan
+# bağımsız kilitler ve kararı kilit altında yeniden verir (`kilit_kosulu`).
 kanca_kaydet(
     FkDisiBag(
         ad="progress_payments.lines_header",
@@ -66,5 +72,6 @@ kanca_kaydet(
         alt_tablo="progress_payments",
         kosul=_satir_onayli_baslik,
         sirayi_etkilemez=True,
+        kilit_kosulu=_satir_baslik,
     )
 )

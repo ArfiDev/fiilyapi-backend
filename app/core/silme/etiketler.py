@@ -32,6 +32,9 @@ from sqlalchemy import ColumnElement, String, Table, exists, func, or_, select
 #: Bir tablodan MALİ satırları seçen koşul üreticisi: `Table -> ColumnElement[bool]`.
 MaliKosulu = Callable[[Table], ColumnElement[bool]]
 
+#: `Table -> örnek metnini oluşturan ifadeler` (boş/NULL parçalar metne girmez).
+OrnekIfadesi = Callable[[Table], tuple[ColumnElement, ...]]
+
 #: Muhasebeleşmiş hakediş durumları (hakediş, kira hakedişi ve satırları).
 ONAYLI_DURUMLAR = ("approved", "paid")
 #: Bordro döneminin KAPALI sayıldığı durumlar (modül docstring'indeki gerekçe): `draft` HARİÇ hepsi.
@@ -45,6 +48,9 @@ class TabloBilgisi:
     ornek: tuple[str, ...] = ()
     #: `False` | `True` | koşul (bkz. modül docstring'i).
     mali: bool | MaliKosulu = False
+    #: Doluysa `ornek` kolonları yerine bu ifadeler örneklenir (başka tablodan okunan ad
+    #: gerekiyorsa; ör. ödemenin tarihi tek başına anlamsızdır, fatura no ve proje adı gerekir).
+    ornek_ifadesi: OrnekIfadesi | None = None
 
 
 def _durum_onayli(tablo: Table) -> ColumnElement[bool]:
@@ -80,6 +86,17 @@ def _satis_mali(tablo: Table) -> ColumnElement[bool]:
 
 def _taksit_tahsil_edilmis(tablo: Table) -> ColumnElement[bool]:
     return tablo.c.paid_amount > 0
+
+
+def _odeme_ornegi(tablo: Table) -> tuple[ColumnElement, ...]:
+    """Ödeme örneği: `F-0007 · Kule Projesi · 2026-03-20` (faturası ve projesi ödemeden okunur)."""
+    fatura = tablo.metadata.tables["invoices"]
+    proje = tablo.metadata.tables["projects"]
+    fatura_no = select(fatura.c.invoice_no).where(fatura.c.id == tablo.c.invoice_id)
+    proje_adi = select(proje.c.name).where(
+        proje.c.id == fatura.c.project_id, fatura.c.id == tablo.c.invoice_id
+    )
+    return (fatura_no.scalar_subquery(), proje_adi.scalar_subquery(), tablo.c.paid_on)
 
 
 TABLOLAR: dict[str, TabloBilgisi] = {
@@ -133,7 +150,9 @@ TABLOLAR: dict[str, TabloBilgisi] = {
     # --- Fatura, ödeme, muhasebe (mali: her zaman) ---
     "invoices": TabloBilgisi("Fatura", ("invoice_no",), mali=True),
     "invoice_lines": TabloBilgisi("Fatura satırı", ("description",), mali=True),
-    "payments": TabloBilgisi("Ödeme / tahsilat", ("paid_on",), mali=True),
+    "payments": TabloBilgisi(
+        "Ödeme / tahsilat", ("paid_on",), mali=True, ornek_ifadesi=_odeme_ornegi
+    ),
     "journal_entries": TabloBilgisi("Muhasebe fişi", ("entry_no",), mali=True),
     "journal_lines": TabloBilgisi("Muhasebe fiş satırı", mali=True),
     # --- FK olmayan bağlar (kancalar) ---
@@ -183,6 +202,17 @@ MALI_TABLOLAR_DIGER: dict[str, TabloBilgisi] = {
     "bank_accounts": TabloBilgisi("Banka hesabı", ("display_name",), mali=True),
     "payroll_periods": TabloBilgisi("Bordro dönemi", mali=True),
     "payroll_lines": TabloBilgisi("Bordro satırı", mali=True),
+}
+
+#: Kendi `project_id` kolonu OLMAYAN tabloların projesine giden yol:
+#: `tablo -> (fk kolonu, üst tablo)` (üst tablonun `project_id`si). Burada olmayan ve `project_id`
+#: taşımayan tablo `site_id` üzerinden `sites.project_id`ye bakar; o da yoksa projesiz sayılır
+#: (`core/silme/kapsam.py`).
+PROJE_YOLU: dict[str, tuple[str, str]] = {
+    "payments": ("invoice_id", "invoices"),
+    "invoice_lines": ("invoice_id", "invoices"),
+    "progress_payment_lines": ("payment_id", "progress_payments"),
+    "subcontractor_progress_payment_lines": ("payment_id", "subcontractor_progress_payments"),
 }
 
 TUM_TABLOLAR: dict[str, TabloBilgisi] = {**TABLOLAR, **MALI_TABLOLAR_DIGER}

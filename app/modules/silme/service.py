@@ -13,7 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import Base
 from app.core.errors import NotFoundError
 from app.core.silme import sonrasi, turler
-from app.core.silme.cozucu import PkDemeti, SilmeAgaci, agac_coz, mali_sayisi, ornekler
+from app.core.silme.cozucu import (
+    PkDemeti,
+    SilmeAgaci,
+    agac_coz,
+    kosulsuz_kilitle,
+    mali_sayisi,
+    ornekler,
+)
 from app.core.silme.etiketler import tablo_bilgisi
 from app.core.silme.hatalar import (
     PREVIEW_REQUIRED_DETAIL,
@@ -21,6 +28,7 @@ from app.core.silme.hatalar import (
     DeletePreviewRequiredError,
     DeletePreviewStaleError,
 )
+from app.core.silme.kapsam import diger_projeler
 from app.core.silme.turler import KokBilgisi, SilmeTuru
 from app.core.silme.yurutucu import agaci_sil
 from app.modules.audit import messages
@@ -33,10 +41,12 @@ from app.modules.silme.schemas import (
     DeleteDetachedGroup,
     DeleteJournalEntry,
     DeleteKind,
+    DeleteOtherProject,
     DeletePreviewGroup,
     DeletePreviewResponse,
     DeleteRelation,
     DeleteSourceWithoutEntry,
+    DeleteStatusChange,
 )
 
 _METADATA = Base.metadata
@@ -106,6 +116,8 @@ async def onizle(
     fisler = await fis_dokumu(session, agac)
     fissiz = await fissiz_kalan_belgeler(session, agac)
     bordro = await kapali_bordro_uyarisi(session, agac)
+    digerleri = await diger_projeler(session, _METADATA, agac)
+    degisimler = await sonrasi.durum_degisiklikleri(session, agac)
     return DeletePreviewResponse(
         kind=kind,
         id=record_id,
@@ -117,6 +129,14 @@ async def onizle(
         journal_entry_count=len(fisler),
         journal_entries=[
             DeleteJournalEntry(**asdict(f)) for f in fisler[:JOURNAL_ENTRY_PREVIEW_LIMIT]
+        ],
+        other_projects=[
+            DeleteOtherProject(project_id=p.project_id, name=p.name, count=p.count)
+            for p in digerleri
+        ],
+        status_changes=[
+            DeleteStatusChange(kind=x.kind, label=x.label, from_=x.onceki, to=x.sonraki)
+            for x in degisimler
         ],
         closed_period_entry_count=sum(1 for f in fisler if f.period_closed),
         closed_payroll_timesheet_count=bordro.entry_count,
@@ -167,6 +187,11 @@ async def sil(
     # deneme ister; kilit yarışı deterministik biçimde BEKLETİR, yalnız silinen ağaç kilitlenir.
     # Sınır: FK OLMAYAN bağlar (fiş/onay zinciri kancaları) alt satır eklemeyi engellemez; ağaçtaki
     # mevcut satırları kilitlenir, yeni kanca satırı ise bir sonraki karmada görünür.
+    # Durumdan bağımsız kanca kilidi (hakediş başlığı): başlık kilitliyken onay BEKLER; kilit
+    # ALTINDA başlığın güncel durumu okunur (onaylanmışsa ağaca girer, karma değişir → 409). Sıra
+    # başlık → satır: önce kilitsiz ağaçtan başlıklar kilitlenir, sonra ağaç kilitli yeniden
+    # çözülür.
+    await kosulsuz_kilitle(session, _METADATA, await _agac(session, tur, record_id))
     agac = await _agac(session, tur, record_id, kilitle=True)
     if agac.karma() != preview_token:
         raise DeletePreviewStaleError(PREVIEW_STALE_DETAIL)
@@ -176,6 +201,9 @@ async def sil(
     # Fiş dökümü ve fişsiz kalan belgeler SİLMEDEN ÖNCE okunur: sonra okunamaz.
     fisler = await fis_dokumu(session, agac)
     fissiz = await fissiz_kalan_belgeler(session, agac)
+    bordro = await kapali_bordro_uyarisi(session, agac)
+    digerleri = await diger_projeler(session, _METADATA, agac)
+    degisimler = await sonrasi.durum_degisiklikleri(session, agac)
     sonralar = await sonrasi.hazirla(session, agac)
     try:
         # SAVEPOINT: kısıt ihlali oturumu kullanılamaz bırakmasın (çağıran 409'a çevirir).
@@ -197,4 +225,7 @@ async def sil(
             f"{f.entry_no} ({f.entry_date:%Y-%m})" for f in fisler if f.period_closed
         ],
         sources_without_entry=[f"{b.label} {b.ref}".strip() for b in fissiz],
+        other_projects=[f"{p.name} {p.count}" for p in digerleri],
+        status_changes=[f"{x.label}: {x.onceki} → {x.sonraki}" for x in degisimler],
+        closed_payroll=bordro.message,
     )

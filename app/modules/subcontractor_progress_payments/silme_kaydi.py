@@ -56,6 +56,11 @@ tur_kaydet(
 )
 
 
+def _satir_baslik(alt: Table, ust: Table) -> ColumnElement[bool]:
+    """Satır → ÜSTBİLGİ, DURUMDAN BAĞIMSIZ (silme yolu başlığı bununla `FOR UPDATE` kilitler)."""
+    return alt.c.id == ust.c.payment_id
+
+
 def _satir_onayli_baslik(alt: Table, ust: Table) -> ColumnElement[bool]:
     """Satır → ÜSTBİLGİ, yalnız başlık onaylı/ödenmişse (işveren hakedişiyle aynı kural)."""
     return and_(
@@ -71,5 +76,6 @@ kanca_kaydet(
         alt_tablo="subcontractor_progress_payments",
         kosul=_satir_onayli_baslik,
         sirayi_etkilemez=True,
+        kilit_kosulu=_satir_baslik,
     )
 )
