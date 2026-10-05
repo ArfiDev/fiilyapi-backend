@@ -4,6 +4,7 @@
 """
 
 import uuid
+from dataclasses import asdict
 
 from sqlalchemy import inspect, select
 from sqlalchemy.exc import IntegrityError
@@ -11,14 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import Base
 from app.core.errors import NotFoundError
-from app.core.silme import turler
+from app.core.silme import sonrasi, turler
 from app.core.silme.cozucu import PkDemeti, SilmeAgaci, agac_coz, mali_sayisi, ornekler
 from app.core.silme.etiketler import tablo_bilgisi
 from app.core.silme.hatalar import (
-    FINANCIAL_PENDING_DETAIL,
     PREVIEW_REQUIRED_DETAIL,
     PREVIEW_STALE_DETAIL,
-    DeleteFinancialPendingError,
     DeletePreviewRequiredError,
     DeletePreviewStaleError,
 )
@@ -26,12 +25,18 @@ from app.core.silme.turler import KokBilgisi, SilmeTuru
 from app.core.silme.yurutucu import agaci_sil
 from app.modules.audit import messages
 from app.modules.silme import kayitlar  # noqa: F401  (tür + kanca kaydı: yan etki)
+from app.modules.silme.bordro_uyarisi import kapali_bordro_uyarisi
+from app.modules.silme.fisler import fis_dokumu, fissiz_kalan_belgeler
 from app.modules.silme.schemas import (
+    JOURNAL_ENTRY_PREVIEW_LIMIT,
+    DeleteClosedPayrollPeriod,
     DeleteDetachedGroup,
+    DeleteJournalEntry,
     DeleteKind,
     DeletePreviewGroup,
     DeletePreviewResponse,
     DeleteRelation,
+    DeleteSourceWithoutEntry,
 )
 
 _METADATA = Base.metadata
@@ -53,14 +58,6 @@ async def _kok_yukle(
     return bilgi
 
 
-async def _mali_var_mi(session: AsyncSession, agac: SilmeAgaci) -> bool:
-    """Ağaçta MALİ satır var mı? KÖK de dahildir (`agac.kayitlar` kökü içerir)."""
-    for tablo, idler in agac.kayitlar.items():
-        if await mali_sayisi(session, _METADATA, tablo, idler):
-            return True
-    return False
-
-
 async def _gruplar(session: AsyncSession, agac: SilmeAgaci) -> list[DeletePreviewGroup]:
     gruplar: list[DeletePreviewGroup] = []
     for tablo, idler in agac.bagimlilar().items():
@@ -78,9 +75,14 @@ async def _gruplar(session: AsyncSession, agac: SilmeAgaci) -> list[DeletePrevie
     return sorted(gruplar, key=lambda g: (-g.count, g.label))
 
 
-def _kopacaklar(agac: SilmeAgaci) -> list[DeleteDetachedGroup]:
+async def _kopacaklar(session: AsyncSession, agac: SilmeAgaci) -> list[DeleteDetachedGroup]:
     liste = [
-        DeleteDetachedGroup(table=t, label=tablo_bilgisi(t).etiket, count=len(idler))
+        DeleteDetachedGroup(
+            table=t,
+            label=tablo_bilgisi(t).etiket,
+            count=len(idler),
+            is_financial=bool(await mali_sayisi(session, _METADATA, t, idler)),
+        )
         for t, idler in agac.kopacak.items()
     ]
     return sorted(liste, key=lambda g: (-g.count, g.label))
@@ -101,6 +103,9 @@ async def onizle(
     kok = await _kok_yukle(session, tur, record_id, kilitle=False)
     agac = await _agac(session, tur, record_id)
     gruplar = await _gruplar(session, agac)
+    fisler = await fis_dokumu(session, agac)
+    fissiz = await fissiz_kalan_belgeler(session, agac)
+    bordro = await kapali_bordro_uyarisi(session, agac)
     return DeletePreviewResponse(
         kind=kind,
         id=record_id,
@@ -108,7 +113,19 @@ async def onizle(
         label=kok.ad,
         dependent_count=agac.bagimli_sayisi(),
         groups=gruplar,
-        detached=_kopacaklar(agac),
+        detached=await _kopacaklar(session, agac),
+        journal_entry_count=len(fisler),
+        journal_entries=[
+            DeleteJournalEntry(**asdict(f)) for f in fisler[:JOURNAL_ENTRY_PREVIEW_LIMIT]
+        ],
+        closed_period_entry_count=sum(1 for f in fisler if f.period_closed),
+        closed_payroll_timesheet_count=bordro.entry_count,
+        closed_payroll_periods=[DeleteClosedPayrollPeriod(**asdict(x)) for x in bordro.periods],
+        closed_payroll_message=bordro.message,
+        documents_left_without_entry=[
+            DeleteSourceWithoutEntry(table=b.table, label=b.label, ref=b.ref, message=b.message)
+            for b in fissiz
+        ],
         preview_token=agac.karma(),
     )
 
@@ -134,8 +151,8 @@ async def sil(
 ) -> str:
     """Kökü ve bağlı ağacını TEK işlemde siler; DENETİM METNİNİ döner (satır yazmak çağırana ait).
 
-    Denetim sırası (CEO eki, testle kilitli): belirteç YOK → 428; belirteç BAYAT → 409
-    `preview_stale`; ağaçta mali kayıt VAR → 409 `financial_pending`. Üçünde de HİÇBİR ŞEY silinmez.
+    Sıra: belirteç YOK → 428; belirteç BAYAT → 409 `preview_stale` (ikisinde de HİÇBİR ŞEY
+    silinmez). Mali kayıtlar (SIL-B2) ağaçtaki diğer kayıtlar gibi BİRLİKTE silinir (K2).
     """
     anahtar = kind.value if isinstance(kind, DeleteKind) else kind
     if not preview_token:
@@ -153,15 +170,19 @@ async def sil(
     agac = await _agac(session, tur, record_id, kilitle=True)
     if agac.karma() != preview_token:
         raise DeletePreviewStaleError(PREVIEW_STALE_DETAIL)
-    if await _mali_var_mi(session, agac):
-        raise DeleteFinancialPendingError(FINANCIAL_PENDING_DETAIL)
     gruplar = await _gruplar(session, agac)
     sayi = agac.bagimli_sayisi()
-    kopan = _kopacaklar(agac)
+    kopan = await _kopacaklar(session, agac)
+    # Fiş dökümü ve fişsiz kalan belgeler SİLMEDEN ÖNCE okunur: sonra okunamaz.
+    fisler = await fis_dokumu(session, agac)
+    fissiz = await fissiz_kalan_belgeler(session, agac)
+    sonralar = await sonrasi.hazirla(session, agac)
     try:
         # SAVEPOINT: kısıt ihlali oturumu kullanılamaz bırakmasın (çağıran 409'a çevirir).
         async with session.begin_nested():
             await agaci_sil(session, _METADATA, agac)
+            for sonra in sonralar:
+                await sonra(session)
     except IntegrityError as hata:
         # Kilitli ağaçta olmaması gereken bir bağ (kancasız FK dışı ya da yarış) → eski önizleme.
         raise DeletePreviewStaleError(PREVIEW_STALE_DETAIL) from hata
@@ -171,4 +192,9 @@ async def sil(
         sayi,
         _ozet_parcalari(gruplar),
         [f"{g.label} {g.count}" for g in kopan],
+        journal_entries=[f.entry_no for f in fisler],
+        closed_period_entries=[
+            f"{f.entry_no} ({f.entry_date:%Y-%m})" for f in fisler if f.period_closed
+        ],
+        sources_without_entry=[f"{b.label} {b.ref}".strip() for b in fissiz],
     )

@@ -34,10 +34,8 @@ from app.core.errors import (
     UserAccessValidationError,
 )
 from app.core.silme.hatalar import (
-    CODE_FINANCIAL_PENDING,
     CODE_PREVIEW_REQUIRED,
     CODE_PREVIEW_STALE,
-    DeleteFinancialPendingError,
     DeletePreviewRequiredError,
     DeletePreviewStaleError,
 )
@@ -64,16 +62,6 @@ async def _delete_preview_stale_handler(
     return JSONResponse(
         status_code=status.HTTP_409_CONFLICT,
         content={"detail": str(exc), "code": CODE_PREVIEW_STALE},
-    )
-
-
-async def _delete_financial_pending_handler(
-    request: Request, exc: DeleteFinancialPendingError
-) -> JSONResponse:
-    """409 + `code=financial_pending` — mali bağlı kayıt var, silme SIL-B2'ye kadar kapalı."""
-    return JSONResponse(
-        status_code=status.HTTP_409_CONFLICT,
-        content={"detail": str(exc), "code": CODE_FINANCIAL_PENDING},
     )
 
 
@@ -358,7 +346,6 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(ApprovalNotAllowedError, _approval_not_allowed_handler)
     app.add_exception_handler(DeletePreviewRequiredError, _delete_preview_required_handler)
     app.add_exception_handler(DeletePreviewStaleError, _delete_preview_stale_handler)
-    app.add_exception_handler(DeleteFinancialPendingError, _delete_financial_pending_handler)
     app.add_exception_handler(NotFoundError, _not_found_handler)
     app.add_exception_handler(ProjectTypeMismatchError, _project_type_mismatch_handler)
     app.add_exception_handler(ProjectValidationError, _project_validation_handler)

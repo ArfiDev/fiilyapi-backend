@@ -688,56 +688,11 @@ async def build_detail(
 # --- Silme (spec §7.1, §9.5, K8) ---
 
 
-async def delete_payment(
-    session: AsyncSession, actor: User, payment_id: uuid.UUID
-) -> DeletedPaymentSummary:
-    """`DELETE /progress-payments/{id}` — K8'in İKİ KATMANLI kuralı.
-
-    Katman 1 (§7.1/1): `status ∈ {approved, paid}` → 409 `PAYMENT_NOT_DELETABLE`
-    — ADMİN DAHİL kimse silemez (kalıcı karar 2'nin "silme = admin" ilkesinin
-    DARALTILMASI, admin ihlali değil: kalan silinebilir kümede admin koşulsuz
-    siler). Muhasebeleşmiş evrak yok edilmez; admin gerekirse önce `unapprove`
-    ile (H6) durumu `pending_approval`'a geri çeker — denetim izli iki adım.
-
-    Katman 2 (SIL-B1, K4): kapı router'da yalnız Sistem Yöneticisi'dir; eski "kendi taslağını
-    sahibi siler" (`can_delete`) istisnası KALDIRILDI.
-
-    Kapsam (§9.0) `_visible_payment` ile İLK adımda kurulur: görünmeyen
-    projedeki GERÇEK kayıt ile var olmayan kimlik burada da AYIRT EDİLEMEZ
-    404'tür — durum/yetki kontrolleri görünürlükten SONRA çalışır.
-
-    Silme de bir YAZMA işlemidir (H8 denetimi K1, 2026-07-31): satır kilitsiz
-    okunursa (`_visible_payment`) eşzamanlı bir `approve` katman-1 kontrolünü
-    TOCTOU ile atlatıp `approved`/`paid` kaydı silebilir. Bu yüzden burada da
-    `visible_payment_locked` kullanılır — kilit sırası `create`/`transitions`
-    ile AYNIDIR (önce sözleşme, sonra hakediş), durum ve `can_delete`
-    kontrolleri KİLİTLİ satır üzerinden yapılır. Yarışta satır zaten silinmişse
-    `visible_payment_locked` mevcut `PAYMENT_MISSING` 404'ünü üretir.
-
-    Denetim günlüğü (H8'den devredilen not, plan H10, spec §11): dönüş değeri
-    kaydın `session.delete`den ÖNCE çıkarılmış özetidir (`sequence_no`/durum/
-    tutar) — kayıt gittiğinde bunlar bir daha okunamaz.
-    """
-    payment, project, _ = await visible_payment_locked(session, actor, payment_id)
-
-    if payment.status in (ProgressPaymentStatus.approved, ProgressPaymentStatus.paid):
-        raise ConflictError(guards.PAYMENT_NOT_DELETABLE)
-
-    # H8'den devredilen ZORUNLULUK (plan H10, spec §11): özet `session.delete`
-    # ÖNCESİNDE kurulur. Mutasyon denetimi (H10) bu okumayı silmeden SONRAKİ bir
-    # yeniden sorguya (`repository.get_payment`) taşıyarak doğrulandı: aynı
-    # transaction kendi silme işlemini gördüğü için satır bulunamaz ve kod
-    # sessizce varsayılanlara düşer (#0/"Bilinmiyor"/0.00 TL, HATA FIRLAMADAN) —
-    # test kırmızıya döndü, kanıt raporda. Doğru sıra ile geri alındı.
-    summary = DeletedPaymentSummary(
-        project_name=project.name,
+def deletion_summary(payment: ProgressPayment, project_name: str) -> DeletedPaymentSummary:
+    """Silme özeti (denetim metni için). SİLMEDEN ÖNCE çağrılır; SIL-B2 motoru da kullanır."""
+    return DeletedPaymentSummary(
+        project_name=project_name,
         sequence_no=payment.sequence_no,
         status_label=_STATUS_LABELS[payment.status],
         amount=_gross_total(payment.lines),
     )
-
-    # `ProgressPayment.lines` cascade="all, delete-orphan" (H1) — satırlar
-    # bu `session.delete` ile BİRLİKTE gider, ayrı bir silme çağrısı gerekmez.
-    await session.delete(payment)
-    await session.flush()
-    return summary

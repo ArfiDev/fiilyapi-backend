@@ -24,6 +24,7 @@ import pytest
 from sqlalchemy import select
 
 from app.modules.invoicing.models import Invoice, InvoiceDirection, InvoiceLine, InvoiceStatus
+from tests._silme_yardimci import sil_aile
 
 _YOL = "/invoices"
 
@@ -178,14 +179,15 @@ async def test_delete_admin_taslak_faturayi_siler(
     client, admin_headers, fatura_fabrikasi, gorunen_proje, seeded_db
 ) -> None:
     fatura = await fatura_fabrikasi(project=gorunen_proje)
-    resp = await client.delete(f"{_YOL}/{fatura.id}", headers=admin_headers)
+    fatura_id = fatura.id
+    resp = await sil_aile(client, admin_headers, "invoice", fatura_id)
     assert resp.status_code == 204, resp.text
     kalan = (
-        await seeded_db.execute(select(Invoice).where(Invoice.id == fatura.id))
+        await seeded_db.execute(select(Invoice).where(Invoice.id == fatura_id))
     ).scalar_one_or_none()
     assert kalan is None
     kalemler = (
-        (await seeded_db.execute(select(InvoiceLine).where(InvoiceLine.invoice_id == fatura.id)))
+        (await seeded_db.execute(select(InvoiceLine).where(InvoiceLine.invoice_id == fatura_id)))
         .scalars()
         .all()
     )
@@ -201,27 +203,42 @@ async def test_delete_full_seviyesi_403(
     assert resp.status_code == 403, resp.text
 
 
-async def test_delete_gonderilmis_fatura_409(
-    client, admin_headers, fatura_fabrikasi, gorunen_proje
+async def test_delete_gonderilmis_fatura_da_silinir_sisyon_her_kosulda(
+    client, admin_headers, fatura_fabrikasi, gorunen_proje, seeded_db
 ) -> None:
+    """SIL-B2: "yalnız taslak" iş kuralı yalnız silme yolunda kalktı (K2)."""
     fatura = await fatura_fabrikasi(project=gorunen_proje, status=InvoiceStatus.sent)
-    resp = await client.delete(f"{_YOL}/{fatura.id}", headers=admin_headers)
-    assert resp.status_code == 409, resp.text
+    fatura_id = fatura.id
+    resp = await sil_aile(client, admin_headers, "invoice", fatura_id)
+    assert resp.status_code == 204, resp.text
+    assert await seeded_db.get(Invoice, fatura_id) is None
 
 
-async def test_delete_gelen_fatura_409(
-    client, admin_headers, fatura_fabrikasi, gorunen_proje
+async def test_delete_gelen_fatura_da_silinir(
+    client, admin_headers, fatura_fabrikasi, gorunen_proje, seeded_db
 ) -> None:
-    """Gelen faturada `draft` YOKTUR (K2) — silinebilir bir durumu da yoktur."""
     fatura = await fatura_fabrikasi(
         project=gorunen_proje, direction=InvoiceDirection.incoming, status=InvoiceStatus.pending
     )
+    fatura_id = fatura.id
+    resp = await sil_aile(client, admin_headers, "invoice", fatura_id)
+    assert resp.status_code == 204, resp.text
+    assert await seeded_db.get(Invoice, fatura_id) is None
+
+
+async def test_delete_onizlemesiz_428(
+    client, admin_headers, fatura_fabrikasi, gorunen_proje
+) -> None:
+    fatura = await fatura_fabrikasi(project=gorunen_proje)
     resp = await client.delete(f"{_YOL}/{fatura.id}", headers=admin_headers)
-    assert resp.status_code == 409, resp.text
+    assert resp.status_code == 428, resp.text
+    assert resp.json()["code"] == "preview_required"
 
 
 async def test_delete_olmayan_fatura_404(client, admin_headers) -> None:
-    resp = await client.delete(f"{_YOL}/{uuid.uuid4()}", headers=admin_headers)
+    resp = await client.delete(
+        f"{_YOL}/{uuid.uuid4()}", params={"preview_token": "x"}, headers=admin_headers
+    )
     assert resp.status_code == 404, resp.text
 
 

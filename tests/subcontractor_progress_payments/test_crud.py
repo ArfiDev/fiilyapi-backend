@@ -18,6 +18,7 @@ from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
     SubcontractorProgressPayment,
 )
+from tests._silme_yardimci import sil_aile
 from tests.subcontractor_progress_payments.conftest import GRUP_ADI
 
 pytestmark = pytest.mark.asyncio
@@ -375,30 +376,28 @@ async def test_taslak_silinir(
 ) -> None:
     contract, _, _ = taseron_sozlesmesi
     olusan = (await _olustur(client, admin_headers, contract.id)).json()
-    yanit = await client.delete(
-        f"/subcontractor-progress-payments/{olusan['id']}", headers=admin_headers
-    )
+    yanit = await sil_aile(client, admin_headers, "subcontractor_progress_payment", olusan["id"])
     assert yanit.status_code == 204, yanit.text
     assert await seeded_db.get(SubcontractorProgressPayment, uuid.UUID(olusan["id"])) is None
 
 
-async def test_onayli_hakedis_silinemez_409(
+async def test_onayli_hakedis_da_silinir_sisyon_her_kosulda(
     client: AsyncClient,
     admin_headers: dict[str, str],
+    seeded_db: AsyncSession,
     taseron_sozlesmesi,
     admin_kullanicisi,
     hakedis_fabrikasi,
 ) -> None:
-    """İşveren deseni (K8 katman 1): `approved`/`paid` ADMİN DAHİL kimseye silinmez."""
+    """SIL-B2: `approved`/`paid` hakediş de Sistem Yöneticisi tarafından silinir (K2)."""
     contract, _, _ = taseron_sozlesmesi
     payment = await hakedis_fabrikasi(
         contract, admin_kullanicisi, status=SubcontractorPaymentStatus.approved
     )
-    yanit = await client.delete(
-        f"/subcontractor-progress-payments/{payment.id}", headers=admin_headers
-    )
-    assert yanit.status_code == 409, yanit.text
-    assert yanit.json()["detail"] == guards.PAYMENT_NOT_DELETABLE
+    payment_id = payment.id
+    yanit = await sil_aile(client, admin_headers, "subcontractor_progress_payment", payment_id)
+    assert yanit.status_code == 204, yanit.text
+    assert await seeded_db.get(SubcontractorProgressPayment, payment_id) is None
 
 
 async def test_sef_baskasinin_taslagini_silemez_403(
@@ -442,9 +441,7 @@ async def test_silme_denetim_gunlugune_yazar(
     contract, _, _ = taseron_sozlesmesi
     olusan = (await _olustur(client, admin_headers, contract.id)).json()
     assert (
-        await client.delete(
-            f"/subcontractor-progress-payments/{olusan['id']}", headers=admin_headers
-        )
+        await sil_aile(client, admin_headers, "subcontractor_progress_payment", olusan["id"])
     ).status_code == 204
     gunluk = await client.get("/audit-log", headers=admin_headers)
     detaylar = [item["detail"] for item in gunluk.json()["items"]]

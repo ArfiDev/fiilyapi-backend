@@ -50,6 +50,7 @@ from app.modules.treasury.payments_service import (
     PAYMENT_INSTRUMENT_DIRECTION_MISMATCH,
     PAYMENT_INSTRUMENT_NOT_PORTFOLIO,
 )
+from tests._silme_yardimci import sil_aile
 
 
 def _yol(invoice) -> str:  # noqa: ANN001
@@ -647,9 +648,10 @@ async def test_bagli_odeme_silinince_durum_TURETIMI_bozulmadi(
     await seeded_db.refresh(invoice)
     assert invoice.status is InvoiceStatus.collected
 
-    sil = await client.delete(f"/payments/{olustur.json()['id']}", headers=admin_headers)
+    sil = await sil_aile(client, admin_headers, "payment", olustur.json()["id"])
 
     assert sil.status_code == 204, sil.text
+    seeded_db.expire_all()
     await seeded_db.refresh(invoice)
     assert invoice.status is InvoiceStatus.sent
 

@@ -376,26 +376,13 @@ async def refresh_prices(
 # --- Silme (işveren K8'in İKİ KATMANLI kuralı birebir) ---
 
 
-async def delete_payment(
-    session: AsyncSession, actor: User, payment_id: uuid.UUID
+def deletion_summary(
+    payment: SubcontractorProgressPayment, project_name: str, subcontractor_name: str | None
 ) -> DeletedPaymentSummary:
-    """Katman 1: `approved`/`paid` ADMİN DAHİL kimseye silinmez (409).
-    Kapı router'da yalnız Sistem Yöneticisi'dir (SIL-B1, K4: "kendi taslağı" istisnası YOK).
-
-    Silme de bir YAZMA işlemidir (işveren H8 denetimi K1): satır kilitsiz
-    okunursa eşzamanlı bir onay katman-1 kontrolünü TOCTOU ile atlatabilir —
-    bu yüzden kararlar KİLİTLİ satır üzerinden verilir.
-    """
-    payment, contract, project = await visible_payment_locked(session, actor, payment_id)
-
-    if payment.status in (SubcontractorPaymentStatus.approved, SubcontractorPaymentStatus.paid):
-        raise ConflictError(guards.PAYMENT_NOT_DELETABLE)
-
-    # Özet `session.delete` ÖNCESİNDE kurulur — sonra okunursa denetim satırı
-    # sessizce varsayılanlara düşer (işveren H10 mutasyon denetiminin bulgusu).
-    summary = DeletedPaymentSummary(
-        project_name=project.name,
-        subcontractor_name=contract.subcontractor_name,
+    """Silme özeti (denetim metni için). SİLMEDEN ÖNCE çağrılır; SIL-B2 motoru da kullanır."""
+    return DeletedPaymentSummary(
+        project_name=project_name,
+        subcontractor_name=subcontractor_name,
         sequence_no=payment.sequence_no,
         status_label=_STATUS_LABELS[payment.status],
         amount=sum(
@@ -406,8 +393,3 @@ async def delete_payment(
             Decimal("0.00"),
         ),
     )
-
-    # `lines` cascade="all, delete-orphan" — satırlar birlikte gider.
-    await session.delete(payment)
-    await session.flush()
-    return summary

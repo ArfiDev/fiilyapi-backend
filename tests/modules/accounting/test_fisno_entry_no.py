@@ -36,6 +36,7 @@ import re
 from decimal import Decimal
 
 from app.core.timezone import today
+from tests._silme_yardimci import sil_aile
 from tests.modules.accounting._journal import YOL as _YOL
 from tests.modules.accounting._journal import govde as _govde
 from tests.modules.accounting._journal import iki_yaprak as _iki_yaprak
@@ -209,7 +210,7 @@ async def test_ORTADAKI_fis_silininde_numarasi_BOSTA_kalir(
     fisler = [await _fis(client, muhasebe_headers, kasa, saticilar) for _ in range(3)]
     assert [f["entry_no"] for f in fisler] == [_no(2026, 1), _no(2026, 2), _no(2026, 3)]
 
-    sil = await client.delete(f"{_YOL}/{fisler[1]['id']}", headers=admin_headers)
+    sil = await sil_aile(client, admin_headers, "journal_entry", fisler[1]["id"])
     assert sil.status_code == 204, sil.text
 
     yeni = await _fis(client, muhasebe_headers, kasa, saticilar)
@@ -239,7 +240,7 @@ async def test_EN_BUYUK_numara_silinse_bile_sayac_GERI_ALINMAZ(
     fisler = [await _fis(client, muhasebe_headers, kasa, saticilar) for _ in range(3)]
     assert [f["entry_no"] for f in fisler] == [_no(2026, 1), _no(2026, 2), _no(2026, 3)]
 
-    sil = await client.delete(f"{_YOL}/{fisler[2]['id']}", headers=admin_headers)
+    sil = await sil_aile(client, admin_headers, "journal_entry", fisler[2]["id"])
     assert sil.status_code == 204, sil.text
 
     yeni = await _fis(client, muhasebe_headers, kasa, saticilar)
@@ -261,7 +262,7 @@ async def test_TUM_fisler_silinse_bile_sayac_bastan_baslamaz(
     fisler = [await _fis(client, muhasebe_headers, kasa, saticilar) for _ in range(2)]
 
     for fis in fisler:
-        sil = await client.delete(f"{_YOL}/{fis['id']}", headers=admin_headers)
+        sil = await sil_aile(client, admin_headers, "journal_entry", fis["id"])
         assert sil.status_code == 204, sil.text
 
     yeni = await _fis(client, muhasebe_headers, kasa, saticilar)

@@ -16,7 +16,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
 from app.core.mask_route import MaskeRotasi
-from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
@@ -38,6 +38,8 @@ from app.modules.progress_payments.schemas import (
     RefreshPricesResponse,
     RejectBody,
 )
+from app.modules.silme import service as silme_service
+from app.modules.silme.params import DELETE_WITH_PREVIEW_RESPONSES, PreviewTokenQuery
 from app.modules.users.models import User
 
 # Ü2 (DSC-B5): hakedis ticari/proje duzeyi → kisitli kullaniciya router duzeyinde 403; yeni
@@ -469,8 +471,8 @@ async def unapprove_progress_payment_endpoint(
     "/progress-payments/{payment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        **DELETE_403_YANITI,
-        409: {"description": "Onaylanmış veya ödenmiş hakediş silinemez"},
+        **DELETE_WITH_PREVIEW_RESPONSES,
+        404: {"description": "Hakediş bulunamadı"},
     },
     dependencies=[require_system_admin()],
 )
@@ -479,20 +481,23 @@ async def delete_progress_payment_endpoint(
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """İşveren hakedişini siler. YALNIZ Sistem Yöneticisi.
+    """İşveren hakedişini bağlı kayıtlarıyla birlikte siler. Yalnız Sistem Yöneticisi.
 
-    `approved`/`paid` hakediş **409** (iş kuralı, Sistem Yöneticisi'ni de durdurur): önce
-    `unapprove` ile geri çekilir. Taslağı açan kişi kendi taslağını da silemez. Satırlar birlikte
-    gider. Disiplin kısıtı DELETE'te uygulanmaz.
+    ÖNİZLEME ZORUNLU.
+    Durumdan bağımsız: onaylı/ödenmiş hakediş de silinir. Satırları, onay zinciri, hakediş
+    faturası ve ödemeleri, onların muhasebe fişleri ve stornoları birlikte gider (K2; kapalı
+    dönem durdurmaz, mizan geriye dönük değişir). Önce
+    `GET /admin/silme/progress_payment/{id}/onizleme`, sonra bu uç `preview_token` ile: eksikse
+    428 `preview_required`; ağaç değiştiyse 409 `preview_stale`.
+    Disiplin kısıtı DELETE'te uygulanmaz. Yanıt `204 No Content`.
     """
-    summary = await service.delete_payment(session, user, payment_id)
+    detail = await silme_service.sil(session, "progress_payment", payment_id, preview_token)
     await record_audit(
         session,
         action=AuditAction.delete,
-        detail=messages.progress_payment_deleted(
-            summary.project_name, summary.sequence_no, summary.status_label, summary.amount
-        ),
+        detail=detail,
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )

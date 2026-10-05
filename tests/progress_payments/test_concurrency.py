@@ -18,16 +18,20 @@ import uuid
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import delete, event, text
+from sqlalchemy import delete, event, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.access import AccessLevel, Scope
 from app.core.errors import ConflictError
 from app.core.security import hash_password
+from app.core.silme.hatalar import DeletePreviewStaleError
+from app.modules.accounting.models import JournalEntry
 from app.modules.progress_payments import schemas, service, transitions
 from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
 from app.modules.projects.models import Project, ProjectContract
 from app.modules.roles.models import Module, ModuleGroup, Role, RolePermission
+from app.modules.silme import service as silme_service
+from app.modules.silme.schemas import DeleteKind
 from app.modules.users.models import User
 from tests._yaris import YARIS_TAVANI_SN, kilitte_bekleyen_sorgu
 from tests.conftest import test_engine
@@ -372,24 +376,17 @@ async def test_gecis_hakedis_satirinin_kilidini_bekler() -> None:
         await _onay_temizligi(project_id, user_id, ikinci_user_id)
 
 
-async def test_silinirken_esZamanli_onay_kazanirsa_409_alir() -> None:
-    """H8 denetimi K1 (KRİTİK) — `delete_payment` artık `_visible_payment`
-    (kilitsiz) değil `visible_payment_locked` kullanır (spec §7.1, §7 eşzamanlılık
-    notu). Düzeltmeden ÖNCE kanıtlanan yarış: tx-A kilitsiz okur (pending_approval),
-    tx-B eşzamanlı `approve` FOR UPDATE + commit ile geçer, tx-A hâlâ eski
-    `pending_approval` görüşüyle DELETE'i yürütürdü — `approved`/`paid` kaydı
-    admin dahil kimse silemez garantisi (K8) TOCTOU ile atlatılırdı.
+async def test_silinirken_esZamanli_onay_yetim_fis_birakmaz() -> None:
+    """SIL-B2 (H8 denetimi K1'in yeni hâli) — silme motoru KÖK ve ağaç satırlarını `FOR UPDATE`
+    kilitler: eşzamanlı `approve` kilidi TUTARKEN silme BEKLER.
 
-    Bu test tek-session `client`/`seeded_db` fixture'ıyla KURULAMAZ (`db_session`
-    dış transaction'ı asla commit etmez, iki görev aynı bağlantıyı paylaşır,
-    gerçek satır kilidi asla test edilmez) — bu yüzden `test_iki_esZamanli_onay_*`
-    ile AYNI bariyerli, iki-bağımsız-bağlantılı desen kullanılır.
+    Eski kural ("approved/paid silinemez, 409") kalktı: Sistem Yöneticisi her koşulda siler. Bu
+    yüzden artık korunan şey durum değil TUTARLILIKTIR: onay bir fiş doğurduysa silme ya eski
+    önizleme bayat kaldığı için 409 `preview_stale` alır (fiş ağaca YENİ girdi) ya da fişle BİRLİKTE
+    siler. HİÇBİR sonuçta kaynağı olmayan (yetim) fiş ya da fişsiz kalan onaylı kayıt çıkmaz.
 
-    Senaryo: tx-B (`approve`) kilidi ALIP TUTARKEN tx-A (`delete_payment`) aynı
-    kilit zincirinde (sözleşme → hakediş, `visible_payment_locked`) BEKLER; tx-B
-    commit edip kilidi bırakınca tx-A devam eder, satırı ARTIK `approved` olarak
-    görür ve katman-1 kontrolüne (§7.1/1) takılıp 409 `PAYMENT_NOT_DELETABLE`
-    alır — satır DB'de duruyor kalır.
+    Tek-session fixture'larıyla KURULAMAZ (gerçek satır kilidi); `test_iki_esZamanli_onay_*` ile
+    AYNI bariyerli, iki-bağımsız-bağlantılı desen kullanılır.
     """
     project_id, user_id, payment_id, ikinci_user_id = await _onay_kurulumu()
     lock_acquired = asyncio.Event()
@@ -402,33 +399,37 @@ async def test_silinirken_esZamanli_onay_kazanirsa_409_alir() -> None:
         )
         await asyncio.wait_for(lock_acquired.wait(), timeout=YARIS_TAVANI_SN)
 
-        task_delete = asyncio.create_task(_attempt_delete(payment_id, ikinci_user_id))
+        task_delete = asyncio.create_task(_attempt_delete(payment_id))
         bekleyen = await kilitte_bekleyen_sorgu(
             test_engine,
             task_delete,
-            mesaj="silme, onay kilidi serbest bırakılmadan ilerleyebildi — "
-            "`delete_payment` artık `visible_payment_locked` KULLANMIYOR olabilir "
-            "(K1 regresyonu, H8 denetimi)",
+            mesaj="silme, onay kilidi serbest bırakılmadan ilerleyebildi — silme motoru "
+            "kökü `FOR UPDATE` KİLİTLEMİYOR olabilir (SIL-B1 kilit deseni regresyonu)",
         )
-        # Silme de `visible_payment_locked`tan geçer: ilk kilit sözleşme satırı.
-        # Sorgu 1024 baytta kırpılır (`track_activity_query_size`); kilitte bekleyen SELECT ancak
-        # KİLİTLİ okumadır — kilitsiz mutant `INSERT`/`UPDATE`te bekler (TEST-B1, ölçüldü).
-        assert bekleyen.startswith("SELECT project_contracts."), bekleyen
+        # Kilitte bekleyen SELECT ancak KİLİTLİ okumadır; kök kilidi `progress_payments` satırıdır.
+        assert bekleyen.startswith("SELECT progress_payments.id"), bekleyen
 
         release_lock.set()
         onay_sonucu = await asyncio.wait_for(task_approve, timeout=YARIS_TAVANI_SN)
         silme_sonucu = await asyncio.wait_for(task_delete, timeout=YARIS_TAVANI_SN)
 
         assert onay_sonucu == "approved"
-        assert silme_sonucu == "conflict", (
-            "silme, tazelenmiş `approved` durumunu GÖRMEDİ — K8 katman-1 TOCTOU "
-            "ile atlatılmış olabilir"
-        )
+        assert silme_sonucu in ("deleted", "stale"), silme_sonucu
 
         async with _SessionFactory() as verify_session:
             payment = await verify_session.get(ProgressPayment, payment_id)
-            assert payment is not None, "approved/paid kayıt yarışta silinmiş — K8 ihlali"
-            assert payment.status is ProgressPaymentStatus.approved
+            fis_sayisi = (
+                await verify_session.execute(
+                    select(func.count())
+                    .select_from(JournalEntry)
+                    .where(JournalEntry.source_id == payment_id)
+                )
+            ).scalar_one()
+            if silme_sonucu == "deleted":
+                assert payment is None
+                assert fis_sayisi == 0, "silinen hakedişin fişi YETİM kaldı"
+            else:
+                assert payment is not None and payment.status is ProgressPaymentStatus.approved
     finally:
         # TEST-B1: iddia ORTADA düşerse tx1 kilidi TUTUYORDU ve `_temizle` süresiz
         # beklerdi (ölçüldü: koşu asılı kaldı). Önce kilit, sonra görevler, sonra temizlik.
@@ -437,16 +438,19 @@ async def test_silinirken_esZamanli_onay_kazanirsa_409_alir() -> None:
         await _onay_temizligi(project_id, user_id, ikinci_user_id)
 
 
-async def _attempt_delete(payment_id: uuid.UUID, actor_id: uuid.UUID) -> str:
+async def _attempt_delete(payment_id: uuid.UUID) -> str:
     async with _SessionFactory() as session:
-        actor = await session.get(User, actor_id)
+        # Önizleme onay kilidinden ÖNCEKİ ağacı görür (okuma kilit almaz); silme kilitte BEKLER.
+        onizleme = await silme_service.onizle(session, DeleteKind.progress_payment, payment_id)
         try:
-            await service.delete_payment(session, actor, payment_id)
+            await silme_service.sil(
+                session, DeleteKind.progress_payment, payment_id, onizleme.preview_token
+            )
             await session.commit()
             return "deleted"
-        except ConflictError:
+        except DeletePreviewStaleError:
             await session.rollback()
-            return "conflict"
+            return "stale"
 
 
 async def _attempt_approve_and_hold(

@@ -43,6 +43,7 @@ from sqlalchemy import select
 
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.invoicing.models import Invoice, InvoiceDirection, InvoiceStatus
+from tests._silme_yardimci import sil_aile
 
 _ODEME_YOLU = "/payments"
 
@@ -437,7 +438,7 @@ async def test_silme_admin_204_ve_satir_gider(
     account = await hesap_fabrikasi()
     payment = await fatura_odemesi(invoice, account, "400.00")
 
-    resp = await client.delete(f"{_ODEME_YOLU}/{payment.id}", headers=admin_headers)
+    resp = await sil_aile(client, admin_headers, "payment", payment.id)
     assert resp.status_code == 204, resp.text
 
     liste = await client.get(_fatura_yolu(invoice), headers=admin_headers)
@@ -458,7 +459,7 @@ async def test_silme_durumu_YENIDEN_TURETIR_collected_SENT_e_duser(
     account = await hesap_fabrikasi()
     payment = await fatura_odemesi(invoice, account, "1000.00")
 
-    resp = await client.delete(f"{_ODEME_YOLU}/{payment.id}", headers=admin_headers)
+    resp = await sil_aile(client, admin_headers, "payment", payment.id)
     assert resp.status_code == 204, resp.text
     assert await _durum(seeded_db, invoice) is InvoiceStatus.sent
 
@@ -479,7 +480,7 @@ async def test_silme_TAM_odeme_korunuyorsa_collected_KALIR(
     await fatura_odemesi(invoice, account, "1000.00")
     silinecek = await fatura_odemesi(invoice, account, "500.00")
 
-    resp = await client.delete(f"{_ODEME_YOLU}/{silinecek.id}", headers=admin_headers)
+    resp = await sil_aile(client, admin_headers, "payment", silinecek.id)
     assert resp.status_code == 204, resp.text
     assert await _durum(seeded_db, invoice) is InvoiceStatus.collected
 
@@ -493,7 +494,7 @@ async def test_silme_DRAFT_faturanin_durumunu_SENT_e_ITMEZ(
     account = await hesap_fabrikasi()
     payment = await fatura_odemesi(invoice, account, "500.00")
 
-    resp = await client.delete(f"{_ODEME_YOLU}/{payment.id}", headers=admin_headers)
+    resp = await sil_aile(client, admin_headers, "payment", payment.id)
     assert resp.status_code == 204, resp.text
     assert await _durum(seeded_db, invoice) is InvoiceStatus.draft
 
@@ -507,7 +508,7 @@ async def test_silme_GELEN_faturada_durum_DEGISMEZ(
     account = await hesap_fabrikasi()
     payment = await fatura_odemesi(invoice, account, "1000.00")
 
-    resp = await client.delete(f"{_ODEME_YOLU}/{payment.id}", headers=admin_headers)
+    resp = await sil_aile(client, admin_headers, "payment", payment.id)
     assert resp.status_code == 204, resp.text
     assert await _durum(seeded_db, invoice) is InvoiceStatus.approved
 
@@ -530,7 +531,7 @@ async def test_silme_FULL_rolu_403_ama_ayni_kullanici_POST_gecer(
 
 
 async def test_silme_olmayan_odeme_404(client, admin_headers) -> None:
-    resp = await client.delete(f"{_ODEME_YOLU}/{uuid.uuid4()}", headers=admin_headers)
+    resp = await sil_aile(client, admin_headers, "payment", uuid.uuid4())
     assert resp.status_code == 404, resp.text
 
 
@@ -541,7 +542,7 @@ async def test_silme_denetim_satiri_yazilir(
     account = await hesap_fabrikasi()
     payment = await fatura_odemesi(invoice, account, "1.00")
 
-    resp = await client.delete(f"{_ODEME_YOLU}/{payment.id}", headers=admin_headers)
+    resp = await sil_aile(client, admin_headers, "payment", payment.id)
     assert resp.status_code == 204, resp.text
     kayitlar = (
         (await seeded_db.execute(select(AuditLog).where(AuditLog.action == AuditAction.delete)))

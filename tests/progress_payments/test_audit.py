@@ -22,15 +22,17 @@ from decimal import Decimal
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import event, func, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import DISPLAY_TIMESTAMP_FORMAT, to_display
 from app.modules.audit import messages
 from app.modules.audit.models import AuditLog
 from app.modules.progress_payments import service as pp_service
-from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
+from app.modules.progress_payments.models import ProgressPaymentStatus
 from app.modules.users.models import User
 from tests._para_gercek import parayi_yatir
+from tests._silme_yardimci import sil_aile
 from tests.modules.approvals.conftest import rol_sahipleri_dolgusu  # noqa: F401  (fixture)
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("rol_sahipleri_dolgusu")]
@@ -395,12 +397,13 @@ async def test_silme_yazar(
     payment_id = await hakedis_fabrikasi(ProgressPaymentStatus.draft)
 
     onceki = await _mevcut_kimlikler(db_session)
-    yanit = await client.delete(f"/progress-payments/{payment_id}", headers=admin_headers)
+    yanit = await sil_aile(client, admin_headers, "progress_payment", payment_id)
     assert yanit.status_code == 204, yanit.text
     detay = await _yeni_kaydin_metni(db_session, onceki)
-    # `hakedis_fabrikasi` varsayılanı: 100 birim × 1850 = 185000.00 brüt.
-    assert detay == messages.progress_payment_deleted(
-        "Hakedişli Proje", 1, "Taslak", Decimal("185000.00")
+    # `hakedis_fabrikasi` varsayılanı: 100 birim × 1850 = 185000.00 brüt. SIL-B2: motor metnin
+    # SONUNA "bağlı kayıt" dökümünü ekler; önek eski denetim metnidir.
+    assert detay.startswith(
+        messages.progress_payment_deleted("Hakedişli Proje", 1, "Taslak", Decimal("185000.00"))
     )
     # H10 denetimi Y1: `sequence_no`/`status_label`/`amount` gerçekten metne
     # girdiğinin fonksiyondan BAĞIMSIZ kanıtı — `messages.<fn>(...)` eşitliği
@@ -434,11 +437,14 @@ async def test_silme_ozeti_delete_dan_once_uretilir(
 
     delete_fired = False
 
-    def _mark_deleted(mapper, connection, target) -> None:
+    def _mark_deleted(conn, cursor, statement, parameters, context, executemany) -> None:
+        # SIL-B2: silme motoru Core `DELETE` kullanır (ORM `after_delete` tetiklenmez); satırın
+        # fiilen silindiği an SQL düzeyinde yakalanır.
         nonlocal delete_fired
-        delete_fired = True
+        if statement.lstrip().upper().startswith("DELETE FROM PROGRESS_PAYMENTS"):
+            delete_fired = True
 
-    event.listen(ProgressPayment, "after_delete", _mark_deleted)
+    event.listen(Engine, "before_cursor_execute", _mark_deleted)
 
     original_summary_cls = pp_service.DeletedPaymentSummary
 
@@ -452,8 +458,8 @@ async def test_silme_ozeti_delete_dan_once_uretilir(
     monkeypatch.setattr(pp_service, "DeletedPaymentSummary", _guarded_summary)
 
     try:
-        yanit = await client.delete(f"/progress-payments/{payment_id}", headers=admin_headers)
+        yanit = await sil_aile(client, admin_headers, "progress_payment", payment_id)
         assert yanit.status_code == 204, yanit.text
-        assert delete_fired, "after_delete olayı hiç tetiklenmedi — test kurulumu geçersiz"
+        assert delete_fired, "DELETE ifadesi hiç görülmedi — test kurulumu geçersiz"
     finally:
-        event.remove(ProgressPayment, "after_delete", _mark_deleted)
+        event.remove(Engine, "before_cursor_execute", _mark_deleted)

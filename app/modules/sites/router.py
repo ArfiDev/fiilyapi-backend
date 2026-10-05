@@ -188,8 +188,8 @@ async def delete_site_endpoint(
 
     Bolum, poz, blok, unite, puantaj, gunluk, belge, plan, sozlesme ve diger bagli kayitlar
     birlikte silinir. Once `GET /admin/silme/site/{id}/onizleme`, onay, sonra bu uc `preview_token`
-    ile cagrilir: eksikse 428 `preview_required`; agac degistiyse 409 `preview_stale`; agacta
-    mali kayit varsa 409 `financial_pending` (mali silme sonraki surumde acilacak).
+    ile cagrilir: eksikse 428 `preview_required`; agac degistiyse 409 `preview_stale`.
+    Mali kayitlar (hakedis, fis, puantaj-bordro…) silmeyi ENGELLEMEZ, birlikte silinir.
 
     Gorunmeyen ve var olmayan santiye ayni yaniti verir. Yanit `204 No Content`, govdesiz. Denetim
     satirina silinen ve bagi kopan kayitlarin tam dokumu yazilir.
@@ -285,7 +285,7 @@ async def delete_section_endpoint(
     Bagi kopan kayitlar (personel, puantaj, satinalma talebi…) SILINMEZ, yalniz bolum bagi
     kopar; onizlemede `detached` olarak gorunur. Once `GET /admin/silme/section/{id}/onizleme`,
     sonra bu uc `preview_token` ile: eksikse 428 `preview_required`; agac degistiyse 409
-    `preview_stale`; mali kayit varsa 409 `financial_pending`. Kalan bolumlerin `sort_order`
+    `preview_stale`. Kalan bolumlerin `sort_order`
     degerleri yeniden numaralanmaz. Yanit `204 No Content`, govdesiz.
     """
     detail = await silme_service.sil(session, "section", section_id, preview_token)

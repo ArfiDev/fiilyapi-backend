@@ -63,19 +63,21 @@ def test_etiketli_kolonlar_gercekten_var() -> None:
 
 
 def test_etiket_sayisi_ve_kapsam_kilitli() -> None:
-    """Şantiye ailesi: 52 tablo FK ile + 4 tablo kancayla silinir, 11 tablonun yalnız bağı kopar."""
+    """Tüm kayıtlı türler: 58 tablo silinir (şantiye ağacı 56 + mali kökler `progress_payments`,
+    `financial_instruments`), 11 tablonun yalnız bağı kopar."""
     silinecek: set[str] = set()
     kopacak: set[str] = set()
     for tur in kayitli_turler().values():
         s, k = _ulasilan_tablolar(tur.tablo)
         silinecek |= s
         kopacak |= k
-    assert len(silinecek) == 56
+    assert len(silinecek) == 58
     assert len(kopacak - silinecek) == 11
     assert len(TABLOLAR) == 67  # 56 + 11
     assert set(MALI_TABLOLAR_DIGER) == {
         "progress_payments",
         "financial_instruments",
+        "bank_accounts",
         "payroll_periods",
         "payroll_lines",
     }
@@ -92,6 +94,7 @@ def test_mali_sinifi_tam_liste_kilitli() -> None:
         "journal_entries",
         "journal_lines",
         "financial_instruments",
+        "bank_accounts",
         "payroll_periods",
         "payroll_lines",
     }
@@ -102,8 +105,9 @@ def test_mali_sinifi_tam_liste_kilitli() -> None:
         "subcontractor_progress_payment_lines",
         "unit_sales",
         "sale_installments",
-        "timesheet_entries",
-    }
+        "equipment_rental_invoices",
+        "equipment_rental_invoice_lines",
+    }  # puantaj mali DEĞİL (kullanıcı kararı SIL-B2)
 
 
 def test_silme_sirasi_her_turun_agacinda_kurulabilir_tablo_dongusu_yok() -> None:
@@ -111,7 +115,12 @@ def test_silme_sirasi_her_turun_agacinda_kurulabilir_tablo_dongusu_yok() -> None
         silinecek, _ = _ulasilan_tablolar(tur.tablo)
         sira = silme_sirasi(Base.metadata, silinecek)
         assert set(sira) == silinecek
-        assert sira[-1] == tur.tablo  # kök EN SON silinir
+        if tur.anahtar == "financial_instrument":
+            # Çek ağacındaki ödemeler `sirayi_etkilemez` kancayla girer: çek ÖNCE gider, FK
+            # `SET NULL` ödemelerin bağını koparır, ödemeler sonra silinir.
+            assert sira[-1] == "payments"
+        else:
+            assert sira[-1] == tur.tablo  # kök EN SON silinir
 
 
 def test_kancalar_kayitli_ve_hedef_tablolar_gercek() -> None:

@@ -9,11 +9,7 @@ from typing import Annotated, Any
 from fastapi import Query
 
 from app.core.openapi import DELETE_403_YANITI
-from app.core.silme.hatalar import (
-    FINANCIAL_PENDING_DETAIL,
-    PREVIEW_REQUIRED_DETAIL,
-    PREVIEW_STALE_DETAIL,
-)
+from app.core.silme.hatalar import PREVIEW_REQUIRED_DETAIL, PREVIEW_STALE_DETAIL
 from app.modules.silme.schemas import DeleteErrorResponse
 
 PreviewTokenQuery = Annotated[
@@ -29,9 +25,7 @@ DELETE_WITH_PREVIEW_RESPONSES: dict[int | str, dict[str, Any]] = {
     **DELETE_403_YANITI,
     409: {
         "model": DeleteErrorResponse,
-        "description": f"`code=preview_stale`: `{PREVIEW_STALE_DETAIL}`. "
-        f"`code=financial_pending`: `{FINANCIAL_PENDING_DETAIL}` (ağaçta `is_financial` grup var; "
-        "HİÇBİR ŞEY silinmez).",
+        "description": f"`code=preview_stale`: `{PREVIEW_STALE_DETAIL}` (HİÇBİR ŞEY silinmez).",
     },
     428: {
         "model": DeleteErrorResponse,

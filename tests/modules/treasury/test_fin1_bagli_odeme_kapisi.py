@@ -47,6 +47,7 @@ from sqlalchemy import select
 from app.modules.invoicing.models import InvoiceDirection
 from app.modules.treasury.instruments import guards
 from app.modules.treasury.models import FinancialInstrumentDirection, Payment
+from tests._silme_yardimci import sil_aile
 
 KOK = "/financial-instruments"
 
@@ -68,16 +69,15 @@ async def _bakiye(client, headers, account) -> Decimal:  # noqa: ANN001
     return Decimal(next(k["balance"] for k in resp.json()["items"] if k["id"] == str(account.id)))
 
 
-async def _bag(seeded_db, payment_id: str) -> uuid.UUID | None:  # noqa: ANN001
-    """Bağ kolonunu DB'den TAZE okur: `SET NULL`ın koştuğu yer burasıdır."""
+async def _bag_var_mi(seeded_db, payment_id: str) -> bool:  # noqa: ANN001
+    """Ödeme satırı DB'de hâlâ var mı (taze okuma)."""
     satir = (
         await seeded_db.execute(select(Payment).where(Payment.id == uuid.UUID(payment_id)))
-    ).scalar_one()
-    await seeded_db.refresh(satir)
-    return satir.financial_instrument_id
+    ).scalar_one_or_none()
+    return satir is not None
 
 
-async def test_bagli_odemesi_olan_PORTFOY_cek_SILINEMEZ_ve_bakiye_SISMEZ(
+async def test_bagli_odemesi_olan_PORTFOY_cek_silinince_odemesi_de_gider_ve_bakiye_SISMEZ(
     client,  # noqa: ANN001
     admin_headers,  # noqa: ANN001
     seeded_db,  # noqa: ANN001
@@ -86,12 +86,9 @@ async def test_bagli_odemesi_olan_PORTFOY_cek_SILINEMEZ_ve_bakiye_SISMEZ(
     cek_fabrikasi,  # noqa: ANN001
     odeme_eslemesi,  # noqa: ANN001
 ) -> None:
-    """🔴 ASIL MALİ İDDİA: silme denemesi BAKİYEYİ OYNATMAZ.
-
-    Yalnız 409 iddia edilseydi, kapı doğru kodu değil yalnız durum kodunu
-    bekçilerdi. Bakiye karşılaştırması kusurun PARA sonucunu ölçer: bugünkü
-    kodda DELETE 204 döner, FK `SET NULL` koşar ve bakiye tam çek tutarı kadar
-    şişer.
+    """🔴 ASIL MALİ İDDİA (SIL-B2'de yeniden yazıldı): çek silinirken bağlı ödemesi SESSİZCE
+    bağsız bırakılmaz. Eski kusur: `SET NULL` ödemeyi bağsız bırakır, bakiye tahsil edilmemiş çek
+    tutarı kadar şişerdi. Artık ödeme (ve fişi) çekle BİRLİKTE gider; bakiye şişmez.
     """
     account = await hesap_fabrikasi(opening_balance="0.00")
     cek = await cek_fabrikasi(direction=FinancialInstrumentDirection.received, amount="500.00")
@@ -107,18 +104,17 @@ async def test_bagli_odemesi_olan_PORTFOY_cek_SILINEMEZ_ve_bakiye_SISMEZ(
     # Çek portföyde: para HENÜZ bankada değil, bakiye 0 (ODM-1 D2).
     once = await _bakiye(client, admin_headers, account)
     assert once == Decimal("0.00")
+    odeme_id, cek_id = odeme.json()["id"], cek.id
 
-    sil = await client.delete(f"{KOK}/{cek.id}", headers=admin_headers)
+    sil = await sil_aile(client, admin_headers, "financial_instrument", cek_id)
 
+    assert sil.status_code == 204, sil.text
     # 1) PARA — tahsil edilmemiş çek tutarı bakiyeye SIZMADI.
     assert await _bakiye(client, admin_headers, account) == once
-    # 2) BAĞ — `SET NULL` hiç koşmadı, ödeme evrağa bağlı KALDI.
-    assert await _bag(seeded_db, odeme.json()["id"]) == cek.id
-    # 3) UÇ — kullanıcı ham 500 ya da sessiz 204 değil, ayrımlı 409 okur.
-    assert sil.status_code == 409, sil.text
-    assert sil.json()["detail"] == guards.INSTRUMENT_HAS_PAYMENTS
-    # 4) Kayıt AYAKTA kaldı.
-    assert (await client.get(f"{KOK}/{cek.id}", headers=admin_headers)).status_code == 200
+    # 2) BAĞ — ödeme bağsız ve yaşayan kalmadı: çekle birlikte gitti.
+    assert await _bag_var_mi(seeded_db, odeme_id) is False
+    # 3) Çek de gitti.
+    assert (await client.get(f"{KOK}/{cek_id}", headers=admin_headers)).status_code == 404
 
 
 async def test_bagli_odemesi_olan_PORTFOY_cekte_YON_degistirilemez_409(
@@ -244,4 +240,6 @@ async def test_ODEMESIZ_portfoy_cek_SILINIR_ve_YONU_CEVRILIR(
     assert yon.status_code == 200, yon.text
 
     silinecek = await cek_fabrikasi()
-    assert (await client.delete(f"{KOK}/{silinecek.id}", headers=admin_headers)).status_code == 204
+    assert (
+        await sil_aile(client, admin_headers, "financial_instrument", silinecek.id)
+    ).status_code == 204

@@ -9,8 +9,9 @@ DB'nin CASCADE'ine GÜVENİLMEZ: ağaçtaki her satır açıkça silinir ve sır
   sildiği, önizlemede görünmeyen satır kalmaz).
 
 Sıra, ağaçtaki tablolar arasındaki FK + kanca kenarlarının topolojik sıralamasıdır (`detach`
-kenarları sıralamayı etkilemez: SET NULL satırı silmeyi engellemez). Tablolar arası DÖNGÜ varsa
-`SilmeDongusuError` fırlatılır; bugünkü şemada döngü YOKTUR (bekçi testi çakar).
+ve `sirayi_etkilemez` kenarları sıralamayı etkilemez: SET NULL satırı silmeyi engellemez).
+Tablolar arası DÖNGÜ varsa `SilmeDongusuError` fırlatılır; bugünkü şemada döngü
+YOKTUR (bekçi testi çakar).
 """
 
 from collections import defaultdict
@@ -30,7 +31,7 @@ def silme_sirasi(metadata: MetaData, tablolar: set[str]) -> list[str]:
     """Alt tablo önce gelecek şekilde topolojik sıra (Kahn). Kendine bağlı kenarlar yok sayılır."""
     bekleyen: dict[str, set[str]] = {t: set() for t in tablolar}
     for kenar in tum_kenarlar(metadata):
-        if kenar.iliski == "detach" or kenar.ust == kenar.alt:
+        if kenar.iliski == "detach" or kenar.ust == kenar.alt or kenar.sirayi_etkilemez:
             continue
         if kenar.ust in tablolar and kenar.alt in tablolar:
             # üst, alt silinene kadar bekler

@@ -80,7 +80,9 @@ def tek_pk_mi(tablo: Table) -> bool:
 def pk_in(tablo: Table, idler: Sequence[PkDemeti]):  # type: ignore[no-untyped-def]
     """Tek kolonlu PK'da `= ANY(dizi)` (boyut sınırı yok), bileşik PK'da satır karşılaştırması
     (çağıran `_parcala` ile parçalar)."""
-    kolonlar = list(tablo.primary_key.columns)
+    # `list(tablo.primary_key)`: `Table` ve `Alias` (ColumnSet; self-join
+    # kancaları) için çalışır.
+    kolonlar = list(tablo.primary_key)
     if len(kolonlar) == 1:
         return kolon_in(kolonlar[0], [pk[0] for pk in idler])
     return tuple_(*kolonlar).in_([tuple(pk) for pk in idler])

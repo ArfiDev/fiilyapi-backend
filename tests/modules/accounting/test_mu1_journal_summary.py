@@ -19,6 +19,7 @@ from sqlalchemy import select
 from app.core.timezone import today
 from app.modules.accounting.models import JournalEntry, JournalEntryStatus
 from app.modules.audit.models import AuditAction, AuditLog
+from tests._silme_yardimci import sil_aile
 from tests.modules.accounting._journal import YOL as _YOL
 from tests.modules.accounting._journal import fis_olustur as _fis_olustur
 from tests.modules.accounting._journal import iki_yaprak as _iki_yaprak
@@ -172,7 +173,7 @@ async def test_silinen_fisin_satirlari_da_gider(
 ) -> None:
     """`journal_lines.entry_id` CASCADE'tir; satırın ömrü başlığa bağlıdır."""
     fis = await _fis_olustur(client, muhasebe_headers, hesap_fabrikasi)
-    await client.delete(f"{_YOL}/{fis['id']}", headers=admin_headers)
+    await sil_aile(client, admin_headers, "journal_entry", fis["id"])
     kalan = (
         await seeded_db.execute(select(JournalEntry).where(JournalEntry.id == uuid.UUID(fis["id"])))
     ).scalar_one_or_none()

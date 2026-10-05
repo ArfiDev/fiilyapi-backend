@@ -17,13 +17,15 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
-from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
+from app.modules.silme import service as silme_service
+from app.modules.silme.params import DELETE_WITH_PREVIEW_RESPONSES, PreviewTokenQuery
 from app.modules.subcontractor_progress_payments import read, service, summary
 from app.modules.subcontractor_progress_payments.models import SubcontractorPaymentStatus
 from app.modules.subcontractor_progress_payments.router_transitions import (
@@ -300,8 +302,8 @@ async def refresh_subcontractor_progress_payment_prices_endpoint(
     "/subcontractor-progress-payments/{payment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        **DELETE_403_YANITI,
-        409: {"description": "Onaylanmış veya ödenmiş hakediş silinemez"},
+        **DELETE_WITH_PREVIEW_RESPONSES,
+        404: {"description": "Hakediş bulunamadı"},
     },
     dependencies=[require_system_admin()],
 )
@@ -310,23 +312,23 @@ async def delete_subcontractor_progress_payment_endpoint(
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Taşeron hakedişini siler. YALNIZ Sistem Yöneticisi.
+    """Taşeron hakedişini bağlı kayıtlarıyla birlikte siler. Yalnız Sistem Yöneticisi.
 
-    `approved`/`paid` hakediş **409** (iş kuralı, Sistem Yöneticisi'ni de durdurur). Taslağı açan
-    kişi kendi taslağını da silemez. Disiplin kısıtı DELETE'te uygulanmaz.
+    ÖNİZLEME ZORUNLU.
+    Durumdan bağımsız: onaylı/ödenmiş hakediş de silinir. Satırlar, onay zinciri, hakediş faturası
+    ve ödemeleri, onların fişleri ve stornoları birlikte gider (K2; kapalı dönem durdurmaz). Önce
+    `GET /admin/silme/subcontractor_progress_payment/{id}/onizleme`, sonra bu uç `preview_token`
+    ile: eksikse 428 `preview_required`; ağaç değiştiyse 409 `preview_stale`. Yanıt `204`.
     """
-    summary = await service.delete_payment(session, user, payment_id)
+    detail = await silme_service.sil(
+        session, "subcontractor_progress_payment", payment_id, preview_token
+    )
     await record_audit(
         session,
         action=AuditAction.delete,
-        detail=messages.subcontractor_progress_payment_deleted(
-            summary.project_name,
-            summary.subcontractor_name,
-            summary.sequence_no,
-            summary.status_label,
-            summary.amount,
-        ),
+        detail=detail,
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )

@@ -49,7 +49,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
@@ -66,6 +66,8 @@ from app.modules.invoicing.schemas import (
     InvoiceUpdate,
 )
 from app.modules.invoicing.transitions import InvoiceAction
+from app.modules.silme import service as silme_service
+from app.modules.silme.params import DELETE_WITH_PREVIEW_RESPONSES, PreviewTokenQuery
 from app.modules.treasury import payments_service
 from app.modules.treasury.schemas import PaymentCreate, PaymentListResponse, PaymentResponse
 from app.modules.users.models import User
@@ -291,9 +293,8 @@ async def update_invoice_endpoint(
     "/invoices/{invoice_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        **DELETE_403_YANITI,
+        **DELETE_WITH_PREVIEW_RESPONSES,
         404: {"description": "Fatura bulunamadı"},
-        409: {"description": "Yalnızca taslak fatura silinebilir"},
     },
     dependencies=[require_system_admin()],
 )
@@ -302,14 +303,17 @@ async def delete_invoice_endpoint(
     invoice_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Faturayı siler. YALNIZ Sistem Yöneticisi.
+    """Faturayı bağlı kayıtlarıyla birlikte siler. Yalnız Sistem Yöneticisi.
 
-    Yalnız `draft` fatura silinir; başka durum **409** (iş kuralı). Kalemler birlikte gider.
-    Yanıt gövdesizdir.
+    ÖNİZLEME ZORUNLU.
+    Durumdan bağımsız (taslak olmayan fatura da silinir). Kalemleri, ödemeleri, faturanın ve
+    ödemelerinin muhasebe fişleri ile stornoları birlikte gider (K2; kapalı dönem durdurmaz).
+    Önce `GET /admin/silme/invoice/{id}/onizleme`, sonra bu uç `preview_token` ile: eksikse 428
+    `preview_required`; ağaç değiştiyse 409 `preview_stale`. Yanıt `204`, gövdesiz.
     """
-    invoice = await service.visible_invoice(session, user, invoice_id, for_update=True)
-    detail = await service.delete_invoice(session, invoice)
+    detail = await silme_service.sil(session, "invoice", invoice_id, preview_token)
     await _audit(request, session, user, AuditAction.delete, detail)
 
 
@@ -584,11 +588,8 @@ async def create_invoice_payment_endpoint(
     "/payments/{payment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        **DELETE_403_YANITI,
+        **DELETE_WITH_PREVIEW_RESPONSES,
         404: {"description": "Ödeme kaydı bulunamadı"},
-        409: {
-            "description": "Portföy dışı çek/senede ya da ödenmiş hakedişe bağlı ödeme silinemez"
-        },
     },
     dependencies=[require_system_admin()],
 )
@@ -597,12 +598,16 @@ async def delete_payment_endpoint(
     payment_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Ödeme/tahsilat kaydını siler. YALNIZ Sistem Yöneticisi.
+    """Ödeme/tahsilat kaydını bağlı kayıtlarıyla birlikte siler. Yalnız Sistem Yöneticisi.
 
-    Yanlış tahsilat geri alınabilmelidir; ama bağlı çek/senet portföyden çıkmışsa ya da ödeme
-    ödenmiş hakedişe aitse **409** (iş kuralı). Silme AYNI kilidi alır (K7) ve fatura durumunu
-    YENİDEN TÜRETİR.
+    ÖNİZLEME ZORUNLU.
+    Ödemenin muhasebe fişi ve stornosu birlikte silinir (yeni storno YAZILMAZ; kapalı dönem
+    durdurmaz). Bağlı çek/senet portföy dışıysa o da fişiyle silinir; portföydeki çek aynen kalır.
+    Faturanın durumu kalan ödemelerden yeniden türetilir. Önce
+    `GET /admin/silme/payment/{id}/onizleme`, sonra bu uç `preview_token` ile: eksikse 428
+    `preview_required`; ağaç değiştiyse 409 `preview_stale`. Yanıt `204`.
     """
-    detail = await payments_service.delete_payment(session, user, payment_id)
+    detail = await silme_service.sil(session, "payment", payment_id, preview_token)
     await _audit(request, session, user, AuditAction.delete, detail)

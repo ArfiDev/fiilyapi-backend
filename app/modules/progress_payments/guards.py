@@ -80,7 +80,6 @@ DUPLICATE_CELL = "Aynı poz ve şantiye için tek satır gönderilebilir."
 # 409 — durum makinesi + D8 (spec §7, §9.2).
 OPEN_PAYMENT_EXISTS = "Bu sözleşmede açık bir hakediş var; önce onu tamamlayın."
 INVALID_STATUS_TRANSITION = "Bu durumdan bu işleme geçilemez."
-PAYMENT_NOT_DELETABLE = "Onaylanmış veya ödenmiş hakediş silinemez."
 
 
 def validate_coefficient(coefficient: Decimal | None, *, has_price_escalation: bool) -> None:

@@ -19,6 +19,7 @@ from decimal import Decimal
 
 from app.core.timezone import today
 from app.modules.accounting import guards, validation
+from tests._silme_yardimci import sil_aile
 from tests.modules.accounting._journal import YOL as _YOL
 from tests.modules.accounting._journal import fis_olustur as _fis_olustur
 from tests.modules.accounting._journal import govde as _govde
@@ -42,22 +43,22 @@ async def test_delete_yalniz_admin_204_full_403(
     ).status_code == 200
 
     assert (await client.delete(f"{_YOL}/{fis['id']}", headers=muhasebe_headers)).status_code == 403
-    assert (await client.delete(f"{_YOL}/{fis['id']}", headers=admin_headers)).status_code == 204
+    assert (await sil_aile(client, admin_headers, "journal_entry", fis["id"])).status_code == 204
     assert (await client.get(f"{_YOL}/{fis['id']}", headers=muhasebe_headers)).status_code == 404
 
 
-async def test_delete_kayitli_fiste_409(
+async def test_delete_kayitli_fis_de_silinir_sisyon_her_kosulda(
     client, admin_headers, muhasebe_headers, hesap_fabrikasi
 ) -> None:
     fis = await _fis_olustur(client, muhasebe_headers, hesap_fabrikasi)
     await client.post(f"{_YOL}/{fis['id']}/post", headers=muhasebe_headers)
-    resp = await client.delete(f"{_YOL}/{fis['id']}", headers=admin_headers)
-    assert resp.status_code == 409, resp.text
-    assert resp.json()["detail"] == guards.JOURNAL_ENTRY_NOT_DELETABLE
+    resp = await sil_aile(client, admin_headers, "journal_entry", fis["id"])
+    assert resp.status_code == 204, resp.text  # SIL-B2: "yalnız taslak" kuralı silme yolunda kalktı
+    assert (await client.get(f"{_YOL}/{fis['id']}", headers=muhasebe_headers)).status_code == 404
 
 
 async def test_delete_olmayan_fis_404(client, admin_headers) -> None:
-    assert (await client.delete(f"{_YOL}/{uuid.uuid4()}", headers=admin_headers)).status_code == 404
+    assert (await sil_aile(client, admin_headers, "journal_entry", uuid.uuid4())).status_code == 404
 
 
 # --------------------------------------------------------------------------- #

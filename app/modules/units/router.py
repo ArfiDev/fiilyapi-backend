@@ -214,8 +214,8 @@ async def delete_unit_endpoint(
     ONIZLEME ZORUNLU.
 
     Once `GET /admin/silme/unit/{id}/onizleme`, onay, sonra bu uc `preview_token` ile: eksikse 428
-    `preview_required`; agac degistiyse 409 `preview_stale`; mali kayit (kaporali rezervasyon,
-    tahsilatli taksit, sozlesmeli satis…) varsa 409 `financial_pending`.
+    `preview_required`; agac degistiyse 409 `preview_stale`. Mali kayit (kaporali rezervasyon,
+    tahsilatli taksit, sozlesmeli satis…) silmeyi ENGELLEMEZ, birlikte silinir.
     """
     detail = await silme_service.sil(session, "unit", unit_id, preview_token)
     await _audit(request, session, user, AuditAction.delete, detail)
@@ -238,8 +238,8 @@ async def delete_block_endpoint(
     ONIZLEME ZORUNLU.
 
     Once `GET /admin/silme/block/{id}/onizleme`, onay, sonra bu uc `preview_token` ile: eksikse 428
-    `preview_required`; agac degistiyse 409 `preview_stale`; mali kayit varsa 409
-    `financial_pending`. Yetki kapisi her seyden ONCE calisir.
+    `preview_required`; agac degistiyse 409 `preview_stale`. Mali kayit silmeyi ENGELLEMEZ.
+    Yetki kapisi her seyden ONCE calisir.
     """
     detail = await silme_service.sil(session, "block", block_id, preview_token)
     await _audit(request, session, user, AuditAction.delete, detail)

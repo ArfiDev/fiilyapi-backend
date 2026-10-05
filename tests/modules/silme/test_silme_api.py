@@ -10,7 +10,6 @@ from app.modules.contracts.models import SubcontractorContract
 from app.modules.personnel.models import Personnel
 from app.modules.progress_payments.models import (
     ProgressPayment,
-    ProgressPaymentLine,
     ProgressPaymentStatus,
 )
 from app.modules.sites.models import Section, Site
@@ -21,9 +20,6 @@ from tests.modules.silme import _dunya as d
 
 PREVIEW_STALE = "Silinecek kayıtlar değişti; önizlemeyi yenileyin"
 PREVIEW_REQUIRED = "Silmeden önce önizleme alınmalı; önizlemeyi açıp onaylayın"
-FINANCIAL_PENDING = (
-    "Bu kaydın bağlı mali kayıtları var; mali kayıt silme bir sonraki sürümde açılacak"
-)
 SYSTEM_ADMIN_ONLY = "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
 
 
@@ -302,23 +298,23 @@ async def _mali_santiye(db_session, project_factory, olusturan, durum):
 
 
 @pytest.mark.parametrize("durum", [ProgressPaymentStatus.approved, ProgressPaymentStatus.paid])
-async def test_mali_bagli_santiye_409_financial_pending_ve_db_degismez(
+async def test_mali_bagli_santiye_onizlemede_mali_gorunur_ve_silinir(
     client, db_session, sistem, project_factory, olusturan, durum
 ) -> None:
+    """SIL-B2: mali kayıt silmeyi ENGELLEMEZ; önizleme vurgular, silme iki yoldan da 204."""
     snt = await _mali_santiye(db_session, project_factory, olusturan, durum)
     onizleme = (await onizle(client, sistem, "site", snt.id)).json()
     gruplar = {g["table"]: g for g in onizleme["groups"]}
     assert gruplar["progress_payment_lines"]["is_financial"] is True  # önizleme TAM görünür
+    assert gruplar["progress_payments"]["is_financial"] is True  # satırları gidince başlık da gider
     assert gruplar["sections"]["is_financial"] is False
-    once = await _tablo_sayimlari(db_session)
 
-    for yol in (f"/admin/silme/site/{snt.id}", f"/sites/{snt.id}"):
-        yanit = await client.delete(
-            yol, params={"preview_token": onizleme["preview_token"]}, headers=sistem
-        )
-        assert yanit.status_code == 409
-        assert yanit.json() == {"detail": FINANCIAL_PENDING, "code": "financial_pending"}
-        await _hicbir_sey_degismedi(db_session, once)
+    yanit = await client.delete(
+        f"/sites/{snt.id}", params={"preview_token": onizleme["preview_token"]}, headers=sistem
+    )
+
+    assert yanit.status_code == 204
+    assert await d.sayim(db_session, ProgressPayment) == 0
 
 
 async def test_oncelik_belirtec_yoksa_once_428_mali_olsa_bile(
@@ -362,55 +358,7 @@ async def test_taslak_hakedis_mali_sayilmaz_dolu_santiye_silinir(
     assert yanit.status_code == 204
 
 
-async def test_hakedis_baslik_bayat_kalir_SIL_B2(
-    client, db_session, sistem, project_factory, olusturan
-) -> None:
-    """MEVCUT DAVRANIŞI BELGELER — SIL-B2 bu testi DEĞİŞTİRMEK ZORUNDA kalır.
-
-    İşveren hakedişi proje düzeyindedir; satırı şantiyeye bağlıdır (`site_id` RESTRICT). Şantiye
-    silinince şantiyeye bağlı SATIRLAR gider ama hakediş BAŞLIĞI kalır ve toplamı (satırlardan
-    türer) sessizce küçülür/sıfırlanır: başlık bayat kalır. SIL-B2 (mali aile) bunu çözmeden
-    önce bu test kasıtlı olarak kırmızıya döner.
-    """
-    proje = await project_factory("SIL-BAYAT")
-    snt_a = await d.site(db_session, proje, "SNT-A", "A Şantiyesi")
-    snt_b = await d.site(db_session, proje, "SNT-B", "B Şantiyesi")
-    odeme = await d.hakedis_satiri(db_session, proje, snt_a, olusturan)
-    ikinci_satir = ProgressPaymentLine(
-        payment_id=odeme.id,
-        contract_item_id=odeme.lines[0].contract_item_id,
-        site_id=snt_b.id,
-        code="11.099",
-        description="B kalemi",
-        unit="m³",
-        contract_unit_price=odeme.lines[0].contract_unit_price,
-        coefficient=odeme.lines[0].coefficient,
-        quantity=odeme.lines[0].quantity,
-    )
-    db_session.add(ikinci_satir)
-    await db_session.flush()
-    odeme_id = odeme.id
-
-    assert (await sil_genel(client, sistem, "site", snt_a.id)).status_code == 204
-
-    db_session.expunge_all()
-    kalan_baslik = await db_session.get(ProgressPayment, odeme_id)
-    kalan_satirlar = (
-        (
-            await db_session.execute(
-                select(ProgressPaymentLine).where(ProgressPaymentLine.payment_id == odeme_id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert kalan_baslik is not None  # başlık SİLİNMEDİ
-    assert [s.code for s in kalan_satirlar] == ["11.099"]  # yalnız B satırı kaldı; A satırı gitti
-    # Başlıkta toplam tutan bir kolon YOK, yeniden hesaplama da YOK → hiçbir yerde "A silindi,
-    # toplam düştü" izi bırakılmadı. SIL-B2 başlığı yeniden hesaplamaya/durdurmaya karar verir.
-
-
-async def test_onayli_tasaron_hakedisinin_fisi_onizlemede_gorunur_ve_silme_durur(
+async def test_onayli_tasaron_hakedisinin_fisi_onizlemede_gorunur_ve_birlikte_silinir(
     client, db_session, sistem, project_factory, olusturan
 ) -> None:
     """FK dışı kanca: `journal_entries.source_id` taşeron hakedişini gösterir."""
@@ -454,7 +402,10 @@ async def test_onayli_tasaron_hakedisinin_fisi_onizlemede_gorunur_ve_silme_durur
         params={"preview_token": onizleme["preview_token"]},
         headers=sistem,
     )
-    assert yanit.json()["code"] == "financial_pending"
+    assert yanit.status_code == 204
+    from app.modules.accounting.models import JournalEntry  # noqa: PLC0415
+
+    assert await d.sayim(db_session, JournalEntry) == 0  # fiş yetim KALMAZ
 
 
 # --- FK dışı bağ (onay zinciri) ---
