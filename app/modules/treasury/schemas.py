@@ -355,6 +355,19 @@ class UpcomingPaymentItem(BaseModel):
     due_date: date
     days_remaining: int
     amount: KasaTutar
+    #: Kaynağın projesi (IZN-B4b onarımı; eklemeli): satır KENDİ projesindeki rolle maskelenir.
+    #: Bordro dönemi şirket geneli → `null` (birleşim, fail-closed). Çözülemeyen fatura da `null`.
+    project_id: uuid.UUID | None = None
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "UpcomingPaymentItem", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        """Bordro kaynaklı satırın tutarı personel NET MAAŞ toplamıdır: `maas_kisisel` de gizler
+        (kasa-banka hareketi OLMASI maaş gizliliğini kaldırmaz)."""
+        if model.source_type is UpcomingSourceType.payroll:
+            return etiketler | {Hassas.maas_kisisel}
+        return etiketler
 
 
 class UpcomingPaymentsResponse(BaseModel):

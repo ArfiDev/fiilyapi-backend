@@ -151,6 +151,7 @@ async def test_satir_alanlari_hesap_KODU_ve_ADINI_tasir(
         "debit",
         "credit",
         "running_balance",
+        "source_type",  # IZN-B4b onarımı (eklemeli): bordro satırı `maas_kisisel` ile de gizlenir
     }
     assert satir["account_code"] == "100"
     assert satir["account_name"] == "Kasa"

@@ -290,6 +290,7 @@ async def build_detail(session: AsyncSession, entry: JournalEntry) -> JournalEnt
                 account_name=hesap.name,
                 debit=satir.debit,
                 credit=satir.credit,
+                source_type=entry.source_type,
             )
             for satir, hesap in satirlar
         ],

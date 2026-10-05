@@ -191,7 +191,7 @@ class InvoiceCreate(BaseModel):
     payment_method: InvoicePaymentMethod | None = None
     note: str | None = _NOTE
 
-    party_name: str = _PARTY_NAME
+    party_name: Annotated[str, Hassas.satis_alici] = _PARTY_NAME
     party_tax_number: AliciMetni = _TAX_NUMBER
     party_tax_office: str | None = _TAX_OFFICE
     party_address: AliciMetni = _ADDRESS
@@ -241,7 +241,7 @@ class InvoiceUpdate(BaseModel):
     payment_method: InvoicePaymentMethod | None = None
     note: str | None = _NOTE
 
-    party_name: str | None = Field(default=None, min_length=1, max_length=200)
+    party_name: AliciMetni = Field(default=None, min_length=1, max_length=200)
     party_tax_number: AliciMetni = _TAX_NUMBER
     party_tax_office: str | None = _TAX_OFFICE
     party_address: AliciMetni = _ADDRESS
@@ -305,7 +305,7 @@ class InvoiceResponse(BaseModel):
         """
         return url_safe_key(self.invoice_no)
 
-    party_name: str
+    party_name: AliciMetni
     party_tax_number: AliciMetni
     party_tax_office: str | None
     party_address: AliciMetni

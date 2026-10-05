@@ -282,7 +282,14 @@ async def _invoice_rows(
     odenen = repository.paid_totals_by_invoice()
     kalan = Invoice.total - func.coalesce(odenen.c.paid, 0)
     stmt = (
-        select(Invoice.id, Invoice.invoice_no, Invoice.party_name, Invoice.due_date, kalan)
+        select(
+            Invoice.id,
+            Invoice.invoice_no,
+            Invoice.party_name,
+            Invoice.due_date,
+            kalan,
+            Invoice.project_id,
+        )
         .outerjoin(odenen, odenen.c.invoice_id == Invoice.id)
         .where(
             Invoice.direction == InvoiceDirection.incoming,
@@ -303,8 +310,9 @@ async def _invoice_rows(
             due_date=due_date,
             days_remaining=(due_date - ilk).days,
             amount=Decimal(kalan_tutar),
+            project_id=proje_id,
         )
-        for invoice_id, invoice_no, party_name, due_date, kalan_tutar in (
+        for invoice_id, invoice_no, party_name, due_date, kalan_tutar, proje_id in (
             await session.execute(stmt)
         ).all()
     ]
@@ -350,6 +358,7 @@ async def _progress_payment_rows(
             due_date=vade_gunu,
             days_remaining=(vade_gunu - ilk).days,
             amount=bloklar[payment.id].net,
+            project_id=payment.project_id,
         )
         for payment, taseron_adi, vade_gunu in rows
     ]

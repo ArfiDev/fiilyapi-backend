@@ -51,9 +51,9 @@ from app.core.router_registry import ROUTERS
 
 #: ZORUNLU küme: bu rota-sahibi modüllerde etiketsiz alan KIRMIZI. Sonraki dilimler BURAYA ekler.
 ZORUNLU_MODULLER: frozenset[str] = frozenset(
-    {"accounting", "boq", "catalog", "contracts", "customers", "dashboard", "invoicing", "offers",
-     "progress_payments", "projects", "sales", "sites", "subcontractor_progress_payments",
-     "treasury", "units"}
+    {"accounting", "approvals", "boq", "catalog", "contracts", "customers", "dashboard",
+     "invoicing", "offers", "progress_payments", "projects", "sales", "sites",
+     "subcontractor_progress_payments", "treasury", "units"}
 )  # fmt: skip
 
 #: Modülün TAMAMI değil yalnız bazı şemaları zorunlu olanlar: modül → şema sınıf adları.
@@ -157,6 +157,13 @@ _PARA_ADLARI = (
     "budget", "butce", "balance", "kurus", "total", "gross", "net", "margin", "discount",
     "deposit", "payment", "income", "expense",
 )  # fmt: skip
+#: TOKEN olarak (`_` ile bölünmüş parça) eşleşen kısa para adları: alt-dizge olarak yazılsalar
+#: `vat` → `private`, `net` → `network` gibi yanlış alarm verirdi. `int`/`float` alanlarda
+#: `paid_total`, `remaining`, `debit`, `credit`, `vat_amount` gibi tutarları yakalar (IZN-B4b
+#: onarımı: `PaymentListResponse.paid_total: int | None` etiketsiz sızıyordu).
+_PARA_TOKENLERI = frozenset(
+    {"gross", "net", "total", "paid", "remaining", "vat", "debit", "credit"}
+)
 _SAYAC_ADLARI = (
     "count", "adet", "sayi", "missing", "pending", "index", "order", "sort", "area", "m2",
     "limit", "offset", "pct", "percent", "page", "days", "term", "units", "rows",
@@ -168,7 +175,9 @@ def _para_adi_mi(ad: str) -> bool:
     kucuk = ad.lower()
     if kucuk == "total":
         return False
-    return not any(s in kucuk for s in _SAYAC_ADLARI) and any(p in kucuk for p in _PARA_ADLARI)
+    if any(s in kucuk for s in _SAYAC_ADLARI):
+        return False
+    return any(p in kucuk for p in _PARA_ADLARI) or not _PARA_TOKENLERI.isdisjoint(kucuk.split("_"))
 
 
 def _etiket_gerektiren_sayisal(ad: str, alan: FieldInfo) -> bool:
@@ -417,6 +426,34 @@ def test_bekci_sentetik_ihlalleri_yakalar_etiketliyi_gecirir() -> None:
     # istek gövdesinde None-taşıma şartı YOK (zorunlu fiyat girilebilir), etiket şartı VAR
     assert [i for i in sema_ihlalleri(_Kotu, istek=True) if "None TAŞIMIYOR" in i] == []
     assert any("tutar" in i for i in sema_ihlalleri(_Kotu, istek=True))
+
+
+def test_bekci_int_para_adlari_ve_party_name_yakalanir_sayaclar_gecer() -> None:
+    """IZN-B4b onarımı: `int`/`float` tutarlar ad sezgisiyle (token) yakalanır; `party_name` PII."""
+
+    class _Kotu(BaseModel):
+        paid_total: int | None  # etiketsiz int tutar
+        remaining: float
+        vat: int
+        debit: int
+        credit: int
+        gross: int
+        party_name: str | None  # etiketsiz kişisel ad
+
+    class _Iyi(BaseModel):
+        paid_total: typing.Annotated[int | None, Hassas.banka_kasa]
+        party_name: typing.Annotated[str | None, Hassas.satis_alici]
+        total: int  # sayfalama sayacı: para DEĞİL
+        private_level: (
+            int  # `vat` alt-dizgesi `private` içinde: token eşleşmesi yanlış alarm vermez
+        )
+        items_missing_price: int  # sayaç imzası para adını ezer
+
+    kotu = " ".join(sema_ihlalleri(_Kotu, istek=False))
+    for ad in ("paid_total", "remaining", "vat", "debit", "credit", "gross"):
+        assert f"{ad}: Decimal/zarf alan ETİKETSİZ" in kotu, ad
+    assert "party_name: kişisel veri adlı str alan ETİKETSİZ" in kotu
+    assert sema_ihlalleri(_Iyi, istek=False) == []
 
 
 def test_bekci_TUREV_None_donemeyen_turevi_yakalar() -> None:

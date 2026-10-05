@@ -3,9 +3,11 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.field_mask import Hassas
 from app.modules.approvals.definitions import HistoryDecision
 from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
 from app.modules.approvals.service import HistoryChainView, PendingChainView
@@ -22,7 +24,9 @@ __all__ = [
 
 
 class ApprovalSettingsRead(BaseModel):
-    approval_threshold_try: Decimal
+    #: Şirket POLİTİKASI eşiği — bir evrakın tutarı değil (GECE KARARI, IZN-B4b onarımı): hassas
+    #: kategorilerin hiçbiri değil; zincirin "neden bu adımlar?" cevabı her aktöre açıktır.
+    approval_threshold_try: Annotated[Decimal, Hassas.yok]
 
 
 class ApprovalSettingsUpdate(BaseModel):
@@ -36,7 +40,16 @@ class ApprovalSettingsUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    approval_threshold_try: Decimal = Field(ge=0, max_digits=18, decimal_places=2)
+    approval_threshold_try: Annotated[Decimal, Hassas.yok] = Field(
+        ge=0, max_digits=18, decimal_places=2
+    )
+
+
+_TUTAR_KATEGORISI: dict[ApprovalDocumentType, frozenset[Hassas]] = {
+    ApprovalDocumentType.progress_payment: frozenset({Hassas.sozlesme_fiyat}),
+    ApprovalDocumentType.subcontractor_progress_payment: frozenset({Hassas.maliyet_kar}),
+    ApprovalDocumentType.purchase_request: frozenset({Hassas.maliyet_kar}),
+}
 
 
 class ApprovalStepRead(BaseModel):
@@ -75,15 +88,30 @@ class ApprovalInboxItem(BaseModel):
     document_id: uuid.UUID
     created_by_name: str | None
     created_at: datetime
-    threshold_snapshot: Decimal
-    amount_snapshot: Decimal | None
+    #: Zincir kurulurken donmuş şirket eşiği (politika) — evrak tutarı DEĞİL.
+    threshold_snapshot: Annotated[Decimal, Hassas.yok]
+    #: 🔴 Tutar alanlarının kategorisi EVRAK TİPİNE göre değişir (`KATEGORI_COZ`): işveren
+    #: hakedişi `sozlesme_fiyat`, taşeron hakedişi ve satınalma talebi `maliyet_kar`. Statik
+    #: etiket ÜST KÜMEdir (bekçi + OpenAPI); satır yalnız kendi evrak tipinin kategorisiyle
+    #: gizlenir. Satırın projesi `project_id` (rol PROJE başına çözülür).
+    amount_snapshot: Annotated[Decimal | None, Hassas.sozlesme_fiyat, Hassas.maliyet_kar]
     current_step_no: int
     steps: list[ApprovalStepRead]
     title: str | None
     subtitle: str | None
-    gross_amount: Decimal | None
-    net_amount: Decimal | None
+    gross_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat, Hassas.maliyet_kar]
+    net_amount: Annotated[Decimal | None, Hassas.sozlesme_fiyat, Hassas.maliyet_kar]
     can_decide: bool
+    #: Evrağın projesi (IZN-B4b onarımı; eklemeli). Evrak çözülemezse `null` → birleşim maskesi.
+    project_id: uuid.UUID | None = None
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "ApprovalInboxItem", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        """Evrak tipine göre ETKİN tutar kategorisi (işveren → sözleşme/hakediş bedeli, diğerleri
+        → maliyet). Bilinmeyen tip: statik ÜST KÜME (fail-closed)."""
+        return _TUTAR_KATEGORISI.get(model.document_type, etiketler)
 
     @classmethod
     def from_view(cls, view: PendingChainView) -> "ApprovalInboxItem":
@@ -110,6 +138,7 @@ class ApprovalInboxItem(BaseModel):
             gross_amount=view.gross_amount,
             net_amount=view.net_amount,
             can_decide=view.can_decide,
+            project_id=view.project_id,
         )
 
 

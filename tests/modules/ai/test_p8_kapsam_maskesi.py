@@ -56,6 +56,7 @@ from app.modules.ai.result import Ok, ToolError, Truncated
 from app.modules.ai.tools.catalog import READ_TOOLS
 from app.modules.roles.models import Role, RoleHiddenField
 from app.modules.users.models import ProjectMember
+from tests.modules.approvals.conftest import isveren_evraki, rol_sahipleri_kur
 
 # `asyncio_mode = "auto"` (pyproject) — ayrıca `pytestmark` YAZILMAZ: yazılsaydı bu
 # dosyadaki SENKRON keşif testi "asyncio işaretli ama async değil" uyarısı verirdi.
@@ -78,7 +79,9 @@ _POZ_TUTAR = "6708000.00"
 #: Para kategorileri gizliyken AI zarfının HİÇBİRİNDE görünmemesi gereken PARA izleri.
 #: 🔴 Noktasız/ondalıksız yazılır: zarf `model_dump(mode="json")` ile
 #: serileşir ve `Decimal` metne döner, biçim değişse de rakam dizisi kalır.
-_PARA_IZLERI = ("77100000", "64300000", "312.00", "6708000")
+_PARA_IZLERI = ("77100000", "64300000", "312.00", "6708000", "317000")
+#: Onay kutusundaki işveren hakedişinin birim fiyatı: 100 m³ × 3.170 = 317.000 (brüt).
+_ONAY_BIRIM_FIYAT = Decimal("3170.00")
 
 
 @pytest.fixture(autouse=True)
@@ -143,6 +146,10 @@ _ARGUMANLAR = {
     "sozlesmeler": lambda k: {"contract_type": "employer"},
     "taseronlar": lambda k: {},
     "gosterge_ozeti": lambda k: {},
+    # IZN-B4b: hakediş / onay kutusu uçları da artık maskelidir (tutar etiketli); argümansızdır.
+    "isveren_hakedisleri": lambda k: {},
+    "taseron_hakedisleri": lambda k: {},
+    "onay_kutum": lambda k: {},
 }
 
 
@@ -172,10 +179,17 @@ async def maske_kurulumu(seeded_db, user_factory, project_factory):
     "içeriden GÖRÜNÜR" yarısını mümkün kılar ve o yarı
     `test_POZITIF_KONTROL_all_kapsaminda_*`ta ayrıca çakılır.
     """
+    from app.modules.approvals import service as onay_servisi
+    from app.modules.approvals.models import ApprovalDocumentType
     from app.modules.boq.models import BoqGroup, BoqItem
-    from app.modules.contracts.models import Subcontractor
+    from app.modules.contracts.models import Subcontractor, SubcontractorContract
+    from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
     from app.modules.projects.models import ProjectContract, ProjectLandShare
     from app.modules.sites.models import Site, SiteStatus
+    from app.modules.subcontractor_progress_payments.models import (
+        SubcontractorPaymentStatus,
+        SubcontractorProgressPayment,
+    )
 
     proje = await project_factory(
         code="P8-MSK",
@@ -231,6 +245,72 @@ async def maske_kurulumu(seeded_db, user_factory, project_factory):
     )
     await seeded_db.flush()
 
+    # IZN-B4b onarımı: hakediş araçları (`isveren_hakedisleri` / `taseron_hakedisleri`) için TOHUM.
+    # Tohumsuz araç boş küme döner ve `gross_total`/`net_total` hiç doğrulanmazdı (regresyon:
+    # `Decimal` zorunlu iken maskeli `null` araçta ValidationError → `ust_kaynak_hatasi`).
+    seeded_db.add(
+        ProgressPayment(
+            project_id=proje.id,
+            sequence_no=1,
+            status=ProgressPaymentStatus.draft,
+            vat_pct=Decimal("20.00"),
+            advance_pct=Decimal("0.00"),
+            retainage_pct=Decimal("0.00"),
+            created_by=kullanici.id,
+        )
+    )
+    taseron_sozlesmesi = SubcontractorContract(
+        project_id=proje.id,
+        subcontractor_name="Maske Taşeron Ltd.",
+        contract_no="P8-TSZ-1",
+        advance_pct=Decimal("0.00"),
+        retainage_pct=Decimal("0.00"),
+        vat_pct=Decimal("20.00"),
+        created_by=kullanici.id,
+    )
+    seeded_db.add(taseron_sozlesmesi)
+    await seeded_db.flush()
+    seeded_db.add(
+        SubcontractorProgressPayment(
+            contract_id=taseron_sozlesmesi.id,
+            project_id=proje.id,
+            sequence_no=1,
+            status=SubcontractorPaymentStatus.draft,
+            vat_pct=Decimal("20.00"),
+            advance_pct=Decimal("0.00"),
+            retainage_pct=Decimal("0.00"),
+            created_by=kullanici.id,
+        )
+    )
+    await seeded_db.flush()
+
+    # IZN-B4b onarımı: ONAY KUTUSU tohumu. Kutu satırının tutarı evrakın PROJESİNDEKİ rolle
+    # maskelenir: kişi ikinci projede `accounting` proje rolüyle üyedir ve işveren hakedişinin
+    # ilk adımı `accounting`tir → satır kutuya düşer.
+    # "Tüm projeler" kişide ekip satırı YOK SAYILIR (`step_owner_clause`): ekip kişisi yapılır.
+    kullanici.all_projects = False
+    onay_projesi = await project_factory(code="P8-ONY", name="Onay Projesi")
+    muhasebe_rol_id = (
+        await seeded_db.execute(select(Role.id).where(Role.key == "accounting"))
+    ).scalar_one()
+    seeded_db.add(
+        ProjectMember(user_id=kullanici.id, project_id=onay_projesi.id, role_id=muhasebe_rol_id)
+    )
+    await seeded_db.flush()
+    await rol_sahipleri_kur(seeded_db, onay_projesi)
+    # Görevler ayrılığı: kendi evrakı kutuya düşmez → evrakı BAŞKASI açar.
+    yaratan = await user_factory("p8onay-yaratan@fiil.example.com", "Sifre1234!", _ROL)
+    belge_id = await isveren_evraki(
+        seeded_db, onay_projesi, yaratan, unit_price=_ONAY_BIRIM_FIYAT, quantity=Decimal("100")
+    )
+    await onay_servisi.create_chain(
+        seeded_db,
+        document_type=ApprovalDocumentType.progress_payment,
+        document_id=belge_id,
+        amount=Decimal("100.00"),
+        created_by_user_id=yaratan.id,
+    )
+
     # 🔴 KİMLİK HARİTASINDAN ÇIKAR: okuma düzlemi AYNI session'ı kullanır ve
     # `get_current_user` `joinedload(User.role)` ister; nesne haritada ROLSÜZ
     # dururken `options` SESSİZCE yok sayılır ve `User.role` (`lazy="raise"`)
@@ -252,11 +332,15 @@ _PARA_GIZLI = {
 
 
 async def _gizli(seeded_db, kategoriler: set[HiddenCategory]) -> None:
-    """Rolün maske bayraklarını (`role_hidden_fields`) TAM değiştirir."""
-    rol_id = (await seeded_db.execute(select(Role.id).where(Role.key == _ROL))).scalar_one()
-    await seeded_db.execute(delete(RoleHiddenField).where(RoleHiddenField.role_id == rol_id))
-    for kategori in kategoriler:
-        seeded_db.add(RoleHiddenField(role_id=rol_id, category=kategori))
+    """Rolün maske bayraklarını (`role_hidden_fields`) TAM değiştirir.
+
+    Bayrak ANA role (`_ROL`) VE onay kutusu projesindeki proje rolüne (`accounting`) yazılır:
+    kutu satırı evrakın projesindeki rolle maskelenir (IZN-B4b onarımı)."""
+    for anahtar in (_ROL, "accounting"):
+        rol_id = (await seeded_db.execute(select(Role.id).where(Role.key == anahtar))).scalar_one()
+        await seeded_db.execute(delete(RoleHiddenField).where(RoleHiddenField.role_id == rol_id))
+        for kategori in kategoriler:
+            seeded_db.add(RoleHiddenField(role_id=rol_id, category=kategori))
     await seeded_db.flush()
 
 
@@ -519,3 +603,58 @@ async def test_POZITIF_KONTROL_bayraksiz_rolde_arsa_payi_NOTU_YETKIDEN_BAHSETMEZ
     assert isinstance(sonuc, Ok)
     not_metni = sonuc.data["deger_dengesi_notu"]
     assert "yetki" not in not_metni.lower(), "kısıtsız rol yetki sorununa yönlendiriliyor"
+
+
+# ########################################################################### #
+# ⑥ HAKEDİŞ ARAÇLARI — IZN-B4b onarımı (gerileme: `gross_total: Decimal` zorunluydu)
+# ########################################################################### #
+
+
+@pytest.mark.parametrize(
+    ("arac", "kategori"),
+    [
+        ("isveren_hakedisleri", HiddenCategory.sozlesme_fiyat),
+        ("taseron_hakedisleri", HiddenCategory.maliyet_kar),
+    ],
+)
+async def test_MASKELI_hakedis_araci_OK_doner_tutarlar_NULL_acik_rolde_GORUNUR(
+    arac, kategori, seeded_db, maske_kurulumu, transport_factory, actor_factory
+) -> None:
+    """Uç `gross_total`/`net_total`ı gizli rolde `null` döndürür. Araç şeması `Decimal`
+    ZORUNLU olsaydı `ValidationError` → `ToolError("ust_kaynak_hatasi")` olurdu (B4b'de böyleydi,
+    hiçbir test yakalamıyordu). Gizli rolde `Ok` + `null`; ilgisiz kategori gizliyken AÇIK."""
+    await _gizli(seeded_db, {kategori})
+    gizli = await _cagir(arac, maske_kurulumu, transport_factory, actor_factory)
+    assert isinstance(gizli, Ok | Truncated), f"{arac} → {type(gizli).__name__}"
+    assert gizli.row_count >= 1, "tohum çürümüş"
+    satir = gizli.data[0]
+    assert satir["gross_total"] is None
+    assert satir["net_total"] is None
+
+    ilgisiz = (
+        HiddenCategory.maliyet_kar
+        if kategori is HiddenCategory.sozlesme_fiyat
+        else HiddenCategory.sozlesme_fiyat
+    )
+    await _gizli(seeded_db, {ilgisiz})
+    acik = await _cagir(arac, maske_kurulumu, transport_factory, actor_factory)
+    assert isinstance(acik, Ok | Truncated)
+    assert acik.data[0]["gross_total"] is not None
+    assert acik.data[0]["net_total"] is not None
+
+
+async def test_MASKELI_onay_kutum_tutari_EVRAK_TIPINE_gore_gizlenir(
+    seeded_db, maske_kurulumu, transport_factory, actor_factory
+) -> None:
+    """IZN-B4b onarımı: onay kutusu tutarı etiketsizdi. İşveren hakedişi `sozlesme_fiyat`tır;
+    `maliyet_kar` gizliyken AÇIK, `sozlesme_fiyat` gizliyken `null`."""
+    await _gizli(seeded_db, {HiddenCategory.sozlesme_fiyat})
+    gizli = await _cagir("onay_kutum", maske_kurulumu, transport_factory, actor_factory)
+    assert isinstance(gizli, Ok | Truncated), type(gizli).__name__
+    assert gizli.data["items"][0]["gross_amount"] is None
+    assert gizli.data["items"][0]["net_amount"] is None
+
+    await _gizli(seeded_db, {HiddenCategory.maliyet_kar})
+    acik = await _cagir("onay_kutum", maske_kurulumu, transport_factory, actor_factory)
+    assert isinstance(acik, Ok | Truncated)
+    assert acik.data["items"][0]["gross_amount"] == "317000.00"

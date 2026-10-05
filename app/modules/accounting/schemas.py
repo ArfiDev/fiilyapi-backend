@@ -64,7 +64,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.core.field_mask import Hassas
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.accounting import codes, guards
-from app.modules.accounting.models import ChartAccountType, JournalEntryStatus
+from app.modules.accounting.models import ChartAccountType, JournalEntryStatus, JournalSourceType
 
 __all__ = [
     "ChartAccountCreate",
@@ -122,6 +122,19 @@ _IS_CONTRA = Field(
 # yevmiye hem maliyet/kâr hem kasa-banka (100/102) hareketini taşır. Fail-closed: ikisini birden
 # etiketle (HERHANGİ biri gizliyse alan gizlenir; `tum_tutarlar` zaten ikisini de kapsar).
 MaliTutar = Annotated[Decimal | None, Hassas.maliyet_kar, Hassas.banka_kasa]
+
+
+def _bordro_fisi_ek_kategori(
+    kaynak: JournalSourceType | None, etiketler: frozenset[Hassas]
+) -> frozenset[Hassas]:
+    """Bordro dönemi fişi (`payroll_period`) PERSONEL NET MAAŞ toplamını taşır: tutar alanları
+    `maas_kisisel` ile DE gizlenir (IZN-B4b onarımı). Yalın yol: kaynak tipini yanıta taşı +
+    satır başına `KATEGORI_COZ` (`field_mask`); yeni şema ya da ikinci uç gerekmez."""
+    if kaynak is JournalSourceType.payroll_period:
+        return etiketler | {Hassas.maas_kisisel}
+    return etiketler
+
+
 #: İSTEK gövdesinde aynı etiket (gizli rol dolu tutar gönderirse 403); tip `None` taşımaz.
 MaliTutarGirdi = Annotated[Decimal, Hassas.maliyet_kar, Hassas.banka_kasa]
 
@@ -357,6 +370,15 @@ class JournalLineResponse(BaseModel):
     account_name: str
     debit: MaliTutar
     credit: MaliTutar
+    #: Fişi doğuran belge ailesi (eklemeli; elle fişte `null`): bordro kaynaklı satırın tutarı
+    #: `maas_kisisel` ile de gizlenir (`KATEGORI_COZ`).
+    source_type: JournalSourceType | None = None
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "JournalLineResponse", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return _bordro_fisi_ek_kategori(model.source_type, etiketler)
 
 
 class JournalEntryResponse(BaseModel):
@@ -383,6 +405,14 @@ class JournalEntryResponse(BaseModel):
     created_by_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    #: Fişi doğuran belge ailesi (eklemeli; elle fişte `null`) — bkz. `JournalLineResponse`.
+    source_type: JournalSourceType | None = None
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "JournalEntryResponse", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return _bordro_fisi_ek_kategori(model.source_type, etiketler)
 
 
 class JournalEntryDetailResponse(JournalEntryResponse):
@@ -440,6 +470,15 @@ class LedgerRow(BaseModel):
     debit: MaliTutar
     credit: MaliTutar
     running_balance: MaliTutar
+    #: Fişi doğuran belge ailesi (eklemeli; elle fişte `null`) — bordro satırında tutar VE koşan
+    #: bakiye `maas_kisisel` ile de gizlenir (bkz. `JournalLineResponse`).
+    source_type: JournalSourceType | None = None
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "LedgerRow", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return _bordro_fisi_ek_kategori(model.source_type, etiketler)
 
 
 class LedgerResponse(BaseModel):

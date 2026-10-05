@@ -725,6 +725,18 @@
             ],
             "title": "Net Amount"
           },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
           "reason": {
             "anyOf": [
               {
@@ -901,6 +913,18 @@
               }
             ],
             "title": "Net Amount"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
           },
           "steps": {
             "items": {
@@ -14174,8 +14198,15 @@
             "title": "Party Address"
           },
           "party_name": {
-            "title": "Party Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Name"
           },
           "party_tax_number": {
             "anyOf": [
@@ -14835,8 +14866,15 @@
             "title": "Party Address"
           },
           "party_name": {
-            "title": "Party Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Name"
           },
           "party_tax_number": {
             "anyOf": [
@@ -15792,6 +15830,16 @@
             ],
             "title": "Reversal Of Id"
           },
+          "source_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JournalSourceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "$ref": "#/components/schemas/JournalEntryStatus"
           },
@@ -15938,6 +15986,16 @@
               }
             ],
             "title": "Reversal Of Id"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JournalSourceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "$ref": "#/components/schemas/JournalEntryStatus"
@@ -16138,6 +16196,16 @@
           "sort_order": {
             "title": "Sort Order",
             "type": "integer"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JournalSourceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -16169,6 +16237,20 @@
         ],
         "title": "JournalLinesReplace",
         "type": "object"
+      },
+      "JournalSourceType": {
+        "description": "🔴 MU-3A — otomatik fişi DOĞURAN belgenin AİLESİ (`journal_entries.source_type`).\n\n## Neden PG enum, neden METİN DEĞİL\n\nDepo deseni ÖLÇÜLDÜ: `app/modules/*/models.py` altında **91** adet\n`Enum(..., name=...)` kolonu var, çok biçimli bir referansı serbest metinle\ntutan TEK BİR tablo YOK. Desen burada da doğrudur ve gerekçesi bu dilime\nözeldir: bu kolon `uq_journal_entries_source`un YARISIDIR. Metin olsaydı\n`\"invoice\"` ile `\"invoices\"` (ya da `\"Invoice\"`) AYRI iki tekillik uzayı açar\nve aynı fatura İKİ KEZ fişlenebilirdi — yani idempotanlığın kendisi bir yazım\nhatasına dayanırdı. Enum'da böyle bir değer DB'ye HİÇ GİREMEZ.\n\nBedeli bilinerek alınmıştır: her yeni aile bir `ALTER TYPE … ADD VALUE`\nmigration'ı ister (MT-1'in `equity` emsali). Bu bedel, sessiz bir çift fişten\nucuzdur.\n\n## Üye = TABLO, üye ≠ KAVRAM\n\nHer üye TEK BİR tabloya karşılık gelir ve `source_id` O TABLONUN birincil\nanahtarıdır. \"Hakediş\" tek bir üye olsaydı `source_id` iki farklı tablonun\n(`progress_payments` / `subcontractor_progress_payments`) kimliğini birden\ntaşır ve \"bu kimlik hangi tabloda?\" sorusu kolonlardan CEVAPLANAMAZDI.\n\n## 🔴 FK YOKTUR ve olamaz\n\nÇok biçimli referansta tek bir `source_id` beş tabloya birden bakamaz. Bu bir\nzayıflıktır ve bilinçlidir: alternatif beş nullable FK kolonu + bir\n\"yalnız biri dolu\" CHECK'iydi (`invoices.ck_invoices_single_source` deseni),\nki o da beş kolonu UNIQUE'e sokmayı ve her yeni ailede ŞEMA değiştirmeyi\ngerektirirdi. Bütünlüğü ayakta tutan şey `post_document`in TEK GİRİŞ\nNOKTASI olmasıdır (`app/modules/posting/service.py`).\n\n## Bugün YOKLAR ve neden\n\n* **`purchase_order` / stok hareketi** — KARAR-7: satınalma ve stok fiş\n  ATMAZ. Stokta değerleme yöntemi yoktur, sarf fişinin tutarı hesaplanamaz.\n* ~~`equipment_rental_invoice`~~ — **MU-3D'de EKLENDİ** (`b7c8d9e0f1a2`).\n  MU-3A'da \"üye ICAT EDILMEZ, fişlendiği dilimde `ALTER TYPE` ile eklenir\"\n  diye bırakılmıştı; fişlendiği dilim budur.\n* ~~`financial_instrument`~~ — **ODM-1'de EKLENDİ** (`f5a6b7c8d9e0`).\n  MU-3C üyeyi açmamıştı çünkü nakdin tanımı `Σ payments`tı; ODM-1 o tanımı\n  değiştirdi (bağlı ödeme yalnız `collected`/`paid` iken nakit) ve\n  MU-3C'nin *\"bu bir ÜRÜN KARARIDIR\"* diye beklettiği kararı verdi.\n  Gerekçenin tamamı `treasury/instruments/posting.py` docstring'indedir.\n\nÜye SIRASI kilitlidir: `ALTER TYPE … ADD VALUE` üyeyi SONA ekler ve\n`enum_range` o sırayı döner (migration testi bunu ölçer).",
+        "enum": [
+          "invoice",
+          "payment",
+          "payroll_period",
+          "progress_payment",
+          "subcontractor_progress_payment",
+          "equipment_rental_invoice",
+          "financial_instrument"
+        ],
+        "title": "JournalSourceType",
+        "type": "string"
       },
       "JournalSummaryResponse": {
         "description": "E8:79-88 KPI şeridi — ÜÇ kart.\n\n🔴 `net_balance = ALACAK − BORÇ`. Yön mockup'tan KANITLIDIR:\n`4.120.000 − 3.842.600 = 277.400` (E8:88) tam tutar ve bu, E8'deki tek\ngöstermelik-olmayan aritmetiktir.\n\nŞerit yalnız DÖNEME bağlıdır; hesap süzgeci ALMAZ (E8:72 — KPI'lar tablonun\nve filtre çubuğunun DIŞINDADIR).",
@@ -18532,6 +18614,16 @@
               }
             ],
             "title": "Running Balance"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JournalSourceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -48055,6 +48147,18 @@
             "format": "date",
             "title": "Due Date",
             "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
           },
           "source_id": {
             "format": "uuid",

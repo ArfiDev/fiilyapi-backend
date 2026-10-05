@@ -122,6 +122,8 @@ class PendingChainView:
     gross_amount: Decimal | None
     net_amount: Decimal | None
     can_decide: bool
+    #: Evrağın projesi (IZN-B4b onarımı) — satır başına hassas alan maskesi için.
+    project_id: uuid.UUID | None
 
 
 @dataclass(frozen=True)
@@ -786,6 +788,7 @@ def _view_fields(
         "gross_amount": olgu.gross_amount,
         "net_amount": olgu.net_amount,
         "can_decide": can_decide,
+        "project_id": olgu.project_id,
     }
 
 
