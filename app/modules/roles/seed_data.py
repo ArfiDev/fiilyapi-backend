@@ -13,7 +13,6 @@ from app.core.sayfalar import (
     SAYFA_ANAHTARLARI,
     HiddenCategory,
     PageLevel,
-    gizli_alanlar,
     sayfa_matrisi,
 )
 from app.modules.roles.models import (
@@ -509,11 +508,34 @@ PAGE_MATRIX: dict[str, dict[str, tuple[PageLevel, bool]]] = {
     },
 }
 
-#: Rol başına gizli alan kümesi (Sistem Yöneticisi hariç): eski roller `limited` kapsamından,
-#: yeni roller `IZN_HIDDEN_FIELDS`ten.
+#: ESKİ 7 rolün gizli alan kümesi (IZN-B4c madde 20, CEO onaylı). B1 migration'ı eski `limited`
+#: kapsamını küresel `tum_tutarlar`a çevirmişti; yeni maske küresel olduğu için bu İK Müdürü'nün
+#: ücret/bordroyu, Satınalma'nın kendi fiyatlarını görmesini engelliyordu. Burada AÇIK kategori
+#: kümesi tutulur; tabloda olmayan eski rol (patron/accounting/project_manager) = boş küme.
+#: Canlıya `izn_b4c_eski_rol_gizli_alanlari` migration'ı taşır (bekçisi
+#: `tests/modules/test_izn_b4c_madde20_rol_kumeleri.py`).
+_SAHA_VE_IK_GIZLI: tuple[HiddenCategory, ...] = (
+    HiddenCategory.sozlesme_fiyat,
+    HiddenCategory.maliyet_kar,
+    HiddenCategory.banka_kasa,
+    HiddenCategory.satis_alici,
+)
+ESKI_ROL_GIZLI_ALANLAR: dict[str, tuple[HiddenCategory, ...]] = {
+    "hr_manager": _SAHA_VE_IK_GIZLI,
+    "site_chief": _SAHA_VE_IK_GIZLI,
+    "field_engineer": _SAHA_VE_IK_GIZLI,
+    "procurement": (
+        HiddenCategory.sozlesme_fiyat,
+        HiddenCategory.satis_alici,
+        HiddenCategory.banka_kasa,
+    ),
+}
+
+#: Rol başına gizli alan kümesi (Sistem Yöneticisi hariç): eski roller `ESKI_ROL_GIZLI_ALANLAR`dan
+#: (yoksa boş), yeni roller `IZN_HIDDEN_FIELDS`ten.
 HIDDEN_FIELDS: dict[str, frozenset[HiddenCategory]] = {
     **{
-        role_key: gizli_alanlar(_rol_hucreleri(MATRIX, ROLE_ORDER, role_key))
+        role_key: frozenset(ESKI_ROL_GIZLI_ALANLAR.get(role_key, ()))
         for role_key in ROLE_ORDER
         if role_key != SYSTEM_ADMIN_KEY
     },

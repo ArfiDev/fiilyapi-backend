@@ -272,6 +272,13 @@ async def test_para_hucresi_api_metniyle_birebir(client, ik_headers, kadro):
     assert isinstance(hucre, str), "para hücresi SAYI olarak yazılmış (FLOAT-YASAK)"
 
 
+async def test_gizli_rolde_ucret_hucresi_BOS_yazilir(client, gizli_headers, kadro):
+    """IZN-B4c: `maas_kisisel` gizli rolde ücret + SGK hücresi boş (`"None"` sızmaz)."""
+    sheet = _sayfa(await client.get(YOL, params={"q": "Ali Kaya"}, headers=gizli_headers))
+    for sutun in ("Ücret/Gün", "SGK"):
+        assert sheet.cell(row=2, column=COLUMN_HEADERS.index(sutun) + 1).value is None, sutun
+
+
 async def test_bos_alan_hucresine_dokunulmaz(client, ik_headers, kadro):
     """Meslek/SGK/ücret boşsa hücre `None` kalır — `""` de `0` da YAZILMAZ."""
     sheet = _sayfa(await client.get(YOL, params={"q": "Hasan"}, headers=ik_headers))

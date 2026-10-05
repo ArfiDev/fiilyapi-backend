@@ -181,7 +181,11 @@ async def test_me_sirada_rol_kendi_matrisinden_turetilmis_sayfalari_ve_bayragini
     me = await _me(client, await _giris(client, user_factory, "site_chief"))
     assert me["is_system_admin"] is False
     assert me["pages"] == _beklenen_pages("site_chief")
-    assert me["hidden_fields"] == ["tum_tutarlar"]  # şef: dashboard/projects/sites/boq `limited`
+    # Şef: madde 20 onaylı küme (B1'in `tum_tutarlar` türetmesi `izn_b4c` ile değişti); maaş AÇIK.
+    assert me["hidden_fields"] == sorted(
+        c.value for c in seed_data.ESKI_ROL_GIZLI_ALANLAR["site_chief"]
+    )
+    assert "maas_kisisel" not in me["hidden_fields"]
     # Şef günlüğe yazar ama muhasebeyi görmez.
     # "Yeniden aç" yalnız admin: şef günlüğü düzenler ama Onaylar'ı almaz (genişleme yok).
     assert me["pages"]["saha.gunluk_kayit"] == {"level": "edit", "approve": False}
@@ -511,13 +515,18 @@ async def test_write_through_limited_ac_kapa_tum_tutarlar_bayragi(izn_db):
     await _eski_hucre(izn_db, muhasebe, "dashboard", AccessLevel.view, Scope.all)
     assert await _gizli(izn_db, muhasebe) == set()
     # Şef üç `limited` hücreye sahip: birini kapatmak bayrağı DÜŞÜRMEZ, sonuncusu düşürür.
+    # Başlangıç kümesi madde 20'nin onaylı kümesidir (`tum_tutarlar` YOK); write-through yalnız
+    # `tum_tutarlar` bayrağını açar/kapatır, onaylı kategorilere dokunmaz.
     sef = await _rol(izn_db, "site_chief")
-    assert await _gizli(izn_db, sef) == {HiddenCategory.tum_tutarlar}
+    onayli = set(seed_data.ESKI_ROL_GIZLI_ALANLAR["site_chief"])
+    assert await _gizli(izn_db, sef) == onayli
+    await _eski_hucre(izn_db, sef, "dashboard", AccessLevel.view, Scope.limited)
+    assert await _gizli(izn_db, sef) == onayli | {HiddenCategory.tum_tutarlar}
     for modul in ("dashboard", "projects", "sites"):
         await _eski_hucre(izn_db, sef, modul, AccessLevel.view, Scope.all)
-    assert await _gizli(izn_db, sef) == {HiddenCategory.tum_tutarlar}  # boq hâlâ limited
+    assert HiddenCategory.tum_tutarlar in await _gizli(izn_db, sef)  # boq hâlâ limited
     await _eski_hucre(izn_db, sef, "boq", AccessLevel.view, Scope.all)
-    assert await _gizli(izn_db, sef) == set()
+    assert await _gizli(izn_db, sef) == onayli
 
 
 async def test_write_through_me_yanitina_ve_endpointe_yansir(client, izn_db, user_factory):

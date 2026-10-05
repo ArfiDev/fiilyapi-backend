@@ -42,6 +42,11 @@ Her hücre AÇIKÇA `str` yazılır: openpyxl bir hücreye `Decimal`/`date` veri
 onu sessizce sayı+biçim olarak saklar. `str(Decimal)` API yanıtının metniyle
 BİREBİR aynıdır — yeniden yuvarlama YOK.
 
+## Maskeli hücre BOŞ yazılır (IZN-B4c)
+
+Uç satırları `maskele_baglamli`dan geçirir: rolün `maas_kisisel` bayrağı açıksa `sgk_no` ve
+`wage_amount` `None` gelir ve aşağıdaki kuralla hücreye HİÇ dokunulmaz (`"None"`/`—` yazılmaz).
+
 ## `null` alana DOKUNULMAZ (`payroll/export.py` S4 kuralı)
 
 Meslek/SGK/ücret/işe giriş boşsa hücreye HİÇ dokunulmaz. `""` niyeti

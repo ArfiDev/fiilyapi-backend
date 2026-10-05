@@ -45,6 +45,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_page, require_pages, require_permission
 from app.core.ratelimit import client_ip
@@ -76,7 +77,7 @@ from app.modules.payroll.schemas import (
 from app.modules.site_diary.models import WorkerSource
 from app.modules.users.models import User
 
-router = APIRouter(tags=["payroll"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["payroll"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
@@ -156,8 +157,10 @@ async def export_payroll_periods_endpoint(
     (`units/router.py` P4 T7 kuralı).
     """
     rows, _total = await service.period_rows(session, limit=None)
+    # IZN-B4c: rolün gizlediği tutar `None` olur → hücre BOŞ kalır (`history_export._cells`).
+    masked = [await maskele_baglamli(row) for row in rows]
     return Response(
-        content=history_export.build_period_history_workbook(rows).getvalue(),
+        content=history_export.build_period_history_workbook(masked).getvalue(),
         media_type=history_export.XLSX_MEDIA_TYPE,
         headers={"Content-Disposition": http.content_disposition(history_export.filename())},
     )
@@ -642,6 +645,8 @@ async def export_payroll_period_endpoint(
     Görünmeyen dönem var olmayanla AYNI 404'ü alır.
     """
     detail = await service.get_period_detail(session, period_id)
+    # IZN-B4c: maskeli tutar `None` → hücre BOŞ (`export._money`); dosya ekranla AYNI maskeyi taşır.
+    detail = await maskele_baglamli(detail)
     buffer = export.build_payroll_workbook(detail)
     return Response(
         content=buffer.getvalue(),

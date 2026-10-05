@@ -22,9 +22,11 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.sayfalar import HiddenCategory
 from app.modules.contracts.models import Subcontractor
 from app.modules.projects.models import Project
 from app.modules.users.models import ProjectMember, User
+from tests._hassas_alan import rol_gizli
 
 
 async def _login(client: AsyncClient, user_factory, role_key: str, email: str) -> str:
@@ -51,6 +53,17 @@ async def admin_headers(
 async def ik_headers(client: AsyncClient, seeded_db: AsyncSession, user_factory) -> dict[str, str]:
     """`hr_manager` — `personnel=_F`: personel kartını İK açar (spec §5)."""
     token = await _login(client, user_factory, "hr_manager", "ik@personnel.co")
+    return _auth(token)
+
+
+@pytest.fixture
+async def gizli_headers(
+    client: AsyncClient, seeded_db: AsyncSession, user_factory
+) -> dict[str, str]:
+    """`maas_kisisel` gizli özel rol (personel sayfası düzenler): ücret `null` döner.
+    `hr_manager` artık ücreti GÖRÜR (IZN-B4c madde 20)."""
+    await rol_gizli(seeded_db, "personel_gizli", {HiddenCategory.maas_kisisel})
+    token = await _login(client, user_factory, "personel_gizli", "gizli@personnel.co")
     return _auth(token)
 
 

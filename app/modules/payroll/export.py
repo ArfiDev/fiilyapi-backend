@@ -23,6 +23,12 @@ anlatmaz — boq §5.3 dersi). 0 yazmak "ödenecek bir şey yok" yalanı olurdu 
 Excel'i açan kişi eksik veriyi göremezdi. Gün ise `null` OLABİLİR (serbest
 meslekte, S7/BY 254 "—") ama hesaplanamamış satırda YAZILIR: gün puantajdan
 OKUNAN bir olgudur (`compute._uncomputed`).
+
+## Maskeli hücre BOŞ yazılır (IZN-B4c)
+
+Uç detay zarfını `maskele_baglamli`dan geçirir: rolün `maas_kisisel` bayrağı açıksa tutarlar
+`None` gelir ve yukarıdaki kuralla hücreye HİÇ dokunulmaz (`"None"` yazılmaz). Bu dosya
+maske kararı VERMEZ; yalnız `None`ı boş bırakır.
 """
 
 from io import BytesIO
@@ -152,17 +158,17 @@ def _period_label(detail: PayrollPeriodDetailResponse) -> str:
     return f"{detail.month:02d}.{detail.year}"
 
 
-def _info_values(detail: PayrollPeriodDetailResponse) -> tuple[str, ...]:
+def _info_values(detail: PayrollPeriodDetailResponse) -> tuple[str | None, ...]:
     ozet: PayrollSummaryResponse = detail.summary
     return (
         _period_label(detail),
         detail.status.value,
         # Sunucu tarih ÜRETMEZ (T4b): tarih yoksa "—" basılır, uydurulmaz.
         str(detail.payment_due_date) if detail.payment_due_date else EMPTY_VALUE,
-        str(ozet.net_total),
-        str(ozet.bank_total),
-        str(ozet.cash_total),
-        str(ozet.total_employer_cost),
+        _money(ozet.net_total),
+        _money(ozet.bank_total),
+        _money(ozet.cash_total),
+        _money(ozet.total_employer_cost),
     )
 
 
@@ -198,6 +204,9 @@ def _write_info(sheet: Worksheet, detail: PayrollPeriodDetailResponse) -> None:
         zip(INFO_LABELS, _info_values(detail), strict=True), start=1
     ):
         sheet.cell(row=index, column=1).value = label
+        if value is None:
+            # IZN-B4c: maskeli tutar → etiket kalır, değer hücresi BOŞ.
+            continue
         sheet.cell(row=index, column=2).value = value
 
 
@@ -211,9 +220,9 @@ def _write_total(sheet: Worksheet, row: int, ozet: PayrollSummaryResponse) -> No
     """
     hucreler: list[str | None] = [None] * len(COLUMN_HEADERS)
     hucreler[0] = f"{TOTAL_LABEL_PREFIX} ({ozet.line_count} çalışan)"
-    hucreler[_NET_COLUMN] = str(ozet.net_total)
-    hucreler[_BANK_COLUMN] = str(ozet.bank_total)
-    hucreler[_CASH_COLUMN] = str(ozet.cash_total)
+    hucreler[_NET_COLUMN] = _money(ozet.net_total)
+    hucreler[_BANK_COLUMN] = _money(ozet.bank_total)
+    hucreler[_CASH_COLUMN] = _money(ozet.cash_total)
     _write_row(sheet, row, tuple(hucreler))
 
 

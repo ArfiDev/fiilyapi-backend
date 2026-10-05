@@ -40,6 +40,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import SiteValidationError
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.core.ratelimit import client_ip
@@ -50,7 +51,7 @@ from app.modules.timesheet import export, guards, matrix, repository, service, w
 from app.modules.timesheet.schemas import TimesheetMatrix, TimesheetWeek, TimesheetWeekSave
 from app.modules.users.models import User
 
-router = APIRouter(tags=["timesheet"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["timesheet"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
@@ -110,6 +111,9 @@ async def export_site_timesheet_endpoint(
     site, project = await service.visible_site(session, user, site_id)
     section = await service.visible_section(session, site, section_id)
     built = await matrix.build(session, site, project, section, year=year, month=month)
+    # IZN-B4c: puantaj alanları `Hassas.yok` (saat) → maske no-op; uç yine de ortak yoldan geçer
+    # ki modüle ileride etiketli alan eklenirse dosya ekranla AYNI maskeyi taşısın.
+    built = await maskele_baglamli(built)
     buffer = export.build_timesheet_workbook(built)
     name = export.filename(site.code, year, month)
     return Response(

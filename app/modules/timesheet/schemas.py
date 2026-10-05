@@ -23,11 +23,21 @@ vardır (E5 76); `status`/`submitted_at` benzeri bir alan bu şemalara EKLENMEZ.
 import uuid
 from datetime import date
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.field_mask import Hassas
 from app.modules.site_diary.models import WorkerSource
 from app.modules.timesheet.models import TimesheetCode
+
+# 🔴 GECE KARARI (IZN-B4c, timesheet): puantaj bir SAAT kaydıdır, tutar değil. Saat, adam-gün
+# (saat ÷ 9), normal/FM/toplam saat, haftalık normal saat ve ay toplamları = `Hassas.yok` (rol
+# bayrağı ne olursa olsun GÖRÜNÜR). Modülde ücret/yevmiye/işçilik maliyeti, TC/telefon/IBAN alanı
+# YOKTUR (ücret bordroda, kişisel veri personelde) → gizlenecek alan yok; işçi adı/meslek/taşeron
+# firma GİZLENMEZ.
+Saat = Annotated[Decimal, Hassas.yok]
+SaatOpsiyonel = Annotated[Decimal | None, Hassas.yok]
 
 
 class TimesheetCell(BaseModel):
@@ -38,7 +48,7 @@ class TimesheetCell(BaseModel):
     """
 
     work_date: date
-    hours: Decimal | None
+    hours: SaatOpsiyonel
     code: TimesheetCode | None
     section_id: uuid.UUID | None
 
@@ -46,9 +56,9 @@ class TimesheetCell(BaseModel):
 class TimesheetRowTotals(BaseModel):
     """Bir satırın haftalık türevleri (E5 225-227 · kural `hours.week_totals`)."""
 
-    normal_hours: Decimal
-    overtime_hours: Decimal
-    total_hours: Decimal
+    normal_hours: Saat
+    overtime_hours: Saat
+    total_hours: Saat
 
 
 # --- Aylık matris (arşiv/Excel yüzeyi) ---
@@ -69,8 +79,8 @@ class TimesheetMatrixRow(BaseModel):
     # Meslek ile firma AYRI alanlardır: E5 234'teki "Demir Ustası · Akın İnş."
     # birleştirmesi bir SUNUM kararıdır, backend iki bilgiyi yapıştırmaz.
     subcontractor_name: str | None
-    total_hours: Decimal
-    man_days: Decimal
+    total_hours: Saat
+    man_days: Saat
     cells: list[TimesheetCell]
 
 
@@ -84,7 +94,7 @@ class TimesheetDayTotal(BaseModel):
     """
 
     work_date: date
-    total_hours: Decimal
+    total_hours: Saat
     worked_day_count: int
     leave_count: int
     temporary_duty_count: int
@@ -103,10 +113,10 @@ class TimesheetMatrix(BaseModel):
     section_id: uuid.UUID | None
     section_name: str | None
     worker_count: int
-    total_hours: Decimal
+    total_hours: Saat
     #: `total_hours ÷ 9` — satır adam-günlerinin toplamı DEĞİL saatten türer
     #: (satır bazında yuvarlanıp toplansaydı ekranın iki yeri farklı sayı gösterirdi).
-    total_man_days: Decimal
+    total_man_days: Saat
     rows: list[TimesheetMatrixRow]
     day_totals: list[TimesheetDayTotal]
 
@@ -137,7 +147,7 @@ class TimesheetWeekSummary(BaseModel):
     iso_week: int
     start_date: date
     end_date: date
-    total_hours: Decimal
+    total_hours: Saat
     has_entries: bool
 
 
@@ -160,8 +170,8 @@ class TimesheetWeek(BaseModel):
     section_id: uuid.UUID | None
     section_name: str | None
     #: E5 71 başlığı ekranda YAZILIDIR; istemci sabiti kendi yazmasın diye yayınlanır.
-    normal_day_hours: Decimal
-    weekly_normal_hours: Decimal
+    normal_day_hours: Saat
+    weekly_normal_hours: Saat
     worker_count: int
     #: E5 179-198 KPI kartları + E5 328-330 tfoot — TEK kaynak.
     totals: TimesheetRowTotals
@@ -181,8 +191,8 @@ class TimesheetWeek(BaseModel):
     #: Ay şeridi (E5 137-176). Haftanın İÇİNDE bulunduğu takvim ayıdır.
     month_year: int
     month_month: int
-    month_total_hours: Decimal
-    month_man_days: Decimal
+    month_total_hours: Saat
+    month_man_days: Saat
     month_weeks: list[TimesheetWeekSummary]
 
 
@@ -201,7 +211,7 @@ class TimesheetCellInput(BaseModel):
     personnel_id: uuid.UUID
     work_date: date
     # Aralık DB CHECK'i (`0 < saat <= 24`) ile BİREBİR aynı.
-    hours: Decimal | None = Field(default=None, gt=0, le=24, decimal_places=1)
+    hours: SaatOpsiyonel = Field(default=None, gt=0, le=24, decimal_places=1)
     code: TimesheetCode | None = None
     section_id: uuid.UUID | None = None
 

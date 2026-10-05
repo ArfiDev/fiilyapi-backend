@@ -21,6 +21,11 @@ ekranın hiçbir yerinde olmayan İKİNCİ bir hesap kaynağı olurdu (K15 gerek
 Her hücre AÇIKÇA `str` yazılır; `str(Decimal)` API yanıtının metniyle BİREBİR
 aynıdır — yeniden yuvarlama YOK, kuruş aritmetiği YOK.
 
+## Maskeli hücre BOŞ yazılır (IZN-B4c)
+
+Uç satırları `maskele_baglamli`dan geçirir: rolün `maas_kisisel` bayrağı açıksa tutarlar `None`
+gelir ve hücreye HİÇ dokunulmaz (`"None"` yazılmaz).
+
 ## `null` alana DOKUNULMAZ
 
 Ödeme tarihi girilmemiş dönemde hücreye HİÇ dokunulmaz: sunucu tarih ÜRETMEZ
@@ -92,14 +97,19 @@ def period_label(row: PayrollPeriodListRow) -> str:
     return f"{row.month:02d}.{row.year}"
 
 
+def _money(value: object | None) -> str | None:
+    """Tutar hücresi — maskeli (`None`) tutarda hücreye DOKUNULMAZ (IZN-B4c)."""
+    return None if value is None else str(value)
+
+
 def _cells(row: PayrollPeriodListRow) -> tuple[str | None, ...]:
     return (
         period_label(row),
         str(row.personnel_count),
-        str(row.gross_total),
-        str(row.sgk_employer_total),
-        str(row.net_total),
-        str(row.total_cost),
+        _money(row.gross_total),
+        _money(row.sgk_employer_total),
+        _money(row.net_total),
+        _money(row.total_cost),
         # `date` → ISO metin; sunucu tarih UYDURMAZ, yoksa hücreye dokunulmaz.
         None if row.payment_due_date is None else str(row.payment_due_date),
         status_label(row.status),

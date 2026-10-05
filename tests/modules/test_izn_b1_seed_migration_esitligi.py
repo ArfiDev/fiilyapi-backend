@@ -123,8 +123,11 @@ def test_donusum_fonksiyonu_tum_roller_icin_ayni_sonucu_verir(migration) -> None
         assert _tuple_rows(migration._page_cells(cells)) == b1_rows(seed_data.MATRIX, role_key), (
             role_key
         )
+        # B1'in TARİHİ: eski rol `limited` kapsamından küresel `tum_tutarlar` türetirdi. Seed bugün
+        # `ESKI_ROL_GIZLI_ALANLAR`dır (IZN-B4c madde 20; B1 → HEAD eşitliği
+        # `test_izn_b4c_migration.py`te); burada yalnız B1 dönüşümü kendi tarihine bağlanır.
         assert set(migration._hidden_categories(cells)) == {
-            c.value for c in seed_data.HIDDEN_FIELDS[role_key]
+            c.value for c in gizli_alanlar(_modul_hucreleri(cells))
         }, role_key
     for role_key in seed_data.IZN_ROLE_ORDER:
         cells = _app_cells(seed_data.IZN_MATRIX, seed_data.IZN_ROLE_ORDER, role_key)
@@ -156,6 +159,10 @@ def test_donusum_rastgele_modul_hucreleriyle_de_AYNI_migration_kopyasi(migration
         }
         # DB CHECK: onay görünmeyen sayfada olamaz.
         assert all(not (lv == "none" and ap) for lv, ap in beklenen.values())
+
+
+def _modul_hucreleri(cells: dict[str, tuple[str, str]]):
+    return {m: (AccessLevel(a), Scope(sc)) for m, (a, sc) in cells.items()}
 
 
 def _tuple_rows(rows) -> dict[str, tuple[str, bool]]:
