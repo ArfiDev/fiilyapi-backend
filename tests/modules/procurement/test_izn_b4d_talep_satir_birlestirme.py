@@ -180,3 +180,44 @@ async def test_gizli_rol_idsiz_yeni_satirda_fiyat_gonderemez_403(
             headers=sef_headers,
         )
         assert yanit.status_code == 403, f"{fiyat!r}: {yanit.text}"
+
+
+def _serbest(ad: str, miktar: str = "1") -> dict:
+    return {"free_text_name": ad, "free_text_unit": "Adet", "quantity": miktar}
+
+
+@pytest.mark.asyncio
+async def test_SOZLESME_post_ve_patch_YANITI_satirlari_govde_sirasiyla_dondurur(
+    client, satinalma_headers, gorunen_proje
+):
+    """FE sözleşmesi: form satır `id`lerini POST/PATCH YANITINDAKİ satırları gövde sırasına
+    eşleyerek alır. Garanti: yanıt satırları `sort_order` ASC (= gövde dizini) sırasıyla
+    döner; `id`li satırın `id`si korunur, `sort_order`u gövdedeki YENİ yerine eşit olur;
+    id'siz yeni satır gövdedeki yerinde doğar."""
+    olustur = await client.post(
+        _YOL,
+        json={
+            "project_id": str(gorunen_proje.id),
+            "lines": [_serbest("A"), _serbest("B"), _serbest("C")],
+        },
+        headers=satinalma_headers,
+    )
+    assert olustur.status_code == 201, olustur.text
+    satirlar = olustur.json()["lines"]
+    assert [s["name"] for s in satirlar] == ["A", "B", "C"]
+    assert [s["sort_order"] for s in satirlar] == [0, 1, 2]
+    a, b, c = (s["id"] for s in satirlar)
+
+    # Yeniden sırala + araya yeni satır + B'yi çıkar: gövde = [C, YENİ, A].
+    duzelt = await client.patch(
+        f"{_YOL}/{olustur.json()['id']}",
+        json={"lines": [{"id": c}, _serbest("YENİ", "2"), {"id": a}]},
+        headers=satinalma_headers,
+    )
+    assert duzelt.status_code == 200, duzelt.text
+    yanit = duzelt.json()["lines"]
+    assert [s["name"] for s in yanit] == ["C", "YENİ", "A"]
+    assert [s["sort_order"] for s in yanit] == [0, 1, 2]
+    assert yanit[0]["id"] == c and yanit[2]["id"] == a
+    assert yanit[1]["id"] not in (a, b, c)
+    assert b not in [s["id"] for s in yanit]
