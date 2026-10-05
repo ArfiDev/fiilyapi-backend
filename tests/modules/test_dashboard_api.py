@@ -7,7 +7,6 @@ from app.modules.dashboard.schemas import (
     PendingApprovalsPlaceholder,
     RiskAlertsPlaceholder,
 )
-from app.modules.users.models import UserProjectAccess
 
 from ._boq import _set_permission
 
@@ -85,7 +84,7 @@ async def test_summary_returns_projects_for_permitted_role(
     await project_factory("GK-A", name="Güneşkent A-Blok", status="active")
     await project_factory("OSB-1", name="Çelik OSB Fabrika", status="on_hold")
     user = await user_factory(email="patron@t.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await db_session.flush()
     login = await client.post(
         "/auth/login", json={"email": "patron@t.co", "password": "parola1234"}
@@ -152,7 +151,7 @@ async def test_projects_izni_KAPALIYKEN_panel_proje_karti_BASMAZ(
     await project_factory("GK-A", name="Güneşkent A-Blok", status="active", budget="7654321.00")
     # `hr_manager`: `dashboard = _LIM` (paneli acabilir) ve `projects = _LIM`.
     user = await user_factory(email="ik-panel@t.co", password="parola1234", role_key="hr_manager")
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await seeded_db.flush()
 
     # 🔴 Bu test K4 KAPISINI ölçer, KAPSAM MASKESİNİ değil: `hr_manager` seed'de

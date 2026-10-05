@@ -22,11 +22,9 @@ kaldirilinca gerekcesi de onunla birlikte tasinsin.
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel
-from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, restricted_project_ids
 from app.core.field_scope import maskele
-from app.core.page_gate import gate_ok
-from app.core.permissions import actor_scope, can_read
+from app.core.permissions import actor_scope, can_read, can_read_projects
 from app.modules.approvals import service as approvals_service
 from app.modules.dashboard.risks import build_risks
 from app.modules.dashboard.schemas import (
@@ -170,12 +168,19 @@ async def _portfolio(
          sonuc 0.00'dir — 'bilinmiyor' DEGIL") ve zaten bagli olan
          `pending_approvals` sayacinin sifiri aynidir.
     """
-    # DSC-B5 (Ü2): hasilat ticari → disiplin kisitlisi da `restricted()` (can_read dalıyla ayni).
-    if scope.is_restricted or not await can_read(session, user, _PORTFOLIO_MODULE):
-        return restricted()
-    projects = await projects_service.visible_projects(session, user)
-    if not projects:
+    # IZN-B3: izin PROJE BASINA (her projede O PROJEDEKI rolun hakedis Gorur'u; ekipte olmayan /
+    # "Tum projeler" kisi ana rolle) ve DSC-B5 (Ü2): hasilat ticari → disiplinle KISITLI projeler
+    # toplama GIRMEZ. Gorunur projelerin HICBIRI izinli degilse `restricted()`; proje yoksa bos.
+    gorunur = await projects_service.visible_projects(session, user)
+    if not gorunur:
+        if scope.is_restricted or not await can_read(session, user, _PORTFOLIO_MODULE):
+            return restricted()
         return metric(None, _PORTFOLIO_MODULE)
+    izin = await can_read_projects(session, user, _PORTFOLIO_MODULE, [p.id for p in gorunur])
+    kisitli = await restricted_project_ids(session, user.id)
+    projects = [p for p in gorunur if izin[p.id] and p.id not in kisitli]
+    if not projects:
+        return restricted()
     totals = await cumulative_gross_by_projects(session, [p.id for p in projects])
     return metric(money_total(totals.values()), _PORTFOLIO_MODULE)
 
@@ -308,9 +313,12 @@ async def build_summary(
     # geçer. Eski tek-satır okuması ikiye ayrıldı: seviye artık sayfa hücresinden, kapsam eski
     # satırdan (ya da satırsız rolde `tum_tutarlar`dan) gelir. Sorgu sayısı
     # (`test_dashboard_pyt2_onay_sayaci.py`) bu yüzden güncellendi.
-    projects_okunur = await gate_ok(session, user, _PROJECTS_MODULE, AccessLevel.view)
+    # IZN-B3: proje karti izni PROJE BASINA (o projedeki rolun `projects` Gorur'u; ekipte olmayan /
+    # "Tum projeler" kisi ana rolle).
     projects_kapsami = await actor_scope(session, user, _PROJECTS_MODULE)
-    projects = await list_projects_for_user(session, user.id) if projects_okunur else []
+    uyelik = await list_projects_for_user(session, user.id)
+    izin = await can_read_projects(session, user, _PROJECTS_MODULE, [p.id for p in uyelik])
+    projects = [p for p in uyelik if izin[p.id]]
     role = await session.get(Role, user.role_id)
 
     return DashboardSummaryResponse(

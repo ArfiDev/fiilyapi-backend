@@ -8,7 +8,6 @@ import openpyxl
 
 from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.sites.models import Site
-from app.modules.users.models import UserProjectAccess
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -22,7 +21,7 @@ async def _login(client, user_factory, role_key: str, email: str | None = None) 
 
 async def _login_with_access(client, session, user_factory, role_key: str, email: str) -> str:
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     return resp.json()["access_token"]

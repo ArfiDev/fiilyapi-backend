@@ -14,10 +14,10 @@ from sqlalchemy import func, select
 
 from app.core.access import AccessLevel, Scope
 from app.modules.catalog.models import ContractorType, EvDiscipline
-from app.modules.earned_value.models import UserDiscipline
 from app.modules.offers.models import Offer
 from app.modules.roles.seed_data import MATRIX, ROLE_ORDER
 from app.modules.users.models import User
+from tests._proje_ekibi import baska_projede_disiplinli
 
 from .._boq import _auth, _login_with_access, _set_permission
 from ._offers import URL, D, durum_yap, gecis, grup, kalem, rev_url, teklif
@@ -162,12 +162,11 @@ async def test_contracts_view_okur_ama_YAZAMAZ(
     assert rev["notes"] is None
 
 
-async def test_kisitli_disiplinli_kullanici_teklif_modulunu_HIC_goremez_R5(
+async def test_proje_basina_disiplinli_kullanici_teklif_modulunu_gorur(
     client, admin, db_session, user_factory, dolu
 ) -> None:
-    """TKL-B4.6 (R5/SO-19, kullanici onayi): disiplin atanmis kullanici teklif modulunde
-    OKUMA dahil her ucta 403 (teklif okumalari disiplin suzmuyor). POZITIF KONTROL: ayni rolun
-    kisitsiz kullanicisi okur (200) — 403'un sebebi rol degil disiplin atamasi."""
+    """IZN-B3: teklif modulu sirket geneli — bir projede disiplinle kisitli kullanici da okur
+    (R5 `RequireUnrestricted` kalkti); hicbir uc disiplin yuzunden 403 vermez."""
     disiplin = EvDiscipline(
         code="KIS", name="Kisitli", color="#2563EB", default_contractor_type=ContractorType.OWN
     )
@@ -179,12 +178,14 @@ async def test_kisitli_disiplinli_kullanici_teklif_modulunu_HIC_goremez_R5(
     uid = (
         await db_session.execute(select(User.id).where(User.email == "pm.kisitli.teklif@tkl.co"))
     ).scalar_one()
-    db_session.add(UserDiscipline(user_id=uid, discipline_id=disiplin.id))
-    await db_session.flush()
+    await baska_projede_disiplinli(db_session, uid, disiplin.id)
     kisitli = _auth(token)
     for yontem, yol, govde in [*_tum_uclar(dolu), ("GET", f"{URL}/settings", None)]:
         resp = await client.request(yontem, yol, json=govde, headers=kisitli)
-        assert resp.status_code == 403, f"{yontem} {yol}: {resp.status_code}"
+        if yontem == "DELETE":  # SIL-B1: silme HER KOŞULDA yalnız Sistem Yöneticisi
+            assert resp.status_code == 403, f"{yontem} {yol}: {resp.status_code}"
+            continue
+        assert resp.status_code != 403, f"{yontem} {yol}: {resp.status_code}"
     # POZITIF KONTROL: ayni rol (project_manager), disiplin atamasi YOK → okumalar 200
     serbest = _auth(
         await _login_with_access(

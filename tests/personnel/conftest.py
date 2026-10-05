@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.contracts.models import Subcontractor
 from app.modules.projects.models import Project
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 
 
 async def _login(client: AsyncClient, user_factory, role_key: str, email: str) -> str:
@@ -92,7 +92,7 @@ async def kisitli_ik_headers(
     await user_factory(email=email, password="parola1234", role_key="hr_manager")
     user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
     seeded_db.add(
-        UserProjectAccess(user_id=user.id, project_id=gorunmeyen_proje.id, all_projects=False)
+        ProjectMember(user_id=user.id, project_id=gorunmeyen_proje.id, role_id=user.role_id)
     )
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})

@@ -302,6 +302,15 @@ class RoleValidationError(DomainError):
     """
 
 
+class UserAccessValidationError(DomainError):
+    """Kullanıcı erişimi (ana rol + proje ekibi) gövde kuralı ihlali (IZN-B3) — 422.
+
+    Kural DB'ye sığmaz ya da DB hatası anlamlı Türkçe mesaj veremez: "Tüm projeler" işaretliyken
+    ekip satırı olmaz, aynı proje iki kez gelmez, bilinmeyen proje/rol/disiplin, proje rolü olarak
+    Sistem Yöneticisi. 403 DEĞİL: aktör yetkilidir, düzeltilecek şey GÖVDEDEDİR.
+    """
+
+
 class OfferValidationError(DomainError):
     """Teklif gövde/iş kuralı ihlali (TKL-B4.2) — 422.
 

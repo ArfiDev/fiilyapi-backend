@@ -16,11 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel, Scope
 from app.modules.catalog.models import EvDiscipline
-from app.modules.earned_value.models import UserDiscipline
 from app.modules.roles import service as roles_service
 from app.modules.roles.models import Role
 from app.modules.roles.schemas import RoleCreate
 from tests._legacy_permission_yardimcisi import update_role_permission
+from tests._proje_ekibi import disiplin_ata
 
 PASSWORD = "parola1234"
 URL = "/earned-value/disciplines"
@@ -100,32 +100,33 @@ async def test_403_dogru_kapidan_gelir_yazma_ucu_ev_kapisinda_kalir(
     assert resp.json() == YETKISIZ
 
 
-async def test_kisitli_user_management_aktoru_yalniz_kendi_disiplinlerini_gorur(
-    client, user_factory, roller, seeded_db, civ, elk
+async def test_proje_ekibinde_disiplinli_aktor_sirket_disiplin_listesini_TAM_gorur(
+    client, user_factory, roller, seeded_db, civ, elk, project_factory
 ) -> None:
+    """IZN-B3: disiplin PROJE BAŞINA; şirket disiplin listesi kullanıcı kapsamıyla SÜZÜLMEZ."""
     baslik, user = await _aktor(client, user_factory, roller["ym"])
-    seeded_db.add(UserDiscipline(user_id=user.id, discipline_id=civ.id))
-    await seeded_db.flush()
-    civ_id = str(civ.id)
+    await disiplin_ata(seeded_db, user, (await project_factory("DSC-LK")).id, civ.id)
 
     resp = await client.get(URL, headers=baslik)
 
     assert resp.status_code == 200, resp.text
-    assert [x["id"] for x in resp.json()] == [civ_id]
+    assert {x["id"] for x in resp.json()} >= {str(civ.id), str(elk.id)}
 
 
-async def test_auth_me_izinsiz_disiplin_kapisi_yok(
-    client, user_factory, roller, seeded_db, civ
+async def test_auth_me_disiplinleri_PROJE_ekibinde_izin_kapisi_yok(
+    client, user_factory, roller, seeded_db, civ, project_factory
 ) -> None:
-    """`/auth/me.disciplines` izin kapisi ISTEMEZ: hicbir modul izni olmayan rol de kendi
-    atamasini nesne olarak gorur."""
+    """`/auth/me.projects[].discipline_ids` izin kapisi ISTEMEZ: hicbir modul izni olmayan rol de
+    kendi proje atamasini gorur; global `disciplines` alani KALKTI (IZN-B3)."""
     baslik, user = await _aktor(client, user_factory, roller["hicbiri"])
-    seeded_db.add(UserDiscipline(user_id=user.id, discipline_id=civ.id))
-    await seeded_db.flush()
-    beklenen = [{"id": str(civ.id), "code": civ.code, "name": civ.name, "color": civ.color}]
+    proje = await project_factory("DSC-ME")
+    await disiplin_ata(seeded_db, user, proje.id, civ.id)
     seeded_db.expunge_all()
 
     resp = await client.get("/auth/me", headers=baslik)
 
     assert resp.status_code == 200, resp.text
-    assert resp.json()["disciplines"] == beklenen
+    assert "disciplines" not in resp.json()
+    assert [(p["project_id"], p["discipline_ids"]) for p in resp.json()["projects"]] == [
+        (str(proje.id), [str(civ.id)])
+    ]

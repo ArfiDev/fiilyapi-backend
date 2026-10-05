@@ -858,5 +858,9 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # +2 operasyon (323→325 · 460→462; B2 sonrası YENİDEN ÖLÇÜLDÜ). Aile uçlarına
     # (`DELETE /sites/{id}` …) eklenen `preview_token` sorgu parametresi ne yol ne operasyon
     # açar (`tests/contract/` yakalar).
-    assert len(yollar) == 325
-    assert operasyonlar == 462
+    # IZN-B3: `GET`/`PUT /users/{user_id}/access` = +1 yol / +2 operasyon (325→326 · 462→464).
+    # Eski `GET`/`PUT /users/{user_id}/project-access` ve `GET`/`PUT /users/{user_id}/disciplines`
+    # 410 olarak YERİNDE kalır (yol/operasyon sayısı değişmez); `?q=` sorgu parametresi ve
+    # `/auth/me`/`UserResponse`/`RoleResponse` alanları ne yol ne operasyon açar.
+    assert len(yollar) == 326
+    assert operasyonlar == 464

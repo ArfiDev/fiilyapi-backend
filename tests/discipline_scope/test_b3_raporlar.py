@@ -120,9 +120,8 @@ async def test_kapsamda_baseline_koku_yoksa_rapor_yok_500_degil(
     motor boş ağaç kabul etmez (ValueError): 500 değil, "baseline yok" yanıtları."""
     from app.modules.catalog.models import EvDiscipline
     from app.modules.earned_value.engine import ContractorType
-    from app.modules.earned_value.models import UserDiscipline
-    from app.modules.users.models import UserProjectAccess
     from tests._disiplin_dunyasi import SIFRE, _giris, _kimlik
+    from tests._proje_ekibi import disiplin_ata
 
     d = dunya_b3
     bos = EvDiscipline(
@@ -136,13 +135,7 @@ async def test_kapsamda_baseline_koku_yoksa_rapor_yok_500_degil(
     seeded_db.add(bos)
     await seeded_db.flush()
     user = await user_factory(email="bos@dsc-b3.co", password=SIFRE, role_key="project_manager")
-    seeded_db.add_all(
-        [
-            UserProjectAccess(user_id=user.id, project_id=d.proje.id, all_projects=False),
-            UserDiscipline(user_id=user.id, discipline_id=bos.id),
-        ]
-    )
-    await seeded_db.flush()
+    await disiplin_ata(seeded_db, user, d.proje.id, bos.id)
     baslik = await _giris(client, "bos@dsc-b3.co")
     p = await client.get(
         ev(d, "/panel"), headers=baslik, params={"date": "2026-05-06", "range": "4w"}

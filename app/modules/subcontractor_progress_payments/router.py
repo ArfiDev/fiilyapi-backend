@@ -48,13 +48,16 @@ router = APIRouter(
 )
 
 _VIEW = require_permission("progress_payments", AccessLevel.view)
+# IZN-B3: çok proje LİSTE uçları: ana rol VEYA ekip rolü açar, satırlar `visible_projects`te proje
+# başına o projedeki rolle süzülür.
+_VIEW_LISTE = require_permission("progress_payments", AccessLevel.view, multi_project=True)
 _DRAFT = require_permission("progress_payments", AccessLevel.draft)
 
 
 @router.get(
     "/subcontractor-progress-payments",
     response_model=SubcontractorProgressPaymentListResponse,
-    dependencies=[_VIEW],
+    dependencies=[_VIEW_LISTE],
 )
 async def list_subcontractor_progress_payments_endpoint(
     user: Annotated[User, Depends(get_current_user)],
@@ -103,7 +106,7 @@ async def list_subcontractor_progress_payments_endpoint(
 @router.get(
     "/subcontractor-progress-payments/summary",
     response_model=SubcontractorProgressPaymentSummary,
-    dependencies=[_VIEW],
+    dependencies=[_VIEW_LISTE],
 )
 async def subcontractor_progress_payment_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],

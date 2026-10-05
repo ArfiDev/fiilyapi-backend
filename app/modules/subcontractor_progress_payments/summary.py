@@ -37,6 +37,7 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import timezone
+from app.core.discipline_scope import restricted_project_ids
 from app.modules.progress_payments import calculations
 from app.modules.projects.service import visible_projects
 from app.modules.subcontractor_progress_payments import amounts, repository
@@ -102,7 +103,9 @@ async def get_summary(
     Boş küme 404 DEĞİL, sıfırlı özettir (zarif düşüş): hakedişi olmayan proje de
     ekranı açabilmelidir.
     """
-    visible_ids = [p.id for p in await visible_projects(session, actor)]
+    # IZN-B3: disiplinle KISITLI projelerin hakedisleri ozetin DISINDA kalir (Ü2).
+    kisitli = await restricted_project_ids(session, actor.id)
+    visible_ids = [p.id for p in await visible_projects(session, actor) if p.id not in kisitli]
     rows = await repository.list_payments_for_summary(
         session,
         visible_ids,

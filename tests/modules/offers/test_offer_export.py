@@ -416,16 +416,16 @@ async def test_muhasebe_contracts_view_200_ve_tam_deger(
     assert "1608.00" in {str(h.value) for h in _hucreler(kitap)}
 
 
-async def test_kisitli_disiplinli_kullanici_excel_indiremez_R5(
+async def test_proje_basina_disiplinli_kullanici_excel_indirir(
     client, db_session, user_factory, dolu
 ) -> None:
-    """TKL-B4.6 (R5/SO-19): disiplin atanmis kullanici teklif Excel'ini (iki gorunum) indiremez;
-    ayni rolun kisitsiz kullanicisi indirir (POZITIF KONTROL)."""
+    """IZN-B3: teklif sirket geneli — bir projede disiplinle kisitli kullanici da teklif Excel'ini
+    (iki gorunum) indirir; ayni rolun kisitsiz kullanicisiyla ayni sonuc."""
     from sqlalchemy import select
 
     from app.modules.catalog.models import ContractorType, EvDiscipline
-    from app.modules.earned_value.models import UserDiscipline
     from app.modules.users.models import User
+    from tests._proje_ekibi import baska_projede_disiplinli
 
     disiplin = EvDiscipline(
         code="KSX", name="Kisitli", color="#2563EB", default_contractor_type=ContractorType.OWN
@@ -435,11 +435,10 @@ async def test_kisitli_disiplinli_kullanici_excel_indiremez_R5(
     eposta = f"pm.kisitli.{uuid.uuid4().hex[:6]}@tkl.co"
     token = await _login_with_access(client, db_session, user_factory, "project_manager", eposta)
     uid = (await db_session.execute(select(User.id).where(User.email == eposta))).scalar_one()
-    db_session.add(UserDiscipline(user_id=uid, discipline_id=disiplin.id))
-    await db_session.flush()
+    await baska_projede_disiplinli(db_session, uid, disiplin.id)
     for gorunum in ("employer", "internal"):
         resp = await _indir(client, _auth(token), dolu["offer_id"], gorunum)
-        assert resp.status_code == 403, gorunum
+        assert resp.status_code == 200, gorunum
     serbest = await _login_with_access(
         client, db_session, user_factory, "project_manager", f"pm.s.{uuid.uuid4().hex[:6]}@tkl.co"
     )

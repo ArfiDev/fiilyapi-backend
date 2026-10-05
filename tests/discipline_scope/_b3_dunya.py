@@ -19,10 +19,10 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.earned_value.models import UserDiscipline
 from app.modules.site_diary.models import SiteDiaryLine
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 from tests._disiplin_dunyasi import SIFRE, Dunya, _giris, _kimlik
+from tests._proje_ekibi import disiplin_ata
 from tests.discipline_scope._b2_golden_araclari import rastgele_kimlikleri_etiketle
 
 D = Decimal
@@ -59,12 +59,9 @@ async def _pm(
     session: AsyncSession, client: AsyncClient, user_factory, d: Dunya, ad: str, kodlar
 ) -> None:
     user = await user_factory(email=f"{ad}@dsc-b3.co", password=SIFRE, role_key="project_manager")
-    session.add(UserProjectAccess(user_id=user.id, project_id=d.proje.id, all_projects=False))
+    session.add(ProjectMember(user_id=user.id, project_id=d.proje.id, role_id=user.role_id))
     for kod in kodlar:
-        session.add(
-            UserDiscipline(user_id=user.id, discipline_id={"KAB": d.kab, "DUV": d.duv}[kod].id)
-        )
-    await session.flush()
+        await disiplin_ata(session, user, d.proje.id, {"KAB": d.kab, "DUV": d.duv}[kod].id)
     d.kullanici[ad] = user
     d.etiketler[user.id] = f"<user:{ad}>"
     d.baslik[ad] = await _giris(client, f"{ad}@dsc-b3.co")

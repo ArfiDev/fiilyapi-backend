@@ -405,6 +405,7 @@ async def convert_offer(
         )
 
     project = await project_service.create_project(session, _project_input(body, offer, revision))
+    await project_service.add_creator_membership(session, actor, project)
     seeded = await seed_service.seed_contract(
         session, project, _seed_inputs(body, offer_items, catalog)
     )

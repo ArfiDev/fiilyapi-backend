@@ -26,11 +26,11 @@ from app.modules.earned_value.models import (
     EvGroupDiscipline,
     EvRevision,
     RevisionStatus,
-    UserDiscipline,
 )
 from app.modules.site_diary.models import SiteDiaryEntry, SiteDiaryLine
 from app.modules.sites.models import Site
-from app.modules.users.models import User
+from app.modules.users.models import ProjectMemberDiscipline, User
+from tests._proje_ekibi import disiplin_ata, ekibe_ekle
 
 URL = "/earned-value/disciplines"
 
@@ -115,7 +115,6 @@ async def test_kayit_yokken_port_bos(seeded_db: AsyncSession, portu_koru) -> Non
     assert not UNRESTRICTED.is_restricted
     assert str(port.item_visible_clause(UNRESTRICTED, BoqItem)) == "true"
     assert str(port.item_discipline_expr(BoqItem)) == "NULL"
-    assert port.user_discipline_ids_subquery(user_id) is None
     item_id = uuid.uuid4()
     assert await port.item_disciplines(seeded_db, [item_id]) == {item_id: None}
     assert await port.item_disciplines(seeded_db, []) == {}
@@ -270,14 +269,9 @@ async def test_tum_disiplinler_atanmis_kullanicida_NULL_kalem_gorunmez(
     _, i_null = await _group_item(seeded_db, santiye, "N1")
     rev = await _revision(seeded_db, santiye, RevisionStatus.ACTIVE, 1)
     await _map(seeded_db, rev, g1, civil)
-    seeded_db.add_all(
-        [
-            UserDiscipline(user_id=kullanici.id, discipline_id=civil.id),
-            UserDiscipline(user_id=kullanici.id, discipline_id=elek.id),
-        ]
-    )
-    await seeded_db.flush()
-    scope = await port.user_scope(seeded_db, kullanici.id)
+    await disiplin_ata(seeded_db, kullanici, santiye.project_id, civil.id)
+    await disiplin_ata(seeded_db, kullanici, santiye.project_id, elek.id)
+    scope = await port.user_scope(seeded_db, kullanici.id, santiye.project_id)
     assert scope.discipline_ids == frozenset(
         (await seeded_db.execute(select(EvDiscipline.id))).scalars()
     )  # tumleyen bos
@@ -383,30 +377,80 @@ async def test_item_disciplines_parcalar_birlestirilir(
     assert result == {it.id: civil.id for it in items}  # 3 parca, tek sozluk
 
 
-async def test_user_scope_atama_yok_kisitsiz_var_kisitli(seeded_db, kullanici, civil, elek) -> None:
-    assert await port.user_scope(seeded_db, kullanici.id) == UNRESTRICTED
-    seeded_db.add_all(
-        [
-            UserDiscipline(user_id=kullanici.id, discipline_id=civil.id),
-            UserDiscipline(user_id=kullanici.id, discipline_id=elek.id),
-        ]
-    )
-    await seeded_db.flush()
-    scope = await port.user_scope(seeded_db, kullanici.id)
+async def test_user_scope_atama_yok_kisitsiz_var_kisitli(
+    seeded_db, santiye, kullanici, civil, elek
+) -> None:
+    proje = santiye.project_id
+    assert await port.user_scope(seeded_db, kullanici.id, proje) == UNRESTRICTED
+    assert await port.user_scope(seeded_db, kullanici.id) == UNRESTRICTED  # çok proje de kısıtsız
+    await disiplin_ata(seeded_db, kullanici, proje, civil.id)
+    await disiplin_ata(seeded_db, kullanici, proje, elek.id)
+    scope = await port.user_scope(seeded_db, kullanici.id, proje)
     assert scope.is_restricted
     assert scope.discipline_ids == frozenset({civil.id, elek.id})
-    sub = port.user_discipline_ids_subquery(kullanici.id)
-    assert set((await seeded_db.execute(sub)).scalars()) == {civil.id, elek.id}
+
+
+async def test_user_scope_PROJE_BASINA_baska_projede_kisitsiz_cok_projede_harita(
+    seeded_db, santiye, kullanici, civil, elek, project_factory
+) -> None:
+    """IZN-B3: aynı kişi A projesinde civil ile kısıtlı, B projesinde atamasız (kısıtsız); proje
+    baglamsiz (çok proje) kapsam yalnız KISITLI projelerin haritasıdır."""
+    a, b = santiye.project_id, (await project_factory("DSC-B")).id
+    await disiplin_ata(seeded_db, kullanici, a, civil.id)
+    await ekibe_ekle(seeded_db, kullanici, b)  # üye ama disiplin yok
+    assert (await port.user_scope(seeded_db, kullanici.id, a)).discipline_ids == frozenset(
+        {civil.id}
+    )
+    assert await port.user_scope(seeded_db, kullanici.id, b) == UNRESTRICTED
+    assert await port.user_scope(seeded_db, kullanici.id, uuid.uuid4()) == UNRESTRICTED  # üye değil
+    cok = await port.user_scope(seeded_db, kullanici.id)
+    assert cok.is_multi_project and cok.is_restricted and cok.discipline_ids is None
+    assert cok.by_project == {a: frozenset({civil.id})}
+    assert cok.for_project(a).discipline_ids == frozenset({civil.id})
+    assert cok.for_project(b) == UNRESTRICTED
+    # Çok proje kapsamı tek-proje koduna FAIL-CLOSED: hiçbir kalem görünmez.
+    g, i = await _group_item(seeded_db, santiye, "MP1")
+    rev = await _revision(seeded_db, santiye, RevisionStatus.ACTIVE, 1)
+    await _map(seeded_db, rev, g, civil)
+    rows = await seeded_db.execute(
+        select(BoqItem.id).where(BoqItem.id == i.id, port.item_visible_clause(cok, BoqItem))
+    )
+    assert list(rows.scalars()) == []
+
+
+async def test_partition_by_project_kisitsizlari_tek_parcada_kisitlilari_ayri_toplar() -> None:
+    a, b, c = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    d1, d2 = uuid.uuid4(), uuid.uuid4()
+    cok = DisciplineScope.of_projects({a: {d1}, b: set(), c: {d1, d2}})
+    parcalar = port.partition_by_project(cok, [a, b, c, uuid.UUID(int=7)])
+    kapsamlar = {frozenset(ids): kapsam for kapsam, ids in parcalar}
+    assert len(parcalar) == 3
+    assert {k for k in kapsamlar if b in k} == {frozenset({b, uuid.UUID(int=7)})}
+    assert kapsamlar[frozenset({b, uuid.UUID(int=7)})] == UNRESTRICTED
+    assert kapsamlar[frozenset({a})].discipline_ids == frozenset({d1})
+    # Tek-proje / kısıtsız kapsam: tek parça.
+    assert port.partition_by_project(UNRESTRICTED, [a, b]) == [(UNRESTRICTED, [a, b])]
+    assert port.partition_by_project(DisciplineScope.of({d1}), []) == []
+
+
+async def test_tum_projeler_kisisi_bayat_disiplin_satirina_ragmen_kisitsiz(
+    seeded_db, santiye, kullanici, civil
+) -> None:
+    await disiplin_ata(seeded_db, kullanici, santiye.project_id, civil.id)
+    assert (await port.user_scope(seeded_db, kullanici.id, santiye.project_id)).is_restricted
+    kullanici.all_projects = True
+    await seeded_db.flush()
+    assert await port.user_scope(seeded_db, kullanici.id, santiye.project_id) == UNRESTRICTED
+    assert await port.user_scope(seeded_db, kullanici.id) == UNRESTRICTED
 
 
 # --- silme sayimi ---------------------------------------------------------------------
 
 
 async def test_atanmis_disiplin_409_atama_kalkinca_silinir(
-    client: AsyncClient, admin, seeded_db, kullanici, civil
+    client: AsyncClient, admin, seeded_db, santiye, kullanici, civil
 ) -> None:
-    seeded_db.add(UserDiscipline(user_id=kullanici.id, discipline_id=civil.id))
-    await seeded_db.flush()
+    await disiplin_ata(seeded_db, kullanici, santiye.project_id, civil.id)
     row = next(r for r in (await client.get(URL, headers=admin)).json() if r["id"] == str(civil.id))
     assert row["user_count"] == 1
     resp = await client.delete(f"{URL}/{civil.id}", headers=admin)
@@ -414,7 +458,7 @@ async def test_atanmis_disiplin_409_atama_kalkinca_silinir(
     assert resp.json()["detail"] == guards.DISCIPLINE_ASSIGNED_TO_USERS
     assert await seeded_db.get(EvDiscipline, civil.id) is not None
 
-    await seeded_db.execute(delete(UserDiscipline).where(UserDiscipline.user_id == kullanici.id))
+    await seeded_db.execute(delete(ProjectMemberDiscipline))
     await seeded_db.flush()
     row = next(r for r in (await client.get(URL, headers=admin)).json() if r["id"] == str(civil.id))
     assert row["user_count"] == 0
@@ -424,19 +468,21 @@ async def test_atanmis_disiplin_409_atama_kalkinca_silinir(
 # --- FK davranisi ------------------------------------------------------------------------
 
 
-async def test_kullanici_silinince_atamalari_gider(seeded_db, kullanici, civil) -> None:
-    seeded_db.add(UserDiscipline(user_id=kullanici.id, discipline_id=civil.id))
-    await seeded_db.flush()
+async def test_kullanici_silinince_ekip_ve_atamalari_gider(
+    seeded_db, santiye, kullanici, civil
+) -> None:
+    await disiplin_ata(seeded_db, kullanici, santiye.project_id, civil.id)
     await seeded_db.execute(delete(User).where(User.id == kullanici.id))
     await seeded_db.flush()
-    left = (await seeded_db.execute(select(UserDiscipline))).scalars().all()
+    left = (await seeded_db.execute(select(ProjectMemberDiscipline))).scalars().all()
     assert left == []
     assert await seeded_db.get(EvDiscipline, civil.id) is not None
 
 
-async def test_atanmis_disiplin_dogrudan_silinemez_RESTRICT(seeded_db, kullanici, civil) -> None:
-    seeded_db.add(UserDiscipline(user_id=kullanici.id, discipline_id=civil.id))
-    await seeded_db.flush()
+async def test_atanmis_disiplin_dogrudan_silinemez_RESTRICT(
+    seeded_db, santiye, kullanici, civil
+) -> None:
+    await disiplin_ata(seeded_db, kullanici, santiye.project_id, civil.id)
     with pytest.raises(IntegrityError):
         async with seeded_db.begin_nested():
             await seeded_db.execute(delete(EvDiscipline).where(EvDiscipline.id == civil.id))

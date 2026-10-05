@@ -48,25 +48,34 @@ kullanimini yasaklar (`tests/core/test_disiplin_korelasyon_bekcisi.py`).
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from sqlalchemy import ColumnElement, null, select, true
+from sqlalchemy import ColumnElement, false, null, select, true
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import aliased
-from sqlalchemy.sql.selectable import ScalarSelect, Select
+from sqlalchemy.sql.selectable import Select
 from sqlalchemy.sql.visitors import InternalTraversal
 from sqlalchemy.types import Boolean
-
-from app.core.discipline_ref import DisciplineRef
 
 
 @dataclass(frozen=True, slots=True)
 class DisciplineScope:
     """Kullanicinin disiplin kapsami. `discipline_ids=None` → KISITSIZ.
+
+    IZN-B3: disiplin PROJE BASINA atanir (`project_member_disciplines`). Iki bicim vardir:
+
+    * TEK PROJE kapsami (`by_project=None`): istegin projesindeki atama. `discipline_ids` o
+      projedeki kume; bos/None = o projede kisitsiz. Eski kodun tamami (`is_restricted`,
+      `discipline_ids`, `item_visible_clause`) AYNEN bu bicimle calisir.
+    * COK PROJE kapsami (`by_project` dolu, `discipline_ids=None`): proje baglamsiz liste
+      uclari. `by_project` YALNIZ kisitli oldugu projeleri tasir (eksik proje = kisitsiz).
+      `is_restricted` True'dur (herhangi bir projede kisitli), ama duz `discipline_ids` YOKTUR:
+      tek-proje kodu bu kapsamla FAIL-CLOSED calisir (`item_visible_clause` → hicbir sey).
+      Proje basina dogru sonuc `for_project` / `partition_by_project` ile alinir.
 
     Bos kume de kisitsizdir (bos atama = atamasiz, spec: "bos = kisitsiz"); saglayici
     `of()` ile uretir. `is_restricted` bu yuzden `bool(ids)`dir — bos kumeyle kurulmus bir
@@ -74,15 +83,33 @@ class DisciplineScope:
     """
 
     discipline_ids: frozenset[uuid.UUID] | None
+    by_project: Mapping[uuid.UUID, frozenset[uuid.UUID]] | None = None
 
     @property
     def is_restricted(self) -> bool:
-        return bool(self.discipline_ids)
+        return bool(self.discipline_ids) or bool(self.by_project)
+
+    @property
+    def is_multi_project(self) -> bool:
+        """Proje baglamsiz (cok proje) kapsam: duz `discipline_ids` yok, proje basina harita var."""
+        return bool(self.by_project)
 
     @classmethod
     def of(cls, ids: frozenset[uuid.UUID] | set[uuid.UUID] | list[uuid.UUID]) -> DisciplineScope:
         """Atama kumesinden kapsam: bos → `UNRESTRICTED`."""
         return cls(frozenset(ids)) if ids else UNRESTRICTED
+
+    @classmethod
+    def of_projects(cls, by_project: Mapping[uuid.UUID, Iterable[uuid.UUID]]) -> DisciplineScope:
+        """Proje → atama haritasindan cok proje kapsami; bos atamali projeler (kisitsiz) atilir."""
+        kisitli = {pid: frozenset(ids) for pid, ids in by_project.items() if ids}
+        return cls(None, kisitli) if kisitli else UNRESTRICTED
+
+    def for_project(self, project_id: uuid.UUID) -> DisciplineScope:
+        """Tek bir projenin kapsami. Tek-proje / kisitsiz kapsamda kendisi."""
+        if not self.by_project:
+            return self
+        return DisciplineScope.of(self.by_project.get(project_id, ()))
 
 
 UNRESTRICTED = DisciplineScope(None)
@@ -92,12 +119,11 @@ class DisciplineProvider(Protocol):
     """Modulun uyguladigi sozlesme. Uc yetenek + kalem→disiplin toplu esleme; hepsi AYNI
     SQL tanimindan turer (`item_discipline_expr`)."""
 
-    async def user_scope(self, session: AsyncSession, user_id: uuid.UUID) -> DisciplineScope: ...
-
-    async def user_disciplines_detail(
-        self, session: AsyncSession, user_id: uuid.UUID
-    ) -> list[DisciplineRef]:
-        """Kullanicinin atanmis disiplinleri (id, kod, ad, renk); `str(id)` sirali; yoksa `[]`."""
+    async def user_scope(
+        self, session: AsyncSession, user_id: uuid.UUID, project_id: uuid.UUID | None = None
+    ) -> DisciplineScope:
+        """`project_id` verilirse O PROJEDEKI tek-proje kapsami; `None` → cok proje kapsami
+        (kullanicinin kisitli oldugu tum projeler)."""
         ...
 
     def item_discipline_expr(self, item: Any) -> ColumnElement[Any]:
@@ -107,10 +133,6 @@ class DisciplineProvider(Protocol):
     def group_discipline_expr(self, group: Any) -> ColumnElement[Any]:
         """`group` (BoqGroup ya da alias'i) icin disiplin id'si (ya da NULL) SQL ifadesi —
         kalem ifadesiyle AYNI R(site) alt sorgusunu kullanir (tek tanim)."""
-        ...
-
-    def user_discipline_ids_subquery(self, user_id: uuid.UUID) -> ScalarSelect[Any] | Any:
-        """`expr.in_(...)` icin kullanicinin atanmis disiplinleri (alt sorgu)."""
         ...
 
     async def item_disciplines(
@@ -156,19 +178,43 @@ def restore(snapshot: DisciplineProvider | None) -> None:
     _provider = snapshot
 
 
-async def user_scope(session: AsyncSession, user_id: uuid.UUID) -> DisciplineScope:
-    """Kullanicinin kapsami. Kayit yoksa `UNRESTRICTED`."""
+async def user_scope(
+    session: AsyncSession, user_id: uuid.UUID, project_id: uuid.UUID | None = None
+) -> DisciplineScope:
+    """Kullanicinin kapsami: `project_id` verilirse o projede, yoksa COK PROJE kapsami. Kayit
+    yoksa `UNRESTRICTED`."""
     if _provider is None:
         return UNRESTRICTED
-    return await _provider.user_scope(session, user_id)
+    return await _provider.user_scope(session, user_id, project_id)
 
 
-async def user_disciplines_detail(session: AsyncSession, user_id: uuid.UUID) -> list[DisciplineRef]:
-    """Kullanicinin atanmis disiplinleri AYRINTILI (`/auth/me`); kayit yoksa `[]`. Izin kapisi
-    YOKTUR: cagiran kisi kendi atamasini gorur."""
-    if _provider is None:
-        return []
-    return await _provider.user_disciplines_detail(session, user_id)
+def partition_by_project(
+    scope: DisciplineScope, project_ids: Iterable[uuid.UUID]
+) -> list[tuple[DisciplineScope, list[uuid.UUID]]]:
+    """Projeleri AYNI tek-proje kapsamini paylasanlara boler (cok proje toplulastirmasi icin).
+
+    Kisitsiz projeler tek parcada (`UNRESTRICTED`), kisitli her proje kendi kapsamiyla ayri parca
+    olur; sira girdi sirasini korur. Tek-proje / kisitsiz kapsamda tek parca doner. Cagiran her
+    parcayi mevcut tek-proje sorgusuyla kosup sonuclari birlestirir.
+    """
+    ids = list(dict.fromkeys(project_ids))
+    if not scope.is_multi_project:
+        return [(scope, ids)] if ids else []
+    parcalar: dict[DisciplineScope, list[uuid.UUID]] = {}
+    sirali: list[DisciplineScope] = []
+    for project_id in ids:
+        kapsam = scope.for_project(project_id)
+        if kapsam not in parcalar:
+            parcalar[kapsam] = []
+            sirali.append(kapsam)
+        parcalar[kapsam].append(project_id)
+    return [(kapsam, parcalar[kapsam]) for kapsam in sirali]
+
+
+async def restricted_project_ids(session: AsyncSession, user_id: uuid.UUID) -> set[uuid.UUID]:
+    """Kullanicinin disiplinle KISITLI oldugu projeler (IZN-B3). "Hakedis kisitliya kapali" (Ü2)
+    kurali liste uclarinda bu projelerin satirlarini DISARIDA birakir (tek-proje ucu 403 verir)."""
+    return set((await user_scope(session, user_id)).by_project or ())
 
 
 def item_discipline_expr(item: Any) -> ColumnElement[Any]:
@@ -183,14 +229,6 @@ def group_discipline_expr(group: Any) -> ColumnElement[Any]:
     if _provider is None:
         return null()
     return _provider.group_discipline_expr(group)
-
-
-def user_discipline_ids_subquery(user_id: uuid.UUID) -> Any:
-    """`IN` icin atanmis disiplin alt sorgusu; kayit yoksa None. Yalniz KISITLI kullanici icin
-    anlamlidir (atamasiz kullanici bos alt sorgu = hicbir sey gorunmez olurdu)."""
-    if _provider is None:
-        return None
-    return _provider.user_discipline_ids_subquery(user_id)
 
 
 #: `item_disciplines` tek sorguda en fazla bu kadar id gonderir: asyncpg sorgu basina 32767
@@ -283,6 +321,8 @@ def item_visible_clause(scope: DisciplineScope, item: Any) -> ColumnElement[bool
     """
     if not scope.is_restricted:
         return ItemVisible(true(), item)
+    if scope.is_multi_project:  # proje baglamsiz kapsam: duz kume yok → FAIL-CLOSED
+        return ItemVisible(false(), item)
     return ItemVisible(
         item_discipline_expr(item).in_(sorted(scope.discipline_ids or (), key=str)), item
     )
@@ -295,6 +335,8 @@ def group_visible_clause(scope: DisciplineScope, group: Any) -> ColumnElement[bo
     🔴 `NOT IN` / `!=` YOK — eslenmemis grup kisitliya GORUNMEZ (fail-closed)."""
     if not scope.is_restricted:
         return ItemVisible(true(), group)
+    if scope.is_multi_project:  # proje baglamsiz kapsam: duz kume yok → FAIL-CLOSED
+        return ItemVisible(false(), group)
     return ItemVisible(
         group_discipline_expr(group).in_(sorted(scope.discipline_ids or (), key=str)), group
     )

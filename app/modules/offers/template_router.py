@@ -2,11 +2,11 @@
 
 | uc | kapi |
 |----|------|
-| okumalar (liste, detay) | `contracts:view` + kisitsiz (TKL-B4.6, R5/SO-19) |
-| TUM yazmalar | `contracts:full` + kisitsiz |
+| okumalar (liste, detay) | `contracts:view` |
+| TUM yazmalar | `contracts:full` |
 
-(B4 `router.py` ile ayni gecici T25 deseni ve ayni kapsam cifti; R5 kullanici onayiyla
-`RequireUnrestricted` router duzeyinde — disiplin atanmis kullanici sablonlari da goremez.)
+(B4 `router.py` ile ayni gecici T25 deseni ve ayni kapsam cifti. IZN-B3: `RequireUnrestricted`
+kalkti — disiplin proje basina, sablonlar sirket geneli.)
 
 🔴 ROTA SIRASI: `/offers/templates` LITERALDIR ve `/offers/{offer_id}` (UUID) ile CAKISIR
 (`GET /offers/templates` once dinamik yola dusse `offer_id` ayristirma hatasi → 422 verirdi).
@@ -25,7 +25,6 @@ from fastapi import APIRouter, Depends, Path, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import RequireUnrestricted
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import kapsam_kapisi, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -50,12 +49,12 @@ router = APIRouter(
     tags=["offers"],
     responses=COMMON_ERROR_RESPONSES,
     route_class=kapsam_rotasi("contracts", kapsamdan_oku),
-    dependencies=[kapsam_kapisi("contracts"), RequireUnrestricted],  # TKL-B4.6 (R5)
+    dependencies=[kapsam_kapisi("contracts")],
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)
 _FULL = require_permission("contracts", AccessLevel.full)
-_WRITE = [_FULL, RequireUnrestricted]
+_WRITE = [_FULL]
 _User = Annotated[User, Depends(get_current_user)]
 _TemplateId = Annotated[uuid.UUID, Path()]
 _BASE = "/offers/templates"

@@ -1,27 +1,20 @@
-"""Kullanici disiplin atamasi uclari (DSC-B0, spec Ü9): `/users/{user_id}/disciplines`.
+"""KALDIRILDI (IZN-B3): `/users/{user_id}/disciplines` — disiplin artık PROJE BAŞINA.
 
-Yol `users` altindadir ama modul PLANLAMA (EV) olur — cekirdek `users` EV'yi import etmez
-(§2.7). Izin kapisi kullanici yonetimidir (`project-access` emsali): GET `view`, PUT `full`.
-Bu uclar disipline DUYARLI DEGILDIR (kullanici yonetimi) — rota bekcisi disinda tutulur.
+Eski global kullanıcı → disiplin ataması (DSC-B0) proje ekibine taşındı: disiplinler
+`PUT /users/{id}/access` gövdesinde `projects[].discipline_ids` olarak, o projedeki rolle birlikte
+atanır (KARARLAR §1.7). İki uç da 410 döner (IZN-B2 `PUT /roles/{id}/permissions/{module}` emsali);
+kapıları eskisiyle AYNIDIR, yani yetkisiz aktör 403 görmeye devam eder.
+Bu uçlar disipline DUYARLI DEĞİLDİR (kullanıcı yönetimi) — rota bekçisi dışında tutulur.
 """
 
 import uuid
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, HTTPException, status
 
 from app.core.access import AccessLevel
-from app.core.db import DbSession
-from app.core.deps import get_current_user
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
-from app.core.ratelimit import client_ip
-from app.modules.audit.models import AuditAction
-from app.modules.audit.service import record_audit
-from app.modules.earned_value import audit_messages, discipline_adapter, user_discipline_service
-from app.modules.earned_value.schemas_catalog import UserDisciplinesInput, UserDisciplinesRead
-from app.modules.earned_value.user_discipline_service import DisciplineAssignment
-from app.modules.users.models import User
+from app.modules.earned_value import discipline_adapter
 
 # Disiplin kapsami portuna kayit — `catalog_router`in kaydina ek guvence (idempotent).
 discipline_adapter.register()
@@ -30,48 +23,40 @@ router = APIRouter(
     prefix="/users", tags=["earned-value", "users"], responses=COMMON_ERROR_RESPONSES
 )
 
+#: 410 gövdesi: global disiplin ataması kalktı (IZN-B3). Mesaj yeni ucu işaret eder.
+USER_DISCIPLINES_GONE_DETAIL = (
+    "Disiplin ataması artık proje başına yapılır. Ayarlar > Kullanıcılar ekranından "
+    "(PUT /users/{id}/access, projects[].discipline_ids) düzenleyin."
+)
 
-def _read(assignment: DisciplineAssignment) -> UserDisciplinesRead:
-    return UserDisciplinesRead(
-        discipline_ids=assignment.discipline_ids, disciplines=assignment.disciplines
-    )
+_GONE_RESPONSES = {
+    status.HTTP_410_GONE: {
+        "description": "Uç kaldırıldı: disiplin artık proje ekibinde (`/users/{id}/access`)"
+    }
+}
 
 
 @router.get(
     "/{user_id}/disciplines",
-    response_model=UserDisciplinesRead,
+    deprecated=True,
+    status_code=status.HTTP_410_GONE,
+    response_model=None,
+    responses=_GONE_RESPONSES,
     dependencies=[require_permission("user_management", AccessLevel.view)],
 )
-async def get_user_disciplines_endpoint(
-    user_id: uuid.UUID,
-    session: DbSession,
-) -> UserDisciplinesRead:
-    return _read(await user_discipline_service.get_assignment(session, user_id))
+async def get_user_disciplines_endpoint(user_id: uuid.UUID) -> None:
+    """KALDIRILDI (IZN-B3): her çağrı 410 döner."""
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail=USER_DISCIPLINES_GONE_DETAIL)
 
 
 @router.put(
     "/{user_id}/disciplines",
-    response_model=UserDisciplinesRead,
+    deprecated=True,
+    status_code=status.HTTP_410_GONE,
+    response_model=None,
+    responses=_GONE_RESPONSES,
     dependencies=[require_permission("user_management", AccessLevel.full)],
 )
-async def set_user_disciplines_endpoint(
-    request: Request,
-    user_id: uuid.UUID,
-    data: UserDisciplinesInput,
-    current_user: Annotated[User, Depends(get_current_user)],
-    session: DbSession,
-) -> UserDisciplinesRead:
-    assignment = await user_discipline_service.replace_assignment(
-        session, user_id, data.discipline_ids
-    )
-    if assignment.changed:  # ayni kume tekrar gelirse denetim gurultusu yazilmaz
-        await record_audit(
-            session,
-            action=AuditAction.update,
-            detail=audit_messages.user_disciplines_updated(
-                assignment.user.full_name, assignment.codes
-            ),
-            actor_user_id=current_user.id,
-            ip_address=client_ip(request),
-        )
-    return _read(assignment)
+async def set_user_disciplines_endpoint(user_id: uuid.UUID) -> None:
+    """KALDIRILDI (IZN-B3): her çağrı 410 döner, hiçbir şey yazılmaz."""
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail=USER_DISCIPLINES_GONE_DETAIL)

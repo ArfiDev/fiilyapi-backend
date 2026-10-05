@@ -25,7 +25,7 @@ from app.modules.accounting.models import ChartAccount
 from app.modules.equipment.models import Equipment, EquipmentCategory, EquipmentStatus
 from app.modules.projects.models import Project
 from app.modules.sites.models import Site
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 
 
 async def _login(client: AsyncClient, user_factory, role_key: str, email: str) -> str:
@@ -90,9 +90,7 @@ async def sef_headers(
     """
     email = "sef@makine.co"
     user = await user_factory(email=email, password="parola1234", role_key="site_chief")
-    seeded_db.add(
-        UserProjectAccess(user_id=user.id, project_id=gorunen_proje.id, all_projects=False)
-    )
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=gorunen_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text
@@ -109,9 +107,7 @@ async def muhendis_headers(
     """`field_engineer` — `equipment=_V`: okur ama YAZAMAZ (403)."""
     email = "muhendis@makine.co"
     user = await user_factory(email=email, password="parola1234", role_key="field_engineer")
-    seeded_db.add(
-        UserProjectAccess(user_id=user.id, project_id=gorunen_proje.id, all_projects=False)
-    )
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=gorunen_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

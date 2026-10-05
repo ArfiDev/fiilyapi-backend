@@ -32,7 +32,6 @@ from app.core.discipline_scope import UNRESTRICTED
 from app.modules.boq.models import BoqItemSectionAllocation
 from app.modules.sites import service
 from app.modules.sites.models import Section, Site
-from app.modules.users.models import UserProjectAccess
 from tests.conftest import test_engine
 from tests.modules._boq import _group, _item
 
@@ -104,7 +103,7 @@ async def _kurulum(session, user_factory, project_factory, kod: str, email: str)
     await session.flush()
 
     user = await user_factory(email=email, password="parola1234", role_key="patron")
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
     return project, site, user, dolu, bos
 

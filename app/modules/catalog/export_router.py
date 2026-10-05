@@ -1,5 +1,5 @@
 """Fiyatli Is Kalemi Katalogu Excel ucu (TKL-B5.2) — `/catalog/items` okumasiyla AYNI kapi:
-`contracts:view` + kapsam cifti + `DisciplineScoped`. Okuma ucu: denetim satiri YAZMAZ.
+`contracts:view` + kapsam cifti. Okuma ucu: denetim satiri YAZMAZ.
 
 Veri `queries.list_items` ile (tek toplu `last_price.latest`, N+1 yok). Maske ELLE uygulanir
 (`kapsamla_maskele`): `limited` rolde Referans Fiyat / Fiyat Guncelleme / Son Fiyat / Kaynak /
@@ -15,7 +15,7 @@ from fastapi import APIRouter, Query, Response
 from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
-from app.core.discipline_deps import DisciplineScoped
+from app.core.discipline_scope import UNRESTRICTED
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
 from app.core.scoped_route import kapsam_rotasi, kapsamdan_oku, kapsamla_maskele
@@ -44,12 +44,11 @@ _VIEW = require_permission("contracts", AccessLevel.view)
 )
 async def export_catalog_endpoint(
     session: DbSession,
-    scope: DisciplineScoped,
     q: Annotated[str | None, Query(max_length=200)] = None,
     discipline_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> Response:
-    """Fiyatli katalog xlsx — liste ucuyla AYNI suzgecler (`q`, `discipline_id`) ve kapsam."""
-    items = await queries.list_items(session, scope, q=q, discipline_id=discipline_id)
+    """Fiyatli katalog xlsx — liste ucuyla AYNI suzgecler (`q`, `discipline_id`)."""
+    items = await queries.list_items(session, UNRESTRICTED, q=q, discipline_id=discipline_id)
     masked = kapsamla_maskele(WorkItemListResponse(items=items), "contracts")
     return Response(
         content=build_catalog_workbook(masked.items).getvalue(),

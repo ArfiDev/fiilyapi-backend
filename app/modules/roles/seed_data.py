@@ -181,7 +181,7 @@ _V = (AccessLevel.view, Scope.all)  # Görüntüle
 _LIM = (AccessLevel.view, Scope.limited)  # Sınırlı
 _FIN = (AccessLevel.view, Scope.finance)  # Mali
 #: 🔴 Kapsam 2026-09-19'da `project` → `all` oldu: proje kapsamı
-#: `UserProjectAccess`ten sürülür ve `progress_payments/repository.py` onu
+#: proje ekibinden (`project_members`) sürülür ve `progress_payments/repository.py` onu
 #: ZATEN uygular. İki mekanizmanın aynı kısıtı iki yerden söylemesi, bir gün
 #: ayrışmaları demekti.
 _DRF = (AccessLevel.draft, Scope.all)  # Taslak
@@ -212,7 +212,7 @@ MATRIX: dict[str, list[tuple[AccessLevel, Scope]]] = {
     #    `tests/modules/test_izin_kapsami_bekcisi.py`.
     "approvals": [_A, _F, _V, _V, _V, _V, _V, _V],
     # dashboard satirinin aynisi: proje kartlari ayni gorunurluk yuzeyi,
-    # asil suzgec user_project_access (spec §4).
+    # asil suzgec proje ekibi `project_members` (IZN-B3).
     "projects": [_A, _F, _LIM, _LIM, _LIM, _FIN, _F, _N],
     # spec §5.1 + kullanici karari 2026-07-28. Taban profil projects satiridir;
     # TEK FARK Satinalma: projects=_N iken sites=_LIM. "Projeyi goremeyen ama

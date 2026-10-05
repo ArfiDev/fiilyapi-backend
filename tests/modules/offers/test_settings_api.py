@@ -14,9 +14,9 @@ from sqlalchemy import func, select
 
 from app.core.access import AccessLevel, Scope
 from app.modules.audit.models import AuditAction
-from app.modules.earned_value.models import UserDiscipline
 from app.modules.offers.models import OfferSettings
 from app.modules.users.models import User
+from tests._proje_ekibi import baska_projede_disiplinli
 
 from .._boq import _audit_details, _auth, _login_with_access, _set_permission
 
@@ -230,7 +230,7 @@ async def test_contracts_view_okur_ama_yazamaz(client, admin, db_session, user_f
     assert Decimal((await client.get(URL, headers=admin)).json()["default_vat_pct"]) == 20
 
 
-async def test_kisitli_disiplinli_kullanici_ayarlari_da_goremez_R5(
+async def test_proje_basina_disiplinli_kullanici_ayarlari_gorur_ve_yazar(
     client, admin, db_session, user_factory
 ) -> None:
     from app.modules.catalog.models import ContractorType, EvDiscipline
@@ -246,14 +246,16 @@ async def test_kisitli_disiplinli_kullanici_ayarlari_da_goremez_R5(
     user_id = (
         await db_session.execute(select(User.id).where(User.email == "pm.kisitli.offers@tkl.co"))
     ).scalar_one()
-    db_session.add(UserDiscipline(user_id=user_id, discipline_id=disiplin.id))
-    await db_session.flush()
+    await baska_projede_disiplinli(db_session, user_id, disiplin.id)
     kisitli = _auth(token)
 
-    # TKL-B4.6 (R5/SO-19): kisitli kullanici teklif modulunu hic goremez — ayar okumasi da 403
-    assert (await client.get(URL, headers=kisitli)).status_code == 403
-    assert (await client.put(URL, json=_govde(), headers=kisitli)).status_code == 403
-    assert Decimal((await client.get(URL, headers=admin)).json()["default_vat_pct"]) == 20
+    # IZN-B3: teklif ayarlari sirket geneli — proje basina disiplin kisiti etkilemez (R5 kalkti)
+    assert (await client.get(URL, headers=kisitli)).status_code == 200
+    assert (await client.put(URL, json=_govde(), headers=kisitli)).status_code == 200
+    # PUT kisitli kullanicinin govdesini yazdi (403 degil)
+    assert Decimal((await client.get(URL, headers=admin)).json()["default_vat_pct"]) == Decimal(
+        _govde()["default_vat_pct"]
+    )
 
 
 async def test_limited_kapsamda_varsayilan_oranlar_kimliktir_gizlenmez(

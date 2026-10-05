@@ -14,10 +14,10 @@ from sqlalchemy import func, select
 
 from app.core.access import AccessLevel, Scope
 from app.modules.catalog.models import ContractorType, EvDiscipline
-from app.modules.earned_value.models import UserDiscipline
 from app.modules.projects.models import Project
 from app.modules.roles.seed_data import MATRIX, ROLE_ORDER
-from app.modules.users.models import User
+from app.modules.users.models import ProjectMember, User
+from tests._proje_ekibi import baska_projede_disiplinli
 
 from .._boq import _auth, _login_with_access, _set_permission
 from ._convert import govde, kazanilmis_teklif, url
@@ -93,11 +93,11 @@ async def test_contracts_full_tek_basina_yetmez_projects_admin_de_ister(
     assert resp.status_code == 403, resp.text
 
 
-async def test_iki_izin_de_tamsa_kisitsiz_kullanici_gecer_kisitli_disiplinli_403(
+async def test_iki_izin_de_tamsa_proje_basina_disiplinli_kullanici_da_gecer(
     client, db_session, user_factory, kz
 ) -> None:
-    """Pozitif kontrol + RequireUnrestricted: izinler elle yukseltilir; atamasiz kullanici 200,
-    disiplin atamali (kisitli) AYNI izinlerle 403."""
+    """IZN-B3: `RequireUnrestricted` KALKTI (disiplin proje basina, teklif sirket geneli):
+    bir projede disiplinle kisitli kullanici AYNI izinlerle donusturmeyi YAPAR."""
     for rol in ("project_manager",):
         await _set_permission(db_session, rol, "projects", AccessLevel.admin, Scope.all)
         await _set_permission(db_session, rol, "contracts", AccessLevel.full, Scope.all)
@@ -110,10 +110,39 @@ async def test_iki_izin_de_tamsa_kisitsiz_kullanici_gecer_kisitli_disiplinli_403
     uid = (
         await db_session.execute(select(User.id).where(User.email.like("project_manager.%@cnv.co")))
     ).scalar_one()
-    db_session.add(UserDiscipline(user_id=uid, discipline_id=disiplin.id))
-    await db_session.flush()
+    await baska_projede_disiplinli(db_session, uid, disiplin.id)
 
     resp = await client.post(url(kz.offer_id), json=govde(kz), headers=kisitli)
 
-    assert resp.status_code == 403, resp.text
-    assert await _proje_sayisi(db_session) == 0
+    assert resp.status_code == 200, resp.text
+    assert await _proje_sayisi(db_session) == 2  # kisit projesi + donusturulen proje
+
+
+async def test_donusturen_kisi_yeni_projeye_ANA_rolunun_ekip_uyesi_yazilir_ve_gorur(
+    client, db_session, user_factory, kz
+) -> None:
+    """IZN-B3: ekip satiri OLMAYAN (Tum projeler DEGIL) donusturen kisi yeni projeyi gorebilmeli."""
+    from .._boq import _login
+
+    for rol in ("project_manager",):
+        await _set_permission(db_session, rol, "projects", AccessLevel.admin, Scope.all)
+        await _set_permission(db_session, rol, "contracts", AccessLevel.full, Scope.all)
+    token = await _login(client, user_factory, "project_manager", "donusturen@cnv.co")
+    kisi = (
+        await db_session.execute(select(User).where(User.email == "donusturen@cnv.co"))
+    ).scalar_one()
+    kisi_id, rol_id = kisi.id, kisi.role_id
+    db_session.expunge_all()
+
+    resp = await client.post(url(kz.offer_id), json=govde(kz), headers=_auth(token))
+
+    assert resp.status_code == 200, resp.text
+    uyeler = (
+        (await db_session.execute(select(ProjectMember).where(ProjectMember.user_id == kisi_id)))
+        .scalars()
+        .all()
+    )
+    assert len(uyeler) == 1 and uyeler[0].role_id == rol_id
+    proje = (await db_session.execute(select(Project))).scalars().one()
+    assert uyeler[0].project_id == proje.id
+    assert (await client.get(f"/projects/{proje.id}", headers=_auth(token))).status_code == 200

@@ -22,7 +22,7 @@ from sqlalchemy import select
 from app.core.access import AccessLevel, Scope
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 from tests._legacy_permission_yardimcisi import sync_page_cells
 
 # 2026-07-28 kullanici karariyla Satinalma da sites=view aldi; artik HICBIR
@@ -42,7 +42,7 @@ async def _login(client, user_factory, role_key: str, *, grant_all: bool, sessio
     address = f"{role_key}@t.co"
     user = await user_factory(email=address, password="parola1234", role_key=role_key)
     if grant_all:
-        session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+        user.all_projects = True
         await session.flush()
     resp = await client.post("/auth/login", json={"email": address, "password": "parola1234"})
     return resp.json()["access_token"]
@@ -233,7 +233,7 @@ async def test_partial_access_does_not_leak_other_projects(
     visible_site = Site(project_id=granted.id, code="V-BLOK", name="Görünür Şantiye")
     db_session.add(visible_site)
     user = await user_factory(email="scoped@t.co", password="parola1234", role_key=WRITE_ROLE)
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=granted.id, all_projects=False))
+    db_session.add(ProjectMember(user_id=user.id, project_id=granted.id, role_id=user.role_id))
     await db_session.flush()
     login = await client.post(
         "/auth/login", json={"email": "scoped@t.co", "password": "parola1234"}

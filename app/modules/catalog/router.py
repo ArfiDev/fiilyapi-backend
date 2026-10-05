@@ -2,8 +2,8 @@
 
 | uc | kapi |
 |----|------|
-| kalem listesi / disiplin listesi | `contracts:view` (+ disiplin kapsami) |
-| olustur / guncelle / toplu ekle (`/bulk`) | `contracts:full` + `RequireUnrestricted` |
+| kalem listesi / disiplin listesi | `contracts:view` |
+| olustur / guncelle / toplu ekle (`/bulk`) | `contracts:full` |
 
 # GECICI IZIN (kullanici karari; izin turuna kadar): katalog ayri bir izin modulu degildir,
 # `contracts` iznine baglanir. `earned_value:view` olup `contracts` yetkisi olmayan roller
@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
+from app.core.discipline_scope import UNRESTRICTED
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import kapsam_kapisi, require_permission
 from app.core.ratelimit import client_ip
@@ -59,23 +59,20 @@ _User = Annotated[User, Depends(get_current_user)]
 
 
 @router.get("/catalog/disciplines", response_model=WorkDisciplineListResponse, dependencies=[_VIEW])
-async def list_work_disciplines_endpoint(
-    session: DbSession, scope: DisciplineScoped
-) -> WorkDisciplineListResponse:
+async def list_work_disciplines_endpoint(session: DbSession) -> WorkDisciplineListResponse:
     """Disiplin seçici listesi (salt okunur; CRUD EV'de kalır) — `sort_order`, `code` sırası."""
-    return WorkDisciplineListResponse(items=await queries.list_disciplines(session, scope))
+    return WorkDisciplineListResponse(items=await queries.list_disciplines(session, UNRESTRICTED))
 
 
 @router.get("/catalog/items", response_model=WorkItemListResponse, dependencies=[_VIEW])
 async def list_work_items_endpoint(
     session: DbSession,
-    scope: DisciplineScoped,
     q: Annotated[str | None, Query(max_length=200)] = None,
     discipline_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> WorkItemListResponse:
     """İş kalemi kataloğu — poz no sırasıyla. `q` ad veya poz no içinde, kaynak poz no'da
     ÖNEKLE arar."""
-    items = await queries.list_items(session, scope, q=q, discipline_id=discipline_id)
+    items = await queries.list_items(session, UNRESTRICTED, q=q, discipline_id=discipline_id)
     return WorkItemListResponse(items=items)
 
 
@@ -83,7 +80,7 @@ async def list_work_items_endpoint(
     "/catalog/items",
     response_model=WorkItemRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL, RequireUnrestricted],
+    dependencies=[_FULL],
 )
 async def create_work_item_endpoint(
     request: Request, data: WorkItemCreate, user: _User, session: DbSession
@@ -105,7 +102,7 @@ async def create_work_item_endpoint(
     "/catalog/items/bulk",
     response_model=WorkItemsBulkResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL, RequireUnrestricted],
+    dependencies=[_FULL],
 )
 async def bulk_work_items_endpoint(
     request: Request, data: WorkItemsBulkCreate, user: _User, session: DbSession
@@ -149,7 +146,7 @@ async def bulk_work_items_endpoint(
 @router.patch(
     "/catalog/items/{item_id}",
     response_model=WorkItemRead,
-    dependencies=[_FULL, RequireUnrestricted],
+    dependencies=[_FULL],
 )
 async def update_work_item_endpoint(
     request: Request,

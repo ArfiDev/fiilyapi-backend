@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
 from app.core.errors import ApprovalNotAllowedError, ApprovalValidationError, ConflictError
-from app.core.page_gate import gate_ok
+from app.core.page_gate import gate_flags, gate_ok
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.approvals import definitions, guards, inbox, repository
 from app.modules.approvals.definitions import HistoryDecision, HistoryFilter
@@ -330,6 +330,7 @@ async def _has_document_admin(
         actor,
         definitions.DOCUMENT_PERMISSION_MODULE[document_type],
         AccessLevel.admin,
+        record=False,
     )
 
 
@@ -591,7 +592,7 @@ async def _admin_document_types(session: AsyncSession, actor: User) -> list[Appr
     tipler: list[ApprovalDocumentType] = []
     for tip, modul in definitions.DOCUMENT_PERMISSION_MODULE.items():
         if modul not in seviyeler:
-            seviyeler[modul] = await gate_ok(session, actor, modul, AccessLevel.admin)
+            seviyeler[modul] = await gate_ok(session, actor, modul, AccessLevel.admin, record=False)
         if seviyeler[modul]:
             tipler.append(tip)
     return tipler
@@ -601,7 +602,14 @@ async def _visible_project_ids(session: AsyncSession, actor: User) -> list[uuid.
     """Aktorun GORDUGU projeler — bekleyen kutusu ile GECMIS AYNI yardimciyi
     kullanir (IDOR suzgecinin tek kaynagi; SQL tarafi `documents.visible_
     document_clause`tir)."""
-    return [proje.id for proje in await visible_projects(session, actor)]
+    # IZN-B3: gelen kutusu KAPISIZ bir uçtur; proje, evrak izin modüllerinden HERHANGİ BİRİNİN
+    # Görür sayfalarını O PROJEDEKİ rolün açtığı projeler olarak görünür (çiftler AÇIKÇA verilir).
+    gorunen: dict[uuid.UUID, uuid.UUID] = {}
+    for modul in sorted(set(definitions.DOCUMENT_PERMISSION_MODULE.values())):
+        pairs = gate_flags(modul, AccessLevel.view)
+        for proje in await visible_projects(session, actor, pairs=pairs):
+            gorunen[proje.id] = proje.id
+    return list(gorunen)
 
 
 @dataclass(frozen=True)

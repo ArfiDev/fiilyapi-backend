@@ -12,11 +12,10 @@ from app.modules.projects.service import (
     create_project,
     list_projects_overview,
 )
-from app.modules.users.models import UserProjectAccess
 
 
 async def _grant_all(seeded_db, user):
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await seeded_db.flush()
 
 

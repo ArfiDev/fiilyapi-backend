@@ -16,7 +16,6 @@ from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Site
-from app.modules.users.models import UserProjectAccess
 from tests._legacy_permission_yardimcisi import sync_page_cells
 
 
@@ -55,7 +54,7 @@ async def _login(client, user_factory, role_key: str, email: str | None = None) 
 async def _login_with_access(client, session, user_factory, role_key: str, email: str) -> str:
     """system_admin disindaki roller icin gorunurluk user_project_access'ten gelir."""
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     return resp.json()["access_token"]

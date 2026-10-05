@@ -15,8 +15,8 @@ from sqlalchemy import func, select
 from app.core.access import AccessLevel, Scope
 from app.modules.audit.models import AuditLog
 from app.modules.catalog.models import EvCatalogItem, EvDiscipline
-from app.modules.earned_value.models import UserDiscipline
 from app.modules.users.models import User
+from tests._proje_ekibi import baska_projede_disiplinli
 
 from .._boq import _auth, _login_with_access, _set_permission
 from .test_catalog_items_api import (  # noqa: F401  (fikstur + yardimcilar yeniden kullanilir)
@@ -328,7 +328,7 @@ async def test_update_price_hepsi_mevcut_ikinci_kez_ayni_yukleme_degismedi(
 # ------------------------------------------------------------ yetki
 
 
-async def test_yetki_kisitli_kullanici_contracts_view_ve_contracts_yok_403_kimliksiz_401(
+async def test_yetki_contracts_view_ve_contracts_yok_403_kimliksiz_401_disiplinli_gecer(
     client, admin, kab, db_session, user_factory
 ) -> None:
     govde = {"items": [_kalem(kab, "X")]}
@@ -343,17 +343,15 @@ async def test_yetki_kisitli_kullanici_contracts_view_ve_contracts_yok_403_kimli
     saha = await _giris(client, db_session, user_factory, "site_chief")
     assert (await client.post(BULK, json=govde, headers=saha)).status_code == 403
 
-    # contracts:full ama disiplin atanmis (kisitli) kullanici
+    # contracts:full + bir projede disiplin atanmis kullanici: IZN-B3 — katalog sirket geneli, GECER
     token = await _login_with_access(
         client, db_session, user_factory, "project_manager", "pm.bulk@tkl.co"
     )
     user_id = (
         await db_session.execute(select(User.id).where(User.email == "pm.bulk@tkl.co"))
     ).scalar_one()
-    db_session.add(UserDiscipline(user_id=user_id, discipline_id=kab.id))
-    await db_session.flush()
-    assert (await client.post(BULK, json=govde, headers=_auth(token))).status_code == 403
+    await baska_projede_disiplinli(db_session, user_id, kab.id)
+    assert (await client.post(BULK, json=govde, headers=_auth(token))).status_code == 201
 
-    # hicbiri bir sey yazmadi; pozitif kontrol: admin ayni govdeyle basarir
-    assert (await client.get(URL, headers=admin)).json()["items"] == []
-    assert (await client.post(BULK, json=govde, headers=admin)).status_code == 201
+    # 403 alanlar bir sey yazmadi: katalogda YALNIZ disiplinli kullanicinin kalemi var
+    assert len((await client.get(URL, headers=admin)).json()["items"]) == 1

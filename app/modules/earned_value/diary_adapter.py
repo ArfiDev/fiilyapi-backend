@@ -681,7 +681,7 @@ async def _overrun_reasons(
     """Asim engeli. KISITSIZ: bugunku bool yolu (tek madde). KISITLI (Ü5/S8): kendi satirinda
     asim varsa mevcut metin; ARDINDAN gorunmeyen (baska disiplin/eslemesiz) gerekceli olmayan
     asim varsa AYNI kod + OPAK madde (kalem adi/kodu YOK, yalniz satir sayisi). Sira: once kendi."""
-    scope = await user_scope(session, ctx.actor_id)
+    scope = await user_scope(session, ctx.actor_id, entry.project_id)  # IZN-B3: proje basina
     if not scope.is_restricted:
         if await _has_line_overrun_without_reason(session, ctx.site_id, entry, tree):
             return [SubmitReason(SUBMIT_OVERRUN, OVERRUN_MESSAGE)]
@@ -704,7 +704,16 @@ async def submit_blockers(session: AsyncSession, ctx: SubmitContext) -> list[Sub
         return []
     reasons: list[SubmitReason] = []
     actor = await session.get(User, ctx.actor_id)
-    if actor is None or not await gate_ok(session, actor, PERMISSION_MODULE, AccessLevel.draft):
+    gunluk = await session.get(SiteDiaryEntry, ctx.entry_id)
+    # IZN-B3: planlama yazma yetkisi O PROJEDEKİ rolle ölçülür (günlüğün projesi); bağlama yazmaz.
+    if actor is None or not await gate_ok(
+        session,
+        actor,
+        PERMISSION_MODULE,
+        AccessLevel.draft,
+        project_id=gunluk.project_id if gunluk is not None else None,
+        record=False,
+    ):
         reasons.append(
             SubmitReason(
                 SUBMIT_NO_PERMISSION,

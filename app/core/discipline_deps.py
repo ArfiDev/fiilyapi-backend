@@ -26,16 +26,28 @@ from fastapi import Depends, HTTPException, Request, status
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.discipline_scope import DisciplineScope, user_scope
+from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, user_scope
+from app.modules.projects.context import request_project
 from app.modules.users.models import User
 
 
 async def resolve_discipline_scope(
+    request: Request,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> DisciplineScope:
-    """Istegi yapan kullanicinin disiplin kapsami (atamasiz/kayitsiz → KISITSIZ)."""
-    return await user_scope(session, user.id)
+    """Istegi yapan kullanicinin disiplin kapsami (IZN-B3: PROJE BASINA).
+
+    * "Tum projeler" kisisi → KISITSIZ (disiplin kisiti olmaz).
+    * Istek tek bir projeye aitse (yol parametresinden `projects.context.resolve_project`) → o
+      projedeki atama; atamasiz = o projede kisitsiz.
+    * Proje baglamsiz uc (liste) ya da cozulemeyen kayit → COK PROJE kapsami (kisitli oldugu
+      projelerin haritasi; `DisciplineScope.is_multi_project`).
+    """
+    if user.all_projects:
+        return UNRESTRICTED
+    project_id = await request_project(session, request)
+    return await user_scope(session, user.id, project_id)
 
 
 DisciplineScoped = Annotated[DisciplineScope, Depends(resolve_discipline_scope)]
@@ -53,6 +65,11 @@ async def require_unrestricted(request: Request, scope: DisciplineScoped) -> Non
     yazma uclarinin davranisi DEGISMEDI.
     """
     if request.method == "DELETE":
+        return
+    # IZN-B3: proje baglamsiz LISTE ucu (GET, yol parametresi yok) kisitli oldugu projeler icin 403
+    # DEGIL: kisitli projelerin satirlari servis katmaninda DISARIDA birakilir
+    # (`restricted_project_ids`) — tek-proje ucunun 403'uyle ayni sonuc ("o projenin hakedisi yok").
+    if request.method == "GET" and scope.is_multi_project and not request.path_params:
         return
     if scope.is_restricted:
         raise HTTPException(

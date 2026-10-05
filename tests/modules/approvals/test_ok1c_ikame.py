@@ -478,9 +478,11 @@ async def test_MODUL_KAPISINDAN_GECEN_aktorun_sorgu_sayisi_ARTMAMALIDIR(
         yanit = await client.post(f"{_TASERON_YOL}/{document_id}/approve", headers=basliklar)
 
     assert yanit.status_code == 200, yanit.text
-    # 27 → 28 (DSC-B5, 2026-10-01): hakediş router'ları `RequireUnrestricted` taşır;
-    # kapı istek başına TEK `SELECT … FROM user_disciplines` (resolve_discipline_scope)
-    # koşar. Ölçüldü: origin/main 27 ile fark yalnız bu satır. İkame sıcak yola sızmadı.
-    assert len(ifadeler) == 28, (
-        f"sıcak yol sorgu sayısı 28 iken {len(ifadeler)} oldu — ikame sıcak yola sızdı mı?"
+    # 27 → 28 (DSC-B5, 2026-10-01): hakediş router'ları `RequireUnrestricted` taşır; kapı istek
+    # başına TEK disiplin okuması koşar. 28 → 25 (IZN-B3): "Tüm projeler" aktörü için kapsam kapısı
+    # sorgusuz (`all_projects` → kısıtsız; −1) ve `visible_projects` tek üyelik okumasıdır (−2).
+    # İkame sıcak yola sızmadı. 25 → 26 (IZN-B3 onarımı): onay kapısı isteğin PROJESİNİ çözer (yol
+    # parametresindeki hakedişten proje: +1 sorgu) ve o projedeki rolle karar verir.
+    assert len(ifadeler) == 26, (
+        f"sıcak yol sorgu sayısı 26 iken {len(ifadeler)} oldu — ikame sıcak yola sızdı mı?"
     )

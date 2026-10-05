@@ -73,6 +73,9 @@ from app.modules.users.models import User
 router = APIRouter(tags=["documents"], responses=COMMON_ERROR_RESPONSES)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
+# IZN-B3: çok proje LİSTE uçları: ana rol VEYA ekip rolü açar, satırlar `visible_projects`te proje
+# başına o projedeki rolle süzülür.
+_VIEW_LISTE = require_permission(service.PERMISSION_MODULE, AccessLevel.view, multi_project=True)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
 # SILME uclari `require_system_admin` ile kapilidir (SIL-B1): modul seviyesi degil rol ANAHTARI.
 
@@ -291,7 +294,7 @@ async def upload_document_endpoint(
     return DocumentRead.model_validate(document)
 
 
-@router.get("/documents", response_model=DocumentListResponse, dependencies=[_VIEW])
+@router.get("/documents", response_model=DocumentListResponse, dependencies=[_VIEW_LISTE])
 async def list_documents_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,

@@ -36,10 +36,9 @@ async def test_kart_hesabi_orm_nesnesini_DEGISTIRMEZ(
     db_session, user_factory, project_factory, seeded_db
 ):
     from app.modules.projects.service import list_projects_overview
-    from app.modules.users.models import UserProjectAccess
 
     user = await user_factory(email="mutasyon@p10t3.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     project = await project_factory(code="T3-MU", project_type="kendi_yatirim")
     _set_budget_lines(project, material="5000000")
     await db_session.flush()
@@ -224,10 +223,9 @@ async def test_taraf_sayaclari_unite_sayisi_arttikca_SORGU_ACMAZ(
     Sayaçlar için ayrı bir `SELECT count(*)` yazılsaydı bu ölçüm büyürdü.
     """
     from app.modules.projects.service import list_projects_overview
-    from app.modules.users.models import UserProjectAccess
 
     user = await user_factory(email="tarafn1@p10t3.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     proje = await _kk_projesi(db_session, project_factory, code="T3-TSN")
     site = Site(project_id=proje.id, code="SNT-TSN", name="Şantiye")
     db_session.add(site)

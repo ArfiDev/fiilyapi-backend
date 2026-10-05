@@ -43,6 +43,7 @@ from app.modules.documents.link_owners import OwnerContext, OwnerSpec
 from app.modules.documents.link_repository import LinkRow
 from app.modules.documents.link_schemas import EntityDocumentLinkCreate, EntityDocumentLinkUpdate
 from app.modules.documents.models.links import EntityDocumentScope, EntityDocumentType
+from app.modules.documents.service import _BELGE_GORUR
 from app.modules.projects.service import visible_projects
 from app.modules.users.models import User
 
@@ -62,7 +63,7 @@ async def _visible_owner(
     context = await repository.get_owner_context(session, spec, owner_id)
     if context is None:
         raise NotFoundError(spec.owner_missing)
-    visible = await visible_projects(session, actor)
+    visible = await visible_projects(session, actor, pairs=_BELGE_GORUR)
     if not any(p.id == context.project_id for p in visible):
         raise NotFoundError(spec.owner_missing)
     return context

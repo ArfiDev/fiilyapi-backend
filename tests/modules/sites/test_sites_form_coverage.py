@@ -19,7 +19,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 
 from app.modules.sites.models import Section, Site
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import User
 
 WRITE_ROLE = "patron"
 ADMIN_ROLE = "system_admin"
@@ -80,7 +80,7 @@ def _auth(token: str) -> dict[str, str]:
 async def _login(client, session, user_factory, role_key: str = WRITE_ROLE) -> str:
     address = f"{role_key}-{uuid.uuid4().hex[:6]}@t.co"
     user = await user_factory(email=address, password="parola1234", role_key=role_key)
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
     resp = await client.post("/auth/login", json={"email": address, "password": "parola1234"})
     return resp.json()["access_token"]

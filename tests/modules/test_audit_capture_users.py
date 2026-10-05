@@ -151,7 +151,7 @@ async def test_kullanici_silme_denetim_satiri_silinen_adi_icerir(client, user_fa
     assert rows[0].detail == "Kullanıcı silindi: Silinecek Kişi"
 
 
-async def test_proje_erisimi_guncelleme_denetim_satiri_yazar(
+async def test_erisim_guncelleme_denetim_satiri_yazar(
     client, user_factory, seeded_db, project_factory
 ):
     headers = await _auth(client, user_factory, "system_admin")
@@ -159,17 +159,24 @@ async def test_proje_erisimi_guncelleme_denetim_satiri_yazar(
         email="hedef@t.co", password="parola1234", role_key="accounting", full_name="Erişim Kişi"
     )
     project = await project_factory(code="PRJ-AUDIT-1")
+    rid = await _role_id(seeded_db, "accounting")
 
     resp = await client.put(
-        f"/users/{target.id}/project-access",
-        json={"all_projects": False, "project_ids": [str(project.id)]},
+        f"/users/{target.id}/access",
+        json={
+            "role_id": rid,
+            "all_projects": False,
+            "projects": [{"project_id": str(project.id), "role_id": rid, "discipline_ids": []}],
+        },
         headers=headers,
     )
     assert resp.status_code == 200
 
     rows = await _rows(seeded_db, AuditAction.update)
     assert len(rows) == 1
-    assert rows[0].detail == "Proje erişimi güncellendi: Erişim Kişi"
+    assert rows[0].detail == (
+        "Kullanıcı erişimi güncellendi: Erişim Kişi · ana rol Muhasebe · 1 projede ekip"
+    )
 
 
 async def test_get_uclari_denetim_satiri_yazmaz(client, user_factory, seeded_db):

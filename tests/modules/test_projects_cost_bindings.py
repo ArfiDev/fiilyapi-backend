@@ -391,10 +391,9 @@ async def test_proje_listesinde_sorgu_sayisi_proje_sayisindan_bagimsizdir(
 ):
     """Spec §4: kart türevleri proje başına sorgu AÇMAZ."""
     from app.modules.projects.service import list_projects_overview
-    from app.modules.users.models import UserProjectAccess
 
     user = await user_factory(email="olcum@p10t3.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     tek = await project_factory(code="T3-N1", project_type="kendi_yatirim")
     _set_budget_lines(tek, material="1000000")
     await _units(db_session, tek, [{"list_price": Decimal("100.00")}])
@@ -430,10 +429,9 @@ async def test_taahhut_kartlarinda_sorgu_sayisi_proje_ve_hakedis_sayisindan_bagi
 ):
     """Spec §4: "Harcanan" bağı proje başına sorgu AÇMAZ (1 proje vs 4 çok hakedişli)."""
     from app.modules.projects.service import list_projects_overview
-    from app.modules.users.models import UserProjectAccess
 
     user = await user_factory(email="taolcum@p10t3.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     tek = await project_factory(code="T3-TN1", project_type="taahhut")
     sozlesme = await _contract(db_session, tek, user, name="Tek Taşeron")
     await _payment(db_session, sozlesme, user, SubcontractorPaymentStatus.paid, quantity="10")
@@ -473,10 +471,9 @@ async def test_kendi_yatirim_kartlarinda_harcanan_okumasi_da_TEK_sorgudur(
     """Kullanıcı kararı 2026-08-09 harcanan okumasını kendi yatırım projelerine de
     açtı; süzgeç genişledi ama toplu okuma TEK sorgu KALDI (spec §4)."""
     from app.modules.projects.service import list_projects_overview
-    from app.modules.users.models import UserProjectAccess
 
     user = await user_factory(email="kyolcum@p10t3.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     tek = await project_factory(code="T3-KN1", project_type="kendi_yatirim")
     sozlesme = await _contract(db_session, tek, user, name="Tek Taşeron")
     await _payment(db_session, sozlesme, user, SubcontractorPaymentStatus.paid, quantity="10")
@@ -520,10 +517,9 @@ async def test_harcanan_alani_olmayan_tipte_taseron_okumasi_HIC_kosmaz(
     E4 122 "Toplam Maliyet" = harcanan), taahhütle birlikte okunur.
     """
     from app.modules.projects.service import list_projects_overview
-    from app.modules.users.models import UserProjectAccess
 
     user = await user_factory(email="tipsuzgec@p10t3.co", password="parola1234", role_key="patron")
-    db_session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     proje = await project_factory(code="T3-TS0", project_type="kat_karsiligi")
     _set_budget_lines(proje, material="1000")
     await db_session.flush()

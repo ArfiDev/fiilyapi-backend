@@ -65,7 +65,7 @@ from app.modules.treasury.models import (
     FinancialInstrumentKind,
     FinancialInstrumentStatus,
 )
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 from tests.conftest import test_engine
 
 _SessionFactory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
@@ -124,7 +124,7 @@ async def _kur() -> _Kurulum:
         session.add_all(aktorler)
         await session.flush()
         for aktor in aktorler:
-            session.add(UserProjectAccess(user_id=aktor.id, all_projects=True))
+            aktor.all_projects = True
 
         instrument = FinancialInstrument(
             instrument_kind=FinancialInstrumentKind.cheque,
@@ -164,7 +164,7 @@ async def _temizle(kurulum: _Kurulum) -> None:
             delete(FinancialInstrument).where(FinancialInstrument.id == kurulum.instrument_id)
         )
         await session.execute(
-            delete(UserProjectAccess).where(UserProjectAccess.user_id.in_(kurulum.actor_ids))
+            delete(ProjectMember).where(ProjectMember.user_id.in_(kurulum.actor_ids))
         )
         await session.execute(delete(User).where(User.id.in_(kurulum.actor_ids)))
         await session.execute(delete(Role).where(Role.id == kurulum.role_id))

@@ -94,7 +94,12 @@ def _yol(x: DunyaB4, sablon: str) -> str:
     return sablon.replace("{pid}", str(x.d.proje.id))
 
 
-@pytest.mark.parametrize("ad", sorted(SENARYOLAR))
+#: IZN-B3: proje baglamsiz LISTE uclari 403 DEGIL proje basina SUZER (kisitli projenin satirlari
+#: disarida kalir; asagida `test_liste_uclari_*`). Geri kalan her senaryo tek-proje → 403.
+LISTE_SENARYOLARI = frozenset({"isv_liste", "tas_liste", "tas_ozet"})
+
+
+@pytest.mark.parametrize("ad", sorted(set(SENARYOLAR) - LISTE_SENARYOLARI))
 async def test_kisitliya_403_govde_birebir(client: AsyncClient, dunya_b4: DunyaB4, ad: str) -> None:
     (kisitli, _), yontem, yol, govde, _ = SENARYOLAR[ad]
     ret = await client.request(
@@ -135,9 +140,29 @@ async def test_silmede_disiplin_kisiti_uygulanmaz_sistem_yoneticisi_atanmis_olsa
 
 
 async def test_admin_kisitli_da_403(client: AsyncClient, dunya_b4: DunyaB4) -> None:
-    """Rol ne olursa olsun kısıtlı atama 403 alır (yalnız izin değil, atama belirleyici)."""
-    ret = await client.get("/progress-payments", headers=dunya_b4.d.baslik["admin_kisitli"])
+    """Rol ne olursa olsun kısıtlı atama TEK-PROJE ucunda 403 alır (atama belirleyici)."""
+    ret = await client.get(
+        f"/progress-payments/{ODEME}", headers=dunya_b4.d.baslik["admin_kisitli"]
+    )
     assert ret.status_code == 403 and ret.json() == YETKI_YOK, ret.text
+
+
+async def test_liste_uclari_kisitli_projeyi_disarida_birakir_403_vermez(
+    client: AsyncClient, dunya_b4: DunyaB4
+) -> None:
+    """IZN-B3 (CEO karari): kisitli kisi liste ucunda 403 ALMAZ; disiplinle kisitli oldugu projenin
+    (P1) hakedisleri listede/ozette YOK (tek-proje ucundaki 403 ile tutarli: "o projenin hakedisi
+    yok"), atamasiz es (ayni rol) P1 satirini GORUR (pozitif kontrol)."""
+    for ad, es in (("civil", "pm_atamasiz"), ("admin_kisitli", "atamasiz")):
+        kisitli = await client.get("/progress-payments", headers=dunya_b4.d.baslik[ad])
+        assert kisitli.status_code == 200, (ad, kisitli.text)
+        assert [
+            i for i in kisitli.json()["items"] if i["project_id"] == str(dunya_b4.d.proje.id)
+        ] == []
+        serbest = await client.get("/progress-payments", headers=dunya_b4.d.baslik[es])
+        assert any(i["project_id"] == str(dunya_b4.d.proje.id) for i in serbest.json()["items"])
+    for yol in ("/subcontractor-progress-payments", "/subcontractor-progress-payments/summary"):
+        assert (await client.get(yol, headers=dunya_b4.d.baslik["civil"])).status_code == 200, yol
 
 
 def test_hakedis_router_larindaki_HER_rota_require_unrestricted_tasir() -> None:

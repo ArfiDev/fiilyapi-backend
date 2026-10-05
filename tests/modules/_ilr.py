@@ -38,7 +38,7 @@ from app.modules.subcontractor_progress_payments.models import (
     SubcontractorProgressPayment,
     SubcontractorProgressPaymentLine,
 )
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import User
 
 VARSAYILAN_TARIH = date(2026, 8, 3)
 
@@ -46,7 +46,7 @@ VARSAYILAN_TARIH = date(2026, 8, 3)
 async def login(client, session: AsyncSession, user_factory, role_key: str, email: str) -> dict:
     """Rolu verilen + TUM projelere gorunurlugu olan kullanicinin baslik sozlugu."""
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

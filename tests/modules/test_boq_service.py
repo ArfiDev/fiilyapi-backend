@@ -8,11 +8,10 @@ from app.core.errors import NotFoundError
 from app.modules.boq import service
 from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.sites.models import Site
-from app.modules.users.models import UserProjectAccess
 
 
 async def _grant_all(session, user) -> None:
-    session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await session.flush()
 
 

@@ -52,7 +52,7 @@ from app.modules.contracts.models import EmployerContractGroup, EmployerContract
 from app.modules.projects.models import Project, ProjectContract
 from app.modules.roles.models import Role
 from app.modules.sites.models import Section, Site
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 from tests._yaris import YARIS_TAVANI_SN
 from tests.conftest import test_engine
 
@@ -196,7 +196,7 @@ async def _kur() -> _Kurulum:
         project = Project(code="CD-TOCTOU-001", name="K3 TOCTOU Projesi")
         session.add(project)
         await session.flush()
-        session.add(UserProjectAccess(user_id=user.id, project_id=project.id, all_projects=False))
+        session.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
         session.add(
             ProjectContract(
                 project_id=project.id,

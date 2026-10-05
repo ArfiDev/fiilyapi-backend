@@ -20,7 +20,7 @@ Günlük  E1 05.05 (gönderilmiş, başlık S1): I1·S1 5 · I1·S2 3 · I2·S1 
 Stok    alım (I1 · I2 · NULL) · transfer (NULL) · sarf/düzeltme (I1·S1 · I2·S1 · NULL·S1 · I1·S2)
 EV      05.05 dağılımı: Ali → l:I1:S1 5 sa (KAB) · Veli → l:I2:S1 4 sa (DUV)
 Aktörler atamasiz (system_admin) · civil / elek (project_manager, aynı proje erişimi,
-        UserDiscipline sırasıyla KAB / DUV)
+        proje ekibi disiplinleri sırasıyla KAB / DUV)
 B2 YAZAN aktörler (F1: PM'in günlük yetkisi `view` → yazma testi 403'ü İZİN kapısından alır,
         disiplin kapısı MASKELENİR; bu yüzden yazabilen roller):
         civil_yazar / elek_yazar (patron `_F`, KAB / DUV) · yazar_atamasiz (patron, ATAMASIZ eş:
@@ -45,7 +45,6 @@ from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.catalog.service import next_poz_no
 from app.modules.contracts.models import EmployerContractGroup, EmployerContractItem
 from app.modules.earned_value.engine import ContractorType
-from app.modules.earned_value.models import UserDiscipline
 from app.modules.inventory.models import (
     StockCategory,
     StockEntry,
@@ -65,7 +64,8 @@ from app.modules.site_diary.models import (
 )
 from app.modules.sites.models import Section, Site
 from app.modules.timesheet.models import TimesheetEntry
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
+from tests._proje_ekibi import disiplin_ata
 
 D = Decimal
 SIFRE = "parola1234"
@@ -123,7 +123,7 @@ async def _kullanicilar(
     ):
         user = await user_factory(email=f"{ad}@dsc-b1.co", password=SIFRE, role_key=rol)
         if ad != "atamasiz":
-            session.add(UserProjectAccess(user_id=user.id, project_id=proje.id, all_projects=False))
+            session.add(ProjectMember(user_id=user.id, project_id=proje.id, role_id=user.role_id))
         kullanici[ad] = user
     await session.flush()
     baslik = {ad: await _giris(client, f"{ad}@dsc-b1.co") for ad in kullanici}
@@ -148,9 +148,9 @@ async def _yazan_aktorler(
     for ad, rol, kod in YAZAN_AKTORLER:
         user = await user_factory(email=f"{ad}@dsc-b2.co", password=SIFRE, role_key=rol)
         if rol != "system_admin":
-            session.add(UserProjectAccess(user_id=user.id, project_id=proje.id, all_projects=False))
+            session.add(ProjectMember(user_id=user.id, project_id=proje.id, role_id=user.role_id))
         if kod is not None:
-            session.add(UserDiscipline(user_id=user.id, discipline_id=disiplin[kod].id))
+            await disiplin_ata(session, user, proje.id, disiplin[kod].id)
         kullanici[ad] = user
     await session.flush()
     return kullanici, {ad: await _giris(client, f"{ad}@dsc-b2.co") for ad in kullanici}
@@ -578,7 +578,7 @@ async def kur(
     *,
     yazanlar: bool = False,
 ) -> Dunya:
-    """Dünyayı kurar; `UserDiscipline` atamaları EN SONDA (baseline kurulumu atamasız
+    """Dünyayı kurar; Proje ekibi disiplin atamaları EN SONDA (baseline kurulumu atamasız
     yönetici ile yapılır). `yazanlar=True` (B2 modülleri) F1 yazan aktörlerini de ekler; varsayılan
     KAPALI: `ev_disiplinler.user_count` B1 golden'ında sabittir, ek atama onu değiştirirdi."""
     proje = await project_factory(code="DSC-P01", name="Disiplin Projesi")
@@ -613,13 +613,8 @@ async def kur(
     await _ev_baseline(client, santiye, baslik["atamasiz"], g, i, s1, s2, kab, duv)
     await _ev_gun_dagilimi(client, santiye, baslik["atamasiz"], i, s1, kisiler)
     stok = await _stok(session, santiye, s1, s2, i)
-    session.add_all(
-        [
-            UserDiscipline(user_id=kullanici["civil"].id, discipline_id=kab.id),
-            UserDiscipline(user_id=kullanici["elek"].id, discipline_id=duv.id),
-        ]
-    )
-    await session.flush()
+    await disiplin_ata(session, kullanici["civil"], proje.id, kab.id)
+    await disiplin_ata(session, kullanici["elek"], proje.id, duv.id)
     if yazanlar:
         yazan, yazan_baslik = await _yazan_aktorler(session, client, user_factory, proje, kab, duv)
         kullanici = {**kullanici, **yazan}

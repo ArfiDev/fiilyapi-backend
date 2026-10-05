@@ -19,8 +19,9 @@ class RoleResponse(BaseModel):
     # IZN-B1: kullanıcıya atanabilir mi? `false` = henüz etkin olmayan yeni rol (B2 kapı köprüsüne
     # dek). FE rol seçicilerinde bu alanla süzer; rol anahtarı elle kodlanmaz.
     is_assignable: bool
-    # IZN-B2: rolü ANA rol olarak taşıyan kullanıcı sayısı (B3'te proje ekibi rolü de sayılır).
-    # `0` ⇔ rol silinebilir (Sistem Yöneticisi hariç). Frontend artık `/users`tan HESAPLAMAZ.
+    # IZN-B2/B3: rolü ANA rol olarak YA DA bir proje ekibi satırında proje rolü olarak taşıyan
+    # FARKLI kullanıcı sayısı (iki yoldan bağlı kişi tek sayılır). `0` ⇔ rol silinebilir
+    # (Sistem Yöneticisi hariç). Frontend artık `/users`tan HESAPLAMAZ.
     user_count: int
     # IZN-B2: Sistem Yöneticisi kartı: sayfa izinleri değiştirilemez, rol silinemez/kopyası
     # kilidi taşımaz. `is_system` bu anlamı taşımaz (Patron'da da true).

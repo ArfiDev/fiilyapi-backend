@@ -32,11 +32,6 @@ def discipline_deleted(code: str, name: str) -> str:
     return f"Disiplin silindi: {code} · {name}"
 
 
-def user_disciplines_updated(user_name: str, codes: list[str]) -> str:
-    scope = ", ".join(codes) if codes else "kısıtsız"
-    return f"Kullanıcı disiplin ataması güncellendi: {user_name} · {scope}"
-
-
 def catalog_item_created(name: str, uom: str) -> str:
     return f"Birim oran kataloğuna iş tipi eklendi: {name} ({uom})"
 

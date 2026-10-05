@@ -3,7 +3,6 @@ import uuid
 from pydantic import BaseModel, EmailStr
 
 from app.core.access import AccessLevel
-from app.core.discipline_ref import DisciplineRef
 from app.core.sayfalar import HiddenCategory, PageKey
 from app.modules.pages.schemas import PageGrant
 from app.modules.users.models import UserStatus
@@ -24,6 +23,24 @@ class TokenPair(BaseModel):
     token_type: str = "bearer"
 
 
+class MeProject(BaseModel):
+    """Proje ekibi satırı (IZN-B3): o projedeki rol (anahtar) + o projedeki disiplinler."""
+
+    project_id: uuid.UUID
+    # Rolün sayfa haritası ana rolden FARKLIYSA `MeResponse.role_pages[role_key]`te durur;
+    # ana rolle aynıysa istemci `MeResponse.pages`i kullanır.
+    role_key: str
+    # Boş = o projede disiplin kısıtı YOK. `id`ye göre sıralı.
+    discipline_ids: list[uuid.UUID]
+
+
+class MeRolePages(BaseModel):
+    """Ekip rolünün sayfa izinleri + gizli alanları (`MeResponse.pages`/`hidden_fields` biçimi)."""
+
+    pages: dict[PageKey, PageGrant]
+    hidden_fields: list[HiddenCategory]
+
+
 class MeResponse(BaseModel):
     id: uuid.UUID
     email: EmailStr
@@ -41,10 +58,6 @@ class MeResponse(BaseModel):
     # İzin satırı olmayan modül haritada YER ALMAZ; frontend bunu "bilinmezlik"
     # sayıp kontrolü görünür bırakır (güvenlik sınırı her zaman backend'dedir).
     permissions: dict[str, AccessLevel]
-    # Kullanicinin atanmis disiplinleri (DSC-B0/B0b; id'ye gore sirali; `/users/{id}/
-    # disciplines` ile AYNI anahtar). Bos = atamasiz = KISITSIZ (proje muduru/admin).
-    # Modul kaydi yoksa da bos.
-    disciplines: list[DisciplineRef]
     # IZN-B1 (EKLEYİCİ): aktörün ANA rolünün sayfa izinleri: sayfa anahtarı -> {level, approve}.
     # Anahtar kümesi `GET /pages` kataloğudur. Sistem Yöneticisi için her sayfa
     # {edit, approve=onay eylemi var mı}. Rolün satırı olmayan sayfa haritada YER ALMAZ; frontend
@@ -53,3 +66,12 @@ class MeResponse(BaseModel):
     pages: dict[PageKey, PageGrant]
     # Ana rolün gizlediği hassas alan kategorileri (kutucuk işaretli olanlar), sıralı.
     hidden_fields: list[HiddenCategory]
+    # IZN-B3: "Tüm projeler" işareti. true → `projects` BOŞ gelir ve istemci proje içi sayfalarda
+    # da ANA rolün `pages` haritasını kullanır; disiplin kısıtı olmaz.
+    all_projects: bool
+    # IZN-B3: proje başına rol + disiplin (proje kimliğine göre sıralı). `all_projects` kişide boş.
+    projects: list[MeProject]
+    # IZN-B3: ekipte kullanılan ve ANA rolden FARKLI rollerin sayfa haritası, rol ANAHTARIyla.
+    # Boyut: rol başına ≈100 sayfa ≈ 3–4 KB; kişi başına farklı rol sayısıyla büyür, proje
+    # sayısıyla DEĞİL (aynı rolü 30 projede taşıyan kişi tek harita taşır).
+    role_pages: dict[str, MeRolePages]

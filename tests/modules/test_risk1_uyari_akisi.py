@@ -53,7 +53,7 @@ from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
     SubcontractorProgressPayment,
 )
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 from tests.conftest import test_engine
 
 from ._boq import _set_permission
@@ -89,10 +89,10 @@ async def _aktor(session, user_factory, email: str, role_key: str = "patron", *,
     """Rolu + proje kapsami AYRI eksenler: `projeler=None` ⇒ tum projeler."""
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
     if projeler is None:
-        session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+        user.all_projects = True
     else:
         for proje in projeler:
-            session.add(UserProjectAccess(user_id=user.id, project_id=proje.id, all_projects=False))
+            session.add(ProjectMember(user_id=user.id, project_id=proje.id, role_id=user.role_id))
     await session.flush()
     return user
 

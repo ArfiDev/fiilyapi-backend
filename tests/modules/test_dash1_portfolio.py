@@ -28,7 +28,7 @@ from decimal import Decimal
 
 from app.core.access import AccessLevel, Scope
 from app.modules.progress_payments.models import ProgressPaymentStatus
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 
 from . import _ilr
 from ._boq import _set_permission
@@ -45,10 +45,10 @@ async def _login_kapsamli(client, session, user_factory, role_key, email, *, pro
     """
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
     if projeler is None:
-        session.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+        user.all_projects = True
     else:
         for proje in projeler:
-            session.add(UserProjectAccess(user_id=user.id, project_id=proje.id, all_projects=False))
+            session.add(ProjectMember(user_id=user.id, project_id=proje.id, role_id=user.role_id))
     await session.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

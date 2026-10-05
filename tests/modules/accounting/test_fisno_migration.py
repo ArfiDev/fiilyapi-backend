@@ -50,7 +50,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import settings
 from app.modules.accounting import numbering
 from app.modules.accounting.models import JournalEntry, JournalEntryStatus
-from app.modules.roles.models import Role
 from app.modules.users.models import User
 
 BACKEND_DIR = Path(__file__).parents[3]
@@ -138,25 +137,26 @@ TOHUM: dict[int, list[date]] = {
 
 
 async def _aktor_yarat(database: str) -> uuid.UUID:
-    """`journal_entries.created_by_id` NOT NULL + RESTRICT — FK zemini sart."""
-    engine = create_async_engine(_sqlalchemy_dsn(database))
+    """`journal_entries.created_by_id` NOT NULL + RESTRICT — FK zemini sart.
+
+    HAM SQL: bu revizyonda `users.all_projects` (izn_b3) HENÜZ YOKTUR ve bugünkü `User` modeli
+    onu taşır; ORM insert'i eski şemada patlar.
+    """
+    conn = await asyncpg.connect(_asyncpg_dsn(database))
     try:
-        session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-        async with session_factory() as kurulum:
-            role = Role(key="fisno_backfill", name="FIS-NO Backfill Rolu")
-            kurulum.add(role)
-            await kurulum.flush()
-            user = User(
-                email="fisno-backfill@muhasebe.co",
-                password_hash="x",
-                full_name="FIS-NO Backfill",
-                role_id=role.id,
-            )
-            kurulum.add(user)
-            await kurulum.commit()
-            return user.id
+        role_id = await conn.fetchval(
+            "INSERT INTO roles (id, key, name, emoji, description, is_system) "
+            "VALUES (gen_random_uuid(), 'fisno_backfill', 'FIS-NO Backfill Rolu', '', '', false) "
+            "RETURNING id"
+        )
+        return await conn.fetchval(
+            "INSERT INTO users (id, email, password_hash, full_name, title, role_id, status, "
+            "token_version) VALUES (gen_random_uuid(), 'fisno-backfill@muhasebe.co', 'x', "
+            "'FIS-NO Backfill', '', $1, 'active', 0) RETURNING id",
+            role_id,
+        )
     finally:
-        await engine.dispose()
+        await conn.close()
 
 
 async def _tohumla(database: str) -> dict[int, list[tuple[str, str]]]:

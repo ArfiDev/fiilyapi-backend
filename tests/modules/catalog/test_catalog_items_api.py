@@ -16,8 +16,8 @@ from sqlalchemy import select
 from app.core.access import AccessLevel, Scope
 from app.modules.audit.models import AuditLog
 from app.modules.catalog.models import ContractorType, EvDiscipline
-from app.modules.earned_value.models import UserDiscipline
 from app.modules.users.models import User
+from tests._proje_ekibi import baska_projede_disiplinli
 
 from .._boq import _auth, _login_with_access, _set_permission
 
@@ -312,7 +312,7 @@ async def test_ev_view_olup_contracts_yok_roller_403(
     assert (await client.get("/earned-value/catalog", headers=kisi)).status_code == 200
 
 
-async def test_kisitli_disiplinli_kullanici_yazamaz_ve_yalniz_kendi_disiplinlerini_gorur(
+async def test_proje_basina_disiplinli_kullanici_katalogu_tam_gorur_ve_yazabilir(
     client, admin, kab, db_session, user_factory
 ) -> None:
     elk = await _disiplin(db_session, "ELK", "Elektrik")
@@ -324,18 +324,18 @@ async def test_kisitli_disiplinli_kullanici_yazamaz_ve_yalniz_kendi_disiplinleri
     user_id = (
         await db_session.execute(select(User.id).where(User.email == "pm.kisitli@tkl.co"))
     ).scalar_one()
-    db_session.add(UserDiscipline(user_id=user_id, discipline_id=kab.id))
-    await db_session.flush()
+    await baska_projede_disiplinli(db_session, user_id, kab.id)
     kisitli = _auth(token)
 
+    # IZN-B3: katalog sirket geneli — proje basina disiplin kisiti suzmez, yazmayi da engellemez.
     listed = (await client.get(URL, headers=kisitli)).json()["items"]
-    assert [i["poz_no"] for i in listed] == ["KAB-0001"]
+    assert sorted(i["poz_no"] for i in listed) == ["ELK-0001", "KAB-0001"]
     resp = await client.post(URL, json=_govde(kab, name="Yeni"), headers=kisitli)
-    assert resp.status_code == 403
+    assert resp.status_code == 201, resp.text
     item_id = listed[0]["id"]
     assert (
         await client.patch(f"{URL}/{item_id}", json={"name": "Z"}, headers=kisitli)
-    ).status_code == 403
+    ).status_code == 200
 
 
 # ----------------------------------------------------------- alan maskesi
@@ -453,7 +453,7 @@ async def test_ozel_rol_contracts_view_EV_yok_cekirdek_200_EV_403(
     assert (await client.get("/earned-value/disciplines", headers=kisi)).status_code == 403
 
 
-async def test_disiplin_listesi_kisitli_kullanici_yalniz_kendi_disiplinleri(
+async def test_disiplin_listesi_proje_basina_disiplinli_kullaniciya_tam_gorunur(
     client, db_session, seeded_db, user_factory
 ) -> None:
     kab = await _disiplin(db_session, "KAB")
@@ -464,9 +464,8 @@ async def test_disiplin_listesi_kisitli_kullanici_yalniz_kendi_disiplinleri(
     user_id = (
         await db_session.execute(select(User.id).where(User.email == "pm.disc@tkl.co"))
     ).scalar_one()
-    db_session.add(UserDiscipline(user_id=user_id, discipline_id=kab.id))
-    await db_session.flush()
+    await baska_projede_disiplinli(db_session, user_id, kab.id)
     resp = await client.get(DISC_URL, headers=_auth(token))
-    assert [i["code"] for i in resp.json()["items"]] == ["KAB"]
+    assert sorted(i["code"] for i in resp.json()["items"]) == ["ELK", "KAB"]
     ev = await client.get("/earned-value/disciplines", headers=_auth(token))
-    assert [i["code"] for i in ev.json()] == ["KAB"]  # EV ile ayni davranis
+    assert sorted(i["code"] for i in ev.json()) == ["ELK", "KAB"]  # EV ile ayni davranis

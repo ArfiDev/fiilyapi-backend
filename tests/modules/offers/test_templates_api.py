@@ -16,11 +16,11 @@ from app.core.router_registry import ROUTERS
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.catalog.models import ContractorType, EvDiscipline
-from app.modules.earned_value.models import UserDiscipline
 from app.modules.offers.models import OfferTemplate
 from app.modules.offers.router import router as offers_router
 from app.modules.offers.template_router import router as templates_router
 from app.modules.users.models import User
+from tests._proje_ekibi import baska_projede_disiplinli
 
 from .._boq import _audit_details, _auth, _login_with_access, _set_permission
 from ._offers import (
@@ -481,11 +481,10 @@ async def test_contracts_view_okur_ama_YAZAMAZ(client, admin, db_session, user_f
         "rev_no": 0, "name": "x"}, headers=muhasebe)).status_code == 403  # fmt: skip
 
 
-async def test_kisitli_disiplinli_kullanici_sablonlari_HIC_goremez_R5(
+async def test_proje_basina_disiplinli_kullanici_sablonlari_gorur(
     client, admin, db_session, user_factory
 ) -> None:
-    """TKL-B4.6 (R5/SO-19): disiplin atanmis kullanici sablon OKUMALARINDA da 403; ayni rolun
-    kisitsiz kullanicisi okur (POZITIF KONTROL)."""
+    """IZN-B3: sablonlar sirket geneli — bir projede disiplinle kisitli kullanici da okur."""
     s = await sablon(client, admin)
     disiplin = EvDiscipline(
         code="KSB", name="Kisitli", color="#2563EB", default_contractor_type=ContractorType.OWN
@@ -498,12 +497,10 @@ async def test_kisitli_disiplinli_kullanici_sablonlari_HIC_goremez_R5(
     uid = (
         await db_session.execute(select(User.id).where(User.email == "pm.kisitli.sablon@tkl.co"))
     ).scalar_one()
-    db_session.add(UserDiscipline(user_id=uid, discipline_id=disiplin.id))
-    await db_session.flush()
+    await baska_projede_disiplinli(db_session, uid, disiplin.id)
     kisitli = _auth(token)
-    for yontem, yol, govde in _tum_uclar(s["id"]):
-        resp = await client.request(yontem, yol, json=govde, headers=kisitli)
-        assert resp.status_code == 403, f"{yontem} {yol}: {resp.status_code}"
+    for yol in (TPL, f"{TPL}/{s['id']}"):
+        assert (await client.get(yol, headers=kisitli)).status_code == 200, yol
     serbest = _auth(
         await _login_with_access(
             client, db_session, user_factory, "project_manager", "pm.serbest.sablon@tkl.co"

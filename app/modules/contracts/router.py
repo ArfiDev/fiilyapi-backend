@@ -76,13 +76,16 @@ router = APIRouter(
 last_price_provider.register()
 
 _VIEW = require_permission("contracts", AccessLevel.view)
+# IZN-B3: çok proje LİSTE uçları (parametresiz proje verisi): ana rol VEYA ekip rolü açar, satırlar
+# `visible_projects`te proje başına o projedeki rolle süzülür.
+_VIEW_LISTE = require_permission("contracts", AccessLevel.view, multi_project=True)
 _FULL = require_permission("contracts", AccessLevel.full)
 # KULLANICI KARARI 2026-07-30 (kalıcı karar 2, `boq/router.py` deseninin aynısı):
 # silme YALNIZ sistem yöneticisindedir — `full` yazmayı kapsar, SİLMEYİ KAPSAMAZ.
 _ADMIN = require_permission("contracts", AccessLevel.admin)
 
 
-@router.get("/contracts", response_model=ContractListResponse, dependencies=[_VIEW])
+@router.get("/contracts", response_model=ContractListResponse, dependencies=[_VIEW_LISTE])
 async def list_contracts_endpoint(
     contract_type: Annotated[ContractType, Query(alias="type")],
     user: Annotated[User, Depends(get_current_user)],
@@ -514,7 +517,7 @@ async def create_subcontractor_contract_endpoint(
 @router.get(
     "/subcontractor-contracts",
     response_model=SubcontractorContractListResponse,
-    dependencies=[_VIEW],
+    dependencies=[_VIEW_LISTE],
 )
 async def list_subcontractor_contracts_endpoint(
     user: Annotated[User, Depends(get_current_user)],

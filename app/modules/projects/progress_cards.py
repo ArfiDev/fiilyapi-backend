@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.discipline_scope import DisciplineScope
-from app.core.permissions import can_read
+from app.core.permissions import can_read_projects
 from app.modules.boq import progress as boq_progress
 from app.modules.progress_payments import project_progress
 from app.modules.projects.models import Project
@@ -57,20 +57,22 @@ async def by_projects(
     if not project_ids:
         return {}
 
-    gunluk_izni = await can_read(session, actor, _SITE_DIARY)
-    hakedis_izni = await can_read(session, actor, _PROGRESS_PAYMENTS)
+    # IZN-B3: alan kapisi PROJE BASINA — her projede O PROJEDEKI rolun gunluk / hakedis Gorur'u
+    # (ana rol degil). Koylu olmayan projenin karti "restricted" kalir.
+    gunluk_izni = await can_read_projects(session, actor, _SITE_DIARY, project_ids)
+    hakedis_izni = await can_read_projects(session, actor, _PROGRESS_PAYMENTS, project_ids)
 
-    fiziksel = (
-        await boq_progress.physical_for_projects(session, project_ids, scope) if gunluk_izni else {}
+    fiziksel = await boq_progress.physical_for_projects(
+        session, [pid for pid in project_ids if gunluk_izni[pid]], scope
     )
-    mali = (
-        await project_progress.financial_for_projects(session, project_ids) if hakedis_izni else {}
+    mali = await project_progress.financial_for_projects(
+        session, [pid for pid in project_ids if hakedis_izni[pid]]
     )
 
     return {
         pid: CardProgress(
-            physical=metric(fiziksel[pid], _SITE_DIARY) if gunluk_izni else restricted(),
-            financial=metric(mali[pid], _PROGRESS_PAYMENTS) if hakedis_izni else restricted(),
+            physical=metric(fiziksel[pid], _SITE_DIARY) if gunluk_izni[pid] else restricted(),
+            financial=metric(mali[pid], _PROGRESS_PAYMENTS) if hakedis_izni[pid] else restricted(),
         )
         for pid in project_ids
     }

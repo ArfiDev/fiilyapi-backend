@@ -100,29 +100,6 @@ class DisciplineRead(BaseModel):
     _engine_ct = field_validator("default_contractor_type", mode="before")(to_engine_ct)
 
 
-#: Bir kullaniciya atanabilecek en fazla disiplin (sirket katalogu kucuktur; sinir govdeyi
-#: sinirlamak icindir, is kurali degil).
-MAX_USER_DISCIPLINES = 100
-
-
-class UserDisciplinesInput(BaseModel):
-    """`PUT /users/{id}/disciplines` govdesi: TAM DEGISTIRME. Bos liste = tum atamalar silinir
-    = kullanici kisitsiz. Yinelenen id'ler serviste tekillestirilir."""
-
-    model_config = _STRICT
-
-    # `max_length` TEKILLESTIRMEDEN ONCE uygulanir (101 kez ayni id → 422). Yorum: docstring
-    # openapi aciklamasina girer ve sozlesme baseline'ini degistirirdi.
-    discipline_ids: list[uuid.UUID] = Field(max_length=MAX_USER_DISCIPLINES)
-
-
-class UserDisciplinesRead(BaseModel):
-    """Kullanicinin atanmis disiplinleri (id'ye gore sirali; atamasiz = [])."""
-
-    discipline_ids: list[uuid.UUID]
-    disciplines: list[DisciplineRef]  # `discipline_ids` ile AYNI sira
-
-
 # ------------------------------------------------------------------- katalog
 
 

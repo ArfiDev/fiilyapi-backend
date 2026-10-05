@@ -130,14 +130,28 @@ async def has_legacy_cells(session: AsyncSession, role_id: uuid.UUID) -> bool:
 async def role_user_counts(
     session: AsyncSession, role_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, int]:
-    """Roller için ANA rol olarak kullanıcı sayısı — TEK sorgu (B3'te proje ekibi rolü eklenir)."""
+    """Roller için FARKLI kullanıcı sayısı — TEK sorgu (IZN-B3).
+
+    Bir kullanıcı bir role ANA rolü olarak YA DA bir proje ekibi satırındaki rolü olarak bağlıysa
+    o rolde sayılır; iki yoldan da bağlı (ya da birkaç projede aynı rolde) kişi TEK kez sayılır
+    (`UNION` tekilleştirir). `0` ⇔ rol silinebilir; `project_members.role_id` RESTRICT olduğu için
+    bu sayı FK'nin de aynasıdır.
+    """
     if not role_ids:
         return {}
-    from app.modules.users.models import User  # fonksiyon içi: roles ↔ users döngüsünü önler
+    from app.modules.users.models import ProjectMember, User  # roles ↔ users döngüsünü önler
 
-    result = await session.execute(
-        select(User.role_id, func.count()).where(User.role_id.in_(role_ids)).group_by(User.role_id)
+    pairs = (
+        select(User.role_id.label("role_id"), User.id.label("user_id"))
+        .where(User.role_id.in_(role_ids))
+        .union(
+            select(ProjectMember.role_id, ProjectMember.user_id).where(
+                ProjectMember.role_id.in_(role_ids)
+            )
+        )
+        .subquery()
     )
+    result = await session.execute(select(pairs.c.role_id, func.count()).group_by(pairs.c.role_id))
     return {role_id: count for role_id, count in result.all()}
 
 

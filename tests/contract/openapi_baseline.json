@@ -18088,14 +18088,40 @@
         "title": "MaritalStatus",
         "type": "string"
       },
+      "MeProject": {
+        "description": "Proje ekibi satırı (IZN-B3): o projedeki rol (anahtar) + o projedeki disiplinler.",
+        "properties": {
+          "discipline_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Discipline Ids",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "role_key": {
+            "title": "Role Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "role_key",
+          "discipline_ids"
+        ],
+        "title": "MeProject",
+        "type": "object"
+      },
       "MeResponse": {
         "properties": {
-          "disciplines": {
-            "items": {
-              "$ref": "#/components/schemas/DisciplineRef"
-            },
-            "title": "Disciplines",
-            "type": "array"
+          "all_projects": {
+            "title": "All Projects",
+            "type": "boolean"
           },
           "email": {
             "format": "email",
@@ -18139,9 +18165,23 @@
             "title": "Permissions",
             "type": "object"
           },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/MeProject"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
           "role_key": {
             "title": "Role Key",
             "type": "string"
+          },
+          "role_pages": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MeRolePages"
+            },
+            "title": "Role Pages",
+            "type": "object"
           },
           "status": {
             "$ref": "#/components/schemas/UserStatus"
@@ -18160,11 +18200,41 @@
           "is_system_admin",
           "status",
           "permissions",
-          "disciplines",
+          "pages",
+          "hidden_fields",
+          "all_projects",
+          "projects",
+          "role_pages"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
+      "MeRolePages": {
+        "description": "Ekip rolünün sayfa izinleri + gizli alanları (`MeResponse.pages`/`hidden_fields` biçimi).",
+        "properties": {
+          "hidden_fields": {
+            "items": {
+              "$ref": "#/components/schemas/HiddenCategory"
+            },
+            "title": "Hidden Fields",
+            "type": "array"
+          },
+          "pages": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PageGrant"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/PageKey"
+            },
+            "title": "Pages",
+            "type": "object"
+          }
+        },
+        "required": [
           "pages",
           "hidden_fields"
         ],
-        "title": "MeResponse",
+        "title": "MeRolePages",
         "type": "object"
       },
       "MetricPlaceholder": {
@@ -25985,47 +26055,6 @@
         "title": "ProgressPaymentUpdate",
         "type": "object"
       },
-      "ProjectAccessInput": {
-        "properties": {
-          "all_projects": {
-            "default": false,
-            "title": "All Projects",
-            "type": "boolean"
-          },
-          "project_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Project Ids",
-            "type": "array"
-          }
-        },
-        "title": "ProjectAccessInput",
-        "type": "object"
-      },
-      "ProjectAccessResponse": {
-        "properties": {
-          "all_projects": {
-            "title": "All Projects",
-            "type": "boolean"
-          },
-          "project_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Project Ids",
-            "type": "array"
-          }
-        },
-        "required": [
-          "all_projects",
-          "project_ids"
-        ],
-        "title": "ProjectAccessResponse",
-        "type": "object"
-      },
       "ProjectBudgetInput": {
         "description": "Dört bütçe kalemi (spec §3.3). Toplam `budget`'i servis hesaplar; istemci `budget` yok.",
         "properties": {
@@ -27380,6 +27409,69 @@
           "offset"
         ],
         "title": "ProjectListResponse",
+        "type": "object"
+      },
+      "ProjectMemberInput": {
+        "description": "Bir projedeki ekip satırı (PUT gövdesi): o projedeki rol + o projedeki disiplinler.",
+        "properties": {
+          "discipline_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Discipline Ids",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "role_id": {
+            "format": "uuid",
+            "title": "Role Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "role_id"
+        ],
+        "title": "ProjectMemberInput",
+        "type": "object"
+      },
+      "ProjectMemberResponse": {
+        "properties": {
+          "disciplines": {
+            "items": {
+              "$ref": "#/components/schemas/DisciplineRef"
+            },
+            "title": "Disciplines",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "role_id": {
+            "format": "uuid",
+            "title": "Role Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "project_name",
+          "role_id",
+          "disciplines"
+        ],
+        "title": "ProjectMemberResponse",
         "type": "object"
       },
       "ProjectProfitProjection": {
@@ -47082,6 +47174,61 @@
         "title": "UpcomingSourceType",
         "type": "string"
       },
+      "UserAccessInput": {
+        "description": "`PUT /users/{id}/access` gövdesi: ana rol + proje ekibi, TAM DEĞİŞTİRME (atomik).\n\n`all_projects=true` iken `projects` BOŞ olmak zorundadır (422): bu kişi her projeyi ana\nrolüyle görür, ekip satırı ve disiplin kısıtı taşımaz.",
+        "properties": {
+          "all_projects": {
+            "default": false,
+            "title": "All Projects",
+            "type": "boolean"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectMemberInput"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "role_id": {
+            "format": "uuid",
+            "title": "Role Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role_id"
+        ],
+        "title": "UserAccessInput",
+        "type": "object"
+      },
+      "UserAccessResponse": {
+        "description": "`GET`/`PUT /users/{id}/access` yanıtı (ikisi AYNI şema). `projects` ad sırasıyla.",
+        "properties": {
+          "all_projects": {
+            "title": "All Projects",
+            "type": "boolean"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectMemberResponse"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "role_id": {
+            "format": "uuid",
+            "title": "Role Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role_id",
+          "all_projects",
+          "projects"
+        ],
+        "title": "UserAccessResponse",
+        "type": "object"
+      },
       "UserCreate": {
         "properties": {
           "email": {
@@ -47124,52 +47271,6 @@
           "role_id"
         ],
         "title": "UserCreate",
-        "type": "object"
-      },
-      "UserDisciplinesInput": {
-        "additionalProperties": false,
-        "description": "`PUT /users/{id}/disciplines` govdesi: TAM DEGISTIRME. Bos liste = tum atamalar silinir\n= kullanici kisitsiz. Yinelenen id'ler serviste tekillestirilir.",
-        "properties": {
-          "discipline_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "maxItems": 100,
-            "title": "Discipline Ids",
-            "type": "array"
-          }
-        },
-        "required": [
-          "discipline_ids"
-        ],
-        "title": "UserDisciplinesInput",
-        "type": "object"
-      },
-      "UserDisciplinesRead": {
-        "description": "Kullanicinin atanmis disiplinleri (id'ye gore sirali; atamasiz = []).",
-        "properties": {
-          "discipline_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Discipline Ids",
-            "type": "array"
-          },
-          "disciplines": {
-            "items": {
-              "$ref": "#/components/schemas/DisciplineRef"
-            },
-            "title": "Disciplines",
-            "type": "array"
-          }
-        },
-        "required": [
-          "discipline_ids",
-          "disciplines"
-        ],
-        "title": "UserDisciplinesRead",
         "type": "object"
       },
       "UserListResponse": {
@@ -47224,6 +47325,10 @@
       },
       "UserResponse": {
         "properties": {
+          "all_projects": {
+            "title": "All Projects",
+            "type": "boolean"
+          },
           "email": {
             "format": "email",
             "title": "Email",
@@ -47250,6 +47355,10 @@
             ],
             "title": "Last Login At"
           },
+          "project_count": {
+            "title": "Project Count",
+            "type": "integer"
+          },
           "role_id": {
             "format": "uuid",
             "title": "Role Id",
@@ -47269,7 +47378,9 @@
           "full_name",
           "title",
           "role_id",
-          "status"
+          "status",
+          "all_projects",
+          "project_count"
         ],
         "title": "UserResponse",
         "type": "object"
@@ -51748,7 +51859,7 @@
     },
     "/catalog/items/export": {
       "get": {
-        "description": "Fiyatli katalog xlsx — liste ucuyla AYNI suzgecler (`q`, `discipline_id`) ve kapsam.",
+        "description": "Fiyatli katalog xlsx — liste ucuyla AYNI suzgecler (`q`, `discipline_id`).",
         "operationId": "export_catalog_endpoint_catalog_items_export_get",
         "parameters": [
           {
@@ -54194,7 +54305,7 @@
     },
     "/earned-value/disciplines": {
       "get": {
-        "description": "Sirket disiplinleri (K2) — `sort_order`, sonra `code` sirasiyla.",
+        "description": "Sirket disiplinleri (K2) — `sort_order`, sonra `code` sirasiyla.\n\nIZN-B3: disiplin atamasi PROJE BASINA oldugu icin sirket katalogu kullanici kapsamina gore\nSUZULMEZ (herkes tum disiplinleri gorur).",
         "operationId": "list_disciplines_endpoint_earned_value_disciplines_get",
         "responses": {
           "200": {
@@ -78281,6 +78392,25 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "description": "Ad, e-posta ya da ana rol adında ara (büyük/küçük harf ve Türkçe karakter duyarsız; `İ ı I i` aynı sayılır). Boş = süzgeç yok.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Ad, e-posta ya da ana rol adında ara (büyük/küçük harf ve Türkçe karakter duyarsız; `İ ı I i` aynı sayılır). Boş = süzgeç yok.",
+              "title": "Q"
+            }
           }
         ],
         "responses": {
@@ -78540,9 +78670,10 @@
         ]
       }
     },
-    "/users/{user_id}/disciplines": {
+    "/users/{user_id}/access": {
       "get": {
-        "operationId": "get_user_disciplines_endpoint_users__user_id__disciplines_get",
+        "description": "Kullanıcının ana rolü, \"Tüm projeler\" işareti ve proje ekibi (rol + disiplin).\n\n`all_projects=true` kişide `projects` boştur. Kapı: Kullanıcılar sayfası Görür.",
+        "operationId": "get_user_access_endpoint_users__user_id__access_get",
         "parameters": [
           {
             "in": "path",
@@ -78560,7 +78691,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserDisciplinesRead"
+                  "$ref": "#/components/schemas/UserAccessResponse"
                 }
               }
             },
@@ -78588,14 +78719,14 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get User Disciplines Endpoint",
+        "summary": "Get User Access Endpoint",
         "tags": [
-          "earned-value",
           "users"
         ]
       },
       "put": {
-        "operationId": "set_user_disciplines_endpoint_users__user_id__disciplines_put",
+        "description": "Ana rol + \"Tüm projeler\" + proje ekibini TEK transaction'da TAM DEĞİŞTİRİR (atomik).\n\nKullanıcı satırı `FOR UPDATE` ile kilitlenir; hata → hiçbir şey değişmez. Yanıt GET ile aynı.\nKapı: Kullanıcılar sayfası Düzenler.",
+        "operationId": "set_user_access_endpoint_users__user_id__access_put",
         "parameters": [
           {
             "in": "path",
@@ -78612,7 +78743,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UserDisciplinesInput"
+                "$ref": "#/components/schemas/UserAccessInput"
               }
             }
           },
@@ -78623,17 +78754,120 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserDisciplinesRead"
+                  "$ref": "#/components/schemas/UserAccessResponse"
                 }
               }
             },
             "description": "Successful Response"
           },
+          "400": {
+            "description": "Son aktif Sistem Yöneticisi düşürülemez"
+          },
+          "403": {
+            "description": "Atanan rol aktörün yetkilerini aşıyor · Sistem Yöneticisi rolünü yalnız Sistem Yöneticisi atar · Sistem Yöneticisi olmayan aktör KENDİ erişimini değiştiremez · `all_projects` işaretini yalnız Sistem Yöneticisi verir/kaldırır · Sistem Yöneticisi'nin ana rolünü yalnız Sistem Yöneticisi değiştirir"
+          },
+          "404": {
+            "description": "Kullanıcı ya da rol bulunamadı"
+          },
+          "422": {
+            "description": "`all_projects=true` iken ekip dolu · aynı proje iki kez · bilinmeyen proje/rol/disiplin · proje rolü Sistem Yöneticisi · Sistem Yöneticisi'ne ekip satırı"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set User Access Endpoint",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{user_id}/disciplines": {
+      "get": {
+        "deprecated": true,
+        "description": "KALDIRILDI (IZN-B3): her çağrı 410 döner.",
+        "operationId": "get_user_disciplines_endpoint_users__user_id__disciplines_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
           "403": {
             "description": "Yetkisiz işlem"
           },
           "404": {
             "description": "Kayıt bulunamadı"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Uç kaldırıldı: disiplin artık proje ekibinde (`/users/{id}/access`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get User Disciplines Endpoint",
+        "tags": [
+          "earned-value",
+          "users"
+        ]
+      },
+      "put": {
+        "deprecated": true,
+        "description": "KALDIRILDI (IZN-B3): her çağrı 410 döner, hiçbir şey yazılmaz.",
+        "operationId": "set_user_disciplines_endpoint_users__user_id__disciplines_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "Yetkisiz işlem"
+          },
+          "404": {
+            "description": "Kayıt bulunamadı"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Uç kaldırıldı: disiplin artık proje ekibinde (`/users/{id}/access`)"
           },
           "422": {
             "content": {
@@ -78717,6 +78951,8 @@
     },
     "/users/{user_id}/project-access": {
       "get": {
+        "deprecated": true,
+        "description": "KALDIRILDI (IZN-B3): her çağrı 410 döner.",
         "operationId": "get_project_access_endpoint_users__user_id__project_access_get",
         "parameters": [
           {
@@ -78731,21 +78967,19 @@
           }
         ],
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectAccessResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
           "403": {
             "description": "Yetkisiz işlem"
           },
           "404": {
             "description": "Kayıt bulunamadı"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Uç kaldırıldı: erişim artık ana rol + proje ekibi (`/users/{id}/access`)"
           },
           "422": {
             "content": {
@@ -78769,6 +79003,8 @@
         ]
       },
       "put": {
+        "deprecated": true,
+        "description": "KALDIRILDI (IZN-B3): her çağrı 410 döner, hiçbir şey yazılmaz.",
         "operationId": "set_project_access_endpoint_users__user_id__project_access_put",
         "parameters": [
           {
@@ -78782,32 +79018,20 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectAccessInput"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectAccessResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
           "403": {
             "description": "Yetkisiz işlem"
           },
           "404": {
             "description": "Kayıt bulunamadı"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Uç kaldırıldı: erişim artık ana rol + proje ekibi (`/users/{id}/access`)"
           },
           "422": {
             "content": {

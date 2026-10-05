@@ -255,9 +255,6 @@ from app.modules.audit.messages.core import (
     permission_changed as permission_changed,
 )
 from app.modules.audit.messages.core import (
-    project_access_updated as project_access_updated,
-)
-from app.modules.audit.messages.core import (
     project_created as project_created,
 )
 from app.modules.audit.messages.core import (
@@ -280,6 +277,9 @@ from app.modules.audit.messages.core import (
 )
 from app.modules.audit.messages.core import (
     role_renamed as role_renamed,
+)
+from app.modules.audit.messages.core import (
+    user_access_updated as user_access_updated,
 )
 from app.modules.audit.messages.core import (
     user_created as user_created,

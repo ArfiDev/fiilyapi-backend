@@ -1002,15 +1002,15 @@ async def test_POZITIF_KONTROL_limit_BILDIREN_ucta_tavan_ISLER(
     seeded_db, user_factory, project_factory, transport_factory
 ) -> None:
     """K-IKIZ1: uçların hepsi tavanı yok saysaydı yukarıdaki test de geçerdi."""
-    from app.modules.users.models import UserProjectAccess
+    from app.modules.users.models import ProjectMember
 
     a = await project_factory(code="AI2A-1", name="Bir")
     b = await project_factory(code="AI2A-2", name="Iki")
     user = await user_factory("ai2a-tavan@fiil.example.com", "Sifre1234!", "site_chief")
     seeded_db.add_all(
         [
-            UserProjectAccess(user_id=user.id, project_id=a.id),
-            UserProjectAccess(user_id=user.id, project_id=b.id),
+            ProjectMember(user_id=user.id, project_id=a.id, role_id=user.role_id),
+            ProjectMember(user_id=user.id, project_id=b.id, role_id=user.role_id),
         ]
     )
     await seeded_db.flush()

@@ -38,6 +38,7 @@ from app.modules.boq.progress import (
 )
 from app.modules.boq.schemas import quantize_money
 from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine
+from tests._proje_ekibi import disiplin_ata
 from tests._section_types import SEED_TYPE_IDS
 from tests.discipline_scope._b4_dunya import DunyaB4
 
@@ -311,11 +312,13 @@ async def test_kartlar_kendi_disiplininden(
 
 @pytest.mark.parametrize("aktor", ["civil", "elek"])
 async def test_proje2_revizyonsuz_kisitlida_tire(
-    dunya_b4: DunyaB4, client: AsyncClient, aktor: str
+    dunya_b4: DunyaB4, client: AsyncClient, seeded_db, aktor: str
 ) -> None:
     """P2'de EV revizyonu yok → kalem disiplini NULL → kısıtlıda görünür kalem yok → "—";
-    atamasızda golden'daki 40.00."""
+    atamasızda golden'daki 40.00. (IZN-B3: disiplin PROJE BAŞINA — kişi P2'de de atanmış olmalı.)"""
     x = dunya_b4
+    kod = x.d.kab if aktor == "civil" else x.d.duv
+    await disiplin_ata(seeded_db, x.d.kullanici[aktor], x.proje2.id, kod.id)
     pd = await _al(client, x.d.baslik[aktor], f"/projects/{x.proje2.id}")
     zarf = pd["contracting"]["physical_progress"]
     assert zarf["available"] is False and zarf["value"] is None
@@ -324,6 +327,22 @@ async def test_proje2_revizyonsuz_kisitlida_tire(
     assert satir["contracting"]["physical_progress"]["value"] is None
     adm = await _al(client, x.d.baslik["atamasiz"], f"/projects/{x.proje2.id}")
     assert _p(adm["contracting"]["physical_progress"]) == "40.00"
+
+
+@pytest.mark.parametrize("aktor", ["civil", "elek"])
+async def test_proje2_atamasiz_olan_baska_projede_kisitli_kisi_P2de_kisitsiz(
+    dunya_b4: DunyaB4, client: AsyncClient, aktor: str
+) -> None:
+    """IZN-B3: aynı kişi P1'de disiplinle kısıtlı, P2'de atamasız → P2 kartı KISITSIZ değer
+    (golden 40.00) gösterir; P1 kartı kısıtlı kalır. Liste ucu (çok proje) ikisini de doğru
+    verir."""
+    x = dunya_b4
+    pd = await _al(client, x.d.baslik[aktor], f"/projects/{x.proje2.id}")
+    assert _p(pd["contracting"]["physical_progress"]) == "40.00"
+    pl = await _al(client, x.d.baslik[aktor], "/projects")
+    satir = {i["id"]: i for i in pl["items"]}
+    assert _p(satir[str(x.proje2.id)]["contracting"]["physical_progress"]) == "40.00"
+    assert _p(satir[str(x.d.proje.id)]["contracting"]["physical_progress"]) != "12.66"
 
 
 # --------------------------------------------------------------------------- #
@@ -439,7 +458,12 @@ async def test_kart_listelerinde_sorgu_sayisi_kisitli_ve_atamasiz_esit(
                 yanit = await client.get(yol, headers=x.d.baslik[ad])
                 assert yanit.status_code == 200
             sayimlar[ad] = len(ifadeler)
-        assert sayimlar["civil"] == sayimlar["pm_atamasiz"] == sayimlar["elek"], (yol, sayimlar)
+        # IZN-B3: çok proje listesinde kısıtlı proje kendi kapsamıyla AYRI parça olur (+1 toplu
+        # sorgu; proje sayısıyla ARTMAZ — N+1 bekçisi). Tek-proje uçlarında sayı eşit kalır.
+        fazla = 1 if yol == "/projects" else 0
+        for ad in ("civil", "elek"):
+            assert sayimlar[ad] - sayimlar["pm_atamasiz"] in range(0, fazla + 1), (yol, sayimlar)
+        assert sayimlar["civil"] == sayimlar["elek"], (yol, sayimlar)
 
 
 # --------------------------------------------------------------------------- #

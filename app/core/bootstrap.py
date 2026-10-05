@@ -7,7 +7,7 @@ from app.core.db import SessionLocal
 from app.core.security import hash_password
 from app.modules.company.models import Company
 from app.modules.roles.models import SYSTEM_ADMIN_KEY, Role
-from app.modules.users.models import User, UserProjectAccess, UserStatus
+from app.modules.users.models import User, UserStatus
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ async def ensure_first_admin() -> None:
             return
 
         admin = User(
+            all_projects=True,  # IZN-B3: "Tüm projeler" artık kullanıcı kolonunda
             email=settings.admin_email,
             password_hash=hash_password(settings.admin_password),
             full_name="Sistem Yöneticisi",
@@ -42,8 +43,6 @@ async def ensure_first_admin() -> None:
             status=UserStatus.active,
         )
         session.add(admin)
-        await session.flush()
-        session.add(UserProjectAccess(user_id=admin.id, all_projects=True))
         await session.commit()
         logger.info("İlk sistem yöneticisi oluşturuldu: %s", settings.admin_email)
 

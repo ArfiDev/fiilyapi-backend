@@ -29,7 +29,7 @@ from app.modules.projects.models import Project
 from app.modules.site_diary.models import WorkerSource
 from app.modules.sites.models import Section, Site
 from app.modules.timesheet.models import TimesheetCode, TimesheetEntry
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 from tests.site_diary._port import port  # noqa: F401 — PLN-B2.1 port ikizi
 
 # Mockup dönemi: E5 139 "Temmuz 2026".
@@ -74,7 +74,7 @@ async def _scoped_headers(
     """Rolü verilen ama kapsamı TEK projeye kısıtlanmış kullanıcı (IDOR yüzeyi)."""
     await user_factory(email=email, password="parola1234", role_key=role_key)
     user = (await seeded_db.execute(select(User).where(User.email == email))).scalar_one()
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=project.id, all_projects=False))
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

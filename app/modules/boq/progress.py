@@ -36,7 +36,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.discipline_scope import DisciplineScope, item_visible_clause
+from app.core.discipline_scope import DisciplineScope, item_visible_clause, partition_by_project
 from app.modules.boq.models import BoqItem, BoqItemSectionAllocation
 from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine
 from app.modules.sites.models import Site
@@ -303,6 +303,13 @@ async def physical_for_projects(
     """
     if not project_ids:
         return {}
+    if scope.is_multi_project:
+        # IZN-B3: proje baglamsiz liste (GET /projects): kapsam PROJE BASINA farkli olabilir;
+        # AYNI kapsami paylasan projeler tek sorguda, kisitli her proje kendi kapsamiyla.
+        sonuc: dict[uuid.UUID, Decimal | None] = {}
+        for parca_kapsami, parca_ids in partition_by_project(scope, project_ids):
+            sonuc.update(await physical_for_projects(session, parca_ids, parca_kapsami))
+        return {pid: sonuc.get(pid) for pid in project_ids}
     taban = (
         select(
             Site.project_id.label("project_id"),

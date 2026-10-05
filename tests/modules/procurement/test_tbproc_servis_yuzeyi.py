@@ -51,6 +51,13 @@ yolunda suresi dolmus aktorde `User.role` lazy=raise ile 500 atiyordu, PR #172 C
 Referans ELLE guncellendi (yeniden uretim bolme-oncesi tabani bozardi): yalniz bu
 satirlar dustu/degisti, `diff` ile dogrulandi.
 
+## 🔴 IZN-B3 (2026-10-05) — `visible_projects` imzasi BILEREK degisti
+
+`projects.service.visible_projects` (procurement'a ice aktarilan sembol) anahtar-kelime ile
+`pairs=` aldi: kapisiz yollar (onay kutusu, AI, panel) gerekli (sayfa, bayrak) ciftlerini ACIKCA
+verir. Eski cagrilar aynen calisir (varsayilan `None`). Referansin TEK satiri elle guncellendi
+(yeniden uretim bolme-oncesi tabani bozardi).
+
 ## Yeniden uretim
 
     python -c "import importlib.util as u; \

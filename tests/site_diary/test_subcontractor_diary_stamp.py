@@ -522,7 +522,6 @@ async def _zincir_onaycilari(
     aktör tarafından atılır ve bu, onay rolü ≠ sistem rolü ayrımının kendisidir.
     """
     from app.modules.approvals.models import ApprovalRole, UserApprovalRole
-    from app.modules.users.models import UserProjectAccess
 
     tanimlar = (
         ("sd-sef@ok1a.co", "project_manager", ApprovalRole.site_chief),
@@ -532,7 +531,7 @@ async def _zincir_onaycilari(
     basliklar: list[dict[str, str]] = []
     for email, sistem_rolu, onay_rolu in tanimlar:
         user = await user_factory(email=email, password="parola1234", role_key=sistem_rolu)
-        seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+        user.all_projects = True
         seeded_db.add(UserApprovalRole(user_id=user.id, approval_role=onay_rolu))
         await seeded_db.flush()
         giris = await client.post("/auth/login", json={"email": email, "password": "parola1234"})

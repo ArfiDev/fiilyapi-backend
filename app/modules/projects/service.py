@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.discipline_scope import DisciplineScope
 from app.core.errors import (
     ConflictError,
@@ -13,7 +14,16 @@ from app.core.errors import (
     ProjectTypeMismatchError,
     ProjectValidationError,
 )
-from app.core.page_gate import page_ok
+from app.core.gate_context import (
+    MissingGateContextError,
+    PageFlag,
+    gate_ran,
+    in_request,
+    project_pairs,
+    recorded_groups,
+)
+from app.core.page_gate import is_admin_role
+from app.core.project_access import roles_satisfying
 from app.core.slug import allocate_slug, slugify, unique_slug
 from app.core.timezone import today
 from app.modules.projects import cost_cards, messages, progress_cards, repository
@@ -60,7 +70,7 @@ from app.modules.sites.models import Site  # noqa: F401
 # Isci sayacinin TEK kaynagi puantaj modulüdur (T4, puantaj spec §4): donem
 # karari (icinde bulunulan ay) ve DISTINCT kurali orada gerekcelenmistir.
 from app.modules.timesheet import counts as timesheet_counts
-from app.modules.users.models import User
+from app.modules.users.models import ProjectMember, User
 
 _DUPLICATE_TAX_NUMBER = "Bu VKN ile kayıtlı bir işveren zaten var."
 _EMPLOYER_NOT_FOUND = "İşveren bulunamadı"
@@ -167,19 +177,62 @@ async def build_project_detail(
     )
 
 
-async def visible_projects(session: AsyncSession, actor: User) -> list[Project]:
-    """Spec §5.2: user_project_access suzgeci; projects=admin suzgeci atlar.
+async def add_creator_membership(session: AsyncSession, actor: User, project: Project) -> None:
+    """Projeyi oluşturan / tekliften dönüştüren kişi projeye ANA rolüyle ekibe yazılır (IZN-B3).
 
-    Admin istisnasi Ayarlar kilitlenme korumasidir: erisim vermek icin tum
-    projeleri listeleyebilmek gerekir.
-
-    PUBLIC: P2 santiye/bolum uclari da bu suzgecten gecer (P2 spec §5.2) ve
-    kendi kopya gorunurluk mantigini YAZMAZ. Tek kaynak burasidir.
+    Yoksa kapsamlı bir kullanıcı görmediği bir proje yaratırdı. Sistem Yöneticisi ve "Tüm
+    projeler" kişisi zaten her projeyi görür (ekip satırı taşımaz): onlar için no-op.
     """
-    # IZN-B2: `projects:admin` = "Projeler" sayfası Düzenler (§2.4; eşik eski admin ile AYNI).
-    if await page_ok(session, actor, "genel.projeler", "edit"):
+    if await is_admin_role(session, actor) or actor.all_projects:
+        return
+    existing = await session.scalar(
+        select(ProjectMember.id).where(
+            ProjectMember.user_id == actor.id, ProjectMember.project_id == project.id
+        )
+    )
+    if existing is None:
+        session.add(ProjectMember(user_id=actor.id, project_id=project.id, role_id=actor.role_id))
+        await session.flush()
+
+
+async def visible_projects(
+    session: AsyncSession, actor: User, *, pairs: tuple[PageFlag, ...] | None = None
+) -> list[Project]:
+    """Kişinin GÖREBİLDİĞİ projeler (IZN-B3, KARARLAR §1.7): yalnız EKİBİNDE olduğu projeler.
+
+    * Sistem Yöneticisi ya da `users.all_projects` → TÜM projeler (ana rolle çalışır).
+    * Diğerleri → `project_members` satırı olan projeler, ve (sayfa, bayrak) çiftlerini O
+      PROJEDEKİ rolün karşıladığı projeler. Çiftler iki yerden gelir: rota kapısının bağlama
+      KENDİ yazdıkları (`core/gate_context`) ve çağıranın AÇIKÇA verdiği `pairs` (kapısız
+      yollar: onay kutusu, AI aracı, panel kartları). Hepsi VE'lenir.
+    * 🔴 HTTP isteği içinde hiçbir kapı geçmediyse ve `pairs` verilmediyse üyelik TEK BAŞINA yetki
+      sayılmaz: test/dev'de `MissingGateContextError`, üretimde boş küme (fail-closed).
+      HTTP DIŞI doğrudan servis çağrısında (test/betik) yalnız üyelik süzgeci.
+
+    PUBLIC: P2 şantiye/bölüm uçları da bu süzgeçten geçer ve kendi kopya görünürlük mantığını
+    YAZMAZ. Tek kaynak burasıdır.
+    """
+    if await is_admin_role(session, actor) or actor.all_projects:
         return await repository.list_projects(session)
-    return await repository.list_projects_for_user(session, actor.id)
+    groups = recorded_groups(session)
+    if pairs:
+        scoped = project_pairs(pairs)
+        if scoped:
+            groups = [*groups, scoped]
+    elif in_request(session) and not gate_ran(session):
+        if settings.environment != "production":
+            raise MissingGateContextError(
+                "visible_projects: HTTP isteği içinde kapı geçilmeden çağrıldı; (sayfa, bayrak) "
+                "çiftlerini `pairs=` ile açıkça verin"
+            )
+        return []
+    members = await repository.list_member_projects(session, actor.id)
+    if not groups or not members:
+        return [project for project, _role_id in members]
+    allowed = await roles_satisfying(
+        session, {project.id: role_id for project, role_id in members}, groups
+    )
+    return [project for project, _role_id in members if project.id in allowed]
 
 
 def _counts(projects: list[Project]) -> ProjectCounts:

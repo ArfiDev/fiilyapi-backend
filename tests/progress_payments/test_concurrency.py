@@ -23,12 +23,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.access import AccessLevel, Scope
 from app.core.errors import ConflictError
-from app.core.sayfalar import PageLevel
 from app.core.security import hash_password
 from app.modules.progress_payments import schemas, service, transitions
 from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
 from app.modules.projects.models import Project, ProjectContract
-from app.modules.roles.models import Module, ModuleGroup, Role, RolePagePermission, RolePermission
+from app.modules.roles.models import Module, ModuleGroup, Role, RolePermission
 from app.modules.users.models import User
 from tests._yaris import YARIS_TAVANI_SN, kilitte_bekleyen_sorgu
 from tests.conftest import test_engine
@@ -150,13 +149,8 @@ async def _referans_kur(session: AsyncSession) -> Role:
                 scope=Scope.all,
             )
         )
-    # IZN-B2: kapılar SAYFA hücrelerinden karar verir; `visible_projects` admin istisnası
-    # "Projeler" sayfası Düzenler'dir (eşik eski `projects:admin`).
-    session.add(
-        RolePagePermission(
-            role_id=role.id, page_key="genel.projeler", level=PageLevel.edit, can_approve=False
-        )
-    )
+    # IZN-B3: `visible_projects` artık "Projeler" sayfasına değil EKİBE bakar; aktörler
+    # `users.all_projects` ile (ana rolle her projeyi görür) kurulur.
     await session.commit()
     return role
 
@@ -189,6 +183,7 @@ async def _kurulum() -> tuple[uuid.UUID, uuid.UUID]:
             password_hash=hash_password("parola1234"),
             full_name="Eşzamanlılık Test",
             role_id=role.id,
+            all_projects=True,
         )
         session.add(user)
         await session.commit()
@@ -507,12 +502,14 @@ async def _onay_kurulumu() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID]:
             password_hash=hash_password("parola1234"),
             full_name="Onay Aktörü 1",
             role_id=role.id,
+            all_projects=True,
         )
         ikinci = User(
             email="onay2@pp-crud.co",
             password_hash=hash_password("parola1234"),
             full_name="Onay Aktörü 2",
             role_id=role.id,
+            all_projects=True,
         )
         session.add_all([birinci, ikinci])
         await session.flush()

@@ -38,7 +38,7 @@ from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
 from app.modules.audit import messages
 from app.modules.audit.models import AuditLog
 from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import User
 from tests.modules.approvals.conftest import (
     adim_durumlari,
     adim_rolleri,
@@ -66,7 +66,7 @@ async def _onaycı(
 ) -> dict[str, str]:
     """Sistem rolü + proje erişimi + ONAY ROLÜ taşıyan aktör kurar ve giriş yapar."""
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=None, all_projects=True))
+    user.all_projects = True
     await onay_rolu_ver(seeded_db, user, *approval_roles)
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text
@@ -282,7 +282,7 @@ async def test_KENDI_EVRAKI_403_ama_ADMIN_VEKALETEN_gecer(
     muhasebeci = await user_factory(
         email="kendi-muhasebe@pp-ok1a.co", password="parola1234", role_key="accounting"
     )
-    seeded_db.add(UserProjectAccess(user_id=muhasebeci.id, project_id=None, all_projects=True))
+    muhasebeci.all_projects = True
     await onay_rolu_ver(seeded_db, muhasebeci, ApprovalRole.accounting)
     giris = await client.post(
         "/auth/login", json={"email": muhasebeci.email, "password": "parola1234"}

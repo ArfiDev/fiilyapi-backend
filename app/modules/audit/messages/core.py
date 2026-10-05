@@ -46,8 +46,10 @@ def user_deleted(name: str) -> str:
     return f"Kullanıcı silindi: {name}"
 
 
-def project_access_updated(name: str) -> str:
-    return f"Proje erişimi güncellendi: {name}"
+def user_access_updated(name: str, role_name: str, all_projects: bool, project_count: int) -> str:
+    """IZN-B3: ana rol + proje ekibi tek işlemde güncellendi."""
+    scope = "tüm projeler" if all_projects else f"{project_count} projede ekip"
+    return f"Kullanıcı erişimi güncellendi: {name} · ana rol {role_name} · {scope}"
 
 
 def role_created(name: str) -> str:

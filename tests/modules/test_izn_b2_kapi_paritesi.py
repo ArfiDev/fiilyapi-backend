@@ -63,7 +63,11 @@ _HAKEDIS_TASERON = frozenset(
 PAGE_GATE_OLD: dict[tuple[frozenset[str], str], list[tuple[str, AccessLevel]]] = {
     (frozenset({"mali.donem_kapanisi"}), "approve"): [("accounting", L.admin)],
     (frozenset({"ayarlar.onay_rolleri"}), "edit"): [("approvals", L.admin)],
-    (frozenset({"saha.gunluk_kayit"}), "approve"): [("site_diary", L.admin)],
+    # IZN-B3 onarımı: yeniden aç kapısı kök sayfa + proje içi ikizleri (73, 88); hücreler aynı.
+    (
+        frozenset({"saha.gunluk_kayit", "santiye.gunluk_kayit", "bolum.gunluk_kayit_detay"}),
+        "approve",
+    ): [("site_diary", L.admin)],
     (frozenset({"teklif.teklif_hazirlama"}), "approve"): [
         ("projects", L.admin),
         ("contracts", L.full),
@@ -273,7 +277,8 @@ async def _ozel_rol(session, levels: dict[str, AccessLevel], tag: str) -> User:
 
 
 def test_rota_tablosu_okundu_ve_kapi_turleri_tanindi() -> None:
-    assert len(ROTALAR) == 462  # SIL-B1: +2 (`/admin/silme/...` önizleme ve DELETE)
+    # IZN-B3: +2 (`GET`/`PUT /users/{user_id}/access`) → 464
+    assert len(ROTALAR) == 464
     turler = {g.kind for gates in ROTALAR.values() for g in gates}
     assert turler == {"perm", "chain", "any", "page", "sa"}
     sayfa_kapilari = {
@@ -581,7 +586,7 @@ async def test_yeni_rol_atanabilir_ve_kapidan_gecer(client, user_factory, seeded
 async def test_atama_kurali_kendi_sayfa_hucrelerini_asan_rolu_atayamaz(
     client, user_factory, seeded_db
 ) -> None:
-    """`_require_assignable_role`: Sistem Yöneticisi olmayan aktör, kendi hücrelerini (düzey +
+    """`require_assignable_role`: Sistem Yöneticisi olmayan aktör, kendi hücrelerini (düzey +
     onay) aşan rolü atayamaz (eski modül karşılaştırmasının karşılığı)."""
     from tests._legacy_permission_yardimcisi import update_role_permission as yaz
 

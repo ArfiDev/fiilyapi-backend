@@ -32,7 +32,7 @@ from app.core import timezone
 from app.core.access import AccessLevel, Scope
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, SectionMilestone, SectionStatus, Site
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 from tests._legacy_permission_yardimcisi import sync_page_cells
 from tests.conftest import test_engine
 
@@ -75,9 +75,10 @@ async def _login(client, user_factory, role_key: str, *, email: str | None = Non
 async def _grant(
     session, user, *, project_id: uuid.UUID | None, all_projects: bool = False
 ) -> None:
-    session.add(
-        UserProjectAccess(user_id=user.id, project_id=project_id, all_projects=all_projects)
-    )
+    if all_projects:
+        user.all_projects = True
+    elif project_id is not None:
+        session.add(ProjectMember(user_id=user.id, project_id=project_id, role_id=user.role_id))
     await session.flush()
 
 

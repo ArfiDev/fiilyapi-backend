@@ -50,7 +50,7 @@ from app.modules.subcontractor_progress_payments.models import (
     SubcontractorProgressPayment,
     SubcontractorProgressPaymentLine,
 )
-from app.modules.users.models import User, UserProjectAccess
+from app.modules.users.models import ProjectMember, User
 
 PAROLA = "parola1234"
 
@@ -83,10 +83,10 @@ def aktor_fabrikasi(seeded_db: AsyncSession, user_factory) -> Callable[..., Awai
         if projeler is not None:
             for proje in projeler:
                 seeded_db.add(
-                    UserProjectAccess(user_id=user.id, project_id=proje.id, all_projects=False)
+                    ProjectMember(user_id=user.id, project_id=proje.id, role_id=user.role_id)
                 )
         elif tum_projeler:
-            seeded_db.add(UserProjectAccess(user_id=user.id, all_projects=True))
+            user.all_projects = True
         await seeded_db.flush()
         return user
 

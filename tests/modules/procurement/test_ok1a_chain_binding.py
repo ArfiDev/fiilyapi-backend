@@ -33,7 +33,7 @@ from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
 from app.modules.procurement import transitions
 from app.modules.procurement.models import PurchaseRequestStatus
 from app.modules.projects.models import Project
-from app.modules.users.models import UserProjectAccess
+from app.modules.users.models import ProjectMember
 from tests.modules.approvals.conftest import (
     adim_durumlari,
     adim_rolleri,
@@ -57,7 +57,7 @@ async def _onaycı(
     role_key: str = "project_manager",
 ) -> dict[str, str]:
     user = await user_factory(email=email, password="parola1234", role_key=role_key)
-    seeded_db.add(UserProjectAccess(user_id=user.id, project_id=proje.id, all_projects=False))
+    seeded_db.add(ProjectMember(user_id=user.id, project_id=proje.id, role_id=user.role_id))
     await onay_rolu_ver(seeded_db, user, *approval_roles)
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
     assert resp.status_code == 200, resp.text

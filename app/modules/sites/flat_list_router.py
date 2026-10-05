@@ -63,6 +63,9 @@ router = APIRouter(
 )
 
 _VIEW = require_permission("sites", AccessLevel.view)
+# IZN-B3: çok proje LİSTE uçları: ana rol VEYA ekip rolü açar, satırlar `visible_projects`te proje
+# başına o projedeki rolle süzülür.
+_VIEW_LISTE = require_permission("sites", AccessLevel.view, multi_project=True)
 
 # K7 sayfalama standardi (`accounting`/`invoicing` router'lariyla birebir):
 # tavan asimi sessizce KIRPILMAZ, 422 doner.
@@ -70,7 +73,7 @@ _LIMIT = Annotated[int, Query(ge=1, le=200)]
 _OFFSET = Annotated[int, Query(ge=0)]
 
 
-@router.get("/sites", response_model=SiteOptionListResponse, dependencies=[_VIEW])
+@router.get("/sites", response_model=SiteOptionListResponse, dependencies=[_VIEW_LISTE])
 async def list_site_options_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,

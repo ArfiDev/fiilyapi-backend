@@ -14,6 +14,7 @@ from typing import NamedTuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.discipline_scope import restricted_project_ids
 from app.core.errors import ConflictError, NotFoundError, SiteValidationError
 from app.core.slug import allocate_slug, composite_slug
 from app.core.timezone import today
@@ -441,7 +442,10 @@ async def list_payments(
     Kapsam SQL'de kalır: toplu çekimin proje kümesi `visible_projects`'ten
     süzülmüş satırlardan türer, ikinci bir görünürlük kararı VERİLMEZ (§9.0).
     """
-    visible_ids = [p.id for p in await visible_projects(session, actor)]
+    # IZN-B3: disiplinle KISITLI projelerin hakedisleri listeden DISARIDA kalir (Ü2; tek-proje
+    # ucu 403 verir) — liste 403 vermez, proje basina suzer.
+    kisitli = await restricted_project_ids(session, actor.id)
+    visible_ids = [p.id for p in await visible_projects(session, actor) if p.id not in kisitli]
     rows = await repository.list_payments(
         session, visible_ids, project_id=project_id, site_id=site_id, status_filter=status_filter
     )
