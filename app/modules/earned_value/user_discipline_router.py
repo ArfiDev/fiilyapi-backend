@@ -12,6 +12,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.access import AccessLevel
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.modules.earned_value import discipline_adapter
@@ -20,7 +21,10 @@ from app.modules.earned_value import discipline_adapter
 discipline_adapter.register()
 
 router = APIRouter(
-    prefix="/users", tags=["earned-value", "users"], responses=COMMON_ERROR_RESPONSES
+    prefix="/users",
+    tags=["earned-value", "users"],
+    responses=COMMON_ERROR_RESPONSES,
+    route_class=MaskeRotasi,
 )
 
 #: 410 gövdesi: global disiplin ataması kalktı (IZN-B3). Mesaj yeni ucu işaret eder.

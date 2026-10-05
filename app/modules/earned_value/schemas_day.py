@@ -12,11 +12,13 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.field_mask import Hassas
 from app.modules.earned_value.decimal_out import EvDecimal
+from app.modules.earned_value.mask_types import Yok, YokOpt
 
 RowKind = Literal["personnel", "subcontractor"]
 Rule = Literal["direct", "prorata_by_daily_qty"]
-Hours = Annotated[EvDecimal, Field(gt=0, le=1000, max_digits=6, decimal_places=2)]
+Hours = Annotated[EvDecimal, Field(gt=0, le=1000, max_digits=6, decimal_places=2), Hassas.yok]
 
 
 class UserRef(BaseModel):
@@ -32,7 +34,7 @@ class CodeNodeOut(BaseModel):
     label: str
     uom: str | None
     has_rate: bool | None  # yaprakta: oranli mi (oransiz yaprak secilemez); baslikta None
-    unit_mhr: EvDecimal | None
+    unit_mhr: YokOpt
 
 
 class UnlockOut(BaseModel):
@@ -57,8 +59,8 @@ class RowOut(BaseModel):
     source: str | None
     subcontractor_name: str | None
     headcount: int | None
-    hours: EvDecimal  # CANLI kaynak saat
-    saved_hours: EvDecimal | None  # dagitim anindaki kopya
+    hours: Yok  # CANLI kaynak saat
+    saved_hours: YokOpt  # dagitim anindaki kopya
     changed: bool  # "⚠ Puantaj degisti (saved → hours)"
 
 
@@ -73,21 +75,21 @@ class CellOut(BaseModel):
     kind: RowKind
     ref_id: uuid.UUID
     node_id: str
-    hours: EvDecimal
+    hours: Yok
 
 
 class TotalsOut(BaseModel):
-    source_hours: EvDecimal
-    allocated_hours: EvDecimal
-    unallocated_hours: EvDecimal  # K14 "dagitilmamis saat" (eksi = fazla dagitilmis)
+    source_hours: Yok
+    allocated_hours: Yok
+    unallocated_hours: Yok  # K14 "dagitilmamis saat" (eksi = fazla dagitilmis)
 
 
 class LeafProgressOut(BaseModel):
     node_id: str
-    qty_day: EvDecimal | None
-    earned_day: EvDecimal
-    spent_day: EvDecimal
-    pf_day: EvDecimal | None
+    qty_day: YokOpt
+    earned_day: Yok
+    spent_day: Yok
+    pf_day: YokOpt
 
 
 class ItemProgressOut(BaseModel):
@@ -95,17 +97,17 @@ class ItemProgressOut(BaseModel):
     (EV-BORC-2: `direct` kuralla kalem koduna yazilan saat yapraklarda gorunmez)."""
 
     node_id: str
-    qty_day: EvDecimal | None
-    earned_day: EvDecimal
-    spent_day: EvDecimal
-    pf_day: EvDecimal | None
+    qty_day: YokOpt
+    earned_day: Yok
+    spent_day: Yok
+    pf_day: YokOpt
 
 
 class ProgressOut(BaseModel):
     leaves: list[LeafProgressOut]
-    earned_day: EvDecimal
-    spent_day: EvDecimal
-    pf_day: EvDecimal | None
+    earned_day: Yok
+    spent_day: Yok
+    pf_day: YokOpt
     items: list[ItemProgressOut] = Field(default_factory=list)  # EV-BORC-2, ek alan
 
 
@@ -165,7 +167,7 @@ class AllocationSave(BaseModel):
 
 class ShareOut(BaseModel):
     node_id: str
-    share: EvDecimal  # satirin saatinin o koda dusen payi (0–1)
+    share: Yok  # satirin saatinin o koda dusen payi (0–1)
 
 
 class RowPatternOut(BaseModel):

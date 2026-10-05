@@ -20,19 +20,18 @@ belge slotu bu şemalarda YOKTUR. Bakiye ve durum TÜREVDİR (spec §3) ve T3'ü
 
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.dashboard.schemas import ListPlaceholder
 from app.modules.inventory.balance import StockStatus
+from app.modules.inventory.mask_types import Maliyet, Sayac, Yok, YokGirdi, YokZarf
 from app.modules.inventory.models import (
     StockCategory,
     StockEntryType,
     StockQuality,
 )
-from app.modules.projects.schemas import MetricPlaceholder
 
 # Model `String(30)`/`String(200)`/`String(20)` — şema ile DB sınırı AYNI olmalı.
 _CODE = Field(min_length=1, max_length=30)
@@ -60,7 +59,7 @@ class StockItemCreate(BaseModel):
     name: str = _NAME
     category: StockCategory
     unit: str = _UNIT
-    min_stock: Decimal | None = _MIN_STOCK
+    min_stock: Yok = _MIN_STOCK
     is_active: bool = True
 
 
@@ -78,7 +77,7 @@ class StockItemUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     category: StockCategory | None = None
     unit: str | None = Field(default=None, min_length=1, max_length=20)
-    min_stock: Decimal | None = _MIN_STOCK
+    min_stock: Yok = _MIN_STOCK
     is_active: bool | None = None
 
 
@@ -94,7 +93,7 @@ class StockItemResponse(BaseModel):
     name: str
     category: StockCategory
     unit: str
-    min_stock: Decimal | None
+    min_stock: Yok
     is_active: bool
     created_at: datetime
 
@@ -169,8 +168,8 @@ class StockEntryLineCreate(BaseModel):
     """
 
     item_id: uuid.UUID
-    quantity: Decimal = Field(max_digits=14, decimal_places=3)
-    unit_price: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    quantity: YokGirdi = Field(max_digits=14, decimal_places=3)
+    unit_price: Maliyet = Field(default=None, ge=0, max_digits=18, decimal_places=2)
     quality: StockQuality = StockQuality.ok
     # 🔴 STOK-BOLUM: atif SATIR bazindadir (kullanici karari 2026-08-29). Ikisi
     # de opsiyoneldir; tutarlilik kapilari SERVIS katmanindadir (iki tabloya
@@ -268,8 +267,8 @@ class StockEntryLineResponse(BaseModel):
 
     id: uuid.UUID
     item_id: uuid.UUID
-    quantity: Decimal
-    unit_price: Decimal | None
+    quantity: YokGirdi
+    unit_price: Maliyet
     quality: StockQuality
     # STOK-BOLUM: yazilan atif GERI OKUNUR. Bolumun/pozun ADI burada YOKTUR —
     # kunye kimlik tasir; iki JOIN her hareket listesine `sections` ve
@@ -326,7 +325,7 @@ class StockWarehouseBalance(BaseModel):
     warehouse_id: uuid.UUID
     warehouse_name: str
     site_id: uuid.UUID | None
-    balance: Decimal
+    balance: YokGirdi
 
 
 class StockSummaryRow(BaseModel):
@@ -346,10 +345,10 @@ class StockSummaryRow(BaseModel):
     name: str
     category: StockCategory
     unit: str
-    min_stock: Decimal | None
-    balance: Decimal
+    min_stock: Yok
+    balance: YokGirdi
     status: StockStatus | None
-    last_unit_price: Decimal | None
+    last_unit_price: Maliyet
     warehouses: list[StockWarehouseBalance]
 
 
@@ -367,12 +366,12 @@ class StockSummaryKpis(BaseModel):
     UYDURULMAZ — `MetricPlaceholder` zarfı SA dilimini bildirir.
     """
 
-    total_value: Decimal
+    total_value: Maliyet
     critical_count: int
     low_count: int
-    total_items: int
-    items_without_price: int
-    pending_orders: MetricPlaceholder
+    total_items: Sayac
+    items_without_price: Sayac
+    pending_orders: YokZarf
 
 
 class StockSummaryResponse(BaseModel):
@@ -441,10 +440,10 @@ class SiteStockRow(BaseModel):
     name: str
     category: StockCategory
     unit: str
-    min_stock: Decimal | None
-    balance: Decimal
+    min_stock: Yok
+    balance: YokGirdi
     status: StockStatus | None
-    monthly_need: MetricPlaceholder
+    monthly_need: YokZarf
     section: ListPlaceholder
 
 
@@ -455,11 +454,11 @@ class SiteStockKpis(BaseModel):
     ve olmayan bir kart için zarf bile üretilmez.
     """
 
-    total_value: Decimal
+    total_value: Maliyet
     critical_count: int
     low_count: int
-    total_items: int
-    items_without_price: int
+    total_items: Sayac
+    items_without_price: Sayac
 
 
 class SiteStockResponse(BaseModel):
@@ -514,10 +513,10 @@ class SectionStockRow(BaseModel):
     boq_item_id: uuid.UUID | None
     boq_code: str | None
     boq_description: str | None
-    assigned_quantity: Decimal
-    issued_quantity: Decimal
-    net_quantity: Decimal
-    total_value: Decimal
+    assigned_quantity: YokGirdi
+    issued_quantity: YokGirdi
+    net_quantity: YokGirdi
+    total_value: Maliyet
 
 
 class SectionStockKpis(BaseModel):
@@ -528,10 +527,10 @@ class SectionStockKpis(BaseModel):
     (`SiteStockKpis.items_without_price` emsali).
     """
 
-    issued_value: Decimal
-    total_value: Decimal
+    issued_value: Maliyet
+    total_value: Maliyet
     item_count: int
-    lines_without_price: int
+    lines_without_price: Sayac
 
 
 class SectionStockResponse(BaseModel):

@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.modules.progress_payments.schemas import ProgressPaymentLineInput
 from app.modules.site_diary import guards
+from app.modules.site_diary.mask_types import Maliyet, Sayac, Yok, YokGirdi
 from app.modules.site_diary.models import DiaryStatus, Weather, WorkerSource
 from app.modules.subcontractor_progress_payments.schemas import (
     SubcontractorProgressPaymentLineInput,
@@ -91,7 +92,7 @@ class SiteDiaryLineInput(BaseModel):
     model_config = {"extra": "forbid"}
 
     boq_item_id: uuid.UUID
-    quantity: Decimal = Field(ge=0, max_digits=_QUANTITY_DIGITS, decimal_places=_QUANTITY_DECIMALS)
+    quantity: YokGirdi = Field(ge=0, max_digits=_QUANTITY_DIGITS, decimal_places=_QUANTITY_DECIMALS)
     """0 meşrudur: iskelet TÜM pozları açar, o gün dokunulmayan poz sıfır kalır (GK228)."""
     section_id: uuid.UUID | None = None
     """PLN-B2.1 — yaprak = kalem × bölüm. `None` = "Bölümsüz" (kalemin bölüme tahsis
@@ -135,7 +136,7 @@ class SiteDiaryWorkerCountInput(BaseModel):
     """PLN-B2.1 (B2-5) — taşeron FİRMA satırı (puantajı tutulmayan firma ekibi). Dolu
     ise `source` `subcontractor` olmalıdır; satır kimliği o zaman FİRMADIR (firma
     başına tek satır). Boşsa eski (`trade`, `source`) kimliği geçerlidir."""
-    hours: Decimal | None = Field(
+    hours: Yok = Field(
         default=None,
         gt=0,
         le=_HOURS_MAX,
@@ -179,21 +180,21 @@ class SiteDiaryEntryCreate(BaseModel):
     entry_date: date
     section_id: uuid.UUID | None = None
     weather: Weather | None = None
-    temp_min_c: Decimal | None = Field(
+    temp_min_c: Yok = Field(
         default=None,
         ge=_TEMP_MIN,
         le=_TEMP_MAX,
         max_digits=_TENTHS_DIGITS,
         decimal_places=_TENTHS_DECIMALS,
     )
-    temp_max_c: Decimal | None = Field(
+    temp_max_c: Yok = Field(
         default=None,
         ge=_TEMP_MIN,
         le=_TEMP_MAX,
         max_digits=_TENTHS_DIGITS,
         decimal_places=_TENTHS_DECIMALS,
     )
-    wind_ms: Decimal | None = Field(
+    wind_ms: Yok = Field(
         default=None,
         ge=_WIND_MIN,
         le=_WIND_MAX,
@@ -253,21 +254,21 @@ class SiteDiaryEntryUpdate(BaseModel):
     entry_date: date | None = None
     section_id: uuid.UUID | None = None
     weather: Weather | None = None
-    temp_min_c: Decimal | None = Field(
+    temp_min_c: Yok = Field(
         default=None,
         ge=_TEMP_MIN,
         le=_TEMP_MAX,
         max_digits=_TENTHS_DIGITS,
         decimal_places=_TENTHS_DECIMALS,
     )
-    temp_max_c: Decimal | None = Field(
+    temp_max_c: Yok = Field(
         default=None,
         ge=_TEMP_MIN,
         le=_TEMP_MAX,
         max_digits=_TENTHS_DIGITS,
         decimal_places=_TENTHS_DECIMALS,
     )
-    wind_ms: Decimal | None = Field(
+    wind_ms: Yok = Field(
         default=None,
         ge=_WIND_MIN,
         le=_WIND_MAX,
@@ -307,9 +308,9 @@ class SiteDiaryLineRead(BaseModel):
     code: str = Field(max_length=50)
     description: str
     unit: str = Field(max_length=50)
-    unit_price: Decimal
-    quantity: Decimal
-    cumulative_quantity: Decimal
+    unit_price: Maliyet
+    quantity: YokGirdi
+    cumulative_quantity: YokGirdi
     """GK229 kümülatif — TÜREV (kolon yok, spec §2). Tanım: aynı ay + aynı şantiye
     + aynı poz için bu günden ÖNCEKİ `submitted` kayıtların toplamı **artı bu
     kaydın kendi miktarı** (kaydın durumu ne olursa olsun).
@@ -319,24 +320,24 @@ class SiteDiaryLineRead(BaseModel):
     ekrandaki kümülatif ile hakediş özeti aynı sayıyı söyler; taslakta ise
     "gönderirsem kümülatif ne olacak" sorusunu yanıtlar. BAŞKA günlerin
     TASLAKLARI sayılmaz — sayılsaydı iki ekran iki farklı sayı gösterirdi."""
-    line_amount: Decimal
+    line_amount: Maliyet
     """GK230 ₺ katkısı = `quantity × unit_price`, KATSAYISIZ (spec §2): fiyat
     farkı katsayısı hakediş katmanının işidir, günlüğün değil. TÜREV — kolon yok."""
     section_id: uuid.UUID | None = None
     """PLN-B2.1 — satırın bölümü; `None` = "Bölümsüz"."""
     overrun_reason: str | None = None
     """PLN-B2.1 (B2-8) — planlı miktar aşımı gerekçesi."""
-    leaf_cumulative_quantity: Decimal | None = None
+    leaf_cumulative_quantity: Yok = None
     """PLN-B2.1 — YAPRAK (kalem × bölüm) kümülatifi, TÜM ZAMANLAR: aynı şantiye + aynı
     kalem + AYNI bölüm (Bölümsüz = Bölümsüz) için bu günden ÖNCEKİ **gönderilmiş**
     günlüklerin toplamı + BU satırın miktarı (kaydın durumu ne olursa olsun).
     `cumulative_quantity`den FARKI: ay sınırı YOK ve bölüm kırılımlıdır (planlı
     miktarla kıyaslanan budur). Bağı kopmuş satırda `None`."""
-    planned_quantity: Decimal | None = None
+    planned_quantity: Yok = None
     """PLN-B2.1 — yaprağın planlı miktarı: bölümlü satırda kalemin o bölüme TAHSİSİ;
     Bölümsüz'de kalem miktarı − Σ tahsis (tahsis edilmemiş kalan, ≥ 0). Tahsisi
     sonradan kaldırılmış bölümlü satırda 0. Bağı kopmuş satırda `None`."""
-    remaining_quantity: Decimal | None = None
+    remaining_quantity: Yok = None
     """PLN-B2.1 — `planned_quantity − leaf_cumulative_quantity`; NEGATİF = aşım."""
     section_name: str | None
     """DET-1.B — satırın bölümünün ANLIK adı; `None` = "Bölümsüz"."""
@@ -353,15 +354,15 @@ class SiteDiarySkeletonLine(BaseModel):
     code: str = Field(max_length=50)
     description: str
     unit: str = Field(max_length=50)
-    unit_price: Decimal
-    quantity: Decimal
-    cumulative_quantity: Decimal
-    line_amount: Decimal
+    unit_price: Maliyet
+    quantity: YokGirdi
+    cumulative_quantity: YokGirdi
+    line_amount: Maliyet
     section_id: uuid.UUID | None = None
     overrun_reason: str | None = None
-    leaf_cumulative_quantity: Decimal | None = None
-    planned_quantity: Decimal | None = None
-    remaining_quantity: Decimal | None = None
+    leaf_cumulative_quantity: Yok = None
+    planned_quantity: Yok = None
+    remaining_quantity: Yok = None
     section_name: str | None
 
 
@@ -371,7 +372,7 @@ class OwnCrewFromTimesheet(BaseModel):
     trade: str
     source: WorkerSource
     headcount: int
-    hours: Decimal
+    hours: YokGirdi
 
 
 class SiteDiarySkeleton(BaseModel):
@@ -386,7 +387,7 @@ class SiteDiarySkeleton(BaseModel):
     locked: bool
     lock_report_date: date | None
     lines: list[SiteDiarySkeletonLine]
-    lines_total: Decimal
+    lines_total: Maliyet
     own_crew_from_timesheet: list[OwnCrewFromTimesheet] = Field(default_factory=list)
     """GKS-B1.1: kayıtsız günde de puantajdan türeyen ekip özeti — detay ucuyla AYNI türetme
     (`read.own_crew_from_timesheet`); puantaj yoksa `[]`."""
@@ -401,7 +402,7 @@ class SiteDiaryWorkerCountRead(BaseModel):
     count: int
     subcontractor_id: uuid.UUID | None = None
     """PLN-B2.1 (B2-5) — taşeron firma satırı ise firma."""
-    hours: Decimal | None = None
+    hours: Yok = None
     """PLN-B2.1 (B2-5) — kişi başı saat."""
     subcontractor_name: str | None
     """DET-1.B — taşeron firma satırında firmanın ANLIK adı; firmasız satırda `None`."""
@@ -427,8 +428,8 @@ class SiteDiaryEntryListItem(BaseModel):
     weather: Weather | None
     has_incident: bool
     status: DiaryStatus
-    worker_total: int
-    lines_total: Decimal
+    worker_total: Sayac
+    lines_total: Maliyet
     created_by: uuid.UUID
     created_at: datetime
 
@@ -464,11 +465,11 @@ class SiteDiaryEntryDetail(BaseModel):
     updated_at: datetime
     lines: list[SiteDiaryLineRead]
     worker_counts: list[SiteDiaryWorkerCountRead]
-    lines_total: Decimal
-    worker_total: int
-    temp_min_c: Decimal | None = None
-    temp_max_c: Decimal | None = None
-    wind_ms: Decimal | None = None
+    lines_total: Maliyet
+    worker_total: Sayac
+    temp_min_c: Yok = None
+    temp_max_c: Yok = None
+    wind_ms: Yok = None
     own_crew_from_timesheet: list[OwnCrewFromTimesheet] = Field(default_factory=list)
     """EV-BORC-2: o günün PUANTAJINDAN türeyen ekip (salt okunur) — meslek + kaynak başına
     kişi sayısı ve saat. Günlük işçi satırlarıyla EŞLEME YOKTUR (ikisi de serbest metin);
@@ -520,19 +521,19 @@ class SiteDiarySummaryItem(BaseModel):
     code: str = Field(max_length=50)
     description: str
     unit: str = Field(max_length=50)
-    unit_price: Decimal
+    unit_price: Maliyet
     """BOQ kaleminin GÜNCEL birim fiyatı ("Sözleşme" sütununun çarpanı). `amount`
     bundan HESAPLANMAZ — o, satırların DONMUŞ snapshot fiyatlarından gelir."""
-    quantity: Decimal
+    quantity: YokGirdi
     """Dönemde **gönderilmiş** günlerin poz bazlı miktar toplamı (HÖ L133).
     Taslak günler GİRMEZ (spec §3) — T3 kümülatifiyle AYNI süzgeç."""
-    amount: Decimal
+    amount: Maliyet
     """Dönemin ₺ katkısı: satır bazında yuvarlanmış `line_amount` toplamı
     (`read.line_amount`, TEK kopya). Fiyat SATIRIN snapshot'ından gelir: geçmiş
     ayın hakedişi, BOQ fiyatı bugün değiştiği için yeniden yazılamaz."""
-    boq_quantity: Decimal
-    boq_amount: Decimal
-    completion_ratio: Decimal | None
+    boq_quantity: YokGirdi
+    boq_amount: Maliyet
+    completion_ratio: Yok
     """HÖ L134 "%" — `quantity / boq_quantity` (GK L229 "900 / 1.200" = %75).
     Sözleşme miktarı sıfırsa NULL: sıfıra bölmek yerine "oran tanımsız" denir."""
     contract_item_id: uuid.UUID | None
@@ -540,8 +541,8 @@ class SiteDiarySummaryItem(BaseModel):
     önerisi günlük miktarını bu kimlik üzerinden işveren hakedişi satırına
     eşleyecektir. Şantiyenin kendi açtığı poz için NULL'dur — sessizce
     düşürülmez, ekranda "sözleşmesiz" olarak görünür."""
-    contract_item_quantity: Decimal | None
-    contract_item_unit_price: Decimal | None
+    contract_item_quantity: Yok
+    contract_item_unit_price: Maliyet
 
 
 class SiteDiarySummary(BaseModel):
@@ -564,7 +565,7 @@ class SiteDiarySummary(BaseModel):
     """Özete giren GÜN sayısı. "Hiç gönderilmemiş" ile "gönderilmiş ama miktarı
     sıfır" hâllerini ayırır; boş küme 404 değil sıfırlı özettir (zarif düşüş)."""
     items: list[SiteDiarySummaryItem]
-    total_amount: Decimal
+    total_amount: Maliyet
 
 
 # --- T5: hakediş "günlükten doldur" önerisi (spec §4, §7 S2) ---

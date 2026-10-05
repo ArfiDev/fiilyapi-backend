@@ -26,6 +26,7 @@ from app.modules.equipment.models import Equipment, EquipmentCategory, Equipment
 from app.modules.projects.models import Project
 from app.modules.sites.models import Site
 from app.modules.users.models import ProjectMember
+from tests._hassas_alan import rol_gizle
 
 
 async def _login(client: AsyncClient, user_factory, role_key: str, email: str) -> str:
@@ -90,6 +91,9 @@ async def sef_headers(
     """
     email = "sef@makine.co"
     user = await user_factory(email=email, password="parola1234", role_key="site_chief")
+    # IZN-B4d: şef rolünün gizli bayrakları temizlenir; bu dosyalar tutarları GÖRÜR varsayar.
+    # Maske davranışı `test_izn_b4d_equipment_maske.py`de ayrıca sınanır.
+    await rol_gizle(seeded_db, "site_chief")
     seeded_db.add(ProjectMember(user_id=user.id, project_id=gorunen_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})

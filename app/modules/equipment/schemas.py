@@ -30,12 +30,12 @@ kural DB CHECK'i de şema kuralı da olamaz). Sonuç yine **422**'dir —
 
 import uuid
 from datetime import date, datetime, time
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.equipment.consumption import ConsumptionStatus, DeviationReason, UsageReason
+from app.modules.equipment.mask_types import Maliyet, MaliyetGirdi, Yok, YokGirdi
 from app.modules.equipment.models import (
     DEFAULT_MONTHLY_CAPACITY_HOURS,
     EquipmentCategory,
@@ -84,13 +84,13 @@ class EquipmentCreate(BaseModel):
     plate_no: str | None = _PLATE
     model_year: int | None = Field(default=None, ge=1900, le=2200)
     ownership: EquipmentOwnership = EquipmentOwnership.owned
-    purchase_amount: Decimal | None = _MONEY
+    purchase_amount: Maliyet = _MONEY
     purchase_date: date | None = None
     depreciation_years: int | None = Field(default=None, gt=0, le=100)
     supplier_id: uuid.UUID | None = None
     financing: EquipmentFinancing | None = None
-    market_value: Decimal | None = _MONEY
-    rate_amount: Decimal | None = _MONEY
+    market_value: Maliyet = _MONEY
+    rate_amount: Maliyet = _MONEY
     rate_period: EquipmentRatePeriod | None = None
     # K4: NULL = "Depoda (Atanmadı)". `warehouse_id` YOKTUR — bilinçli.
     site_id: uuid.UUID | None = None
@@ -99,15 +99,15 @@ class EquipmentCreate(BaseModel):
     status_note: str | None = _STATUS_NOTE
     status_expected_date: date | None = None
     fuel_type: EquipmentFuelType | None = None
-    norm_consumption: Decimal | None = _NORM
+    norm_consumption: Yok = _NORM
     norm_unit: EquipmentNormUnit | None = None
     maintenance_period: EquipmentMaintenancePeriod | None = None
     # K7: VERİDİR. 0 verilebilir (kullanım % `null` döner, K16) ama negatif olamaz.
     monthly_capacity_hours: int = Field(default=DEFAULT_MONTHLY_CAPACITY_HOURS, ge=0)
     # --- MK-4: Ekipman Detay alanları (mockup `Makine - Ekipman Detay.dc.html`) ---
-    engine_power_kw: Decimal | None = _POWER
+    engine_power_kw: Yok = _POWER
     capacity_description: str | None = _MEDIUM_TEXT
-    hourmeter_hours: Decimal | None = _HOURMETER
+    hourmeter_hours: Yok = _HOURMETER
     rental_contract_no: str | None = _SHORT_TEXT
     rental_start_date: date | None = None
     rental_end_date: date | None = None
@@ -116,7 +116,7 @@ class EquipmentCreate(BaseModel):
     rental_min_monthly_hours: int | None = Field(default=None, ge=0)
     rental_payment_terms: str | None = _MEDIUM_TEXT
     last_service_date: date | None = None
-    last_service_hourmeter: Decimal | None = _HOURMETER
+    last_service_hourmeter: Yok = _HOURMETER
 
     # K8: yalnız bir işaret; hiçbir yan etki tetiklemez.
     is_company_asset: bool = True
@@ -141,13 +141,13 @@ class EquipmentUpdate(BaseModel):
     plate_no: str | None = _PLATE
     model_year: int | None = Field(default=None, ge=1900, le=2200)
     ownership: EquipmentOwnership | None = None
-    purchase_amount: Decimal | None = _MONEY
+    purchase_amount: Maliyet = _MONEY
     purchase_date: date | None = None
     depreciation_years: int | None = Field(default=None, gt=0, le=100)
     supplier_id: uuid.UUID | None = None
     financing: EquipmentFinancing | None = None
-    market_value: Decimal | None = _MONEY
-    rate_amount: Decimal | None = _MONEY
+    market_value: Maliyet = _MONEY
+    rate_amount: Maliyet = _MONEY
     rate_period: EquipmentRatePeriod | None = None
     site_id: uuid.UUID | None = None
     operator_id: uuid.UUID | None = None
@@ -155,14 +155,14 @@ class EquipmentUpdate(BaseModel):
     status_note: str | None = _STATUS_NOTE
     status_expected_date: date | None = None
     fuel_type: EquipmentFuelType | None = None
-    norm_consumption: Decimal | None = _NORM
+    norm_consumption: Yok = _NORM
     norm_unit: EquipmentNormUnit | None = None
     maintenance_period: EquipmentMaintenancePeriod | None = None
     monthly_capacity_hours: int | None = Field(default=None, ge=0)
     # --- MK-4: Ekipman Detay alanları (mockup `Makine - Ekipman Detay.dc.html`) ---
-    engine_power_kw: Decimal | None = _POWER
+    engine_power_kw: Yok = _POWER
     capacity_description: str | None = _MEDIUM_TEXT
-    hourmeter_hours: Decimal | None = _HOURMETER
+    hourmeter_hours: Yok = _HOURMETER
     rental_contract_no: str | None = _SHORT_TEXT
     rental_start_date: date | None = None
     rental_end_date: date | None = None
@@ -171,7 +171,7 @@ class EquipmentUpdate(BaseModel):
     rental_min_monthly_hours: int | None = Field(default=None, ge=0)
     rental_payment_terms: str | None = _MEDIUM_TEXT
     last_service_date: date | None = None
-    last_service_hourmeter: Decimal | None = _HOURMETER
+    last_service_hourmeter: Yok = _HOURMETER
     is_company_asset: bool | None = None
     is_active: bool | None = None
 
@@ -198,13 +198,13 @@ class EquipmentResponse(BaseModel):
     plate_no: str | None
     model_year: int | None
     ownership: EquipmentOwnership
-    purchase_amount: Decimal | None
+    purchase_amount: Maliyet
     purchase_date: date | None
     depreciation_years: int | None
     supplier_id: uuid.UUID | None
     financing: EquipmentFinancing | None
-    market_value: Decimal | None
-    rate_amount: Decimal | None
+    market_value: Maliyet
+    rate_amount: Maliyet
     rate_period: EquipmentRatePeriod | None
     site_id: uuid.UUID | None
     operator_id: uuid.UUID | None
@@ -212,7 +212,7 @@ class EquipmentResponse(BaseModel):
     status_note: str | None
     status_expected_date: date | None
     fuel_type: EquipmentFuelType | None
-    norm_consumption: Decimal | None
+    norm_consumption: Yok
     norm_unit: EquipmentNormUnit | None
     maintenance_period: EquipmentMaintenancePeriod | None
     monthly_capacity_hours: int
@@ -221,16 +221,16 @@ class EquipmentResponse(BaseModel):
     # sayısı (sonraki bakım saati · kalan saat · tahmini tarih · `%57` çubuğu ·
     # kümülatif ödenen) BURAYA GİRMEZ: `EquipmentDetailResponse`ta yaşarlar,
     # çünkü liste her çizilişte hareket tablosunu taramak zorunda kalırdı.
-    engine_power_kw: Decimal | None
+    engine_power_kw: Yok
     capacity_description: str | None
-    hourmeter_hours: Decimal | None
+    hourmeter_hours: Yok
     rental_contract_no: str | None
     rental_start_date: date | None
     rental_end_date: date | None
     rental_min_monthly_hours: int | None
     rental_payment_terms: str | None
     last_service_date: date | None
-    last_service_hourmeter: Decimal | None
+    last_service_hourmeter: Yok
     is_company_asset: bool
     is_active: bool
     created_at: datetime
@@ -269,7 +269,7 @@ class EquipmentSummaryResponse(BaseModel):
     broken: int
     maintenance: int
     idle: int
-    monthly_cost: Decimal
+    monthly_cost: Maliyet
     monthly_cost_unknown_count: int
 
 
@@ -301,7 +301,7 @@ class WorkLogCreate(BaseModel):
     record_type: WorkLogType = WorkLogType.worked
     start_time: time | None = None
     end_time: time | None = None
-    hours: Decimal | None = _HOURS
+    hours: Yok = _HOURS
     note: str | None = _NOTE
 
 
@@ -323,7 +323,7 @@ class WorkLogUpdate(BaseModel):
     record_type: WorkLogType | None = None
     start_time: time | None = None
     end_time: time | None = None
-    hours: Decimal | None = _HOURS
+    hours: Yok = _HOURS
     note: str | None = _NOTE
 
 
@@ -340,7 +340,7 @@ class WorkLogResponse(BaseModel):
     record_type: WorkLogType
     start_time: time | None
     end_time: time | None
-    hours: Decimal
+    hours: YokGirdi
     note: str | None
     created_by_id: uuid.UUID | None
     created_at: datetime
@@ -369,11 +369,11 @@ class WorkSummaryRow(BaseModel):
     equipment_id: uuid.UUID
     equipment_name: str
     site_id: uuid.UUID | None
-    hours: Decimal
-    usage_pct: Decimal | None
+    hours: YokGirdi
+    usage_pct: Yok
     usage_reason: UsageReason | None
-    breakdown_hours: Decimal
-    cost: Decimal | None
+    breakdown_hours: YokGirdi
+    cost: Maliyet
 
 
 class WorkSummaryTotals(BaseModel):
@@ -389,10 +389,10 @@ class WorkSummaryTotals(BaseModel):
     tamamından ederdi.
     """
 
-    hours: Decimal
-    breakdown_hours: Decimal
-    cost: Decimal
-    usage_pct_avg: Decimal | None
+    hours: YokGirdi
+    breakdown_hours: YokGirdi
+    cost: Maliyet
+    usage_pct_avg: Yok
 
 
 class WorkSummaryWeek(BaseModel):
@@ -406,7 +406,7 @@ class WorkSummaryWeek(BaseModel):
     index: int
     start_date: date
     end_date: date
-    hours: Decimal
+    hours: YokGirdi
     dominant_record_type: WorkLogType | None
 
 
@@ -442,8 +442,8 @@ class FuelLogCreate(BaseModel):
     fuel_date: date
     # K4 ile aynı hedef: NULL = depoda yapılan/kaydedilen iş.
     site_id: uuid.UUID | None = None
-    liters: Decimal = _LITERS
-    unit_price: Decimal = _UNIT_PRICE
+    liters: YokGirdi = _LITERS
+    unit_price: MaliyetGirdi = _UNIT_PRICE
     note: str | None = _FUEL_NOTE
 
 
@@ -457,8 +457,8 @@ class FuelLogUpdate(BaseModel):
     equipment_id: uuid.UUID | None = None
     fuel_date: date | None = None
     site_id: uuid.UUID | None = None
-    liters: Decimal | None = _LITERS_OPTIONAL
-    unit_price: Decimal | None = _UNIT_PRICE_OPTIONAL
+    liters: Yok = _LITERS_OPTIONAL
+    unit_price: Maliyet = _UNIT_PRICE_OPTIONAL
     note: str | None = _FUEL_NOTE
 
 
@@ -473,9 +473,9 @@ class FuelLogResponse(BaseModel):
     equipment_id: uuid.UUID
     fuel_date: date
     site_id: uuid.UUID | None
-    liters: Decimal
-    unit_price: Decimal
-    amount: Decimal
+    liters: YokGirdi
+    unit_price: Maliyet
+    amount: Maliyet
     entered_by_id: uuid.UUID | None
     note: str | None
     created_at: datetime
@@ -504,11 +504,11 @@ class FuelSummaryRow(BaseModel):
     equipment_id: uuid.UUID
     equipment_name: str
     site_id: uuid.UUID | None
-    liters: Decimal
-    amount: Decimal
-    actual: Decimal | None
-    norm: Decimal | None
-    deviation_pct: Decimal | None
+    liters: YokGirdi
+    amount: Maliyet
+    actual: Yok
+    norm: Yok
+    deviation_pct: Yok
     deviation_reason: DeviationReason | None
     consumption_status: ConsumptionStatus | None
 
@@ -524,9 +524,9 @@ class FuelSummaryResponse(BaseModel):
 
     year: int
     month: int
-    total_liters: Decimal
-    total_amount: Decimal
-    lt_per_hour_avg: Decimal | None
-    avg_unit_price: Decimal | None
+    total_liters: YokGirdi
+    total_amount: Maliyet
+    lt_per_hour_avg: Yok
+    avg_unit_price: Maliyet
     abnormal_count: int
     rows: list[FuelSummaryRow]

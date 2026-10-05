@@ -52,8 +52,9 @@ from app.core.router_registry import ROUTERS
 #: ZORUNLU küme: bu rota-sahibi modüllerde etiketsiz alan KIRMIZI. Sonraki dilimler BURAYA ekler.
 ZORUNLU_MODULLER: frozenset[str] = frozenset(
     {"accounting", "approvals", "boq", "catalog", "contracts", "customers", "dashboard",
-     "invoicing", "offers", "payroll", "personnel", "progress_payments", "projects", "sales",
-     "sites", "subcontractor_progress_payments", "timesheet", "treasury", "units"}
+     "earned_value", "equipment", "inventory", "invoicing", "offers", "payroll", "personnel",
+     "procurement", "progress_payments", "projects", "sales", "site_diary", "sites",
+     "subcontractor_progress_payments", "timesheet", "treasury", "units"}
 )  # fmt: skip
 
 #: Modülün TAMAMI değil yalnız bazı şemaları zorunlu olanlar: modül → şema sınıf adları.
@@ -72,14 +73,15 @@ EXPORT_UCLARI: dict[tuple[str, str], str] = {
     ("GET", "/chart-of-accounts/export.xlsx"): "MASKELI",
     ("GET", "/journal/export.xlsx"): "MASKELI",
     ("GET", "/trial-balance/export.xlsx"): "MASKELI",
-    ("GET", "/equipment/work-summary/export.xlsx"): "RAPOR",
+    ("GET", "/equipment/work-summary/export.xlsx"): "MASKELI",
     ("GET", "/offers/{offer_id}/revisions/{rev_no}/export"): "MASKELI",
     ("GET", "/payroll/periods/export.xlsx"): "MASKELI",
     ("GET", "/payroll/periods/{period_id}/export"): "MASKELI",
     ("GET", "/personnel/export.xlsx"): "MASKELI",
     ("GET", "/projects/{project_id}/units/export.xlsx"): "MASKELI",
-    ("GET", "/purchase-requests/{request_id}/quotes/export.xlsx"): "RAPOR",
+    ("GET", "/purchase-requests/{request_id}/quotes/export.xlsx"): "MASKELI",
     ("GET", "/sites/{site_id}/timesheet/export.xlsx"): "MASKELI",
+    ("GET", "/sites/{site_id}/earned-value/reports/weekly.xlsx"): "MASKELI",
 }
 
 
@@ -287,7 +289,7 @@ def _export_rotalari() -> dict[tuple[str, str], APIRoute]:
         for rota in _tum_rotalar()
         if rota.response_model is None
         and rota.methods == {"GET"}
-        and re.search(r"export", rota.path)
+        and re.search(r"export|\.xlsx$", rota.path)
     }
 
 

@@ -24,11 +24,18 @@ kacinilmaz sekilde saparadi.
 
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.text import FREE_TEXT_MAX_LENGTH
+from app.modules.procurement.mask_types import (
+    Maliyet,
+    MaliyetGirdi,
+    Sayac,
+    Yok,
+    YokGirdi,
+    YokMetin,
+)
 from app.modules.procurement.models import (
     PaymentTerms,
     PurchaseOrderStatus,
@@ -77,8 +84,8 @@ class SupplierCreate(BaseModel):
 
     name: str = _SUPPLIER_NAME
     category: str | None = _CATEGORY
-    tax_no: str | None = _TAX_NO
-    phone: str | None = _PHONE
+    tax_no: YokMetin = _TAX_NO
+    phone: YokMetin = _PHONE
     payment_terms: PaymentTerms
     is_active: bool = True
 
@@ -96,8 +103,8 @@ class SupplierUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     category: str | None = _CATEGORY
-    tax_no: str | None = _TAX_NO
-    phone: str | None = _PHONE
+    tax_no: YokMetin = _TAX_NO
+    phone: YokMetin = _PHONE
     payment_terms: PaymentTerms | None = None
     is_active: bool | None = None
 
@@ -115,8 +122,8 @@ class SupplierResponse(BaseModel):
     id: uuid.UUID
     name: str
     category: str | None
-    tax_no: str | None
-    phone: str | None
+    tax_no: YokMetin
+    phone: YokMetin
     payment_terms: PaymentTerms
     is_active: bool
     created_at: datetime
@@ -136,8 +143,8 @@ class SupplierCard(SupplierResponse):
     (`repository` gerekcesi) — katalog global olsa da PARA degildir.
     """
 
-    orders_total_this_year: Decimal
-    orders_count_this_year: int
+    orders_total_this_year: Maliyet
+    orders_count_this_year: Sayac
 
 
 class SupplierListResponse(BaseModel):
@@ -173,8 +180,8 @@ class PurchaseRequestLineCreate(BaseModel):
     stock_item_id: uuid.UUID | None = None
     free_text_name: str | None = _FREE_TEXT_NAME
     free_text_unit: str | None = _FREE_TEXT_UNIT
-    quantity: Decimal = _QUANTITY
-    estimated_unit_price: Decimal | None = _UNIT_PRICE
+    quantity: YokGirdi = _QUANTITY
+    estimated_unit_price: Maliyet = _UNIT_PRICE
 
     @model_validator(mode="after")
     def _xor(self) -> "PurchaseRequestLineCreate":
@@ -218,10 +225,10 @@ class PurchaseRequestLineResponse(BaseModel):
     free_text_unit: str | None
     name: str
     unit: str | None
-    quantity: Decimal
-    estimated_unit_price: Decimal | None
-    line_total: Decimal | None
-    current_stock: Decimal | None
+    quantity: YokGirdi
+    estimated_unit_price: Maliyet
+    line_total: Maliyet
+    current_stock: Yok
 
 
 # --- Talep basligi (FST + SAT) ---
@@ -318,7 +325,7 @@ class PurchaseRequestBase(BaseModel):
     rejection_reason: str | None
     created_by_user_id: uuid.UUID
     created_at: datetime
-    estimated_total: Decimal
+    estimated_total: Maliyet
     can_delete: bool
 
 
@@ -390,12 +397,12 @@ class PurchaseQuoteCreate(BaseModel):
     """
 
     supplier_id: uuid.UUID
-    unit_price: Decimal = _MONEY
+    unit_price: MaliyetGirdi = _MONEY
     delivery_time: str = _DELIVERY_TIME
     warranty_note: str | None = _WARRANTY_NOTE
     payment_terms: PaymentTerms
     shipping_included: bool = False
-    shipping_cost: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    shipping_cost: Maliyet = Field(default=None, ge=0, max_digits=18, decimal_places=2)
 
     @model_validator(mode="after")
     def _nakliye(self) -> "PurchaseQuoteCreate":
@@ -415,12 +422,12 @@ class PurchaseQuoteUpdate(BaseModel):
     verdigi fiyattir, tedarikcisi degisen sey artik BASKA bir tekliftir.
     """
 
-    unit_price: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    unit_price: Maliyet = Field(default=None, ge=0, max_digits=18, decimal_places=2)
     delivery_time: str | None = Field(default=None, min_length=1, max_length=100)
     warranty_note: str | None = _WARRANTY_NOTE
     payment_terms: PaymentTerms | None = None
     shipping_included: bool | None = None
-    shipping_cost: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    shipping_cost: Maliyet = Field(default=None, ge=0, max_digits=18, decimal_places=2)
 
 
 class PurchaseQuoteResponse(BaseModel):
@@ -432,12 +439,12 @@ class PurchaseQuoteResponse(BaseModel):
     request_id: uuid.UUID
     supplier_id: uuid.UUID
     supplier_name: str
-    unit_price: Decimal
+    unit_price: Maliyet
     delivery_time: str
     warranty_note: str | None
     payment_terms: PaymentTerms
     shipping_included: bool
-    shipping_cost: Decimal | None
+    shipping_cost: Maliyet
     is_selected: bool
     created_at: datetime
 
@@ -459,7 +466,7 @@ class PurchaseQuoteCard(PurchaseQuoteResponse):
     secmek yaniltici olurdu.
     """
 
-    total_cost: Decimal
+    total_cost: Maliyet
     is_best_price: bool
 
 
@@ -477,7 +484,7 @@ class PurchaseQuoteListResponse(BaseModel):
 
     items: list[PurchaseQuoteCard]
     total: int
-    request_quantity_total: Decimal
+    request_quantity_total: YokGirdi
 
 
 # --- Siparis (SIP) ---
@@ -498,7 +505,7 @@ class PurchaseOrderCreate(BaseModel):
 
     project_id: uuid.UUID
     supplier_id: uuid.UUID
-    total_amount: Decimal = _MONEY
+    total_amount: MaliyetGirdi = _MONEY
     expected_delivery: date | None = None
     note: str | None = Field(default=None, max_length=FREE_TEXT_MAX_LENGTH)
 
@@ -531,7 +538,7 @@ class PurchaseOrderResponse(BaseModel):
     supplier_id: uuid.UUID
     supplier_name: str
     project_id: uuid.UUID
-    total_amount: Decimal
+    total_amount: Maliyet
     expected_delivery: date | None
     status: PurchaseOrderStatus
     note: str | None
@@ -566,7 +573,7 @@ class PurchasingSummaryResponse(BaseModel):
     open_requests: int
     quote_wait_requests: int
     pending_approval_requests: int
-    orders_this_month_total: Decimal
+    orders_this_month_total: Maliyet
     active_orders: int
     in_transit_orders: int
     delivered_orders: int

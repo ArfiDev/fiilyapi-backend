@@ -20,6 +20,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_system_admin
 from app.core.ratelimit import client_ip
@@ -65,7 +66,7 @@ from app.modules.earned_value.schemas_budget import (
 from app.modules.earned_value.schemas_catalog import CatalogActualSite
 from app.modules.users.models import User
 
-router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _BASE = "/sites/{site_id}/earned-value/budget"
 _User = Annotated[User, Depends(get_current_user)]

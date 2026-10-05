@@ -79,7 +79,19 @@ _POZ_TUTAR = "6708000.00"
 #: Para kategorileri gizliyken AI zarfının HİÇBİRİNDE görünmemesi gereken PARA izleri.
 #: 🔴 Noktasız/ondalıksız yazılır: zarf `model_dump(mode="json")` ile
 #: serileşir ve `Decimal` metne döner, biçim değişse de rakam dizisi kalır.
-_PARA_IZLERI = ("77100000", "64300000", "312.00", "6708000", "317000")
+_PARA_IZLERI = (
+    "77100000",
+    "64300000",
+    "312.00",
+    "6708000",
+    "317000",
+    # IZN-B4d: günlük toplamı / makine bedeli / yakıt tutarı / kira faturası
+    # (ondalıklı yazılır: UUID metnine çakışmaz)
+    "5550.00",
+    "2800.00",
+    "4550.00",
+    "98765.00",
+)
 #: Onay kutusundaki işveren hakedişinin birim fiyatı: 100 m³ × 3.170 = 317.000 (brüt).
 _ONAY_BIRIM_FIYAT = Decimal("3170.00")
 
@@ -150,6 +162,12 @@ _ARGUMANLAR = {
     "isveren_hakedisleri": lambda k: {},
     "taseron_hakedisleri": lambda k: {},
     "onay_kutum": lambda k: {},
+    # IZN-B4d: şantiye günlüğü + makine araçları da maskelidir (tutarlar etiketli).
+    "gunluk_kayit": lambda k: {"site_id": str(k["santiye_id"])},
+    "makine_listesi": lambda k: {},
+    "makine_calisma": lambda k: {"year": 2026, "month": 7},
+    "makine_yakit": lambda k: {"year": 2026, "month": 7},
+    "makine_kira": lambda k: {},
 }
 
 
@@ -167,6 +185,80 @@ def test_MASKELI_ARAC_KUMESI_ARGUMAN_HARITASINI_KAPSAR() -> None:
 # --------------------------------------------------------------------------- #
 # Kurulum
 # --------------------------------------------------------------------------- #
+
+
+async def _b4d_tohumlari(seeded_db, proje, santiye, kullanici) -> None:
+    """IZN-B4d: günlük + makine araçlarının POZİTİF KONTROL tohumu (boş küme maskeyi ölçmez).
+
+    Tutar izleri `_PARA_IZLERI`nde: günlük 3 × 1850 = 5550 · makine 10 sa = 1 gün × 2800 ·
+    yakıt 100 lt × 45,50 = 4550 · kira faturası 98765. Makine DEPODA (`site_id IS NULL`)."""
+    from app.modules.equipment.models import (
+        Equipment,
+        EquipmentCategory,
+        EquipmentFuelLog,
+        EquipmentRatePeriod,
+        EquipmentRentalInvoice,
+        EquipmentWorkLog,
+        RentalInvoiceStatus,
+        WorkLogType,
+    )
+    from app.modules.procurement.models import PaymentTerms, Supplier
+    from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine
+
+    gunluk = SiteDiaryEntry(
+        site_id=santiye.id,
+        project_id=proje.id,
+        entry_date=date(2026, 7, 15),
+        status=DiaryStatus.draft,
+        created_by=kullanici.id,
+    )
+    gunluk.lines.append(
+        SiteDiaryLine(
+            code="01.001",
+            description="Kazı",
+            unit="m³",
+            unit_price=Decimal("1850.00"),
+            quantity=Decimal("3"),
+        )
+    )
+    makine = Equipment(
+        name="Ekskavatör P8",
+        category=EquipmentCategory.machinery,
+        site_id=None,
+        rate_amount=Decimal("2800"),
+        rate_period=EquipmentRatePeriod.daily,
+    )
+    tedarikci = Supplier(name="P8 Kiralama A.Ş.", payment_terms=PaymentTerms.days_30)
+    seeded_db.add_all([gunluk, makine, tedarikci])
+    await seeded_db.flush()
+    seeded_db.add_all(
+        [
+            EquipmentWorkLog(
+                equipment_id=makine.id,
+                work_date=date(2026, 7, 10),
+                site_id=None,
+                record_type=WorkLogType.worked,
+                hours=Decimal("10"),
+            ),
+            EquipmentFuelLog(
+                equipment_id=makine.id,
+                fuel_date=date(2026, 7, 10),
+                site_id=None,
+                liters=Decimal("100"),
+                unit_price=Decimal("45.50"),
+            ),
+            EquipmentRentalInvoice(
+                supplier_id=tedarikci.id,
+                invoice_no="P8-FT-1",
+                period_year=2026,
+                period_month=7,
+                rate_period=EquipmentRatePeriod.hourly,
+                status=RentalInvoiceStatus.draft,
+                invoice_amount=Decimal("98765.00"),
+            ),
+        ]
+    )
+    await seeded_db.flush()
 
 
 @pytest.fixture
@@ -244,6 +336,8 @@ async def maske_kurulumu(seeded_db, user_factory, project_factory):
         ProjectMember(user_id=kullanici.id, project_id=proje.id, role_id=kullanici.role_id)
     )
     await seeded_db.flush()
+
+    await _b4d_tohumlari(seeded_db, proje, santiye, kullanici)
 
     # IZN-B4b onarımı: hakediş araçları (`isveren_hakedisleri` / `taseron_hakedisleri`) için TOHUM.
     # Tohumsuz araç boş küme döner ve `gross_total`/`net_total` hiç doğrulanmazdı (regresyon:

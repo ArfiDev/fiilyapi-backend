@@ -646,7 +646,9 @@ class AiGunlukKayit(BaseModel):
     weather: str | None
     has_incident: bool
     worker_total: int
-    lines_total: Decimal
+    #: IZN-B4d: `DiaryEntryListItem.lines_total` `maliyet_kar`+`sozlesme_fiyat` etiketlidir;
+    #: gizli rolde `null` gelir. `Decimal` ZORUNLU kalsaydı araç ValidationError ile ölürdü.
+    lines_total: Decimal | None
 
 
 class AiGunlukKayitListesi(BaseModel):
@@ -722,7 +724,8 @@ class AiMakineCalismasi(BaseModel):
     total_breakdown_hours: Decimal
     #: 🔴 Bedeli bilinmeyen satır UYDURMA bir 0 ile toplama GİRMEZ (K16);
     #: toplam bilinenlerden oluşur ve bu not onu söyler.
-    total_cost: Decimal
+    #: IZN-B4d: `totals.cost` `maliyet_kar`dır; gizli rolde `null` (satır `cost`ları da).
+    total_cost: Decimal | None
     usage_pct_avg: Decimal | None
     bilinmeyen_bedel_notu: str
 
@@ -731,7 +734,8 @@ class AiYakitSatiri(BaseModel):
     equipment_name: str
     site_id: uuid.UUID | None
     liters: Decimal
-    amount: Decimal
+    #: IZN-B4d: yakıt tutarı `maliyet_kar`dır; gizli rolde `null`.
+    amount: Decimal | None
     actual: Decimal | None
     norm: Decimal | None
     deviation_pct: Decimal | None
@@ -742,7 +746,8 @@ class AiMakineYakiti(BaseModel):
     year: int
     month: int
     total_liters: Decimal
-    total_amount: Decimal
+    #: IZN-B4d: yakıt toplam tutarı `maliyet_kar`dır; gizli rolde `null`.
+    total_amount: Decimal | None
     #: 🔴 Payda 0 ise `None` — uydurma 0 basılmaz (K16).
     lt_per_hour_avg: Decimal | None
     avg_unit_price: Decimal | None

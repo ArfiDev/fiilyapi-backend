@@ -25,6 +25,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped
 from app.core.errors import SiteValidationError
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -51,7 +52,7 @@ from app.modules.site_diary.schemas import (
 )
 from app.modules.users.models import User
 
-router = APIRouter(tags=["site-diary"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["site-diary"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)

@@ -12,8 +12,10 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.field_mask import Hassas
 from app.modules.earned_value.decimal_out import EvDecimal
 from app.modules.earned_value.engine import ContractorType
+from app.modules.earned_value.mask_types import Yok, YokOpt
 from app.modules.earned_value.models import RateSource, RevisionStatus
 from app.modules.earned_value.schemas_catalog import CatalogActualSite
 
@@ -50,15 +52,15 @@ class LeafOut(BaseModel):
     section_id: uuid.UUID | None
     section_name: str | None
     section_code: str | None = None  # CEO B3 eki
-    planned_qty: EvDecimal
-    unit_mhr: EvDecimal | None
+    planned_qty: Yok
+    unit_mhr: YokOpt
     rate_source: RateSource | None
     contractor_type: ContractorType
     contractor_source: Literal["inherited", "override"]
     is_direct: bool
     is_direct_source: Literal["inherited", "override"]
-    budget_mhr: EvDecimal
-    share: EvDecimal | None
+    budget_mhr: Yok
+    share: YokOpt
     window_start: date | None
     window_end: date | None
     window_source: Literal["override", "section", "union", "snapshot"] | None
@@ -66,9 +68,9 @@ class LeafOut(BaseModel):
 
 
 class _Sums(BaseModel):
-    budget_mhr: EvDecimal
-    direct_budget_mhr: EvDecimal
-    share: EvDecimal | None  # dogrudan butce ÷ toplam dogrudan butce
+    budget_mhr: Yok
+    direct_budget_mhr: Yok
+    share: YokOpt  # dogrudan butce ÷ toplam dogrudan butce
 
 
 class ItemOut(_Sums):
@@ -77,7 +79,7 @@ class ItemOut(_Sums):
     code: str
     description: str
     uom: str
-    planned_qty: EvDecimal
+    planned_qty: Yok
     contractor_type: ContractorType
     contractor_source: Literal["inherited", "item"]
     is_direct: bool
@@ -107,8 +109,8 @@ class DisciplineOut(_Sums):
 
 
 class BudgetTotals(BaseModel):
-    direct_budget_mhr: EvDecimal
-    indirect_budget_mhr: EvDecimal
+    direct_budget_mhr: Yok
+    indirect_budget_mhr: Yok
     item_count: int
     leaf_count: int
     empty_rate_leaf_count: int
@@ -169,7 +171,7 @@ class LeafPatch(BaseModel):
 
     boq_item_id: uuid.UUID
     section_id: uuid.UUID | None = None
-    unit_mhr: Rate | None = None
+    unit_mhr: Annotated[Rate | None, Hassas.yok] = None
     rate_source: RateSource | None = None
     contractor_type: ContractorType | None = None
     is_direct: bool | None = None
@@ -219,7 +221,7 @@ class CandidateOut(BaseModel):
     catalog_item_id: uuid.UUID
     name: str
     uom: str
-    standard_unit_mhr: EvDecimal
+    standard_unit_mhr: Yok
     discipline_id: uuid.UUID
     match: Literal["linked", "exact", "partial"]
 
@@ -231,7 +233,7 @@ class RecentActualOut(BaseModel):
     catalog_item_id: uuid.UUID
     name: str
     uom: str
-    avg: EvDecimal | None
+    avg: YokOpt
     site_count: int
     sites: list[CatalogActualSite]
 
@@ -291,23 +293,23 @@ class PreviewBody(BaseModel):
 
 class DayOut(BaseModel):
     day: date
-    mhr: EvDecimal
-    cumulative_mhr: EvDecimal
-    planned_pct_cum: EvDecimal | None
+    mhr: Yok
+    cumulative_mhr: Yok
+    planned_pct_cum: YokOpt
 
 
 class WeekOut(BaseModel):
     week_no: int
     week_start: date
     week_end: date
-    mhr: EvDecimal
+    mhr: Yok
     working_days: int
-    required_people: EvDecimal | None
+    required_people: YokOpt
     planned_people: int | None  # "bolum plani" cizgisi — yalniz toplam seride
 
 
 class SeriesOut(BaseModel):
-    budget_mhr: EvDecimal
+    budget_mhr: Yok
     start: date | None
     end: date | None
     days: list[DayOut]
@@ -322,7 +324,7 @@ class DisciplinePreviewOut(BaseModel):
     name: str | None
     color: str | None
     distribution: DistributionName
-    share: EvDecimal | None
+    share: YokOpt
     series: SeriesOut
 
 
@@ -331,9 +333,9 @@ class PreviewOut(BaseModel):
     end: date | None
     disciplines: list[DisciplinePreviewOut]
     total: SeriesOut
-    indirect_budget_mhr: EvDecimal
+    indirect_budget_mhr: Yok
     unspreadable: list[str]
-    standard_daily_hours: EvDecimal | None = None  # CEO B3 eki: histogram lejanti (K10)
+    standard_daily_hours: YokOpt = None  # CEO B3 eki: histogram lejanti (K10)
 
 
 # ------------------------------------------------------------------ zamanlama (Gantt)
@@ -356,7 +358,7 @@ class BarOut(BaseModel):
     end_date: date | None
     source: Literal["override", "section", "union", "snapshot"] | None
     outside_section_dates: bool  # §3.10 F0-4
-    budget_mhr: EvDecimal
+    budget_mhr: Yok
 
 
 class ScheduleOut(BaseModel):
@@ -375,13 +377,13 @@ class LeafDiffOut(BaseModel):
     item_description: str
     section_name: str | None
     uom: str
-    prev_qty: EvDecimal | None
-    qty: EvDecimal | None
-    prev_unit_mhr: EvDecimal | None
-    unit_mhr: EvDecimal | None
-    prev_budget_mhr: EvDecimal
-    budget_mhr: EvDecimal
-    delta_mhr: EvDecimal
+    prev_qty: YokOpt
+    qty: YokOpt
+    prev_unit_mhr: YokOpt
+    unit_mhr: YokOpt
+    prev_budget_mhr: Yok
+    budget_mhr: Yok
+    delta_mhr: Yok
     reason: Literal[
         "new", "removed", "moved_out", "qty_changed", "rate_changed", "qty_and_rate_changed"
     ]
@@ -390,7 +392,7 @@ class LeafDiffOut(BaseModel):
 class RevisionDiffOut(BaseModel):
     revision: RevisionOut
     against: RevisionOut | None
-    direct_before_mhr: EvDecimal
-    direct_after_mhr: EvDecimal
-    direct_delta_mhr: EvDecimal
+    direct_before_mhr: Yok
+    direct_after_mhr: Yok
+    direct_delta_mhr: Yok
     leaves: list[LeafDiffOut]
