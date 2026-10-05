@@ -19,6 +19,7 @@ from httpx import AsyncClient
 from app.core.discipline_deps import require_unrestricted
 from app.main import app
 from tests._disiplin_dunyasi import _kimlik
+from tests._silme_yardimci import AILE_YOLLARI, sil_aile
 from tests.core.test_disiplin_rota_bekcisi import _bagimlilik_agacinda
 from tests.discipline_scope._b2_yardim import SISYON_ONLY, YETKI_YOK
 from tests.discipline_scope._b4_dunya import DunyaB4
@@ -121,19 +122,25 @@ async def test_atamasiz_es_403_almaz_pozitif_kontrol(
 
 
 @pytest.mark.parametrize(
-    ("yol", "beklenen"),
+    ("kind", "kimlik", "beklenen"),
     [
-        (f"/progress-payments/{ODEME}", 409),  # onaylı/ödenmiş: iş kuralı, ASLA 403
-        (f"/subcontractor-progress-payments/{YOK}", 404),
+        # SIL-B2: onaylı/ödenmiş hakediş de silinir (mali aile motorla); disiplin ASLA 403 değil.
+        ("progress_payment", ODEME, 204),
+        ("subcontractor_progress_payment", YOK, 404),
     ],
 )
 async def test_silmede_disiplin_kisiti_uygulanmaz_sistem_yoneticisi_atanmis_olsa_da_siler(
-    client: AsyncClient, dunya_b4: DunyaB4, yol: str, beklenen: int
+    client: AsyncClient, dunya_b4: DunyaB4, kind: str, kimlik: uuid.UUID, beklenen: int
 ) -> None:
-    """SIL-B1: DELETE'te disiplin kısıtı YOK. Disiplin atanmış Sistem Yöneticisi 403 DEĞİL iş
-    kuralı sonucunu alır; Sistem Yöneticisi olmayan kısıtlı rol sistem yöneticisi kapısında 403."""
+    """SIL-B1/B2: DELETE'te disiplin kısıtı YOK. Disiplin atanmış Sistem Yöneticisi 403 DEĞİL:
+    belirteçsiz DELETE 428 (önizleme şartı, disiplinden önce), önizleme + belirteçle motor sonucu
+    (silinir / kayıt yok). Sistem Yöneticisi olmayan kısıtlı rol sistem yöneticisi kapısında 403."""
     baslik = dunya_b4.d.baslik
-    kisitli_admin = await client.delete(yol, headers=baslik["admin_kisitli"])
+    yol = f"{AILE_YOLLARI[kind]}/{kimlik}"
+    belirtecsiz = await client.delete(yol, headers=baslik["admin_kisitli"])
+    assert belirtecsiz.status_code == 428, belirtecsiz.text
+    assert belirtecsiz.json()["code"] == "preview_required"
+    kisitli_admin = await sil_aile(client, baslik["admin_kisitli"], kind, kimlik)
     assert kisitli_admin.status_code == beklenen, kisitli_admin.text
     sirada = await client.delete(yol, headers=baslik["civil_yazar"])
     assert sirada.status_code == 403 and sirada.json() == SISYON_ONLY

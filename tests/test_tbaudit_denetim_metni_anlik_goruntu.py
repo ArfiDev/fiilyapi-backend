@@ -25,6 +25,15 @@ bekçiyi hiçliğe çevirir; bir metni bilerek değiştiren dilim referansı
 `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazeler ve
 **farkı incelemede görünür kılar** — sessizce değil.
 
+## 🔴 REFERANS DEĞİŞİKLİĞİ (SIL-B2, 2026-10-05)
+
+`deleted_with_dependents` mali aile silmesiyle altı yeni anahtar parametre aldı (`journal_entries`,
+`closed_period_entries`, `sources_without_entry`, `other_projects`, `status_changes`,
+`closed_payroll`). Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile
+tazelendi; fark (`git diff`): YALNIZ bu fonksiyonun satırları — eski 4 satırın metni yeni
+satırlarda BİREBİR önek olarak duruyor (KAYIP 0), 6 satır yeni parametrelerin boş hâlini
+gösteriyor; başka sembol DEĞİŞMEDİ. Referans 422 → 428 satır.
+
 ## 🔴 REFERANSTAN DÜŞEN SEMBOL (IZN-B3b, 2026-10-05)
 
 `approval_roles_assigned` KALDIRILDI: `PUT /approvals/roles/{user_id}` 410 oldu (onay rolü artık
