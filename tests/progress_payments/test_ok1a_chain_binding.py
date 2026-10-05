@@ -38,14 +38,18 @@ from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
 from app.modules.audit import messages
 from app.modules.audit.models import AuditLog
 from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
+from app.modules.projects.models import Project
 from app.modules.users.models import User
 from tests.modules.approvals.conftest import (
     adim_durumlari,
     adim_rolleri,
     kullanici,
     onay_rolu_ver,
+    rol_sahipleri_dolgusu,  # noqa: F401  (fixture)
     zincir_getir,
 )
+
+pytestmark = pytest.mark.usefixtures("rol_sahipleri_dolgusu")
 
 _TIP = ApprovalDocumentType.progress_payment
 _GEREKCE = {"reason": "Metrajlar eksik"}
@@ -231,15 +235,24 @@ async def test_zincir_TAMAMLANINCA_ucuncu_onay_409(
 async def test_onay_ROLU_olmayan_aktor_403(
     client: AsyncClient,
     admin_headers: dict[str, str],
-    muhasebe_headers: dict[str, str],
+    seeded_db: AsyncSession,
+    user_factory,
     gecerli_taslak: uuid.UUID,
 ) -> None:
-    """`muhasebe_headers` uç kapısını (`_APR`) GEÇER ama ONAY ROLÜ taşımaz."""
+    """Proje Müdürü uç kapısını (`progress_payments=_APR`) GEÇER ama işveren zincirinin
+    (Muhasebe) adım SAHİBİ DEĞİLDİR. IZN-B3b: ana rolü `accounting` olan "Tüm projeler" kişi
+    artık adımın sahibidir; bu yüzden rolsüz aktör ana rolü adım rolü olmayan biridir."""
+    pm = await _onaycı(
+        client,
+        seeded_db,
+        user_factory,
+        email="rolsuz-pm@pp-ok1a.co",
+        role_key="project_manager",
+        approval_roles=(),
+    )
     await _gonder(client, admin_headers, gecerli_taslak)
 
-    yanit = await client.post(
-        f"/progress-payments/{gecerli_taslak}/approve", headers=muhasebe_headers
-    )
+    yanit = await client.post(f"/progress-payments/{gecerli_taslak}/approve", headers=pm)
 
     assert yanit.status_code == 403, yanit.text
     assert yanit.json()["detail"] == approval_guards.APPROVAL_ROLE_MISSING
@@ -331,8 +344,11 @@ async def test_GOREVLER_AYRILIGI_403_ADMIN_ISTISNASI_YOK(
     user_factory,
     gecerli_taslak: uuid.UUID,
 ) -> None:
-    """İKİ onay rolü taşıyan `system_admin` bile AYNI evrağın ikinci adımını
-    onaylayamaz — K1 istisnayı YALNIZ "kendi evrakı"na verdi."""
+    """Adımı imzaladıktan sonra projedeki ROLÜ DEĞİŞEN `system_admin` bile AYNI evrağın ikinci
+    adımını onaylayamaz — K1 istisnayı YALNIZ "kendi evrakı"na verdi. (IZN-B3b: bir kişi bir
+    projede TEK rol taşır; ayrılık bekçisi rol değişiminde ısırır.)"""
+    from tests.modules.approvals.conftest import proje_rolu_ver
+
     await _esik(client, admin_headers, "100000.00")
     cift_rollu = await _onaycı(
         client,
@@ -340,13 +356,17 @@ async def test_GOREVLER_AYRILIGI_403_ADMIN_ISTISNASI_YOK(
         user_factory,
         email="cift-rol@pp-ok1a.co",
         role_key="system_admin",
-        approval_roles=(ApprovalRole.accounting, ApprovalRole.patron),
+        approval_roles=(ApprovalRole.accounting,),
     )
     await _gonder(client, admin_headers, gecerli_taslak)
 
     ilk = await client.post(f"/progress-payments/{gecerli_taslak}/approve", headers=cift_rollu)
     assert ilk.status_code == 200, ilk.text
     assert ilk.json()["status"] == "pending_approval"
+    kisi = await kullanici(seeded_db, "cift-rol@pp-ok1a.co")
+    odeme = await seeded_db.get(ProgressPayment, gecerli_taslak)
+    proje = await seeded_db.get(Project, odeme.project_id)
+    await proje_rolu_ver(seeded_db, kisi, proje, "patron")
 
     ikinci = await client.post(f"/progress-payments/{gecerli_taslak}/approve", headers=cift_rollu)
     assert ikinci.status_code == 403, ikinci.text
@@ -571,16 +591,29 @@ async def test_reddedilen_evrak_yeniden_gonderilince_ESKI_ZINCIR_ENGEL_DEGIL(
 
 
 async def test_onaycinin_kendisi_KULLANICI_kaydini_dogrular(
-    seeded_db: AsyncSession, muhasebe_onaycisi: dict[str, str]
+    seeded_db: AsyncSession, muhasebe_onaycisi: dict[str, str], gecerli_taslak: uuid.UUID
 ) -> None:
-    """Fixture gerçekten ONAY ROLÜ yazdı mı — sahte-yeşil bekçisi."""
+    """Fixture gerçekten PROJE ROLÜ yazdı mı — sahte-yeşil bekçisi (IZN-B3b: onay rolü = ekip
+    rolü; kişinin her ekip satırı `accounting` rolünde olmalı ve en az bir satır bulunmalı)."""
+    from sqlalchemy import select
+
+    from app.modules.roles.models import Role
+    from app.modules.users.models import ProjectMember
+
     user = await kullanici(seeded_db, "zincir-muhasebe@pp-ok1a.co")
     assert isinstance(user, User)
-    from app.modules.approvals import repository as approvals_repository
-
-    assert await approvals_repository.user_approval_roles(seeded_db, user.id) == [
-        ApprovalRole.accounting
-    ]
+    roller = (
+        (
+            await seeded_db.execute(
+                select(Role.key)
+                .join(ProjectMember, ProjectMember.role_id == Role.id)
+                .where(ProjectMember.user_id == user.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert roller and set(roller) == {ApprovalRole.accounting.value}
 
 
 async def test_MU3D_ARA_adim_FIS_YAZMAZ_fis_SON_adimda_dogar(

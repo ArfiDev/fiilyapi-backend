@@ -3,33 +3,28 @@
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import Select, and_, case, distinct, func, literal, or_, select
+from sqlalchemy import Select, and_, case, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.modules.approvals import documents
 from app.modules.approvals.definitions import HistoryFilter
-from app.modules.approvals.models import (
-    ApprovalChain,
-    ApprovalDocumentType,
-    ApprovalRole,
-    ApprovalStep,
-    UserApprovalRole,
-)
+from app.modules.approvals.models import ApprovalChain, ApprovalDocumentType, ApprovalStep
+from app.modules.approvals.step_owner import actor_is_candidate_clause, step_owner_clause
 from app.modules.users.models import User
 
 __all__ = [
     "ChainGateFacts",
-    "assignment_page",
+    "actor_is_candidate",
+    "actor_owns_step",
     "chain_gate_facts",
     "chain_steps",
+    "decidable_chain_ids",
     "get_chain",
     "get_chain_for_update",
     "history_page",
     "pending_page",
-    "replace_user_approval_roles",
     "steps_of_chains",
-    "user_approval_roles",
     "user_names",
 ]
 
@@ -97,9 +92,11 @@ async def chain_gate_facts(
     """Ikame kapisinin (OK-1C, `approvals/gate.py`) TEK sorgusu — UC olgu, TEK gidis.
 
     1. `document_exists` — evrak satiri VAR MI (aile tablosunda).
-    2. `actor_is_candidate` — aktor EN AZ BIR onay rolu tasiyor mu (ADAY IMZACI).
-    3. `holds_next_step_role` — evragin ACIK zincirinin SIRADAKI adiminin onay
-       rolu aktorun kumesinde mi.
+    2. `actor_is_candidate` — aktor HERHANGI BIR projede (ya da "Tum projeler" +
+       ana rolunde) bir adim rolu tasiyor mu (ADAY IMZACI; belgeye bagli degil).
+    3. `holds_next_step_role` — evragin ACIK zincirinin SIRADAKI adiminin sahibi
+       aktor mu (IZN-B3b: belgenin projesindeki proje rolu ya da "Tum projeler"
+       + ana rol — `step_owner.step_owner_clause`, kapi/kutu/karar ORTAK).
 
     Ucu de ayri sorgu olsaydi soguk yolda uc gidis-donus olurdu; ustelik
     "siradaki adim" karari Python'a tasinirdi — ayni karar `_pending_filter`da
@@ -123,7 +120,7 @@ async def chain_gate_facts(
     """
     id_kolonu, _proje_kolonu = documents.DOCUMENT_PROJECT_COLUMNS[document_type]
     belge_var = select(id_kolonu).where(id_kolonu == document_id).exists()
-    aday_imzaci = select(UserApprovalRole.id).where(UserApprovalRole.user_id == actor_id).exists()
+    aday_imzaci = select(literal(1)).where(actor_is_candidate_clause(actor_id)).exists()
     onceki = aliased(ApprovalStep)
     siradaki_step_no = (
         select(func.min(onceki.step_no))
@@ -141,18 +138,13 @@ async def chain_gate_facts(
                 ApprovalStep.step_no == siradaki_step_no,
             ),
         )
-        .join(
-            UserApprovalRole,
-            and_(
-                UserApprovalRole.user_id == actor_id,
-                UserApprovalRole.approval_role == ApprovalStep.approval_role,
-            ),
-        )
         .where(
             ApprovalChain.document_type == document_type,
             ApprovalChain.document_id == document_id,
             # OKT-B1: reddedilmis zincirin karara baglanmamis adimi KAPI ACMAZ.
             ApprovalChain.rejected_at.is_(None),
+            # IZN-B3b: adimin sahibi aktor (proje rolu / "Tum projeler" + ana rol).
+            step_owner_clause(actor_id),
         )
         .exists()
     )
@@ -211,72 +203,28 @@ async def user_names(session: AsyncSession, user_ids: set[uuid.UUID]) -> dict[uu
     return {satir.id: satir.full_name for satir in rows}
 
 
-async def user_approval_roles(session: AsyncSession, user_id: uuid.UUID) -> list[ApprovalRole]:
-    rows = await session.execute(
-        select(UserApprovalRole.approval_role)
-        .where(UserApprovalRole.user_id == user_id)
-        .order_by(UserApprovalRole.approval_role)
-    )
-    return list(rows.scalars().all())
+async def actor_is_candidate(session: AsyncSession, actor_id: uuid.UUID) -> bool:
+    """Aktor HERHANGI BIR projede bir adim rolu tasiyor mu (gelen kutusunun ucuz erken cikisi)."""
+    return bool(await session.scalar(select(actor_is_candidate_clause(actor_id))))
 
 
-async def replace_user_approval_roles(
-    session: AsyncSession, user_id: uuid.UUID, roles: list[ApprovalRole]
-) -> None:
-    """TAM KUME degistirir (kanon): once hepsi silinir, sonra verilenler yazilir.
+async def actor_owns_step(session: AsyncSession, actor_id: uuid.UUID, step_id: uuid.UUID) -> bool:
+    """Kilitli karar katmani (`service._assert_can_decide`): adimin sahibi aktor mu.
 
-    Kismi ekleme/cikarma ucu ACILMADI — iki ayri ucun birlestirilmesi gereken
-    "son durum" ekranda kurulur ve iki istek arasinda kalan yari hâl gorunurdu.
+    Kapi ve gelen kutusuyla AYNI `step_owner_clause` — uc yer ayrisamaz.
     """
-    mevcut = (
-        await session.execute(select(UserApprovalRole).where(UserApprovalRole.user_id == user_id))
-    ).scalars()
-    for satir in mevcut:
-        await session.delete(satir)
-    await session.flush()
-    for rol in roles:
-        session.add(UserApprovalRole(user_id=user_id, approval_role=rol))
-    await session.flush()
-
-
-async def assignment_page(
-    session: AsyncSession, *, limit: int, offset: int
-) -> tuple[list[User], int, dict[uuid.UUID, list[ApprovalRole]]]:
-    """EN AZ BIR onay rolu tasiyan kullanicilar + atamalari (UC sabit sorgu).
-
-    Onay rolu OLMAYAN kullanicilar burada DONMEZ: bu uc "atamalar" listesidir,
-    kullanici katalogu degil (o `GET /users`tir).
-    """
-    total = await session.scalar(select(func.count(distinct(UserApprovalRole.user_id))))
-    users = list(
-        (
-            await session.execute(
-                select(User)
-                .join(UserApprovalRole, UserApprovalRole.user_id == User.id)
-                .distinct()
-                .order_by(User.full_name, User.id)
-                .limit(limit)
-                .offset(offset)
-            )
+    return bool(
+        await session.scalar(
+            select(ApprovalStep.id)
+            .join(ApprovalChain, ApprovalChain.id == ApprovalStep.chain_id)
+            .where(ApprovalStep.id == step_id, step_owner_clause(actor_id))
+            .limit(1)
         )
-        .scalars()
-        .all()
     )
-    atamalar: dict[uuid.UUID, list[ApprovalRole]] = {user.id: [] for user in users}
-    if users:
-        rows = await session.execute(
-            select(UserApprovalRole)
-            .where(UserApprovalRole.user_id.in_(list(atamalar)))
-            .order_by(UserApprovalRole.approval_role)
-        )
-        for satir in rows.scalars():
-            atamalar[satir.user_id].append(satir.approval_role)
-    return users, total or 0, atamalar
 
 
 def _pending_filter(
     actor_id: uuid.UUID,
-    roles: list[ApprovalRole],
     admin_document_types: list[ApprovalDocumentType],
     visible_project_ids: list[uuid.UUID],
 ) -> tuple[Select, Select]:
@@ -305,7 +253,9 @@ def _pending_filter(
         # 🔴 OKT-B1 — REDDEDILMIS zincir bekleyen DEGILDIR: karara baglanmamis
         # adimi DB'de durur ama zincir terminaldir.
         ApprovalChain.rejected_at.is_(None),
-        ApprovalStep.approval_role.in_(roles),
+        # IZN-B3b: adimin sahibi aktor (belgenin projesindeki proje rolu / "Tum projeler" + ana
+        # rol).
+        step_owner_clause(actor_id),
         # Bekci 5 — kendi evraki (admin istisnasiyla).
         or_(
             ApprovalChain.created_by_user_id.is_distinct_from(actor_id),
@@ -348,13 +298,12 @@ async def pending_page(
     session: AsyncSession,
     *,
     actor_id: uuid.UUID,
-    roles: list[ApprovalRole],
     admin_document_types: list[ApprovalDocumentType],
     visible_project_ids: list[uuid.UUID],
     limit: int,
     offset: int,
 ) -> tuple[list[tuple[ApprovalChain, ApprovalStep]], int]:
-    govde, sayim = _pending_filter(actor_id, roles, admin_document_types, visible_project_ids)
+    govde, sayim = _pending_filter(actor_id, admin_document_types, visible_project_ids)
     total = await session.scalar(sayim)
     rows = await session.execute(
         govde.order_by(ApprovalChain.created_at, ApprovalChain.id).limit(limit).offset(offset)
@@ -362,10 +311,31 @@ async def pending_page(
     return [(chain, step) for chain, step in rows.all()], total or 0
 
 
+async def decidable_chain_ids(
+    session: AsyncSession,
+    *,
+    actor_id: uuid.UUID,
+    admin_document_types: list[ApprovalDocumentType],
+    visible_project_ids: list[uuid.UUID],
+    chain_ids: list[uuid.UUID],
+) -> set[uuid.UUID]:
+    """`can_decide` — verilen zincirlerden aktorun SIMDI karar verebilecekleri.
+
+    Gelen kutusunun suzgeciyle (`_pending_filter`) BIREBIR ayni kosullar: acik zincir, SIRADAKI
+    adimin sahibi aktor, kendi evraki / gorevler ayriligi bekcileri, proje gorunurlugu. Gecmis
+    ekraninda "Onayla/Reddet" dugmesini bu belirler; kutuda gorunen satir ile dugme ayrisamaz.
+    """
+    if not chain_ids:
+        return set()
+    govde, _sayim = _pending_filter(actor_id, admin_document_types, visible_project_ids)
+    rows = await session.execute(govde.where(ApprovalChain.id.in_(chain_ids)))
+    return {chain.id for chain, _step in rows.all()}
+
+
 async def history_page(
     session: AsyncSession,
     *,
-    roles: list[ApprovalRole],
+    actor_id: uuid.UUID,
     visible_project_ids: list[uuid.UUID],
     decision: HistoryFilter,
     limit: int,
@@ -376,7 +346,8 @@ async def history_page(
     Gorunurluk IKI kosuldur ve bekleyen kutusunun suzgeciyle AYNI iki ilkeye
     dayanir (rol + proje kapsami):
 
-    * adimlarindan HERHANGI BIRININ onay rolu aktorun rollerinden biri (`bool_or`);
+    * adimlarindan HERHANGI BIRININ sahibi aktor (`bool_or`; IZN-B3b: belgenin projesindeki
+      proje rolu / "Tum projeler" + ana rol — `step_owner.step_owner_clause`);
     * 🔴 IDOR: evragin projesi aktorun gordukleri arasinda —
       `documents.visible_document_clause`, `_pending_filter`in kullandigi AYNI
       yardimci. Govde ile SAYIM ayni `kosullar` demetinden turer.
@@ -396,8 +367,10 @@ async def history_page(
             func.count().label("adim_sayisi"),
             func.count(ApprovalStep.decided_at).label("karara_baglanan"),
             func.max(ApprovalStep.decided_at).label("son_imza"),
-            func.bool_or(ApprovalStep.approval_role.in_(roles)).label("rolum_var"),
+            func.bool_or(step_owner_clause(actor_id)).label("rolum_var"),
         )
+        .select_from(ApprovalStep)
+        .join(ApprovalChain, ApprovalChain.id == ApprovalStep.chain_id)
         .group_by(ApprovalStep.chain_id)
         .subquery()
     )

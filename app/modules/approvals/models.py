@@ -1,24 +1,18 @@
 """Onay zinciri motorunun tablolari (OK-1A, sozlesme Y0).
 
-UC TABLO:
-  * `user_approval_roles` — kullanici <-> ONAY ROLU atamasi (COK-A-COK, K1)
+IKI TABLO:
   * `approval_chains`     — bir evragin acilmis zincir ORNEGI
   * `approval_steps`      — zincirin adimlari (sira + rol + karar damgasi)
 
-## 🔴 ONAY ROLU, SISTEM ROLU DEGILDIR
+(`user_approval_roles` IZN-B3b'de SOKULDU: adimi, belgenin projesinde o role atanmis kisi
+onaylar — `step_owner.py`.)
 
-`roles.Role` (`users.role_id`) SISTEM rolüdür: izin matrisini, yani hangi
-modulde hangi SEVIYEYE (`none < view < draft < request < approve < full <
-admin`) sahip olundugunu belirler. `ApprovalRole` ise bir evrak uzerindeki
-IMZA SIRASIDIR ve hicbir yetki VERMEZ.
+## 🔴 ADIM ROLU = ROL ANAHTARI
 
-Ikisi kasitli olarak AYRIDIR ve kullanici karariyla (K1) boyle acildi:
-
-* bir kisi BIRDEN COK onay rolu tasiyabilir (kucuk sirkette ayni kisi hem
-  Muhasebe hem Patron olabilir). Tek kolon bu kisiyi `admin` olmaya zorlar ve
-  SISTEM YONETICILIGI ile TICARI YETKIYI birbirine karistirirdi;
-* buna karsilik bir kisi AYNI evragin IKI adimini onaylayamaz (gorevler
-  ayriligi) — yani "iki rol" iki imza HAKKI degil, iki imza ADAYLIGIDIR.
+`ApprovalRole` bir evrak uzerindeki IMZA SIRASININ rol adidir ve hicbir yetki VERMEZ. IZN-B3b
+(K1) oncesi ayri bir "onay rolu" atamasi vardi; artik adim rolu, `roles.key` ile birebir
+eslesen bir ROL ANAHTARIDIR ve adimin sahibi `project_members` (proje rolu) ya da "Tum projeler" +
+ana rol uzerinden bulunur. Bir kisi AYNI evragin IKI adimini onaylayamaz (gorevler ayriligi).
 
 Enum DEGERLERI `roles/seed_data.py`deki `ROLES[*]["key"]` sozlugüyle BIREBIR
 ayni yazilir (`site_chief` · `project_manager` · `accounting` · `patron` ·
@@ -92,32 +86,10 @@ class ApprovalDocumentType(str, enum.Enum):
     progress_payment = "progress_payment"
 
 
-#: `approval_role` IKI tabloda kullanilir (atama + adim). Tip nesnesi TEK YERDE
-#: kurulur ve `metadata`ya baglanir: her kolonda ayri bir `Enum(...)` yazilsaydi
-#: `create_all` ayni tipi IKI KEZ yaratmayi denerdi ("type already exists").
-#: Desen `procurement.models.payment_terms_enum`den alinmistir.
+#: Tip nesnesi TEK YERDE kurulur ve `metadata`ya baglanir (IZN-B3b oncesi `approval_role` iki
+#: tabloda kullaniliyordu; hâlâ ayri bir tip nesnesi `create_all`in ayni tipi iki kez yaratmasini
+#: onler). Desen `procurement.models.payment_terms_enum`den alinmistir.
 approval_role_enum = Enum(ApprovalRole, name="approval_role", metadata=Base.metadata)
-
-
-class UserApprovalRole(Base):
-    """Kullanicinin TASIDIGI onay rollerinden BIRI (K1: cok-a-cok).
-
-    `ON DELETE CASCADE`: kullanici silinince atamasi da gider — atama bir IZ
-    degil, bir YETKILENDIRMEDIR; sahibi yoksa anlami da yoktur. (Karara baglanmis
-    ADIMLAR ise `SET NULL` ile KORUNUR: onay bir olgudur ve silinmez.)
-    """
-
-    __tablename__ = "user_approval_roles"
-    __table_args__ = (
-        UniqueConstraint("user_id", "approval_role", name="uq_user_approval_roles_user_role"),
-        Index("ix_user_approval_roles_user_id", "user_id"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    approval_role: Mapped[ApprovalRole] = mapped_column(approval_role_enum, nullable=False)
 
 
 class ApprovalChain(Base):

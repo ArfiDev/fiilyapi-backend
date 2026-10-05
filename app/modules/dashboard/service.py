@@ -111,7 +111,7 @@ async def _pending_approvals(session: AsyncSession, user: User) -> PendingApprov
     gosterdigi kumeyle BIREBIR ayni eksigi tasir — ve tam da servisi CAGIRDIGI
     icin OK-1B geldiginde IKISI BIRDEN buyur. Bir kopya buyumezdi.
     """
-    _sayfa, toplam, _roller = await approvals_service.pending_for_user(
+    _sayfa, toplam = await approvals_service.pending_for_user(
         session, user, limit=_ONLY_TOTAL, offset=0
     )
     return PendingApprovalsPlaceholder(

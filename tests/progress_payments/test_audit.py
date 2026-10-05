@@ -31,8 +31,9 @@ from app.modules.progress_payments import service as pp_service
 from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
 from app.modules.users.models import User
 from tests._para_gercek import parayi_yatir
+from tests.modules.approvals.conftest import rol_sahipleri_dolgusu  # noqa: F401  (fixture)
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("rol_sahipleri_dolgusu")]
 
 
 async def _audit_sayisi(db_session: AsyncSession) -> int:

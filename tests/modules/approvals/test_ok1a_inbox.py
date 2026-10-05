@@ -25,18 +25,25 @@ import uuid
 from decimal import Decimal
 
 from app.modules.approvals import service
-from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
+from app.modules.approvals.models import (
+    ApprovalChain,
+    ApprovalDocumentType,
+    ApprovalRole,
+    ApprovalStep,
+)
+from tests.modules.approvals.conftest import proje_rolu_ver
 
 _TASERON = ApprovalDocumentType.subcontractor_progress_payment
 _ISVEREN = ApprovalDocumentType.progress_payment
 _SATINALMA = ApprovalDocumentType.purchase_request
 
-#: Üç ailenin de ilk adımını taşıyan aktör — tek turda üç satır görebilsin.
-_TUM_ROLLER = [
-    ApprovalRole.site_chief,
-    ApprovalRole.accounting,
-    ApprovalRole.procurement,
-]
+#: Üç ailenin ilk adımının sahibi olan rol. IZN-B3b: bir kişi bir projede TEK rol taşır; tek
+#: turda üç satır görecek aktör, her ailenin projesinde O AİLENİN ilk adım rolüyle üyedir.
+_ILK_ADIM_ROLU = {
+    _TASERON: ApprovalRole.site_chief,
+    _ISVEREN: ApprovalRole.accounting,
+    _SATINALMA: ApprovalRole.procurement,
+}
 
 
 async def _zincir(seeded_db, document_type, document_id, creator, amount=Decimal("100.00")):
@@ -186,7 +193,22 @@ async def test_kaynagi_COZULEMEYEN_zincir_kutuda_GORUNMEZ(
     )
     basliklar = await giris("t4-oksuz-sef@ok1a.co")
 
-    await _zincir(seeded_db, _TASERON, uuid.uuid4(), yaratan)
+    # `create_chain` BOŞ proje çözemez (IZN-B3b: adım rolleri belgenin projesinde sahip ister);
+    # evrağı silinmiş zincir DOĞRUDAN yazılır. Aktör "Tüm projeler" + ana rol `site_chief` olduğu
+    # için adımın SAHİBİDİR — gizleyen tek şey kaynağın çözülememesidir (fail-closed).
+    zincir = ApprovalChain(
+        document_type=_TASERON,
+        document_id=uuid.uuid4(),
+        threshold_snapshot=Decimal("500000.00"),
+        amount_snapshot=Decimal("100.00"),
+        created_by_user_id=yaratan.id,
+    )
+    seeded_db.add(zincir)
+    await seeded_db.flush()
+    seeded_db.add(
+        ApprovalStep(chain_id=zincir.id, step_no=1, approval_role=ApprovalRole.site_chief)
+    )
+    await seeded_db.flush()
 
     yanit = await client.get("/approvals", headers=basliklar)
 
@@ -294,8 +316,7 @@ async def test_KAPSAMSIZ_aktor_HICBIR_satir_gormez(
 
     assert govde["items"] == []
     assert govde["total"] == 0
-    # Onay ROLÜ duruyor: engel kapsamdır, rol değil (iki eksen karışmasın).
-    assert govde["my_approval_roles"] == ["site_chief"]
+    assert "my_approval_roles" not in govde  # IZN-B3b: alan kalktı (rol artık projeye bağlı)
 
 
 # --------------------------------------------------------------------------- #
@@ -321,6 +342,7 @@ _SATIR_ALANLARI = {
     "subtitle",
     "gross_amount",
     "net_amount",
+    "can_decide",
 }
 
 
@@ -328,10 +350,12 @@ async def test_satirin_TAM_ALAN_KUMESI_karar_ya_da_RENK_TASIMAZ(
     client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
 ):
     """🔴 KANON E + K10: `can_approve` gibi bir KARAR alanı ve aciliyet/renk gibi
-    bir SUNUM alanı YOKTUR. Kararı ekran, adım rolü ile `my_approval_roles`u
-    birleştirerek kurar (`treasury/upcoming.py` emsali)."""
+    bir SUNUM alanı YOKTUR. `can_decide` bir OLGUDUR (adımın sahibi aktör mü) ve
+    kutuda süzgecin kendisidir (IZN-B3b; `treasury/upcoming.py` emsali)."""
     yaratan = await aktor_fabrikasi("t4-kanone-yaratan@ok1a.co")
-    await aktor_fabrikasi("t4-kanone@ok1a.co", role_key="site_chief", approval_roles=_TUM_ROLLER)
+    await aktor_fabrikasi(
+        "t4-kanone@ok1a.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
+    )
     basliklar = await giris("t4-kanone@ok1a.co")
     document_id, _ = await evrak_fabrikasi(_TASERON, creator=yaratan)
     await _zincir(seeded_db, _TASERON, document_id, yaratan)
@@ -340,6 +364,7 @@ async def test_satirin_TAM_ALAN_KUMESI_karar_ya_da_RENK_TASIMAZ(
 
     assert set(satir) == _SATIR_ALANLARI
     assert set(satir["steps"][0]) == {"step_no", "approval_role", "decided_at", "decided_by_name"}
+    assert satir["can_decide"] is True
 
 
 async def test_UC_AILE_TEK_CAGRIDA_doner(
@@ -348,11 +373,12 @@ async def test_UC_AILE_TEK_CAGRIDA_doner(
     """Mockup tek listede üç ayrı evrak ailesini yan yana basar (`:118` ·
     `:152` · `:211`). Uç bunları TEK çağrıda vermeli."""
     yaratan = await aktor_fabrikasi("t4-uclu-yaratan@ok1a.co")
-    await aktor_fabrikasi("t4-uclu@ok1a.co", role_key="system_admin", approval_roles=_TUM_ROLLER)
+    aktor = await aktor_fabrikasi("t4-uclu@ok1a.co", role_key="hr_manager", tum_projeler=False)
     basliklar = await giris("t4-uclu@ok1a.co")
 
     for tip in (_TASERON, _ISVEREN, _SATINALMA):
-        document_id, _ = await evrak_fabrikasi(tip, creator=yaratan)
+        document_id, proje = await evrak_fabrikasi(tip, creator=yaratan)
+        await proje_rolu_ver(seeded_db, aktor, proje, _ILK_ADIM_ROLU[tip].value)
         await _zincir(seeded_db, tip, document_id, yaratan)
 
     govde = (await client.get("/approvals", headers=basliklar)).json()

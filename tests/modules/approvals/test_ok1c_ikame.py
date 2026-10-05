@@ -40,7 +40,6 @@ kendisiyle karşılaştırılmaz — kendi ifadesini teste kopyalayan test hiçb
 bekçilemez (sahte-yeşilin ölçülmüş hâllerinden biri).
 """
 
-import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from decimal import Decimal
@@ -50,7 +49,7 @@ from sqlalchemy import event
 from app.modules.approvals import service
 from app.modules.approvals.models import ApprovalDocumentType, ApprovalRole
 from tests.conftest import test_engine
-from tests.modules.approvals.conftest import adim_durumlari, zincir_getir
+from tests.modules.approvals.conftest import adim_durumlari, proje_rolu_ver, zincir_getir
 
 _TASERON = ApprovalDocumentType.subcontractor_progress_payment
 _ISVEREN = ApprovalDocumentType.progress_payment
@@ -336,38 +335,37 @@ async def test_ZINCIRSIZ_satinalma_talebinde_modul_kapisi_403_kalir(
 # --------------------------------------------------------------------------- #
 
 
-async def test_KAPSAMI_OLMAYAN_adim_sahibi_404_alir_ve_VAR_OLMAYANDAN_AYIRT_EDILEMEZ(
+async def test_BASKA_PROJENIN_adim_sahibi_onaylayamaz_403_IDOR(
     client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
 ):
-    """Onay rolü kapıyı açar, PROJE GÖRÜNÜRLÜĞÜNÜ açmaz.
+    """IZN-B3b IDOR: adım sahipliği PROJEYE bağlıdır. Köprü'de Şantiye Şefi olan kişi
+    Kule hakedişinin şef adımını onaylayamaz.
 
-    🔴 Kapı 403 verseydi ikame hiç ölçülemezdi (403 iki ayrı sebepten gelir);
-    404 verirse ölçüm nettir: kapı GEÇİLDİ, kapsam DURDURDU. Ve gövde var
-    OLMAYAN kimliğinkiyle BİREBİR AYNI olmalıdır — aksi hâlde elinde kimlik
-    olan biri kaydın var olduğunu öğrenir.
+    Kapı 403 verir (ikame yalnız BELGENİN projesinde adımın sahibine açılır), adım karara
+    bağlanmaz ve gövde karşı tarafın adını / tutarını SIZDIRMAZ. (Eski "kapsamı olmayan sahip
+    404 alır" hâli yoktur: sahip, tanım gereği belgenin projesinin ekibindedir.)
     """
     yaratan = await aktor_fabrikasi("ikame-t6-yaratan@ok1c.co")
+    document_id, _kule = await evrak_fabrikasi(
+        _TASERON, creator=yaratan, subcontractor_name="Akın İnşaat"
+    )
+    zincir = await _zincir(seeded_db, _TASERON, document_id, yaratan)
+    _diger_id, kopru = await evrak_fabrikasi(_TASERON, creator=yaratan)
     await aktor_fabrikasi(
         "ikame-t6-sef@ok1c.co",
         role_key="site_chief",
         approval_roles=[ApprovalRole.site_chief],
-        tum_projeler=False,
+        projeler=[kopru],
     )
     basliklar = await giris("ikame-t6-sef@ok1c.co")
-    document_id, _proje = await evrak_fabrikasi(
-        _TASERON, creator=yaratan, subcontractor_name="Akın İnşaat"
-    )
-    await _zincir(seeded_db, _TASERON, document_id, yaratan)
 
-    gorunmez = await client.post(f"{_TASERON_YOL}/{document_id}/approve", headers=basliklar)
-    olmayan = await client.post(f"{_TASERON_YOL}/{uuid.uuid4()}/approve", headers=basliklar)
+    yanit = await client.post(f"{_TASERON_YOL}/{document_id}/approve", headers=basliklar)
 
-    assert gorunmez.status_code == 404, gorunmez.text
-    assert gorunmez.json()["detail"] == _HAKEDIS_YOK
-    assert olmayan.status_code == gorunmez.status_code
-    assert olmayan.json() == gorunmez.json(), "görünmeyen kayıt var olmayandan AYIRT EDİLİYOR"
-    assert "Akın" not in gorunmez.text, "karşı taraf adı sızdı"
-    assert "100000" not in gorunmez.text, "tutar sızdı"
+    assert yanit.status_code == 403, yanit.text
+    assert yanit.json()["detail"] == _MODUL_KAPISI
+    assert "Akın" not in yanit.text, "karşı taraf adı sızdı"
+    assert "100000" not in yanit.text, "tutar sızdı"
+    assert await adim_durumlari(seeded_db, zincir.id) == [False, False, False]
 
 
 # --------------------------------------------------------------------------- #
@@ -382,31 +380,27 @@ async def test_KAPSAMI_OLMAYAN_adim_sahibi_404_alir_ve_VAR_OLMAYANDAN_AYIRT_EDIL
 async def test_KUTUDAKI_HER_SATIRIN_onay_ucu_403_VERMEZ(
     client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
 ):
-    """Üç ailenin ilk adımını taşıyan `site_chief` SİSTEM rollü aktör.
+    """Üç ailenin ilk adımının sahibi, `site_chief` SİSTEM rollü aktör.
 
     `progress_payments` seviyesi `draft`, `procurement` seviyesi `request` —
     ikisi de `approve`ın ALTINDA. Kutuda gördüğü ÜÇ satırın üçünde de onay ucu
-    ona açık olmalıdır.
+    ona açık olmalıdır. IZN-B3b: bir kişi bir projede TEK rol taşır; aktör her ailenin
+    projesinde O AİLENİN ilk adım rolüyle üyedir.
     """
     yaratan = await aktor_fabrikasi("ikame-t7-yaratan@ok1c.co", full_name="Evrak Sahibi")
-    await aktor_fabrikasi(
-        "ikame-t7-sef@ok1c.co",
-        role_key="site_chief",
-        approval_roles=[
-            ApprovalRole.site_chief,
-            ApprovalRole.accounting,
-            ApprovalRole.procurement,
-        ],
-    )
+    aktor = await aktor_fabrikasi("ikame-t7-sef@ok1c.co", role_key="site_chief", tum_projeler=False)
     basliklar = await giris("ikame-t7-sef@ok1c.co")
 
-    taseron_id, _ = await evrak_fabrikasi(_TASERON, creator=yaratan)
+    taseron_id, proje = await evrak_fabrikasi(_TASERON, creator=yaratan)
+    await proje_rolu_ver(seeded_db, aktor, proje, "site_chief")
     await _zincir(seeded_db, _TASERON, taseron_id, yaratan)
-    isveren_id, _ = await evrak_fabrikasi(_ISVEREN, creator=yaratan)
+    isveren_id, proje = await evrak_fabrikasi(_ISVEREN, creator=yaratan)
+    await proje_rolu_ver(seeded_db, aktor, proje, "accounting")
     await _zincir(seeded_db, _ISVEREN, isveren_id, yaratan)
-    satinalma_id, _ = await evrak_fabrikasi(
+    satinalma_id, proje = await evrak_fabrikasi(
         _SATINALMA, creator=yaratan, quantity=Decimal("10"), unit_price=Decimal("1000.00")
     )
+    await proje_rolu_ver(seeded_db, aktor, proje, "procurement")
     await _zincir(seeded_db, _SATINALMA, satinalma_id, yaratan, Decimal("10000.00"))
 
     kutu = await client.get("/approvals", headers=basliklar)
@@ -425,9 +419,12 @@ async def test_KUTUDAKI_HER_SATIRIN_onay_ucu_403_VERMEZ(
 async def test_ONAY_ROLU_OLMAYAN_aktorun_kutusu_BOSTUR(
     client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
 ):
-    """Kümenin öteki ucu: rol yoksa satır da yoktur, uç da açılmaz."""
+    """Kümenin öteki ucu: adım sahibi değilse satır da yoktur, uç da açılmaz.
+
+    IZN-B3b: "Tüm projeler" + ANA rol `site_chief` adımın sahibidir; adım rolü OLMAYAN bir ana
+    rol (`hr_manager`) aday bile değildir."""
     yaratan = await aktor_fabrikasi("ikame-t7b-yaratan@ok1c.co")
-    await aktor_fabrikasi("ikame-t7b-rolsuz@ok1c.co", role_key="site_chief")
+    await aktor_fabrikasi("ikame-t7b-rolsuz@ok1c.co", role_key="hr_manager")
     basliklar = await giris("ikame-t7b-rolsuz@ok1c.co")
     document_id, _proje = await evrak_fabrikasi(_TASERON, creator=yaratan)
     await _zincir(seeded_db, _TASERON, document_id, yaratan)

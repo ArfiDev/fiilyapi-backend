@@ -27,8 +27,9 @@ from app.modules.progress_payments import guards, lines, service, transitions
 from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
 from app.modules.users.models import User
 from tests._para_gercek import parayi_yatir
+from tests.modules.approvals.conftest import rol_sahipleri_dolgusu  # noqa: F401  (fixture)
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("rol_sahipleri_dolgusu")]
 
 DURUMLAR = [durum.value for durum in ProgressPaymentStatus]
 UCLAR = ["submit", "approve", "reject", "mark-paid", "unapprove"]

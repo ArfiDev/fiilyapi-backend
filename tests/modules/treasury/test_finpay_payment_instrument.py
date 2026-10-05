@@ -862,5 +862,9 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # Eski `GET`/`PUT /users/{user_id}/project-access` ve `GET`/`PUT /users/{user_id}/disciplines`
     # 410 olarak YERİNDE kalır (yol/operasyon sayısı değişmez); `?q=` sorgu parametresi ve
     # `/auth/me`/`UserResponse`/`RoleResponse` alanları ne yol ne operasyon açar.
+    # IZN-B3b: `GET /approvals/roles` + `PUT /approvals/roles/{user_id}` 410 olarak YERINDE kalir
+    # (K1: onay rolleri proje rolunden gelir; yol/operasyon sayisi degismez, B6'da sokulur).
+    # Gelen kutusu ve gecmis yanitindaki `my_approval_roles` → satir basina `can_decide` ne yol
+    # ne operasyon acar (surukleneyi `tests/contract/` yakalar).
     assert len(yollar) == 326
     assert operasyonlar == 464

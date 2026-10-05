@@ -14,7 +14,6 @@ yazar). Bu dosyanın üç ağır sorumluluğu:
    kapısında SAYILMAZ.
 """
 
-import uuid
 from decimal import Decimal
 
 import pytest
@@ -73,7 +72,7 @@ async def _reddet(seeded_db, tip, document_id, reddeden, gerekce=_GEREKCE):
 
 
 async def test_RET_sonrasi_zincir_ve_adimlar_DB_de_DURUR_reddeden_zaman_gerekce_dolu(
-    seeded_db, aktor_fabrikasi
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
 ):
     yaratan = await aktor_fabrikasi("okt-a-yaratan@okt.co")
     sef = await aktor_fabrikasi(
@@ -85,7 +84,7 @@ async def test_RET_sonrasi_zincir_ve_adimlar_DB_de_DURUR_reddeden_zaman_gerekce_
         approval_roles=[ApprovalRole.project_manager],
         full_name="Pınar Müdür",
     )
-    document_id = uuid.uuid4()
+    document_id, _ = await evrak_fabrikasi(_TASERON, creator=yaratan)
     zincir = await _kur(seeded_db, _TASERON, document_id, yaratan)
     await service.approve_next_step(
         seeded_db, actor=sef, document_type=_TASERON, document_id=document_id
@@ -113,10 +112,14 @@ async def test_RET_sonrasi_zincir_ve_adimlar_DB_de_DURUR_reddeden_zaman_gerekce_
     assert adimlar[0].decided_by_user_id == sef.id
 
 
-async def test_ret_damgasi_GEREKCESIZ_yazilamaz_DB_kisiti(seeded_db, aktor_fabrikasi):
+async def test_ret_damgasi_GEREKCESIZ_yazilamaz_DB_kisiti(
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
+):
     """`ck_approval_chains_rejection_pair`: `rejected_at` dolu ⇒ gerekçe dolu."""
     yaratan = await aktor_fabrikasi("okt-ck-yaratan@okt.co")
-    zincir = await _kur(seeded_db, _TASERON, uuid.uuid4(), yaratan)
+    zincir = await _kur(
+        seeded_db, _TASERON, (await evrak_fabrikasi(_TASERON, creator=yaratan))[0], yaratan
+    )
 
     with pytest.raises(IntegrityError):
         await seeded_db.execute(
@@ -169,7 +172,9 @@ async def test_HAKEDIS_reddedilip_yeniden_gonderilince_YENI_zincir_acilir(
     assert acik is not None and acik.id == yeni.id
 
 
-async def test_SATINALMA_reddedilmis_evrak_icin_motor_YENI_zincir_acar(seeded_db, aktor_fabrikasi):
+async def test_SATINALMA_reddedilmis_evrak_icin_motor_YENI_zincir_acar(
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
+):
     """Satınalmada ret terminaldir (talep yeniden gönderilemez); yine de motor
     düzeyinde "ret kaydı açık zincir sayılmaz" kuralı üç aile için AYNI olmalı."""
     yaratan = await aktor_fabrikasi("okt-b-sat-yaratan@okt.co")
@@ -178,7 +183,7 @@ async def test_SATINALMA_reddedilmis_evrak_icin_motor_YENI_zincir_acar(seeded_db
         role_key="procurement",
         approval_roles=[ApprovalRole.procurement],
     )
-    document_id = uuid.uuid4()
+    document_id, _ = await evrak_fabrikasi(_SATINALMA, creator=yaratan)
     ilk = await _kur(seeded_db, _SATINALMA, document_id, yaratan)
     await _reddet(seeded_db, _SATINALMA, document_id, sat)
 
@@ -188,13 +193,15 @@ async def test_SATINALMA_reddedilmis_evrak_icin_motor_YENI_zincir_acar(seeded_db
     assert len(await _zincirler(seeded_db, _SATINALMA, document_id)) == 2
 
 
-async def test_UQ_acik_zincir_TEK_reddedilmisler_BIRIKEBILIR(seeded_db, aktor_fabrikasi):
+async def test_UQ_acik_zincir_TEK_reddedilmisler_BIRIKEBILIR(
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
+):
     """Kısmi unique indeks: iki AÇIK zincir DB'de reddedilir; reddedilmişler birikir."""
     yaratan = await aktor_fabrikasi("okt-uq-yaratan@okt.co")
     sef = await aktor_fabrikasi(
         "okt-uq-sef@okt.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
     )
-    document_id = uuid.uuid4()
+    document_id, _ = await evrak_fabrikasi(_TASERON, creator=yaratan)
     for _ in range(2):  # iki tur ret → iki reddedilmiş kayıt
         await _kur(seeded_db, _TASERON, document_id, yaratan)
         await _reddet(seeded_db, _TASERON, document_id, sef)
@@ -247,7 +254,7 @@ async def test_reddedilmis_zincir_BEKLEYEN_kutusunda_GORUNMEZ_sayac_dahil(
 
 
 async def test_reddedilmis_zincir_ACIK_zincir_okumalarinda_ve_kapida_SAYILMAZ(
-    seeded_db, aktor_fabrikasi
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
 ):
     yaratan = await aktor_fabrikasi("okt-c2-yaratan@okt.co")
     sef = await aktor_fabrikasi(
@@ -256,7 +263,7 @@ async def test_reddedilmis_zincir_ACIK_zincir_okumalarinda_ve_kapida_SAYILMAZ(
     adayi = await aktor_fabrikasi(
         "okt-c2-aday@okt.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
     )
-    document_id = uuid.uuid4()
+    document_id, _ = await evrak_fabrikasi(_TASERON, creator=yaratan)
     await _kur(seeded_db, _TASERON, document_id, yaratan)
     await _reddet(seeded_db, _TASERON, document_id, sef)
 
@@ -285,7 +292,9 @@ async def test_reddedilmis_zincir_ACIK_zincir_okumalarinda_ve_kapida_SAYILMAZ(
     ).holds_next_step_role
 
 
-async def test_ret_GERI_SARMAYI_etkilemez_acik_zincir_yoksa_rewind_None(seeded_db, aktor_fabrikasi):
+async def test_ret_GERI_SARMAYI_etkilemez_acik_zincir_yoksa_rewind_None(
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
+):
     yaratan = await aktor_fabrikasi("okt-rw-yaratan@okt.co")
     sef = await aktor_fabrikasi(
         "okt-rw-sef@okt.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
@@ -295,7 +304,7 @@ async def test_ret_GERI_SARMAYI_etkilemez_acik_zincir_yoksa_rewind_None(seeded_d
         role_key="project_manager",
         approval_roles=[ApprovalRole.project_manager],
     )
-    document_id = uuid.uuid4()
+    document_id, _ = await evrak_fabrikasi(_TASERON, creator=yaratan)
     await _kur(seeded_db, _TASERON, document_id, yaratan)
     await service.approve_next_step(
         seeded_db, actor=sef, document_type=_TASERON, document_id=document_id

@@ -28,13 +28,14 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from sqlalchemy import literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
 from app.core.errors import ApprovalNotAllowedError, ApprovalValidationError, ConflictError
 from app.core.page_gate import gate_flags, gate_ok
 from app.core.text import FREE_TEXT_MAX_LENGTH
-from app.modules.approvals import definitions, guards, inbox, repository
+from app.modules.approvals import definitions, documents, guards, inbox, repository
 from app.modules.approvals.definitions import HistoryDecision, HistoryFilter
 from app.modules.approvals.models import (
     ApprovalChain,
@@ -45,7 +46,8 @@ from app.modules.approvals.models import (
 from app.modules.audit import messages
 from app.modules.company import repository as company_repository
 from app.modules.projects.service import visible_projects
-from app.modules.users.models import User
+from app.modules.roles.models import Role
+from app.modules.users.models import ProjectMember, User, UserStatus
 
 __all__ = [
     "ChainDecision",
@@ -54,7 +56,6 @@ __all__ = [
     "PendingChainView",
     "PendingStepView",
     "approve_next_step",
-    "assignment_page",
     "audit_detail",
     "chain_step_substitutes_permission",
     "clean_reject_reason",
@@ -64,12 +65,10 @@ __all__ = [
     "open_chain",
     "pending_for_user",
     "reject_chain",
-    "replace_user_roles",
     "rejection_audit_detail",
     "rewind_audit_detail",
     "rewind_last_step",
     "set_threshold",
-    "user_approval_roles",
 ]
 
 
@@ -121,6 +120,7 @@ class PendingChainView:
     subtitle: str | None
     gross_amount: Decimal | None
     net_amount: Decimal | None
+    can_decide: bool
 
 
 @dataclass(frozen=True)
@@ -159,34 +159,61 @@ async def set_threshold(session: AsyncSession, value: Decimal) -> Decimal:
 
 
 # --------------------------------------------------------------------------- #
-# Onay rolu atamalari (K1)
-# --------------------------------------------------------------------------- #
-
-
-async def user_approval_roles(session: AsyncSession, user_id: uuid.UUID) -> list[ApprovalRole]:
-    return await repository.user_approval_roles(session, user_id)
-
-
-async def replace_user_roles(
-    session: AsyncSession, user_id: uuid.UUID, roles: list[ApprovalRole]
-) -> list[ApprovalRole]:
-    """Tekrarlar SESSIZCE tekillestirilir: atama bir KUMEDIR, ayni rolu iki kez
-    gondermek bir hata degil sadece gereksiz bir tekrardir."""
-    tekil: list[ApprovalRole] = []
-    for rol in roles:
-        if rol not in tekil:
-            tekil.append(rol)
-    await repository.replace_user_approval_roles(session, user_id, tekil)
-    return await repository.user_approval_roles(session, user_id)
-
-
-async def assignment_page(session: AsyncSession, *, limit: int, offset: int):
-    return await repository.assignment_page(session, limit=limit, offset=offset)
-
-
-# --------------------------------------------------------------------------- #
 # Zincir kurulumu (Y1)
 # --------------------------------------------------------------------------- #
+
+
+async def _assert_step_roles_have_owners(
+    session: AsyncSession,
+    document_type: ApprovalDocumentType,
+    document_id: uuid.UUID,
+    roles: tuple[ApprovalRole, ...],
+) -> None:
+    """Zincirin HER adim rolunun belgenin projesinde en az bir (AKTIF) sahibi var mi?
+
+    Sahip = o projenin ekibinde o rolle yer alan aktif kullanici, ya da "Tum projeler" isaretli
+    ve ANA rolu o rol olan aktif kullanici. Eksik varsa 409 (`guards.step_roles_unassigned`):
+    zincir kurulmaz, cagiran evrak ailesi durum degistirmeden doner. Pasif / izinli kullanici
+    giris yapamaz (`core.deps`) — onunla "sahipli" sayilan bir zincir TAKILIRDI.
+    """
+    id_kolonu, proje_kolonu = documents.DOCUMENT_PROJECT_COLUMNS[document_type]
+    proje_id = await session.scalar(select(proje_kolonu).where(id_kolonu == document_id))
+    anahtarlar = list(dict.fromkeys(rol.value for rol in roles))
+    ekipte = (
+        select(literal(1))
+        .select_from(ProjectMember)
+        .join(User, User.id == ProjectMember.user_id)
+        .where(
+            ProjectMember.role_id == Role.id,
+            ProjectMember.project_id == proje_id,
+            User.status == UserStatus.active,
+        )
+        .exists()
+    )
+    ana_rol = (
+        select(literal(1))
+        .select_from(User)
+        .where(
+            User.role_id == Role.id,
+            User.all_projects.is_(True),
+            User.status == UserStatus.active,
+        )
+        .exists()
+    )
+    sahipli = set(
+        (
+            await session.execute(
+                select(Role.key).where(Role.key.in_(anahtarlar), or_(ekipte, ana_rol))
+            )
+        ).scalars()
+    )
+    eksik = [anahtar for anahtar in anahtarlar if anahtar not in sahipli]
+    if not eksik:
+        return
+    adlar = dict(
+        (await session.execute(select(Role.key, Role.name).where(Role.key.in_(eksik)))).all()
+    )
+    raise ConflictError(guards.step_roles_unassigned([adlar.get(k, k) for k in eksik]))
 
 
 async def create_chain(
@@ -208,6 +235,10 @@ async def create_chain(
         raise ConflictError(guards.CHAIN_ALREADY_EXISTS)
 
     threshold = await get_threshold(session)
+    adim_rolleri = definitions.step_roles(document_type, amount, threshold)
+    # 🔴 IZN-B3b (KARAR, kullanici 2026-10-04): adim rollerinden biri belgenin projesinde
+    # (ya da "Tum projeler" + ana rolde) kimsede yoksa zincir AÇILMAZ, evrak durumu degismez.
+    await _assert_step_roles_have_owners(session, document_type, document_id, adim_rolleri)
     chain = ApprovalChain(
         document_type=document_type,
         document_id=document_id,
@@ -218,7 +249,7 @@ async def create_chain(
     )
     session.add(chain)
     await session.flush()
-    for sira, rol in enumerate(definitions.step_roles(document_type, amount, threshold), start=1):
+    for sira, rol in enumerate(adim_rolleri, start=1):
         session.add(ApprovalStep(chain_id=chain.id, step_no=sira, approval_role=rol))
     await session.flush()
     return chain
@@ -274,9 +305,11 @@ async def chain_step_substitutes_permission(
 
     Kural IKI dallidir ve ikincisi bir SIZINTI KAPATIR:
 
-    * **aktor SIRADAKI adimin onay rolunu tasiyor** -> kapi acilir. Karar
-      degil, yalnizca kapi: otorite hâlâ kilit altindaki `_assert_can_decide`tir.
-    * **aktor ADAY IMZACI (en az bir onay rolu var) ve evrak HIC YOK** -> kapi
+    * **aktor SIRADAKI adimin SAHIBI** (IZN-B3b: evragin projesinde o role atanmis
+      ekip uyesi ya da "Tum projeler" + ana rol) -> kapi acilir. Karar degil,
+      yalnizca kapi: otorite hâlâ kilit altindaki `_assert_can_decide`tir.
+    * **aktor ADAY IMZACI (bir projede ya da ana rolunde adim rolu var) ve evrak HIC YOK**
+      -> kapi
       yine acilir. 🔴 OLCULDU (T2): acilmasaydi var OLMAYAN bir kimlik 403,
       GORUNMEYEN (kapsam disi) bir kayit ise 404 verirdi ve elinde kimlik olan
       bir aday imzaci kaydin VARLIGINI ogrenirdi
@@ -285,7 +318,7 @@ async def chain_step_substitutes_permission(
       ucta zaten 404'tur; yalnizca iki cevap AYNILASIR.
 
     🔴 Ikinci dal ADAY IMZACIYLA SINIRLIDIR ve bu bilinclidir: kosulsuz
-    acilsaydi onay rolu HIC OLMAYAN her kullanici da var olan (403) ile var
+    acilsaydi hicbir adim rolu OLMAYAN her kullanici da var olan (403) ile var
     olmayan (404) kimligi ayirt edebilir, yani bugun HIC OLMAYAN bir varlik
     kesif yuzeyi butun kullanicilara acilirdi. Bu hâliyle ayrim yalnizca
     ikamenin zaten muhatabi olan kumede kalir.
@@ -346,8 +379,8 @@ async def _assert_can_decide(
     Ret de bir KARARDIR ve AYNI huniden gecer: ayri birakilsaydi evragin sahibi
     kendi evragini REDDEDEREK zinciri silebilir ve onay izini yok edebilirdi.
     """
-    roller = await repository.user_approval_roles(session, actor.id)
-    if current.approval_role not in roller:
+    # IZN-B3b: adimin sahibi mi — kapi ve gelen kutusuyla AYNI `step_owner_clause`.
+    if not await repository.actor_owns_step(session, actor.id, current.id):
         raise ApprovalNotAllowedError(guards.APPROVAL_ROLE_MISSING)
 
     on_behalf = False
@@ -666,12 +699,14 @@ async def _chain_context(
 
 async def pending_for_user(
     session: AsyncSession, actor: User, *, limit: int, offset: int
-) -> tuple[list[PendingChainView], int, list[ApprovalRole]]:
-    """Kullaniciya DUSEN siradaki adimlar + aktorun ONAY ROLLERI.
+) -> tuple[list[PendingChainView], int]:
+    """Kullaniciya DUSEN siradaki adimlar.
 
-    🔴 KANON E: `can_approve` gibi bir KARAR ALANI YOKTUR. Yanit adimin rolunu,
-    sirasini ve durumunu verir; aktorun rolleri de ayrica doner ve kararı EKRAN
-    birlestirir.
+    🔴 KANON E: yanit adimin rolunu, sirasini ve durumunu verir; satir basina `can_decide`
+    OLGUSU da doner (IZN-B3b: eski `my_approval_roles` kalkti — rol artik PROJEYE baglidir ve tek
+    bir liste yanlis olurdu). Kutunun suzgeci "siradaki adim SANA dustu" kuralinin kendisidir
+    (`repository._pending_filter`), dolayisiyla buradaki her satirda `can_decide` DOGRUDUR; ayri
+    bir hesap kosmaz.
 
     🔴 N+1 YOK: sorgu sayisi SATIR SAYISINDAN bagimsizdir (sayim · sayfa ·
     adimlar · adlar + sabit sayida izin/kapsam sorgusu + AILE BASINA sabit
@@ -683,18 +718,16 @@ async def pending_for_user(
 
     🔴 OKT-B1: REDDEDILMIS zincir bekleyen SAYILMAZ (`_pending_filter`).
 
-    ⚠️ Kapsam sorgusu ROL sorgusundan SONRA kosar: onay rolu olmayan aktor icin
-    (cogunluk) ikinci bir sorgu hic acilmaz.
+    ⚠️ Kapsam sorgusu ADAY IMZACI sorgusundan SONRA kosar: hicbir projede adim rolu olmayan aktor
+    icin (cogunluk) ikinci bir sorgu hic acilmaz.
     """
-    roller = await repository.user_approval_roles(session, actor.id)
-    if not roller:
-        return [], 0, []
+    if not await repository.actor_is_candidate(session, actor.id):
+        return [], 0
 
     admin_tipleri = await _admin_document_types(session, actor)
     rows, total = await repository.pending_page(
         session,
         actor_id=actor.id,
-        roles=roller,
         admin_document_types=admin_tipleri,
         visible_project_ids=await _visible_project_ids(session, actor),
         limit=limit,
@@ -702,13 +735,14 @@ async def pending_for_user(
     )
     baglam = await _chain_context(session, [chain for chain, _ in rows])
     return (
-        [_pending_view(chain, current, baglam) for chain, current in rows],
+        [_pending_view(chain, current, baglam, can_decide=True) for chain, current in rows],
         total,
-        roller,
     )
 
 
-def _view_fields(chain: ApprovalChain, current_step_no: int, baglam: _ChainContext) -> dict:
+def _view_fields(
+    chain: ApprovalChain, current_step_no: int, baglam: _ChainContext, *, can_decide: bool
+) -> dict:
     """`PendingChainView` alanlari — bekleyen kutusu ile gecmis AYNI kaynaktan."""
     olgu = baglam.facts.get((chain.document_type, chain.document_id), inbox.EMPTY_FACTS)
     return {
@@ -727,13 +761,14 @@ def _view_fields(chain: ApprovalChain, current_step_no: int, baglam: _ChainConte
         "subtitle": olgu.subtitle,
         "gross_amount": olgu.gross_amount,
         "net_amount": olgu.net_amount,
+        "can_decide": can_decide,
     }
 
 
 def _pending_view(
-    chain: ApprovalChain, current: ApprovalStep, baglam: _ChainContext
+    chain: ApprovalChain, current: ApprovalStep, baglam: _ChainContext, *, can_decide: bool
 ) -> PendingChainView:
-    return PendingChainView(**_view_fields(chain, current.step_no, baglam))
+    return PendingChainView(**_view_fields(chain, current.step_no, baglam, can_decide=can_decide))
 
 
 # --------------------------------------------------------------------------- #
@@ -748,42 +783,66 @@ async def history_for_user(
     decision: HistoryFilter,
     limit: int,
     offset: int,
-) -> tuple[list[HistoryChainView], int, list[ApprovalRole]]:
+) -> tuple[list[HistoryChainView], int]:
     """Gorunur zincirler ve SON DURUMLARI — `GET /approvals/history`.
 
     Karar ZINCIR duzeyindedir (CEO karari): `approved` = zincirin son durumu
     onayli (tum adimlar imzali), `rejected` = zincir reddedildi, `all` = suzgec
     yok (suren zincirler kartta `pending`).
 
-    Gorunurluk: adimlarindan HERHANGI birinin onay rolu aktorun rollerinden biri
-    + aktorun gordugu projeler (bekleyen kutusuyla AYNI IDOR yardimcisi). Onay rolu
-    olmayan aktor icin sorgu acilmaz. N+1 yok: bekleyen kutusuyla ayni sabit
-    sorgu kumesi (`_chain_context`).
+    Gorunurluk: adimlarindan HERHANGI birinin SAHIBI aktor (IZN-B3b: evragin projesindeki proje
+    rolu / "Tum projeler" + ana rol) + aktorun gordugu projeler (bekleyen kutusuyla AYNI IDOR
+    yardimcisi). Hicbir projede adim rolu olmayan aktor icin sorgu acilmaz. N+1 yok: bekleyen
+    kutusuyla ayni sabit sorgu kumesi (`_chain_context`).
+
+    Satir basina `can_decide`: aktor o zincirin SIRADAKI adimini SIMDI karara baglayabilir mi
+    (`repository.decidable_chain_ids` — kutunun suzgeciyle ayni kosullar). Sayfada suren zincir
+    yoksa ek sorgu KOSMAZ.
     """
-    roller = await repository.user_approval_roles(session, actor.id)
-    if not roller:
-        return [], 0, []
+    if not await repository.actor_is_candidate(session, actor.id):
+        return [], 0
+    gorunen = await _visible_project_ids(session, actor)
     chains, total = await repository.history_page(
         session,
-        roles=roller,
-        visible_project_ids=await _visible_project_ids(session, actor),
+        actor_id=actor.id,
+        visible_project_ids=gorunen,
         decision=decision,
         limit=limit,
         offset=offset,
     )
     reddeden = {c.rejected_by_user_id for c in chains if c.rejected_by_user_id is not None}
     baglam = await _chain_context(session, chains, extra_user_ids=reddeden)
-    return [_history_view(chain, baglam) for chain in chains], total, roller
+    suren = [chain.id for chain in chains if _is_open(chain, baglam)]
+    karar_verebilir = await repository.decidable_chain_ids(
+        session,
+        actor_id=actor.id,
+        admin_document_types=await _admin_document_types(session, actor) if suren else [],
+        visible_project_ids=gorunen,
+        chain_ids=suren,
+    )
+    return [
+        _history_view(chain, baglam, can_decide=chain.id in karar_verebilir) for chain in chains
+    ], total
 
 
-def _history_view(chain: ApprovalChain, baglam: _ChainContext) -> HistoryChainView:
+def _is_open(chain: ApprovalChain, baglam: _ChainContext) -> bool:
+    """Zincir SURUYOR mu: reddedilmedi ve karara baglanmamis adim var (yalniz bunlar `can_decide`
+    olabilir)."""
+    if chain.rejected_at is not None:
+        return False
+    return any(adim.decided_at is None for adim in baglam.steps_by_chain.get(chain.id, []))
+
+
+def _history_view(
+    chain: ApprovalChain, baglam: _ChainContext, *, can_decide: bool
+) -> HistoryChainView:
     adimlar = baglam.steps_by_chain[chain.id]  # join sayesinde EN AZ bir adim vardir
     bekleyen = next((adim for adim in adimlar if adim.decided_at is None), None)
     if chain.rejected_at is not None:
         # Reddedilen adim = karara baglanmamis adimlarin en kucugu (ret terminaldir).
         reddedilen = bekleyen or adimlar[-1]
         return HistoryChainView(
-            **_view_fields(chain, reddedilen.step_no, baglam),
+            **_view_fields(chain, reddedilen.step_no, baglam, can_decide=can_decide),
             decision=HistoryDecision.rejected,
             decided_by_name=baglam.names.get(chain.rejected_by_user_id)
             if chain.rejected_by_user_id
@@ -793,7 +852,7 @@ def _history_view(chain: ApprovalChain, baglam: _ChainContext) -> HistoryChainVi
         )
     if bekleyen is not None:
         return HistoryChainView(
-            **_view_fields(chain, bekleyen.step_no, baglam),
+            **_view_fields(chain, bekleyen.step_no, baglam, can_decide=can_decide),
             decision=HistoryDecision.pending,
             decided_by_name=None,
             decided_at=None,
@@ -801,7 +860,7 @@ def _history_view(chain: ApprovalChain, baglam: _ChainContext) -> HistoryChainVi
         )
     son = adimlar[-1]
     return HistoryChainView(
-        **_view_fields(chain, son.step_no, baglam),
+        **_view_fields(chain, son.step_no, baglam, can_decide=can_decide),
         decision=HistoryDecision.approved,
         decided_by_name=baglam.names.get(son.decided_by_user_id)
         if son.decided_by_user_id

@@ -23,7 +23,7 @@ Aktör: sistem rolü `hr_manager` — matriste `progress_payments = none` ve
 | # | Hâl | Kod · `detail` |
 |---|---|---|
 | F1 | evrak HİÇ YOK (rastgele UUID) | **404** · `Hakediş bulunamadı` |
-| F2 | evrak VAR · kapsam DIŞI · SIRADAKİ adımın rolü BENDE | **404** · `Hakediş bulunamadı` |
+| F2 | (B3b: hâl YOK → F3) evrak VAR · kapsam DIŞI · sıradaki rol BENDE | 404 |
 | F3 | evrak VAR · sıradaki adımın rolü BENDE DEĞİL | **403** · `Bu işlem için yetkiniz yok` |
 
 F3 kapsam DIŞI ve kapsam İÇİ evrakta AYNIDIR (ikisi de 403) — kâhin kapsam
@@ -97,8 +97,15 @@ _GEREKCE = {"reason": "Metrajlar eksik, revize edin"}
 # --------------------------------------------------------------------------- #
 
 
-async def test_F1_ADAY_IMZACI_var_olmayan_evrakta_404_alir(client, aktor_fabrikasi, giris):
-    """Kapının İKİNCİ dalı: aday imzacı + evrak yok ⇒ kapı açılır, uç 404 der."""
+async def test_F1_ADAY_IMZACI_var_olmayan_evrakta_404_alir(
+    client, aktor_fabrikasi, evrak_fabrikasi, giris
+):
+    """Kapının İKİNCİ dalı: aday imzacı + evrak yok ⇒ kapı açılır, uç 404 der.
+
+    IZN-B3b: aday imzacı = bir projenin ekibinde adım rolü taşıyan kişi; bu yüzden önce bir
+    proje (ve ekip satırı) vardır."""
+    yaratan = await aktor_fabrikasi("kahin-f1-yaratan@ok1c.co")
+    await evrak_fabrikasi(_TASERON, creator=yaratan)
     await aktor_fabrikasi(
         "kahin-f1@ok1c.co",
         role_key=_IZINSIZ_ROL,
@@ -118,32 +125,32 @@ async def test_F1_ADAY_IMZACI_var_olmayan_evrakta_404_alir(client, aktor_fabrika
 # --------------------------------------------------------------------------- #
 
 
-async def test_F2_SIRADAKI_ROLU_TASIYAN_kapsam_disi_aktor_404_alir_ve_F1_ILE_AYNIDIR(
+async def test_F2_BASKA_PROJENIN_sahibi_F3_SINIFINA_duser_403_ve_GOVDE_SIZDIRMAZ(
     client, seeded_db, aktor_fabrikasi, evrak_fabrikasi, giris
 ):
-    """İkinci dalın KAPATTIĞI sızıntı: bu iki cevap AYNILAŞTIRILDI.
-
-    Aynı aktör, aynı oturum: görünmeyen GERÇEK evrak ile uydurma kimlik
-    BİREBİR aynı cevabı verir.
+    """IZN-B3b: eski F2 ("sıradaki adımın rolü bende ama proje kapsam dışı ⇒ 404") YOKTUR —
+    adımın sahibi, tanım gereği belgenin projesinin ekibindedir. Başka projede şef olan
+    aktör bu belgenin sahibi DEĞİLDİR ⇒ F3 sınıfı (403, modül kapısı), gövde sızdırmaz.
     """
     yaratan = await aktor_fabrikasi("kahin-f2-yaratan@ok1c.co")
+    document_id, _proje = await evrak_fabrikasi(
+        _TASERON, creator=yaratan, subcontractor_name="Gizli Taşeron A.Ş."
+    )
+    await _zincir(seeded_db, _TASERON, document_id, yaratan)
+    _diger, baska_proje = await evrak_fabrikasi(_TASERON, creator=yaratan)
     await aktor_fabrikasi(
         "kahin-f2@ok1c.co",
         role_key=_IZINSIZ_ROL,
         approval_roles=[ApprovalRole.site_chief],
-        tum_projeler=False,
+        projeler=[baska_proje],
     )
     basliklar = await giris("kahin-f2@ok1c.co")
-    document_id, _proje = await evrak_fabrikasi(_TASERON, creator=yaratan)
-    await _zincir(seeded_db, _TASERON, document_id, yaratan)
 
-    gorunmez = await client.post(f"{_TASERON_YOL}/{document_id}/approve", headers=basliklar)
-    olmayan = await client.post(f"{_TASERON_YOL}/{uuid.uuid4()}/approve", headers=basliklar)
+    yanit = await client.post(f"{_TASERON_YOL}/{document_id}/approve", headers=basliklar)
 
-    assert gorunmez.status_code == 404, gorunmez.text
-    assert gorunmez.json()["detail"] == _HAKEDIS_YOK
-    assert olmayan.status_code == gorunmez.status_code
-    assert olmayan.json() == gorunmez.json()
+    assert yanit.status_code == 403, yanit.text
+    assert yanit.json()["detail"] == _MODUL_KAPISI
+    assert "Gizli" not in yanit.text
 
 
 # --------------------------------------------------------------------------- #

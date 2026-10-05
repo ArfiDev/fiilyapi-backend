@@ -43,8 +43,6 @@ approval_chain_rejected(document_type='<document_type#0>', step_no=101, total_st
 approval_chain_rejected(document_type='<document_type#0>', step_no=0, total_steps=102, role='<role#3>', reason='<reason#4>', on_behalf=True) = 'Onay zinciri reddedildi: <document_type#0> · adım 0/102 · <role#3> · Gerekçe: <reason#4> · admin vekâleten'
 approval_chain_rejected(document_type='<document_type#0>', step_no=101, total_steps=0, role='<role#3>', reason='<reason#4>', on_behalf=True) = 'Onay zinciri reddedildi: <document_type#0> · adım 101/0 · <role#3> · Gerekçe: <reason#4> · admin vekâleten'
 approval_chain_rejected(document_type='<document_type#0>', step_no=101, total_steps=102, role='<role#3>', reason='<reason#4>', on_behalf=False) = 'Onay zinciri reddedildi: <document_type#0> · adım 101/102 · <role#3> · Gerekçe: <reason#4>'
-approval_roles_assigned(name='<name#0>', roles=['<roles#1a>', '<roles#1b>']) = 'Onay rolleri güncellendi: <name#0> · <roles#1a>, <roles#1b>'
-approval_roles_assigned(name='<name#0>', roles=[]) = 'Onay rolleri güncellendi: <name#0> · Yok'
 approval_step_approved(document_type='<document_type#0>', step_no=101, total_steps=102, role='<role#3>', on_behalf=True) = 'Onay adımı onaylandı: <document_type#0> · adım 101/102 · <role#3> · admin vekâleten'
 approval_step_approved(document_type='<document_type#0>', step_no=0, total_steps=102, role='<role#3>', on_behalf=True) = 'Onay adımı onaylandı: <document_type#0> · adım 0/102 · <role#3> · admin vekâleten'
 approval_step_approved(document_type='<document_type#0>', step_no=101, total_steps=0, role='<role#3>', on_behalf=True) = 'Onay adımı onaylandı: <document_type#0> · adım 101/0 · <role#3> · admin vekâleten'

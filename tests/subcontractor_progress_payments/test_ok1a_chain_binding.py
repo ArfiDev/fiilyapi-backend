@@ -23,6 +23,7 @@ ayrı olduğu tam olarak budur.
 import uuid
 from decimal import Decimal
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,8 +40,11 @@ from tests.modules.approvals.conftest import (
     adim_durumlari,
     adim_rolleri,
     onay_rolu_ver,
+    rol_sahipleri_dolgusu,  # noqa: F401  (fixture)
     zincir_getir,
 )
+
+pytestmark = pytest.mark.usefixtures("rol_sahipleri_dolgusu")
 
 _TIP = ApprovalDocumentType.subcontractor_progress_payment
 _YOL = "/subcontractor-progress-payments"

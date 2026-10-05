@@ -18,17 +18,18 @@ __all__ = [
     "REJECT_REASON_TOO_LONG",
     "SEPARATION_OF_DUTIES",
     "STEP_NOT_CURRENT",
-    "UNKNOWN_USER",
+    "step_roles_unassigned",
 ]
 
 # --- 409: kaydin DURUMU uygun degil ---
+# IZN-B3b (KARAR, kullanici 2026-10-04): adim rolunun projede sahibi yoksa gonderim ENGELLENIR.
 CHAIN_ALREADY_EXISTS = "Bu evrak icin zaten acik bir onay zinciri var"
 NO_OPEN_CHAIN = "Bu evragin acik bir onay zinciri yok"
 CHAIN_COMPLETED = "Onay zinciri tamamlanmis"
 STEP_NOT_CURRENT = "Bu adim siradaki onay adimi degil"
 
 # --- 403: AKTOR uygun degil ---
-APPROVAL_ROLE_MISSING = "Bu onay adimi icin gereken onay rolune sahip degilsiniz"
+APPROVAL_ROLE_MISSING = "Bu projede bu onay adimi icin gereken role sahip degilsiniz"
 OWN_DOCUMENT = "Kendi olusturdugunuz evrakin onay adimini onaylayamazsiniz"
 SEPARATION_OF_DUTIES = "Ayni evrakin ikinci onay adimini onaylayamazsiniz"
 
@@ -36,5 +37,7 @@ SEPARATION_OF_DUTIES = "Ayni evrakin ikinci onay adimini onaylayamazsiniz"
 REJECT_REASON_REQUIRED = "Ret gerekcesi zorunludur"
 REJECT_REASON_TOO_LONG = "Ret gerekcesi cok uzun"
 
-# --- 404 ---
-UNKNOWN_USER = "Kullanici bulunamadi"
+
+def step_roles_unassigned(role_names: list[str]) -> str:
+    """409 metni: zincirin bir ya da daha fazla adim rolu belgenin projesinde atanmamis."""
+    return f"Bu projede {', '.join(role_names)} atanmamış; önce Ayarlar > Kullanıcılar'dan atayın"

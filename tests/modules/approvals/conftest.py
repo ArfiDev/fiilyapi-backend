@@ -8,10 +8,19 @@ hr_manager=_OWN · accounting=_FIN · project_manager=_PRJ · procurement=_STK.
 Yani `approvals: admin` kapısından **yalnız `system_admin`** geçer; ayar ve rol
 atama uçlarının kapısı budur (sözleşme Y5).
 
-🔴 ONAY ROLÜ ≠ SİSTEM ROLÜ. `user.role_id` sistem rolüdür (izin matrisini
-belirler); `user_approval_roles` ise onay zincirinin adım rolüdür. Bir kullanıcı
-BİRDEN ÇOK onay rolü taşıyabilir (K1) ve onay rolü taşımak hiçbir izin vermez.
-Fixture'lar ikisini bilerek AYRI parametre olarak alır.
+🔴 IZN-B3b (K1): ONAY ROLÜ = PROJE ROLÜ. Ayrı bir "onay rolü" ataması YOKTUR (tablo söküldü).
+Zincir adımı rol ANAHTARIYLA (`roles.key`) tanımlıdır ve adımı, belgenin projesinde o role
+atanmış kişi (`project_members`) ya da "Tüm projeler" + ANA rolü o rol olan kişi onaylar.
+Bir kişi bir projede TEK rol taşır (UQ user+project).
+
+Eski testlerin `approval_roles=[...]` / `onay_rolu_ver(...)` çağrıları İKİ YERDEN KORUNUR:
+* **tek rol**: kişi, o rolle her projenin ekip üyesi olur — var olan projelerde hemen,
+  sonradan açılacak projelerde `before_flush` dinleyicisiyle (`session.info`te kayıtlı); yani
+  eski "her yerde bu onay rolü" anlamı proje rolüne ÇEVRİLİR. `tum_projeler=False` / `projeler=`
+  verilirse yalnız o projelerde üye olur (IDOR kurulumları aynen çalışır).
+* **birden çok rol**: ARTIK MÜMKÜN DEĞİL (tek kişi tek projede tek rol) → `ValueError`; test
+  ayrı kullanıcı / ayrı proje ile yeniden kurulmalıdır.
+Yeni testler `proje_rolu_ver` ile açıkça kurar.
 """
 
 import uuid
@@ -21,15 +30,16 @@ from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
+from app.core.security import hash_password
 from app.modules.approvals.models import (
     ApprovalChain,
     ApprovalDocumentType,
     ApprovalRole,
     ApprovalStep,
-    UserApprovalRole,
 )
 from app.modules.contracts.models import SubcontractorContract
 from app.modules.procurement.models import (
@@ -44,15 +54,118 @@ from app.modules.progress_payments.models import (
     ProgressPaymentStatus,
 )
 from app.modules.projects.models import Project, ProjectContract
+from app.modules.roles.models import Role
 from app.modules.sites.models import Site
 from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
     SubcontractorProgressPayment,
     SubcontractorProgressPaymentLine,
 )
-from app.modules.users.models import ProjectMember, User
+from app.modules.users.models import ProjectMember, User, UserStatus
 
 PAROLA = "parola1234"
+
+#: `session.info` anahtarı: sonradan açılacak HER projeye ekip üyesi yazılacak (kullanıcı, rol)
+#: çiftleri.
+_UYELIK_KAYDI = "izn_b3b_onay_uyelikleri"
+
+
+#: `session.info` anahtarı: açıksa her yeni projeye her adım rolü için "dolgu" üye yazılır.
+_DOLGU_KAYDI = "izn_b3b_rol_sahipleri_dolgusu"
+
+#: `evrak_fabrikasi`nin ilk ihtiyaçta kurduğu dolgu kullanıcılar (global dinleyiciyi AÇMAZ).
+_DOLGU_TEMBEL = "izn_b3b_rol_sahipleri_dolgusu_tembel"
+
+_DOLGU_HASH = hash_password(PAROLA)
+
+
+async def _dolgu_kullanicilari(session: AsyncSession) -> dict[str, tuple[uuid.UUID, uuid.UUID]]:
+    """Her adım rolü için TEK dolgu kullanıcı: `{rol anahtarı: (kullanıcı id, rol id)}`.
+
+    IZN-B3b: zincir açılırken HER adım rolünün projede sahibi olmalıdır (yoksa 409). Eski testler
+    yalnız İMZA ATACAK aktörü kurduğundan zincir kuran hazırlık adımı bu dolguyla geçer; dolgu
+    kullanıcılar hiçbir testte oturum açmaz ve kimsenin kutusunu etkilemez. Kullanıcılar AYRI bir
+    flush'ta yazılır (ekip satırı ile aynı flush'ta FK sırası garanti değildir).
+    """
+    roller = {
+        key: rid
+        for key, rid in (await session.execute(select(Role.key, Role.id))).all()
+        if key in {rol.value for rol in ApprovalRole}
+    }
+    sonuc: dict[str, tuple[uuid.UUID, uuid.UUID]] = {}
+    for anahtar, rid in roller.items():
+        kisi = User(
+            email=f"dolgu-{anahtar}-{uuid.uuid4().hex[:10]}@dolgu.co",
+            password_hash=_DOLGU_HASH,
+            full_name=f"Dolgu {anahtar}",
+            role_id=rid,
+            status=UserStatus.active,
+        )
+        session.add(kisi)
+        await session.flush()
+        sonuc[anahtar] = (kisi.id, rid)
+    return sonuc
+
+
+@event.listens_for(Session, "before_flush")
+def _yeni_projelere_uyelik_yaz(session: Session, _ctx, _instances) -> None:
+    """Bu flush'ta eklenen HER yeni projeye: (a) eski `onay_rolu_ver` semantiği ("her projede bu
+    rol") için kayıtlı çiftlerin ekip üyeliği, (b) `rol_sahipleri_dolgusu` açıksa dolgu üyeler.
+    Hiçbiri açık değilse maliyetsizdir."""
+    kayit = list(session.info.get(_UYELIK_KAYDI) or ())
+    kayit += [tuple(v) for v in (session.info.get(_DOLGU_KAYDI) or {}).values()]
+    if not kayit:
+        return
+    for obj in [o for o in session.new if isinstance(o, Project)]:
+        if obj.id is None:
+            obj.id = uuid.uuid4()
+        for user_id, role_id in kayit:
+            session.add(ProjectMember(user_id=user_id, project_id=obj.id, role_id=role_id))
+
+
+@pytest.fixture
+async def rol_sahipleri_dolgusu(seeded_db: AsyncSession) -> None:
+    """Bu testte açılan HER projeye her adım rolü için dolgu üye yazılır (IZN-B3b: boş adım rolü
+    zincir açmayı engeller). Zincir açan akışları eski haliyle süren modüller
+    `pytestmark = pytest.mark.usefixtures("rol_sahipleri_dolgusu")` ile açar."""
+    seeded_db.info[_DOLGU_KAYDI] = await _dolgu_kullanicilari(seeded_db)
+
+
+async def rol_sahipleri_kur(
+    session: AsyncSession, project: Project, *, haric: Sequence[ApprovalRole] = ()
+) -> None:
+    """Dolgu üyeleri MEVCUT bir projeye yazar (`haric` roller dolgulanmaz)."""
+    dolgu = session.info.get(_DOLGU_KAYDI) or session.info.get(_DOLGU_TEMBEL)
+    if dolgu is None:
+        dolgu = session.info[_DOLGU_TEMBEL] = await _dolgu_kullanicilari(session)
+    for anahtar, (user_id, role_id) in dolgu.items():
+        if ApprovalRole(anahtar) in haric:
+            continue
+        session.add(ProjectMember(user_id=user_id, project_id=project.id, role_id=role_id))
+    await session.flush()
+
+
+async def rol_id(session: AsyncSession, role_key: str) -> uuid.UUID:
+    return (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
+
+
+async def proje_rolu_ver(
+    session: AsyncSession, user: User, project: Project, role_key: str
+) -> ProjectMember:
+    """Kişiyi projenin ekibine `role_key` rolüyle yazar (zaten üyeyse rolünü DEĞİŞTİRİR)."""
+    rid = await rol_id(session, role_key)
+    uye = await session.scalar(
+        select(ProjectMember).where(
+            ProjectMember.user_id == user.id, ProjectMember.project_id == project.id
+        )
+    )
+    if uye is None:
+        uye = ProjectMember(user_id=user.id, project_id=project.id, role_id=rid)
+        session.add(uye)
+    else:
+        uye.role_id = rid
+    await session.flush()
+    return uye
 
 
 @pytest.fixture
@@ -78,13 +191,20 @@ def aktor_fabrikasi(seeded_db: AsyncSession, user_factory) -> Callable[..., Awai
         user = await user_factory(
             email=email, password=PAROLA, role_key=role_key, full_name=full_name
         )
-        for rol in approval_roles:
-            seeded_db.add(UserApprovalRole(user_id=user.id, approval_role=rol))
+        roller = list(approval_roles)
+        if len(roller) > 1:
+            raise ValueError("IZN-B3b: tek kisi tek projede tek rol — ayri kullanici kullanin")
         if projeler is not None:
+            # Verilen projelerde ekip üyesi: onay rolü varsa O rolle (proje rolü), yoksa ana rolle.
+            uye_rolu = await rol_id(seeded_db, roller[0].value) if roller else user.role_id
             for proje in projeler:
-                seeded_db.add(
-                    ProjectMember(user_id=user.id, project_id=proje.id, role_id=user.role_id)
-                )
+                seeded_db.add(ProjectMember(user_id=user.id, project_id=proje.id, role_id=uye_rolu))
+        elif roller and tum_projeler:
+            # Eski "her projede bu onay rolü": var olan + sonradan açılan her projede proje rolü.
+            user.all_projects = True
+            await onay_rolu_ver(seeded_db, user, *roller)
+        elif roller:
+            pass  # kapsamsız: üyelik YOK (IDOR bekçisinin kurulumu)
         elif tum_projeler:
             user.all_projects = True
         await seeded_db.flush()
@@ -143,14 +263,31 @@ async def zincir_getir(
 
 
 async def onay_rolu_ver(session: AsyncSession, user: User, *roller: ApprovalRole) -> User:
-    """Kullanıcıya ONAY ROLÜ verir — sistem rolüne DOKUNMAZ (K1).
+    """Eski API'nin YENİ karşılığı: kişi, `rol` ROLÜYLE her projenin ekip üyesi olur.
 
-    İkisi kasten ayrıdır: onay rolü hiçbir izin vermez, izin matrisi de hiçbir
-    imza adaylığı vermez. Bir adımı onaylayacak aktörün İKİSİNE DE ihtiyacı
-    vardır (uç kapısı + adım rolü) ve testler bunu ayrı ayrı kurar.
+    Var olan projelere hemen, sonradan açılacaklara `before_flush` dinleyicisiyle yazılır.
+    `all_projects`e DOKUNMAZ: kapı kararı eskisi gibi ANA rolden çıkar (eski testlerin sistem
+    rolü kurgusu korunur); adım sahipliği ise yalnız bu ekip satırlarından gelir. (Üretimde
+    "Tüm projeler" kişide ekip satırı bulunmaz; bu karışım YALNIZ eski testlerin uyumluluğudur —
+    yeni testler `proje_rolu_ver` ya da saf `all_projects` + ana rol kurar.)
+    Birden çok rol → `ValueError` (tek kişi tek projede tek rol).
     """
-    for rol in roller:
-        session.add(UserApprovalRole(user_id=user.id, approval_role=rol))
+    if not roller:
+        return user
+    if len(roller) != 1:
+        raise ValueError("IZN-B3b: tek kisi tek projede tek rol — ayri kullanici kullanin")
+    rid = await rol_id(session, roller[0].value)
+    for proje in (await session.execute(select(Project))).scalars().all():
+        mevcut = await session.scalar(
+            select(ProjectMember).where(
+                ProjectMember.user_id == user.id, ProjectMember.project_id == proje.id
+            )
+        )
+        if mevcut is None:
+            session.add(ProjectMember(user_id=user.id, project_id=proje.id, role_id=rid))
+        else:
+            mevcut.role_id = rid
+    session.info.setdefault(_UYELIK_KAYDI, []).append((user.id, rid))
     await session.flush()
     return user
 
@@ -355,15 +492,18 @@ async def satinalma_evraki(
 @pytest.fixture
 def evrak_fabrikasi(seeded_db: AsyncSession, project_factory):
     """Zincire GERÇEKTEN bağlanabilir bir evrak kurar ve `(document_id, project)`
-    döner. Proje verilmezse kendi projesini açar."""
+    döner. Proje verilmezse kendi projesini açar. `rol_sahipleri=True` (varsayılan): projeye her
+    adım rolü için dolgu üye yazılır (IZN-B3b: boş adım rolü zincir açmayı engeller)."""
 
     sayac = {"n": 0}
+    dolgulu: set[uuid.UUID] = set()
 
     async def _kur(
         document_type: ApprovalDocumentType,
         *,
         creator: User,
         project: Project | None = None,
+        rol_sahipleri: bool = True,
         **kwargs,
     ) -> tuple[uuid.UUID, Project]:
         if project is None:
@@ -377,6 +517,9 @@ def evrak_fabrikasi(seeded_db: AsyncSession, project_factory):
             ApprovalDocumentType.purchase_request: satinalma_evraki,
         }
         document_id = await kurucular[document_type](seeded_db, project, creator, **kwargs)
+        if rol_sahipleri and _DOLGU_KAYDI not in seeded_db.info and project.id not in dolgulu:
+            dolgulu.add(project.id)
+            await rol_sahipleri_kur(seeded_db, project)
         return document_id, project
 
     return _kur

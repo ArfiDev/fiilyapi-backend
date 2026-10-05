@@ -27,7 +27,9 @@ from app.modules.procurement.models import (
     PurchaseRequestLine,
     PurchaseRequestStatus,
 )
-from app.modules.users.models import ProjectMember
+from tests.modules.approvals.conftest import rol_sahipleri_dolgusu  # noqa: F401  (fixture)
+
+pytestmark = pytest.mark.usefixtures("rol_sahipleri_dolgusu")
 
 _YOL = "/purchase-requests"
 
@@ -495,8 +497,9 @@ async def test_her_gecis_denetim_satiri_yazar(
     ölçülen ilk hâlde ara adım satırı kimliksizdi ve "hangi talep" sorusu
     günlükte yanıtsız kalıyordu (`approvals.service.audit_detail` düzeltildi).
     """
-    from app.modules.approvals.models import ApprovalRole, UserApprovalRole
+    from app.modules.approvals.models import ApprovalRole
     from app.modules.audit.models import AuditAction, AuditLog
+    from tests.modules.approvals.conftest import proje_rolu_ver
 
     async def _sayim() -> int:
         return (await seeded_db.execute(select(AuditLog))).scalars().all().__len__()
@@ -504,11 +507,7 @@ async def test_her_gecis_denetim_satiri_yazar(
     onaycı = await user_factory(
         email="sa-denetim@ok1a.co", password="parola1234", role_key="procurement"
     )
-    seeded_db.add(
-        ProjectMember(user_id=onaycı.id, project_id=gorunen_proje.id, role_id=onaycı.role_id)
-    )
-    seeded_db.add(UserApprovalRole(user_id=onaycı.id, approval_role=ApprovalRole.procurement))
-    await seeded_db.flush()
+    await proje_rolu_ver(seeded_db, onaycı, gorunen_proje, ApprovalRole.procurement.value)
     giris = await client.post("/auth/login", json={"email": onaycı.email, "password": "parola1234"})
     onay_basliklari = {"Authorization": f"Bearer {giris.json()['access_token']}"}
 

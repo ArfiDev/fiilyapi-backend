@@ -34,6 +34,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,8 +52,11 @@ from tests.modules.approvals.conftest import (
     PAROLA,
     adim_durumlari,
     onay_rolu_ver,
+    rol_sahipleri_dolgusu,  # noqa: F401  (fixture)
     satinalma_evraki,
 )
+
+pytestmark = pytest.mark.usefixtures("rol_sahipleri_dolgusu")
 
 _SATINALMA = ApprovalDocumentType.purchase_request
 _YOL = "/purchase-requests"

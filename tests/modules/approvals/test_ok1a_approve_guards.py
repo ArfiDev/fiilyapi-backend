@@ -28,8 +28,9 @@ from app.modules.audit import messages
 _TASERON = ApprovalDocumentType.subcontractor_progress_payment
 
 
-async def _zincir_kur(seeded_db, yaratan, *, amount=Decimal("100.00")):
-    document_id = uuid.uuid4()
+async def _zincir_kur(seeded_db, evrak_fabrikasi, yaratan, *, amount=Decimal("100.00")):
+    """GERÇEK evrak + zincir (IZN-B3b: adım sahipliği belgenin PROJESİNDEN çözülür)."""
+    document_id, _ = await evrak_fabrikasi(_TASERON, creator=yaratan)
     await service.create_chain(
         seeded_db,
         document_type=_TASERON,
@@ -38,6 +39,14 @@ async def _zincir_kur(seeded_db, yaratan, *, amount=Decimal("100.00")):
         created_by_user_id=yaratan.id,
     )
     return document_id
+
+
+async def _proje_of(seeded_db, document_id):
+    from app.modules.projects.models import Project
+    from app.modules.subcontractor_progress_payments.models import SubcontractorProgressPayment
+
+    odeme = await seeded_db.get(SubcontractorProgressPayment, document_id)
+    return await seeded_db.get(Project, odeme.project_id)
 
 
 async def _onayla(seeded_db, aktor, document_id, *, step_no=None):
@@ -53,7 +62,7 @@ async def _onayla(seeded_db, aktor, document_id, *, step_no=None):
 # --- Bekçi 3: SIRA ---
 
 
-async def test_IKINCI_adim_birinci_onaylanmadan_409(seeded_db, aktor_fabrikasi):
+async def test_IKINCI_adim_birinci_onaylanmadan_409(seeded_db, aktor_fabrikasi, evrak_fabrikasi):
     """Adımlar SIRAYLA işler. 2. adımı ELİNDE ROLÜ OLAN biri bile ilerletemez."""
     yaratan = await aktor_fabrikasi("sira-yaratan@ok1a.co")
     pm = await aktor_fabrikasi(
@@ -61,7 +70,7 @@ async def test_IKINCI_adim_birinci_onaylanmadan_409(seeded_db, aktor_fabrikasi):
         role_key="project_manager",
         approval_roles=[ApprovalRole.project_manager],
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
 
     with pytest.raises(ConflictError) as hata:
         await _onayla(seeded_db, pm, document_id, step_no=2)
@@ -69,7 +78,7 @@ async def test_IKINCI_adim_birinci_onaylanmadan_409(seeded_db, aktor_fabrikasi):
     assert str(hata.value) == guards.STEP_NOT_CURRENT
 
 
-async def test_zincir_TAMAMLANINCA_yeni_onay_409(seeded_db, aktor_fabrikasi):
+async def test_zincir_TAMAMLANINCA_yeni_onay_409(seeded_db, aktor_fabrikasi, evrak_fabrikasi):
     yaratan = await aktor_fabrikasi("tamam-yaratan@ok1a.co")
     sef = await aktor_fabrikasi(
         "tamam-sef@ok1a.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
@@ -82,7 +91,7 @@ async def test_zincir_TAMAMLANINCA_yeni_onay_409(seeded_db, aktor_fabrikasi):
     muhasebe = await aktor_fabrikasi(
         "tamam-muh@ok1a.co", role_key="accounting", approval_roles=[ApprovalRole.accounting]
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
 
     assert (await _onayla(seeded_db, sef, document_id)).is_complete is False
     assert (await _onayla(seeded_db, pm, document_id)).is_complete is False
@@ -109,13 +118,13 @@ async def test_zinciri_OLMAYAN_evrak_409(seeded_db, aktor_fabrikasi):
 # --- Bekçi 4: ROL ---
 
 
-async def test_adimin_ROLUNU_tasimayan_403(seeded_db, aktor_fabrikasi):
+async def test_adimin_ROLUNU_tasimayan_403(seeded_db, aktor_fabrikasi, evrak_fabrikasi):
     yaratan = await aktor_fabrikasi("rol-yaratan@ok1a.co")
     # Onay rolü VAR ama SIRADAKİ adımın rolü DEĞİL (sıradaki: site_chief).
     muhasebe = await aktor_fabrikasi(
         "rol-muh@ok1a.co", role_key="accounting", approval_roles=[ApprovalRole.accounting]
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
 
     with pytest.raises(ApprovalNotAllowedError) as hata:
         await _onayla(seeded_db, muhasebe, document_id)
@@ -123,7 +132,9 @@ async def test_adimin_ROLUNU_tasimayan_403(seeded_db, aktor_fabrikasi):
     assert str(hata.value) == guards.APPROVAL_ROLE_MISSING
 
 
-async def test_HIC_onay_rolu_olmayan_sistem_admini_bile_403(seeded_db, aktor_fabrikasi):
+async def test_HIC_onay_rolu_olmayan_sistem_admini_bile_403(
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
+):
     """🔴 Sistem yöneticiliği onay rolü YERİNE GEÇMEZ (K1'in ayrımı).
 
     `admin` istisnası YALNIZ "kendi evrakı" bekçisine (5) verilmiştir; rol
@@ -134,7 +145,7 @@ async def test_HIC_onay_rolu_olmayan_sistem_admini_bile_403(seeded_db, aktor_fab
     sysadmin = await aktor_fabrikasi(
         "rolsuz-admin@ok1a.co", role_key="system_admin", approval_roles=[]
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
 
     with pytest.raises(ApprovalNotAllowedError) as hata:
         await _onayla(seeded_db, sysadmin, document_id)
@@ -145,12 +156,12 @@ async def test_HIC_onay_rolu_olmayan_sistem_admini_bile_403(seeded_db, aktor_fab
 # --- Bekçi 5: KENDİ EVRAKI (+ admin istisnası) ---
 
 
-async def test_KENDI_evragini_onaylayamaz_403(seeded_db, aktor_fabrikasi):
+async def test_KENDI_evragini_onaylayamaz_403(seeded_db, aktor_fabrikasi, evrak_fabrikasi):
     """Aktörün onay rolü VAR, sırası da GELMİŞ — engel yalnız evrağın SAHİPLİĞİ."""
     yaratan = await aktor_fabrikasi(
         "kendi-sef@ok1a.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
 
     with pytest.raises(ApprovalNotAllowedError) as hata:
         await _onayla(seeded_db, yaratan, document_id)
@@ -159,7 +170,7 @@ async def test_KENDI_evragini_onaylayamaz_403(seeded_db, aktor_fabrikasi):
 
 
 async def test_patron_SISTEM_rolu_full_oldugu_icin_kendi_evragini_ONAYLAYAMAZ(
-    seeded_db, aktor_fabrikasi
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
 ):
     """🔴 İstisnanın sınırı: `full`, `admin`i KARŞILAMAZ (`access.satisfies`).
 
@@ -170,7 +181,7 @@ async def test_patron_SISTEM_rolu_full_oldugu_icin_kendi_evragini_ONAYLAYAMAZ(
     patron = await aktor_fabrikasi(
         "kendi-patron@ok1a.co", role_key="patron", approval_roles=[ApprovalRole.site_chief]
     )
-    document_id = await _zincir_kur(seeded_db, patron)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, patron)
 
     with pytest.raises(ApprovalNotAllowedError) as hata:
         await _onayla(seeded_db, patron, document_id)
@@ -179,7 +190,7 @@ async def test_patron_SISTEM_rolu_full_oldugu_icin_kendi_evragini_ONAYLAYAMAZ(
 
 
 async def test_ADMIN_kendi_evragini_onaylar_ve_denetim_VEKALETEN_isaretini_tasir(
-    seeded_db, aktor_fabrikasi
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
 ):
     """🔴 K1'in tek istisnası + izi. İşaret MESAJ SABİTİYLE iddia edilir.
 
@@ -197,7 +208,7 @@ async def test_ADMIN_kendi_evragini_onaylar_ve_denetim_VEKALETEN_isaretini_tasir
         role_key="project_manager",
         approval_roles=[ApprovalRole.project_manager],
     )
-    document_id = await _zincir_kur(seeded_db, sysadmin)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, sysadmin)
 
     kendi = await _onayla(seeded_db, sysadmin, document_id)
     assert kendi.on_behalf is True
@@ -211,22 +222,29 @@ async def test_ADMIN_kendi_evragini_onaylar_ve_denetim_VEKALETEN_isaretini_tasir
 # --- Bekçi 6: GÖREVLER AYRILIĞI (K1'in kalbi) ---
 
 
-async def test_GOREVLER_AYRILIGI_iki_rollu_kullanici_ikinci_adimda_403(seeded_db, aktor_fabrikasi):
-    """🔴 K1'in kalbi. Aktörün İKİ onay rolü VAR, evrak KENDİSİNİN DEĞİL.
-
-    Tek engel: aynı zincirin bir adımını ZATEN karara bağlamış olması.
+async def test_GOREVLER_AYRILIGI_rolu_degisen_kullanici_ikinci_adimda_403(
+    seeded_db, aktor_fabrikasi, evrak_fabrikasi
+):
+    """🔴 K1'in kalbi. IZN-B3b: bir kişi bir projede TEK rol taşır; ayrılık bekçisi, zincir
+    sürerken ROLÜ DEĞİŞEN kişide ısırır (şef iken 1. adımı imzaladı, sonra o projede PM oldu).
+    Evrak KENDİSİNİN DEĞİL; tek engel, aynı zincirin bir adımını ZATEN karara bağlamış olması.
     """
+    from tests.modules.approvals.conftest import proje_rolu_ver
+
     yaratan = await aktor_fabrikasi("ayrilik-yaratan@ok1a.co")
     cift_rollu = await aktor_fabrikasi(
         "ayrilik-cift@ok1a.co",
         role_key="project_manager",
-        approval_roles=[ApprovalRole.site_chief, ApprovalRole.project_manager],
+        approval_roles=[ApprovalRole.site_chief],
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
 
     birinci = await _onayla(seeded_db, cift_rollu, document_id)
     assert birinci.step_no == 1
     assert birinci.approval_role is ApprovalRole.site_chief
+    await proje_rolu_ver(
+        seeded_db, cift_rollu, await _proje_of(seeded_db, document_id), "project_manager"
+    )
 
     with pytest.raises(ApprovalNotAllowedError) as hata:
         await _onayla(seeded_db, cift_rollu, document_id)
@@ -234,7 +252,7 @@ async def test_GOREVLER_AYRILIGI_iki_rollu_kullanici_ikinci_adimda_403(seeded_db
     assert str(hata.value) == guards.SEPARATION_OF_DUTIES
 
 
-async def test_GOREVLER_AYRILIGI_ADMINE_de_uygulanir(seeded_db, aktor_fabrikasi):
+async def test_GOREVLER_AYRILIGI_ADMINE_de_uygulanir(seeded_db, aktor_fabrikasi, evrak_fabrikasi):
     """🔴 `admin` istisnası YALNIZ bekçi 5'e verilmiştir, bekçi 6'ya DEĞİL.
 
     Kurulum ikisini AYNI aktörde birleştirir: `system_admin` hem evrağın
@@ -243,15 +261,20 @@ async def test_GOREVLER_AYRILIGI_ADMINE_de_uygulanir(seeded_db, aktor_fabrikasi)
     AYRILIĞINI söyler, "kendi evrakı"nı değil: bekçi 5 ile 6 aynı anda
     geçerliyken 5 ÖNCE ateşlenir ve orada GEÇER.
     """
+    from tests.modules.approvals.conftest import proje_rolu_ver
+
     sysadmin = await aktor_fabrikasi(
         "ayrilik-admin@ok1a.co",
         role_key="system_admin",
-        approval_roles=[ApprovalRole.site_chief, ApprovalRole.project_manager],
+        approval_roles=[ApprovalRole.site_chief],
     )
-    document_id = await _zincir_kur(seeded_db, sysadmin)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, sysadmin)
 
     birinci = await _onayla(seeded_db, sysadmin, document_id)
     assert birinci.on_behalf is True
+    await proje_rolu_ver(
+        seeded_db, sysadmin, await _proje_of(seeded_db, document_id), "project_manager"
+    )
 
     with pytest.raises(ApprovalNotAllowedError) as hata:
         await _onayla(seeded_db, sysadmin, document_id)
@@ -259,7 +282,7 @@ async def test_GOREVLER_AYRILIGI_ADMINE_de_uygulanir(seeded_db, aktor_fabrikasi)
     assert str(hata.value) == guards.SEPARATION_OF_DUTIES
 
 
-async def test_onaylanan_adim_KARAR_BILGISINI_yazar(seeded_db, aktor_fabrikasi):
+async def test_onaylanan_adim_KARAR_BILGISINI_yazar(seeded_db, aktor_fabrikasi, evrak_fabrikasi):
     from sqlalchemy import select
 
     from app.modules.approvals.models import ApprovalChain, ApprovalStep
@@ -268,7 +291,7 @@ async def test_onaylanan_adim_KARAR_BILGISINI_yazar(seeded_db, aktor_fabrikasi):
     sef = await aktor_fabrikasi(
         "damga-sef@ok1a.co", role_key="site_chief", approval_roles=[ApprovalRole.site_chief]
     )
-    document_id = await _zincir_kur(seeded_db, yaratan)
+    document_id = await _zincir_kur(seeded_db, evrak_fabrikasi, yaratan)
 
     await _onayla(seeded_db, sef, document_id)
 

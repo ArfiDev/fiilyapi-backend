@@ -86,7 +86,6 @@ async def onay_kutum(ctx: AracBaglami, girdi: Any) -> AracSonucu:
     zarf = schemas.AiOnayKutusu(
         items=[schemas.AiOnayKalemi.model_validate(i) for i in items],
         total=govde["total"],
-        my_approval_roles=list(govde.get("my_approval_roles") or []),
     )
     if not items:
         # 🔴 `ScopedEmpty` DEĞİL: burada kapsam süzgeci yok, "sana düşen imza
