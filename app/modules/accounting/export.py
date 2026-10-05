@@ -73,8 +73,12 @@ def _label(sozluk: dict, anahtar: object) -> str:
 
 
 def _money(value: object) -> str:
-    """Para hücresi — yuvarlama/biçimlendirme YOK, `str(Decimal)` (FLOAT-YASAK)."""
-    return str(value)
+    """Para hücresi — yuvarlama/biçimlendirme YOK, `str(Decimal)` (FLOAT-YASAK).
+
+    IZN-B4b: rol bu tutarı GİZLİYSE değer `None`dır (`maskele_baglamli`) → hücre BOŞ yazılır
+    (`"None"` metni dosyaya sızmaz; `—` da yazılmaz: o yalnız `null` alan içindir ama burada
+    sıfır/boş ayrımı izin bilgisini ele verirdi)."""
+    return "" if value is None else str(value)
 
 
 def _write_row(sheet: Worksheet, row: int, values: tuple[str | None, ...]) -> None:

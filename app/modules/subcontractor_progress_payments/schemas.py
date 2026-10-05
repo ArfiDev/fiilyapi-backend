@@ -12,9 +12,11 @@ formülün ikinci bir kopyasını TAŞIMAZ.
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.field_mask import Hassas
 from app.modules.subcontractor_progress_payments.models import (
     QuantitySource,
     SubcontractorPaymentStatus,
@@ -53,7 +55,7 @@ class SubcontractorProgressPaymentCreate(BaseModel):
     period_year: int | None = None
     period_month: int | None = Field(default=None, ge=1, le=12)
     description: str | None = None
-    default_coefficient: Decimal | None = Field(default=None, gt=0)
+    default_coefficient: Annotated[Decimal | None, Hassas.yok] = Field(default=None, gt=0)
     section_id: uuid.UUID | None = None
     """O58 "Bölüm" seçici — bilgi alanı (spec §8 S2). NULL = "Tüm Bölümler";
     kota/hesaba GİRMEZ, salt etiket/filtredir."""
@@ -75,9 +77,9 @@ class SubcontractorProgressPaymentLineInput(BaseModel):
     """
 
     contract_item_id: uuid.UUID
-    quantity: Decimal = Field(ge=0)
+    quantity: Annotated[Decimal, Hassas.yok] = Field(ge=0)
     """0 meşrudur (satır "girilmedi" değil "bu dönem sıfır" demektir)."""
-    coefficient: Decimal | None = Field(default=None, gt=0)
+    coefficient: Annotated[Decimal | None, Hassas.yok] = Field(default=None, gt=0)
     sort_order: int | None = Field(default=None, ge=0)
     """Gönderilmezse GÖVDE SIRASI otoritedir."""
 
@@ -110,7 +112,7 @@ class SubcontractorProgressPaymentUpdate(BaseModel):
     period_year: int | None = None
     period_month: int | None = Field(default=None, ge=1, le=12)
     description: str | None = None
-    default_coefficient: Decimal | None = Field(default=None, gt=0)
+    default_coefficient: Annotated[Decimal | None, Hassas.yok] = Field(default=None, gt=0)
     section_id: uuid.UUID | None = None
 
 
@@ -144,17 +146,17 @@ class SubcontractorProgressPaymentLineRead(BaseModel):
     """KAT-B2.4: Bakanlık poz no SNAPSHOT'ı (maskesiz rota: düz alan)."""
     description: str
     unit: str = Field(max_length=50)
-    contract_unit_price: Decimal
-    coefficient: Decimal
-    quantity: Decimal
+    contract_unit_price: Annotated[Decimal | None, Hassas.maliyet_kar]
+    coefficient: Annotated[Decimal, Hassas.yok]
+    quantity: Annotated[Decimal, Hassas.yok]
     group_name: str | None = Field(default=None, max_length=200)
     sort_order: int
     quantity_source: QuantitySource
     """O87 "Günlük kayıttan" rozetinin kaynağı; `site_diary` dilimi gelene kadar
     HER satır `manual`dır (spec §2)."""
-    adjusted_unit_price: Decimal
+    adjusted_unit_price: Annotated[Decimal | None, Hassas.maliyet_kar]
     """O102 "Düz. B.F." = `contract_unit_price × coefficient` (kuruşa yuvarlı, K5)."""
-    line_total: Decimal
+    line_total: Annotated[Decimal | None, Hassas.maliyet_kar]
     """O106 satır hakediş tutarı = `adjusted_unit_price × quantity` (K5 formül sırası)."""
 
 
@@ -165,11 +167,11 @@ class SubcontractorPaymentCalculation(BaseModel):
     KDV tevkifatı bu dilimde hesaba GİRMEZ (spec §8 S4).
     """
 
-    gross: Decimal
-    vat: Decimal
-    advance_deduction: Decimal
-    retention: Decimal
-    net: Decimal
+    gross: Annotated[Decimal | None, Hassas.maliyet_kar]
+    vat: Annotated[Decimal | None, Hassas.maliyet_kar]
+    advance_deduction: Annotated[Decimal | None, Hassas.maliyet_kar]
+    retention: Annotated[Decimal | None, Hassas.maliyet_kar]
+    net: Annotated[Decimal | None, Hassas.maliyet_kar]
 
 
 class SubcontractorRefreshPricesResponse(BaseModel):
@@ -216,8 +218,8 @@ class SubcontractorProgressPaymentListItem(BaseModel):
     parayı şantiyenin parası sanıp N kez toplardı. Görünürlüğü açan değişiklik
     toplamları yalancı YAPMASIN diye ayrım satırdadır."""
     created_at: datetime
-    gross_total: Decimal
-    net_total: Decimal
+    gross_total: Annotated[Decimal | None, Hassas.maliyet_kar]
+    net_total: Annotated[Decimal | None, Hassas.maliyet_kar]
     """L143-146: liste ekranı brüt ve NET taşır. Mockup'ın "Net = Brüt − KDV"
     görünümü hesap hatasıdır — doğru formül (`calculations.net_amount`) uygulanır."""
     is_revision_required: bool
@@ -233,11 +235,11 @@ class SubcontractorProgressPaymentSummary(BaseModel):
     Brüt Tutar hücresi ₺1.240.000, Net Ödeme ₺1.016.800 DEĞİL).
     """
 
-    total_gross: Decimal
+    total_gross: Annotated[Decimal | None, Hassas.maliyet_kar]
     """L108 "Toplam Hakediş" — süzgeçteki TÜM hakedişlerin brütü."""
-    pending_gross: Decimal
+    pending_gross: Annotated[Decimal | None, Hassas.maliyet_kar]
     """L112 "Onay Bekliyor" — `pending_approval` durumundakilerin brütü."""
-    paid_period_gross: Decimal
+    paid_period_gross: Annotated[Decimal | None, Hassas.maliyet_kar]
     """L116 "Bu Ay Ödenen" — `paid` + ETKİN DÖNEM'dekilerin brütü."""
     active_subcontractor_count: int
     """L120 "Aktif Taşeron" — süzgeçteki farklı taşeron SÖZLEŞMESİ sayısı
@@ -277,10 +279,10 @@ class SubcontractorProgressPaymentDetail(BaseModel):
     period_month: int | None
     description: str | None
     status: SubcontractorPaymentStatus
-    vat_pct: Decimal
-    advance_pct: Decimal
-    retainage_pct: Decimal
-    default_coefficient: Decimal
+    vat_pct: Annotated[Decimal, Hassas.yok]
+    advance_pct: Annotated[Decimal, Hassas.yok]
+    retainage_pct: Annotated[Decimal, Hassas.yok]
+    default_coefficient: Annotated[Decimal, Hassas.yok]
     section_id: uuid.UUID | None
     submitted_at: datetime | None
     approved_at: datetime | None

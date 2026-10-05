@@ -57,9 +57,11 @@ katkısız olduğu hâlde "en az iki satır" engelini SAHTE biçimde geçirirdi.
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.field_mask import Hassas
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.accounting import codes, guards
 from app.modules.accounting.models import ChartAccountType, JournalEntryStatus
@@ -114,6 +116,14 @@ _IS_CONTRA = Field(
         "kalır → İŞARETLENMEZ (borç bakiyesi zaten düşürür)."
     ),
 )
+
+
+# 🔴 GECE KARARI (IZN-B4b): defter/mizan/bilanço/KDV tutarları HİÇBİR tek kategoriye tam oturmaz —
+# yevmiye hem maliyet/kâr hem kasa-banka (100/102) hareketini taşır. Fail-closed: ikisini birden
+# etiketle (HERHANGİ biri gizliyse alan gizlenir; `tum_tutarlar` zaten ikisini de kapsar).
+MaliTutar = Annotated[Decimal | None, Hassas.maliyet_kar, Hassas.banka_kasa]
+#: İSTEK gövdesinde aynı etiket (gizli rol dolu tutar gönderirse 403); tip `None` taşımaz.
+MaliTutarGirdi = Annotated[Decimal, Hassas.maliyet_kar, Hassas.banka_kasa]
 
 
 class ChartAccountCreate(BaseModel):
@@ -198,7 +208,7 @@ class ChartAccountResponse(_ChartAccountStored):
     bayrağı, öteki dört üyeli kapalı bir enum'dur (R3).
     """
 
-    balance: Decimal
+    balance: MaliTutar
     class_code: str
     level: int
 
@@ -255,8 +265,8 @@ class JournalLineInput(BaseModel):
     model_config = _SIKI
 
     account_id: uuid.UUID
-    debit: Decimal = _MONEY
-    credit: Decimal = _MONEY
+    debit: MaliTutarGirdi = _MONEY
+    credit: MaliTutarGirdi = _MONEY
 
     @model_validator(mode="after")
     def _tek_taraf(self) -> "JournalLineInput":
@@ -345,8 +355,8 @@ class JournalLineResponse(BaseModel):
     account_id: uuid.UUID
     account_code: str
     account_name: str
-    debit: Decimal
-    credit: Decimal
+    debit: MaliTutar
+    credit: MaliTutar
 
 
 class JournalEntryResponse(BaseModel):
@@ -367,8 +377,8 @@ class JournalEntryResponse(BaseModel):
     description: str
     detail_note: str | None
     status: JournalEntryStatus
-    total_debit: Decimal
-    total_credit: Decimal
+    total_debit: MaliTutar
+    total_credit: MaliTutar
     reversal_of_id: uuid.UUID | None
     created_by_id: uuid.UUID
     created_at: datetime
@@ -405,9 +415,9 @@ class JournalSummaryResponse(BaseModel):
 
     year: int
     month: int
-    total_debit: Decimal
-    total_credit: Decimal
-    net_balance: Decimal
+    total_debit: MaliTutar
+    total_credit: MaliTutar
+    net_balance: MaliTutar
 
 
 class LedgerRow(BaseModel):
@@ -427,9 +437,9 @@ class LedgerRow(BaseModel):
     account_name: str
     description: str
     detail_note: str | None
-    debit: Decimal
-    credit: Decimal
-    running_balance: Decimal
+    debit: MaliTutar
+    credit: MaliTutar
+    running_balance: MaliTutar
 
 
 class LedgerResponse(BaseModel):
@@ -444,4 +454,4 @@ class LedgerResponse(BaseModel):
     total: int
     limit: int
     offset: int
-    carried_balance: Decimal
+    carried_balance: MaliTutar

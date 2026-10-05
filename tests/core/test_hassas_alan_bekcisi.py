@@ -51,14 +51,13 @@ from app.core.router_registry import ROUTERS
 
 #: ZORUNLU küme: bu rota-sahibi modüllerde etiketsiz alan KIRMIZI. Sonraki dilimler BURAYA ekler.
 ZORUNLU_MODULLER: frozenset[str] = frozenset(
-    {"boq", "catalog", "contracts", "customers", "dashboard", "offers", "projects", "sales",
-     "sites", "units"}
+    {"accounting", "boq", "catalog", "contracts", "customers", "dashboard", "invoicing", "offers",
+     "progress_payments", "projects", "sales", "sites", "subcontractor_progress_payments",
+     "treasury", "units"}
 )  # fmt: skip
 
 #: Modülün TAMAMI değil yalnız bazı şemaları zorunlu olanlar: modül → şema sınıf adları.
-ZORUNLU_SEMALAR: dict[str, frozenset[str]] = {
-    "progress_payments": frozenset({"ProgressPaymentSummary"}),
-}
+ZORUNLU_SEMALAR: dict[str, frozenset[str]] = {}
 
 #: Zarf sınıflarının KENDİSİ taranmaz (anlam kullanım yerinde etiketlenir).
 _ZARF_SINIFLARI = {"MetricPlaceholder", "CountPlaceholder"}
@@ -70,9 +69,9 @@ EXPORT_UCLARI: dict[tuple[str, str], str] = {
     ("GET", "/sites/{site_id}/boq/export"): "MASKELI",
     ("GET", "/audit-log/export.xlsx"): "RAPOR",
     ("GET", "/catalog/items/export"): "MASKELI",
-    ("GET", "/chart-of-accounts/export.xlsx"): "RAPOR",
-    ("GET", "/journal/export.xlsx"): "RAPOR",
-    ("GET", "/trial-balance/export.xlsx"): "RAPOR",
+    ("GET", "/chart-of-accounts/export.xlsx"): "MASKELI",
+    ("GET", "/journal/export.xlsx"): "MASKELI",
+    ("GET", "/trial-balance/export.xlsx"): "MASKELI",
     ("GET", "/equipment/work-summary/export.xlsx"): "RAPOR",
     ("GET", "/offers/{offer_id}/revisions/{rev_no}/export"): "MASKELI",
     ("GET", "/payroll/periods/export.xlsx"): "RAPOR",

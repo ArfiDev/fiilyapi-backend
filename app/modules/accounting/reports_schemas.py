@@ -9,8 +9,9 @@ paylaşır.
 🔴 **İSTEK GÖVDESİ YOKTUR.** Mizan bir OKUMA ucudur; dönem seçimi sorgu
 parametresidir (`year`/`month`), gövde değil.
 
-## 🔴 Altı para alanının hiçbiri `None` OLMAZ
+## 🔴 Altı para alanının hiçbiri HESAPTA `None` olmaz
 
+(IZN-B4b: yanıtta yalnız rol bu tutarları GİZLİYSE `null` döner — `MaliTutar`.)
 Boş taraf **`0`** basar. Mockup'ın `—` işareti (satır 84, 88, …) bir SUNUM
 kararıdır ve frontend'e aittir: `null` dönseydi ekranın her aritmetiği ve
 tfoot'un GENEL TOPLAM satırı `null` yayardı. `Decimal`dir; kayan nokta hiçbir
@@ -20,8 +21,12 @@ aşamada devreye girmez.
 import uuid
 from datetime import date
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel
+
+from app.core.field_mask import Hassas
+from app.modules.accounting.schemas import MaliTutar
 
 __all__ = [
     "BalanceSheetLine",
@@ -55,12 +60,12 @@ class TrialBalanceTotals(BaseModel):
     olurdu ve `GENEL TOPLAM` adı yalan söylerdi (bkz. `TrialBalanceResponse`).
     """
 
-    opening_debit: Decimal
-    opening_credit: Decimal
-    period_debit: Decimal
-    period_credit: Decimal
-    closing_debit: Decimal
-    closing_credit: Decimal
+    opening_debit: MaliTutar
+    opening_credit: MaliTutar
+    period_debit: MaliTutar
+    period_credit: MaliTutar
+    closing_debit: MaliTutar
+    closing_credit: MaliTutar
 
 
 class TrialBalanceRow(BaseModel):
@@ -81,12 +86,12 @@ class TrialBalanceRow(BaseModel):
     account_id: uuid.UUID
     account_code: str
     account_name: str
-    opening_debit: Decimal
-    opening_credit: Decimal
-    period_debit: Decimal
-    period_credit: Decimal
-    closing_debit: Decimal
-    closing_credit: Decimal
+    opening_debit: MaliTutar
+    opening_credit: MaliTutar
+    period_debit: MaliTutar
+    period_credit: MaliTutar
+    closing_debit: MaliTutar
+    closing_credit: MaliTutar
 
 
 class TrialBalanceResponse(BaseModel):
@@ -123,9 +128,9 @@ class VatTaxableRow(BaseModel):
     `VatReturnResponse.exempt_base` onun yeridir.
     """
 
-    rate: Decimal
-    base: Decimal
-    vat: Decimal
+    rate: Annotated[Decimal, Hassas.yok]  # KDV ORANI (yüzde): tutar değil
+    base: MaliTutar
+    vat: MaliTutar
 
 
 class VatDeductionRow(BaseModel):
@@ -140,8 +145,8 @@ class VatDeductionRow(BaseModel):
     """
 
     source: str
-    base: Decimal
-    vat: Decimal
+    base: MaliTutar
+    vat: MaliTutar
 
 
 class VatReturnResponse(BaseModel):
@@ -164,12 +169,12 @@ class VatReturnResponse(BaseModel):
     year: int
     month: int
     due_date: date
-    calculated_vat: Decimal
-    deductible_vat: Decimal
-    payable: Decimal
-    carried_forward: Decimal
+    calculated_vat: MaliTutar
+    deductible_vat: MaliTutar
+    payable: MaliTutar
+    carried_forward: MaliTutar
     taxable_rows: list[VatTaxableRow]
-    exempt_base: Decimal
+    exempt_base: MaliTutar
     deductions: list[VatDeductionRow]
 
 
@@ -201,7 +206,7 @@ class BalanceSheetLine(BaseModel):
 
     key: str
     label: str
-    amount: Decimal
+    amount: MaliTutar
     account_codes: list[str]
     group_codes: list[str]
 
@@ -216,7 +221,7 @@ class BalanceSheetSection(BaseModel):
     key: str
     title: str
     subtotal_label: str
-    subtotal: Decimal
+    subtotal: MaliTutar
     lines: list[BalanceSheetLine]
 
 
@@ -230,7 +235,7 @@ class BalanceSheetSide(BaseModel):
     key: str
     title: str
     total_label: str
-    total: Decimal
+    total: MaliTutar
     sections: list[BalanceSheetSection]
 
 
@@ -286,7 +291,7 @@ class CashFlowStatementLine(BaseModel):
 
     key: str
     label: str
-    amount: Decimal
+    amount: MaliTutar
     account_codes: list[str]
 
 
@@ -302,7 +307,7 @@ class CashFlowStatementSection(BaseModel):
     code: str
     title: str
     subtotal_label: str
-    subtotal: Decimal
+    subtotal: MaliTutar
     lines: list[CashFlowStatementLine]
 
 
@@ -317,7 +322,7 @@ class MonthlyCashPoint(BaseModel):
 
     year: int
     month: int
-    closing_cash: Decimal
+    closing_cash: MaliTutar
 
 
 class CashFlowStatementResponse(BaseModel):
@@ -351,9 +356,9 @@ class CashFlowStatementResponse(BaseModel):
     year: int
     month: int
     sections: list[CashFlowStatementSection]
-    net_change: Decimal
-    opening_cash: Decimal
-    closing_cash: Decimal
+    net_change: MaliTutar
+    opening_cash: MaliTutar
+    closing_cash: MaliTutar
     monthly_cash: list[MonthlyCashPoint]
 
 
@@ -390,7 +395,7 @@ class IncomeStatementLine(BaseModel):
 
     key: str
     label: str
-    amount: Decimal
+    amount: MaliTutar
     account_codes: list[str]
 
 
@@ -406,7 +411,7 @@ class IncomeStatementSection(BaseModel):
     key: str
     title: str
     subtotal_label: str
-    subtotal: Decimal
+    subtotal: MaliTutar
     lines: list[IncomeStatementLine]
 
 
@@ -443,7 +448,7 @@ class IncomeStatementResponse(BaseModel):
     year: int
     month: int
     sections: list[IncomeStatementSection]
-    total_revenue: Decimal
-    total_expense: Decimal
+    total_revenue: MaliTutar
+    total_expense: MaliTutar
     profit_label: str
-    period_profit: Decimal
+    period_profit: MaliTutar

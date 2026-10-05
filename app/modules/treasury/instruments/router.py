@@ -47,6 +47,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -70,7 +71,7 @@ from app.modules.treasury.models import (
 )
 from app.modules.users.models import User
 
-router = APIRouter(tags=["treasury"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["treasury"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)

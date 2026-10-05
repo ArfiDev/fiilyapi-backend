@@ -45,6 +45,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_page, require_permission
 from app.core.ratelimit import client_ip
@@ -58,7 +59,10 @@ from app.modules.audit.service import record_audit
 from app.modules.users.models import User
 
 router = APIRouter(
-    prefix="/accounting-periods", tags=["accounting"], responses=COMMON_ERROR_RESPONSES
+    prefix="/accounting-periods",
+    tags=["accounting"],
+    responses=COMMON_ERROR_RESPONSES,
+    route_class=MaskeRotasi,
 )
 
 _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
