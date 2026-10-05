@@ -4,8 +4,8 @@ K8 (bağlayıcı kullanıcı kararı): P5'in `DELETE /subcontractor-contracts/{i
 istisnasının bir adım ÖTESİ. Orada `can_delete` TEK katmandı (`_FULL` kapı +
 taslak istisnası); burada İKİ KATMAN var:
 
-1. `status ∈ {approved, paid}` → 409 `PAYMENT_NOT_DELETABLE` — ADMİN DAHİL
-   kimse silemez. Admin önce `unapprove` ile durumu geri çekmelidir.
+1. (SIL-B2'de KALDIRILDI) `approved|paid` artık Sistem Yöneticisi için silinebilir: fişi,
+   faturası ve ödemeleri birlikte gider.
 2. `status ∈ {draft, pending_approval}` → `can_delete(actor, level, record)`:
    admin koşulsuz; taslak istisnası yalnız KENDİ taslağını açan aktöre.
    `pending_approval` (`is_draft=False`) admin dışında kimseye açık değildir.
@@ -36,56 +36,34 @@ async def _var_mi(session: AsyncSession, payment_id: uuid.UUID) -> bool:
     ).scalar_one_or_none() is not None
 
 
-# --- 1. Katman 1: approved/paid — ADMİN DAHİL kimse silemez (409) ---
+# --- 1. Onaylı/ödenmiş hakediş de silinir (SIL-B2: iş kuralı 409'u yalnız bu yolda kalktı) ---
 
 
-async def test_approved_admin_bile_silemez_409(
+@pytest.mark.parametrize("durum", [ProgressPaymentStatus.approved, ProgressPaymentStatus.paid])
+async def test_onayli_ve_odenmis_hakedis_admin_tarafindan_silinir(
     client: AsyncClient,
     admin_headers: dict[str, str],
     seeded_db: AsyncSession,
     hakedis_fabrikasi,
+    durum: ProgressPaymentStatus,
 ) -> None:
-    payment_id = await hakedis_fabrikasi(ProgressPaymentStatus.approved)
-    yanit = await client.delete(f"/progress-payments/{payment_id}", headers=admin_headers)
-    assert yanit.status_code == 409, yanit.text
-    assert yanit.json()["detail"] == guards.PAYMENT_NOT_DELETABLE
-    assert await _var_mi(seeded_db, payment_id)
-
-
-async def test_paid_admin_bile_silemez_409(
-    client: AsyncClient,
-    admin_headers: dict[str, str],
-    seeded_db: AsyncSession,
-    hakedis_fabrikasi,
-) -> None:
-    payment_id = await hakedis_fabrikasi(ProgressPaymentStatus.paid)
-    yanit = await client.delete(f"/progress-payments/{payment_id}", headers=admin_headers)
-    assert yanit.status_code == 409, yanit.text
-    assert yanit.json()["detail"] == guards.PAYMENT_NOT_DELETABLE
-    assert await _var_mi(seeded_db, payment_id)
-
-
-async def test_admin_unapprove_sonrasi_silebilir(
-    client: AsyncClient,
-    admin_headers: dict[str, str],
-    seeded_db: AsyncSession,
-    hakedis_fabrikasi,
-) -> None:
-    """Denetim izli iki adım: `unapprove` (approved → pending) sonra DELETE 204."""
-    payment_id = await hakedis_fabrikasi(ProgressPaymentStatus.approved)
-
-    engellendi = await client.delete(f"/progress-payments/{payment_id}", headers=admin_headers)
-    assert engellendi.status_code == 409, engellendi.text
-
-    geri_cek = await client.post(
-        f"/progress-payments/{payment_id}/unapprove", headers=admin_headers
-    )
-    assert geri_cek.status_code == 200, geri_cek.text
-    assert geri_cek.json()["status"] == "pending_approval"
-
-    silme = await client.delete(f"/progress-payments/{payment_id}", headers=admin_headers)
-    assert silme.status_code == 204, silme.text
+    payment_id = await hakedis_fabrikasi(durum)
+    yanit = await sil_aile(client, admin_headers, "progress_payment", payment_id)
+    assert yanit.status_code == 204, yanit.text
     assert not await _var_mi(seeded_db, payment_id)
+
+
+async def test_silmek_icin_onizleme_zorunlu_428(
+    client: AsyncClient,
+    admin_headers: dict[str, str],
+    seeded_db: AsyncSession,
+    hakedis_fabrikasi,
+) -> None:
+    payment_id = await hakedis_fabrikasi(ProgressPaymentStatus.approved)
+    yanit = await client.delete(f"/progress-payments/{payment_id}", headers=admin_headers)
+    assert yanit.status_code == 428, yanit.text
+    assert yanit.json()["code"] == "preview_required"
+    assert await _var_mi(seeded_db, payment_id)
 
 
 # --- 2. Katman 2: draft/pending_approval — can_delete çapraz tablosu ---
@@ -142,9 +120,7 @@ async def test_pending_admin_silebilir_204(
     seeded_db: AsyncSession,
     kisitli_projede_onay_bekleyen: uuid.UUID,
 ) -> None:
-    yanit = await client.delete(
-        f"/progress-payments/{kisitli_projede_onay_bekleyen}", headers=admin_headers
-    )
+    yanit = await sil_aile(client, admin_headers, "progress_payment", kisitli_projede_onay_bekleyen)
     assert yanit.status_code == 204, yanit.text
     assert not await _var_mi(seeded_db, kisitli_projede_onay_bekleyen)
 
@@ -171,7 +147,7 @@ async def test_gorunmeyen_projedeki_hakedis_403_varlik_sizmaz(
 async def test_var_olmayan_kimlik_404_ayni_govde(
     client: AsyncClient, admin_headers: dict[str, str]
 ) -> None:
-    yanit = await client.delete(f"/progress-payments/{uuid.uuid4()}", headers=admin_headers)
+    yanit = await sil_aile(client, admin_headers, "progress_payment", uuid.uuid4())
     assert yanit.status_code == 404, yanit.text
     assert yanit.json()["detail"] == guards.PAYMENT_MISSING
 
@@ -205,7 +181,7 @@ async def test_silme_satirlari_birlikte_siler_baska_kaydi_etkilemez(
     )
     assert onceki_satir_sayisi > 0
 
-    yanit = await client.delete(f"/progress-payments/{silinecek}", headers=admin_headers)
+    yanit = await sil_aile(client, admin_headers, "progress_payment", silinecek)
     assert yanit.status_code == 204, yanit.text
 
     kalan_satirlar = (
@@ -232,7 +208,7 @@ async def test_silme_sozlesmeyi_etkilemez(
 
     project, _ = hakedis_sozlesmesi
     payment_id = await hakedis_fabrikasi(ProgressPaymentStatus.draft)
-    yanit = await client.delete(f"/progress-payments/{payment_id}", headers=admin_headers)
+    yanit = await sil_aile(client, admin_headers, "progress_payment", payment_id)
     assert yanit.status_code == 204, yanit.text
 
     contract = (
@@ -253,7 +229,7 @@ async def test_silme_santiyeyi_etkilemez(
     from app.modules.sites.models import Site
 
     payment_id = await hakedis_fabrikasi(ProgressPaymentStatus.draft)
-    yanit = await client.delete(f"/progress-payments/{payment_id}", headers=admin_headers)
+    yanit = await sil_aile(client, admin_headers, "progress_payment", payment_id)
     assert yanit.status_code == 204, yanit.text
 
     site = await seeded_db.get(Site, hakedis_santiyesi.id)

@@ -535,24 +535,6 @@ async def update_invoice(
 # --- Uç 6: DELETE ---
 
 
-async def delete_invoice(session: AsyncSession, invoice: Invoice) -> str:
-    """YALNIZ `draft` (aksi **409**). YETKİ kapısı (`admin`) router'dadır.
-
-    Denetim metni silmeden ÖNCE kurulur — sonra kurulsaydı numara güvenilir
-    okunamaz ve silinenin NE OLDUĞU kaybolurdu (`purchase_request_deleted`
-    dersi).
-
-    Kalemler açıkça silinir (DB'de CASCADE de vardır): kilit sırası uçtan uca
-    fatura → kalemler kalsın.
-    """
-    transitions.assert_deletable(invoice.status)
-    detail = messages.invoice_deleted(invoice.invoice_no)
-    await repository.delete_lines(session, invoice.id)
-    await session.delete(invoice)
-    await session.flush()
-    return detail
-
-
 # --- Uç 7: PUT lines ---
 
 

@@ -91,7 +91,6 @@ __all__ = [
     "assert_entry_date_not_future",
     "build_detail",
     "create_entry",
-    "delete_entry",
     "entry_for_write",
     "entry_or_404",
     "gate_lines",
@@ -452,21 +451,3 @@ async def replace_lines(
 
 
 # --- Uç 11: DELETE ---
-
-
-async def delete_entry(session: AsyncSession, entry: JournalEntry) -> str:
-    """YALNIZ `draft` (aksi **409**). YETKİ kapısı (**`admin`**) router'dadır.
-
-    Denetim metni silmeden ÖNCE kurulur — sonra kurulsaydı tarih ve açıklama
-    güvenilir okunamaz ve silinenin NE OLDUĞU kaybolurdu (`invoice_deleted`
-    dersi).
-
-    Bacaklar açıkça silinir (DB'de CASCADE de vardır): kilit sırası uçtan uca
-    fiş → satırlar kalsın.
-    """
-    transitions.assert_deletable(entry.status)
-    detail = messages.journal_entry_deleted(entry.entry_date, entry.description)
-    await repository.delete_lines(session, entry.id)
-    await session.delete(entry)
-    await session.flush()
-    return detail

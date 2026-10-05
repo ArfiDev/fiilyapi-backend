@@ -47,11 +47,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
+from app.modules.silme import service as silme_service
+from app.modules.silme.params import DELETE_WITH_PREVIEW_RESPONSES, PreviewTokenQuery
 from app.modules.treasury.instruments import derive, service
 from app.modules.treasury.instruments.schemas import (
     FinancialInstrumentCreate,
@@ -300,11 +302,7 @@ async def change_financial_instrument_status_endpoint(
 @router.delete(
     "/financial-instruments/{instrument_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={
-        **DELETE_403_YANITI,
-        **_NOT_FOUND,
-        409: {"description": "Yalnızca portföydeki ve ödemesiz çek/senet silinebilir"},
-    },
+    responses={**DELETE_WITH_PREVIEW_RESPONSES, **_NOT_FOUND},
     dependencies=[require_system_admin()],
 )
 async def delete_financial_instrument_endpoint(
@@ -312,11 +310,16 @@ async def delete_financial_instrument_endpoint(
     instrument_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Çek/senet kaydını siler. YALNIZ Sistem Yöneticisi.
+    """Çek/senedi bağlı kayıtlarıyla birlikte siler. Yalnız Sistem Yöneticisi.
 
-    Yalnız portföydeki kayıt silinir; terminal durumdaki ya da bağlı ödemesi olan evrak **409**
-    (iş kuralı). Tahsil edilmiş bir çekin kaydı hiçbir koşulda silinemez.
+    ÖNİZLEME ZORUNLU.
+    Durumdan bağımsız (tahsil edilmiş çek de silinir). Çekin muhasebe fişi ve stornosu ile çeke
+    bağlı ödemeler (onların fişleri) birlikte gider (K2; kapalı dönem durdurmaz). Ödemelerin
+    faturalarının durumu kalan ödemelerden yeniden türetilir. Önce
+    `GET /admin/silme/financial_instrument/{id}/onizleme`, sonra bu uç `preview_token` ile:
+    eksikse 428 `preview_required`; ağaç değiştiyse 409 `preview_stale`. Yanıt `204`.
     """
-    detail = await service.delete_instrument(session, user, instrument_id)
+    detail = await silme_service.sil(session, "financial_instrument", instrument_id, preview_token)
     await _audit(request, session, user, AuditAction.delete, detail)

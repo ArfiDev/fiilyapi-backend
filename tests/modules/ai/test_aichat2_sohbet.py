@@ -162,6 +162,48 @@ async def test_KIKIZ1_sohbet_silme_yalniz_sistem_yoneticisi_baskasinin_sohbetini
     assert (await client.delete(yol, headers=_bearer(yonetici))).status_code == 404
 
 
+async def test_SIL_B2_sohbet_silinince_ai_tool_calls_izi_KALIR_atfedilebilirlik(
+    client, seeded_db, user_factory
+) -> None:
+    """SIL-B2 madde 10 (BİLİNÇLİ): `ai_tool_calls` AI-0b'nin atfedilebilirlik izidir (kim hangi
+    aracı hangi yolla çağırdı). `conversation_id` FK DEĞİLDİR; sohbet silinince iz SİLİNMEZ ve
+    sohbet kimliğini korur. İzi silmek "kim ne okudu" kanıtını yok ederdi."""
+    from app.modules.ai.models import (  # noqa: PLC0415
+        AiToolCall,
+        AiToolCallOrigin,
+        AiToolCallPhase,
+        AiToolDecision,
+    )
+
+    sahip = await user_factory("a9@fiil.test", "Parola123!", "patron")
+    yonetici = await user_factory("c9@fiil.test", "Parola123!", "system_admin")
+    kimlik = await _sohbet_ac(seeded_db, sahip, "İz bırakan soru")
+    iz = AiToolCall(
+        call_id=uuid.uuid4(),
+        phase=AiToolCallPhase.started,
+        user_id=sahip.id,
+        conversation_id=kimlik,
+        tool_name="get_projects",
+        resolved_path="/projects",
+        module_keys=["projects"],
+        arguments={},
+        decision=AiToolDecision.allowed,
+        origin=AiToolCallOrigin.ai,
+    )
+    seeded_db.add(iz)
+    await seeded_db.flush()
+    iz_id = iz.id
+
+    assert (
+        await client.delete(f"/ai/conversations/{kimlik}", headers=_bearer(yonetici))
+    ).status_code == 204
+
+    seeded_db.expunge_all()
+    assert await seeded_db.get(AiConversation, kimlik) is None
+    kalan = await seeded_db.get(AiToolCall, iz_id)
+    assert kalan is not None and kalan.conversation_id == kimlik and kalan.user_id == sahip.id
+
+
 async def test_POZITIF_KONTROL_kendi_sohbetini_OKUYABILIR(client, seeded_db, user_factory) -> None:
     """🔴 §5-19: bekçi hiçbir şeyi ölçmüyor olmasın — kapı **açılabiliyor** mu.
 

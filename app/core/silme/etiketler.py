@@ -5,37 +5,38 @@ sınıfı taşır. Etiketi olmayan tablo önizlemede teknik adıyla görünür v
 `tests/core/test_silme_etiket_bekcisi.py` bunu KIRMIZI yapar: yeni bir aile motora
 eklenirken kapsadığı her tablonun adı buraya yazılmak zorundadır.
 
-## `mali` sınıfı (KARARLAR §1.7 + CEO eki: SIL-B2 gelene kadar mali kayıt SİLİNMEZ)
+## `mali` sınıfı (KARARLAR §1.7: mali kayıt silmeyi ENGELLEMEZ; yalnız önizlemede vurgulanır)
 
 `mali=True`  — satırın kendisi bir MALİ KAYITTIR: muhasebe fişi ve satırı, fatura ve satırı,
-               ödeme (banka hareketi), çek/senet, bordro dönemi ve satırı.
+               ödeme (banka hareketi), banka hesabı, çek/senet, bordro dönemi ve satırı.
 `mali=<koşul>` — satır yalnız PARASAL SONUCU olduğunda mali sayılır. Koşul, tablonun hangi
                satırlarının mali olduğunu seçen bir SQL ifadesidir:
-  * hakediş (işveren/taşeron) ve kira hakedişi: yalnız `approved` / `paid`. Fiş onayda
+  * hakediş (işveren/taşeron) ve kira hakedişi (+ satırları): yalnız `approved` / `paid`. Fiş onayda
     doğar; taslak ve onay bekleyen hakedişin fişi, faturası, ödemesi yoktur — silmek hiçbir
     mali kaydı yetim bırakmaz. Hakediş SATIRLARI üstbilgisinin durumunu izler.
   * ünite satışı: DURUMDAN BAĞIMSIZ — durumu `reservation`/`cancelled` DIŞINDA (sözleşmeli satış,
     tapu devri) YA DA `reservation_deposit > 0` (rezervasyona kapora işlenebilir; iptal edilmiş
     satış da kaporayı taşır) YA DA tahsil edilmiş (`paid_amount > 0`) taksiti var;
     taksit: `paid_amount > 0` (KISMİ tahsilat da mali: `paid_at` yalnız tam ödemede dolar).
-  * puantaj girdisi: tarihi, KAPANMIŞ bir bordro döneminin (yıl+ay) içine düşüyorsa. "Kapanmış" =
-    `payroll_periods.status` ∈ {`pending_approval`, `approved`, `paid`} (`KAPALI_BORDRO_DURUMLARI`).
-    Gerekçe: `draft` dönem hâlâ yeniden hesaplanabilir (puantaj değişince bordro türer); onaya
-    gönderilmiş (`pending_approval`) dönemin tutarları DONMUŞTUR ve onaylanma/ödenme ayrıca fiş
-    doğurur. Şüphede FAIL-CLOSED: onay bekleyen de kapalı sayılır. Dönemsiz ya da `draft` dönemdeki
-    puantaj mali DEĞİLDİR.
+  * puantaj girdisi: mali SAYILMAZ (kullanıcı kararı SIL-B2). Kapanmış (`KAPALI_BORDRO_DURUMLARI`)
+    bordro dönemine düşen puantaj silinirse YALNIZ puantaj satırı gider; bordro dönemi, satırları
+    ve fişi yerinde kalır. Önizleme bunu ayrı uyarı alanıyla bildirir (`closed_payroll_*`).
 Diğer her tablo mali DEĞİLDİR (sözleşme kartı, günlük, puantaj, plan, belge…).
 """
 
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from sqlalchemy import ColumnElement, String, Table, exists, extract, func, or_, select
+from sqlalchemy import ColumnElement, String, Table, exists, func, or_, select
 
 #: Bir tablodan MALİ satırları seçen koşul üreticisi: `Table -> ColumnElement[bool]`.
 MaliKosulu = Callable[[Table], ColumnElement[bool]]
 
-_ONAYLI_DURUMLAR = ("approved", "paid")
+#: `Table -> örnek metnini oluşturan ifadeler` (boş/NULL parçalar metne girmez).
+OrnekIfadesi = Callable[[Table], tuple[ColumnElement, ...]]
+
+#: Muhasebeleşmiş hakediş durumları (hakediş, kira hakedişi ve satırları).
+ONAYLI_DURUMLAR = ("approved", "paid")
 #: Bordro döneminin KAPALI sayıldığı durumlar (modül docstring'indeki gerekçe): `draft` HARİÇ hepsi.
 KAPALI_BORDRO_DURUMLARI = ("pending_approval", "approved", "paid")
 
@@ -47,10 +48,13 @@ class TabloBilgisi:
     ornek: tuple[str, ...] = ()
     #: `False` | `True` | koşul (bkz. modül docstring'i).
     mali: bool | MaliKosulu = False
+    #: Doluysa `ornek` kolonları yerine bu ifadeler örneklenir (başka tablodan okunan ad
+    #: gerekiyorsa; ör. ödemenin tarihi tek başına anlamsızdır, fatura no ve proje adı gerekir).
+    ornek_ifadesi: OrnekIfadesi | None = None
 
 
 def _durum_onayli(tablo: Table) -> ColumnElement[bool]:
-    return tablo.c.status.cast(String).in_(_ONAYLI_DURUMLAR)
+    return tablo.c.status.cast(String).in_(ONAYLI_DURUMLAR)
 
 
 def _ust_onayli(ust_tablo: str, fk_kolonu: str) -> MaliKosulu:
@@ -60,7 +64,7 @@ def _ust_onayli(ust_tablo: str, fk_kolonu: str) -> MaliKosulu:
         ust = tablo.metadata.tables[ust_tablo]
         return exists(
             select(1).where(
-                ust.c.id == tablo.c[fk_kolonu], ust.c.status.cast(String).in_(_ONAYLI_DURUMLAR)
+                ust.c.id == tablo.c[fk_kolonu], ust.c.status.cast(String).in_(ONAYLI_DURUMLAR)
             )
         )
 
@@ -84,15 +88,15 @@ def _taksit_tahsil_edilmis(tablo: Table) -> ColumnElement[bool]:
     return tablo.c.paid_amount > 0
 
 
-def _puantaj_kapali_donemde(tablo: Table) -> ColumnElement[bool]:
-    donem = tablo.metadata.tables["payroll_periods"]
-    return exists(
-        select(1).where(
-            donem.c.year == extract("year", tablo.c.work_date),
-            donem.c.month == extract("month", tablo.c.work_date),
-            donem.c.status.cast(String).in_(KAPALI_BORDRO_DURUMLARI),
-        )
+def _odeme_ornegi(tablo: Table) -> tuple[ColumnElement, ...]:
+    """Ödeme örneği: `F-0007 · Kule Projesi · 2026-03-20` (faturası ve projesi ödemeden okunur)."""
+    fatura = tablo.metadata.tables["invoices"]
+    proje = tablo.metadata.tables["projects"]
+    fatura_no = select(fatura.c.invoice_no).where(fatura.c.id == tablo.c.invoice_id)
+    proje_adi = select(proje.c.name).where(
+        proje.c.id == fatura.c.project_id, fatura.c.id == tablo.c.invoice_id
     )
+    return (fatura_no.scalar_subquery(), proje_adi.scalar_subquery(), tablo.c.paid_on)
 
 
 TABLOLAR: dict[str, TabloBilgisi] = {
@@ -121,9 +125,7 @@ TABLOLAR: dict[str, TabloBilgisi] = {
     "site_diary_entries": TabloBilgisi("Günlük kaydı", ("entry_date",)),
     "site_diary_lines": TabloBilgisi("Günlük miktar satırı", ("code",)),
     "site_diary_worker_counts": TabloBilgisi("Günlük işçi sayısı", ("trade",)),
-    "timesheet_entries": TabloBilgisi(
-        "Puantaj kaydı", ("work_date",), mali=_puantaj_kapali_donemde
-    ),
+    "timesheet_entries": TabloBilgisi("Puantaj kaydı", ("work_date",)),
     "site_plan_rows": TabloBilgisi("Şantiye planı satırı", ("label",)),
     "site_plan_cells": TabloBilgisi("Şantiye planı hücresi"),
     "site_plan_goals": TabloBilgisi("Şantiye planı hedefi", ("title",)),
@@ -148,7 +150,9 @@ TABLOLAR: dict[str, TabloBilgisi] = {
     # --- Fatura, ödeme, muhasebe (mali: her zaman) ---
     "invoices": TabloBilgisi("Fatura", ("invoice_no",), mali=True),
     "invoice_lines": TabloBilgisi("Fatura satırı", ("description",), mali=True),
-    "payments": TabloBilgisi("Ödeme / tahsilat", ("paid_on",), mali=True),
+    "payments": TabloBilgisi(
+        "Ödeme / tahsilat", ("paid_on",), mali=True, ornek_ifadesi=_odeme_ornegi
+    ),
     "journal_entries": TabloBilgisi("Muhasebe fişi", ("entry_no",), mali=True),
     "journal_lines": TabloBilgisi("Muhasebe fiş satırı", mali=True),
     # --- FK olmayan bağlar (kancalar) ---
@@ -178,8 +182,10 @@ TABLOLAR: dict[str, TabloBilgisi] = {
     "equipment": TabloBilgisi("Makine", ("name",)),
     "equipment_fuel_logs": TabloBilgisi("Makine yakıt kaydı", ("fuel_date",)),
     "equipment_work_logs": TabloBilgisi("Makine çalışma kaydı", ("work_date",)),
-    "equipment_rental_invoices": TabloBilgisi("Kira hakedişi", ("invoice_no",)),
-    "equipment_rental_invoice_lines": TabloBilgisi("Kira hakedişi satırı"),
+    "equipment_rental_invoices": TabloBilgisi("Kira hakedişi", ("invoice_no",), mali=_durum_onayli),
+    "equipment_rental_invoice_lines": TabloBilgisi(
+        "Kira hakedişi satırı", mali=_ust_onayli("equipment_rental_invoices", "invoice_id")
+    ),
     "leave_requests": TabloBilgisi("İzin talebi", ("start_date",)),
     "personnel": TabloBilgisi("Personel", ("full_name",)),
     "personnel_documents": TabloBilgisi("Personel belgesi"),
@@ -188,13 +194,25 @@ TABLOLAR: dict[str, TabloBilgisi] = {
     "warehouses": TabloBilgisi("Depo", ("name",)),
 }
 
-#: Mali sınıfı tanımlı ama bu dilimin ağacına girmeyen mali tablolar (sonraki ailelerin
-#: kökleri): çek/senet, bordro, kira hakedişi, işveren hakediş başlığı. Tam liste raporda.
+#: Mali aile kökleri ve ağaçlara yalnız bağlı kayıt olarak girenler (SIL-B2): işveren hakediş
+#: başlığı, çek/senet, banka hesabı, bordro dönemi/satırı.
 MALI_TABLOLAR_DIGER: dict[str, TabloBilgisi] = {
     "progress_payments": TabloBilgisi("İşveren hakedişi", ("sequence_no",), mali=_durum_onayli),
     "financial_instruments": TabloBilgisi("Çek / senet", mali=True),
+    "bank_accounts": TabloBilgisi("Banka hesabı", ("display_name",), mali=True),
     "payroll_periods": TabloBilgisi("Bordro dönemi", mali=True),
     "payroll_lines": TabloBilgisi("Bordro satırı", mali=True),
+}
+
+#: Kendi `project_id` kolonu OLMAYAN tabloların projesine giden yol:
+#: `tablo -> (fk kolonu, üst tablo)` (üst tablonun `project_id`si). Burada olmayan ve `project_id`
+#: taşımayan tablo `site_id` üzerinden `sites.project_id`ye bakar; o da yoksa projesiz sayılır
+#: (`core/silme/kapsam.py`).
+PROJE_YOLU: dict[str, tuple[str, str]] = {
+    "payments": ("invoice_id", "invoices"),
+    "invoice_lines": ("invoice_id", "invoices"),
+    "progress_payment_lines": ("payment_id", "progress_payments"),
+    "subcontractor_progress_payment_lines": ("payment_id", "subcontractor_progress_payments"),
 }
 
 TUM_TABLOLAR: dict[str, TabloBilgisi] = {**TABLOLAR, **MALI_TABLOLAR_DIGER}

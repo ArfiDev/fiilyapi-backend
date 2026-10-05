@@ -28,6 +28,7 @@ import uuid
 
 from app.modules.invoicing.guards import INVOICE_MISSING, INVOICE_NO_AMBIGUOUS
 from app.modules.invoicing.models import InvoiceDirection
+from tests._silme_yardimci import sil_aile
 
 _YOL = "/invoices"
 
@@ -291,10 +292,7 @@ async def test_DELETE_numara_kabul_ETMEZ_422(
 
     # POZİTİF KONTROL: UUID ile AYNI uç çalışır (422 "silme bozuk" demek değil).
     fatura = await fatura_fabrikasi(project=gorunen_proje, invoice_no="YAZMA20260003")
-    assert (await client.delete(f"{_YOL}/{fatura.id}", headers=admin_headers)).status_code in (
-        200,
-        204,
-    )
+    assert (await sil_aile(client, admin_headers, "invoice", fatura.id)).status_code in (200, 204)
 
 
 async def test_bozuk_deger_artik_422_DEGIL_404(client, muhasebe_headers) -> None:

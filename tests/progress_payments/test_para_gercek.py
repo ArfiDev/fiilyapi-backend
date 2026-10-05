@@ -22,13 +22,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.invoicing.models import InvoiceDirection
 from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
 from app.modules.treasury.models import FinancialInstrumentStatus, Payment, PaymentMethodKind
-from app.modules.treasury.payments_service import PAYMENT_SOURCE_PAID
 from app.modules.treasury.realized import (
     BINDING_INVOICE_INVALID,
     PAYMENT_NOT_REALIZED,
     SOURCE_NOT_INVOICED,
 )
 from tests._para_gercek import fatura_kes, odeme_yaz, parayi_yatir
+from tests._silme_yardimci import sil_aile
 
 pytestmark = pytest.mark.asyncio
 
@@ -292,39 +292,34 @@ async def test_G8_POZITIF_KONTROL_GIDEN_fatura_GECER(
 # --------------------------------------------------------------------------- #
 
 
-async def test_ODENMIS_hakedisin_ODEMESI_SILINEMEZ(
+async def test_ODENMIS_hakedisin_odemesi_silinince_hakedis_approved_a_doner(
     client: AsyncClient,
     admin_headers: dict[str, str],
     seeded_db: AsyncSession,
     hakedis_fabrikasi,
 ) -> None:
-    """🔴 Kapı İLERİ yöndedir ama SIZDIRIYORDU: `paid` damgası terminaldir,
-    damganın dayandığı ödeme ise `DELETE /payments/{id}` ile serbestçe
-    silinebiliyordu. Sonuç kalıcıydı — hakediş `paid`ten geri DÖNMEZ
-    (`_TRANSITION_SHAPE`te kaynak değil) ve `paid` hakediş SİLİNEMEZ (409).
-
-    Ödeme evraksız bir `transfer`dır: `_assert_instrument_deletable` erken
-    döndüğü için silme yolunda kontrol eden BAŞKA hiçbir kapı yoktu.
-    """
+    """SIL-B2: `paid` damgası ödemeye dayanır. Ödeme (Sistem Yöneticisi, "her koşulda") silinirse
+    damganın dayanağı gider; boş bir "Ödendi" rozeti KALMAZ: hakediş `approved`a döner."""
     payment_id = await hakedis_fabrikasi(ProgressPaymentStatus.approved)
     fatura = await fatura_kes(seeded_db, payment_id, taseron=False)
     odeme = await odeme_yaz(seeded_db, fatura, tutar=fatura.total)
+    odeme_id = odeme.id
 
     gecis = await client.post(f"/progress-payments/{payment_id}/mark-paid", headers=admin_headers)
     assert gecis.status_code == 200, gecis.text
 
-    silme = await client.delete(f"/payments/{odeme.id}", headers=admin_headers)
+    silme = await sil_aile(client, admin_headers, "payment", odeme_id)
 
-    assert silme.status_code == 409, silme.text
-    assert silme.json()["detail"] == PAYMENT_SOURCE_PAID
-    # Para YERİNDE: satır DB'den okunur, kimlik haritasından değil.
+    assert silme.status_code == 204, silme.text
     kalan = await seeded_db.execute(
-        select(func.count()).select_from(Payment).where(Payment.id == odeme.id)
+        select(func.count()).select_from(Payment).where(Payment.id == odeme_id)
     )
-    assert kalan.scalar_one() == 1
+    assert kalan.scalar_one() == 0
+    seeded_db.expire_all()
     hakedis = await seeded_db.get(ProgressPayment, payment_id)
     assert hakedis is not None
-    assert hakedis.status is ProgressPaymentStatus.paid
+    assert hakedis.status is ProgressPaymentStatus.approved
+    assert hakedis.paid_at is None
 
 
 async def test_POZITIF_KONTROL_ODENMEMIS_hakedisin_odemesi_SILINEBILIR(
@@ -342,10 +337,11 @@ async def test_POZITIF_KONTROL_ODENMEMIS_hakedisin_odemesi_SILINEBILIR(
     fatura = await fatura_kes(seeded_db, payment_id, taseron=False)
     odeme = await odeme_yaz(seeded_db, fatura, tutar=fatura.total)
 
-    silme = await client.delete(f"/payments/{odeme.id}", headers=admin_headers)
+    odeme_id = odeme.id
+    silme = await sil_aile(client, admin_headers, "payment", odeme_id)
 
     assert silme.status_code == 204, silme.text
     kalan = await seeded_db.execute(
-        select(func.count()).select_from(Payment).where(Payment.id == odeme.id)
+        select(func.count()).select_from(Payment).where(Payment.id == odeme_id)
     )
     assert kalan.scalar_one() == 0

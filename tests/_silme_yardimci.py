@@ -7,7 +7,18 @@ Silme motoru önizlemesiz çalışmaz (428). Eski testler `client.delete(...)` �
 from httpx import AsyncClient, Response
 
 #: Aile uçları (`DELETE /sites/{id}` …) — genel uçla AYNI motoru ve AYNI belirteci kullanır.
-AILE_YOLLARI = {"site": "/sites", "section": "/sections", "block": "/blocks", "unit": "/units"}
+AILE_YOLLARI = {
+    "site": "/sites",
+    "section": "/sections",
+    "block": "/blocks",
+    "unit": "/units",
+    "progress_payment": "/progress-payments",
+    "subcontractor_progress_payment": "/subcontractor-progress-payments",
+    "invoice": "/invoices",
+    "payment": "/payments",
+    "journal_entry": "/journal-entries",
+    "financial_instrument": "/financial-instruments",
+}
 
 
 async def sisyon_girisi(

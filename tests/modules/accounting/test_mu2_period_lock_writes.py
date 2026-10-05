@@ -7,7 +7,7 @@ kapatılmayan TEK yol bütün yasağı anlamsız kılar:
 |---|---|---|
 | 1 | `POST /journal-entries` | `service.create_entry` |
 | 2 | `PATCH /journal-entries/{id}` | `service.update_entry` |
-| 3 | `DELETE /journal-entries/{id}` | `service.delete_entry` |
+| 3 | `DELETE /journal-entries/{id}` | silme motoru (`silme/service.sil`): dönem kilidi ATLANIR |
 | 4 | `PUT /journal-entries/{id}/lines` | `service.replace_lines` |
 | 5 | `POST /journal-entries/{id}/post` | `state_service.perform_transition` |
 | 6 | `POST /journal-entries/{id}/reverse` | `state_service.perform_transition` |
@@ -43,6 +43,7 @@ from app.modules.accounting.models import (
     ChartAccountType,
     JournalEntryStatus,
 )
+from tests._silme_yardimci import sil_aile
 
 from ._journal import YOL, govde, iki_yaprak, satir
 
@@ -154,20 +155,21 @@ async def test_2c_GUNCELLEME_kapali_doneme_SOKAMAZ(
 # --------------------------------------------------------------------------- #
 
 
-async def test_3_SILME_kapali_doneme_409(
+async def test_3_SILME_kapali_doneme_de_calisir_SIL_B2(
     client: AsyncClient,
     admin_headers: dict[str, str],
     hesap_fabrikasi,
     fis_fabrikasi,
     donem_fabrikasi,
 ) -> None:
-    """`admin` bile silemez: engel YETKİ değil DÖNEMDİR."""
+    """SIL-B2 (K2): kapalı dönem silmeyi DURDURMAZ. Dönem kilidi yalnız silme yolunda atlanır;
+    fiş gider, önizleme kapalı dönemi bildirir, denetim satırı "dönem kilidi atlandı" yazar."""
     fis = await _fis(
         fis_fabrikasi, hesap_fabrikasi, status=JournalEntryStatus.draft, entry_date=KAPALI_TARIH
     )
     await donem_fabrikasi(KAPALI_YIL, KAPALI_AY)
-    resp = await client.delete(f"{YOL}/{fis.id}", headers=admin_headers)
-    assert resp.status_code == 409, resp.text
+    resp = await sil_aile(client, admin_headers, "journal_entry", fis.id)
+    assert resp.status_code == 204, resp.text
 
 
 # --------------------------------------------------------------------------- #
@@ -324,5 +326,5 @@ async def test_ACIK_donemde_alti_islem_de_CALISIR(
         YOL, json=govde(kasa2, saticilar2, entry_date=bugun.isoformat()), headers=admin_headers
     )
     assert resp.status_code == 201, resp.text
-    resp = await client.delete(f"{YOL}/{resp.json()['id']}", headers=admin_headers)
+    resp = await sil_aile(client, admin_headers, "journal_entry", resp.json()["id"])
     assert resp.status_code == 204, resp.text

@@ -30,7 +30,6 @@ from app.modules.subcontractor_progress_payments.models import (
     SubcontractorProgressPayment,
 )
 from app.modules.treasury.models import FinancialInstrumentStatus, Payment, PaymentMethodKind
-from app.modules.treasury.payments_service import PAYMENT_SOURCE_PAID
 from app.modules.treasury.realized import (
     BINDING_INVOICE_INVALID,
     PAYMENT_NOT_REALIZED,
@@ -38,6 +37,7 @@ from app.modules.treasury.realized import (
 )
 from app.modules.users.models import User
 from tests._para_gercek import fatura_kes, hakedis_bruttu, odeme_yaz, parayi_yatir
+from tests._silme_yardimci import sil_aile
 from tests.subcontractor_progress_payments.test_transitions import _satirli_hakedis
 
 pytestmark = pytest.mark.asyncio
@@ -838,7 +838,7 @@ def test_G8_yon_tablosu_UC_kaynak_kolonunu_da_KAPSAR() -> None:
 # --------------------------------------------------------------------------- #
 
 
-async def test_ODENMIS_hakedisin_ODEMESI_SILINEMEZ(
+async def test_ODENMIS_hakedisin_odemesi_silinince_hakedis_approved_a_doner(
     client: AsyncClient,
     seeded_db: AsyncSession,
     admin_headers: dict[str, str],
@@ -846,31 +846,28 @@ async def test_ODENMIS_hakedisin_ODEMESI_SILINEMEZ(
     taseron_sozlesmesi,
     hakedis_fabrikasi,
 ) -> None:
-    """🔴 Kapı İLERİ yöndedir ama SIZDIRIYORDU: `DELETE /payments/{id}` damganın
-    dayandığı parayı geri çekiyor, hakediş ise `paid` KALIYORDU (terminal, geri
-    dönüşü yok ve `paid` hakediş silinemez).
-
-    İkiz ZORUNLUDUR: kapı tek ailede kapatılsaydı `_TRANSITION_SHAPE`i paylaşan
-    iki makine aynı damga için FARKLI davranırdı ve fark hiçbir yerde görünmezdi.
-    """
+    """SIL-B2 (işveren ikizi): `paid` damgası ödemeye dayanır; ödeme silinince damga `approved`a
+    geri alınır, boş bir "Ödendi" rozeti kalmaz. İkiz ZORUNLUDUR: iki ailede de aynı davranış."""
     contract, _, _ = taseron_sozlesmesi
     hakedis = await _onayli_hakedis(seeded_db, hakedis_fabrikasi, contract, admin_kullanicisi)
     fatura = await fatura_kes(seeded_db, hakedis.id, taseron=True)
     odeme = await odeme_yaz(seeded_db, fatura, tutar=fatura.total)
+    odeme_id, hakedis_id = odeme.id, hakedis.id
 
-    gecis = await client.post(f"{_UC}/{hakedis.id}/mark-paid", headers=admin_headers)
+    gecis = await client.post(f"{_UC}/{hakedis_id}/mark-paid", headers=admin_headers)
     assert gecis.status_code == 200, gecis.text
 
-    silme = await client.delete(f"/payments/{odeme.id}", headers=admin_headers)
+    silme = await sil_aile(client, admin_headers, "payment", odeme_id)
 
-    assert silme.status_code == 409, silme.text
-    assert silme.json()["detail"] == PAYMENT_SOURCE_PAID
+    assert silme.status_code == 204, silme.text
     kalan = await seeded_db.execute(
-        select(func.count()).select_from(Payment).where(Payment.id == odeme.id)
+        select(func.count()).select_from(Payment).where(Payment.id == odeme_id)
     )
-    assert kalan.scalar_one() == 1
-    await seeded_db.refresh(hakedis)
-    assert hakedis.status is SubcontractorPaymentStatus.paid
+    assert kalan.scalar_one() == 0
+    seeded_db.expire_all()
+    kalan_hakedis = await seeded_db.get(SubcontractorProgressPayment, hakedis_id)
+    assert kalan_hakedis is not None
+    assert kalan_hakedis.status is SubcontractorPaymentStatus.approved
 
 
 async def test_POZITIF_KONTROL_ODENMEMIS_hakedisin_odemesi_SILINEBILIR(
@@ -889,10 +886,11 @@ async def test_POZITIF_KONTROL_ODENMEMIS_hakedisin_odemesi_SILINEBILIR(
     fatura = await fatura_kes(seeded_db, hakedis.id, taseron=True)
     odeme = await odeme_yaz(seeded_db, fatura, tutar=fatura.total)
 
-    silme = await client.delete(f"/payments/{odeme.id}", headers=admin_headers)
+    odeme_id = odeme.id
+    silme = await sil_aile(client, admin_headers, "payment", odeme_id)
 
     assert silme.status_code == 204, silme.text
     kalan = await seeded_db.execute(
-        select(func.count()).select_from(Payment).where(Payment.id == odeme.id)
+        select(func.count()).select_from(Payment).where(Payment.id == odeme_id)
     )
     assert kalan.scalar_one() == 0

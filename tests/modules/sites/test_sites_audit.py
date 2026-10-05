@@ -34,7 +34,7 @@ from app.modules.audit.messages import (
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.progress_payments.models import ProgressPaymentStatus
 from app.modules.sites.models import Section, Site
-from tests._silme_yardimci import sil_aile
+from tests._silme_yardimci import onizle, sil_aile
 from tests.modules.silme import _dunya as d
 
 _IP = "203.0.113.42"
@@ -260,7 +260,10 @@ async def test_delete_section_writes_section_deleted(
 
 
 async def test_failed_delete_writes_no_audit(client, db_session, user_factory, project_factory):
-    """S7 — reddedilen silme (mali bağlı → 409 `financial_pending`) günlüğe HİÇBİR ŞEY yazmaz."""
+    """S7 — reddedilen silme (bayat önizleme → 409 `preview_stale`) günlüğe HİÇBİR ŞEY yazmaz.
+
+    SIL-B2: mali bağlı kayıt artık silmeyi engellemez; reddi doğuran tek önkoşul önizlemedir.
+    """
     project = await project_factory("AU-9")
     site = await _site(db_session, project)
     olusturan = await user_factory(
@@ -270,11 +273,13 @@ async def test_failed_delete_writes_no_audit(client, db_session, user_factory, p
         db_session, project, site, olusturan, durum=ProgressPaymentStatus.approved
     )
     headers = await _admin(client, db_session, user_factory)
+    eski = (await onizle(client, headers, "site", site.id)).json()["preview_token"]
+    await d.section(db_session, site, "Sonradan eklenen")  # ağaç değişti
 
-    resp = await sil_aile(client, headers, "site", site.id)
+    resp = await client.delete(f"/sites/{site.id}", params={"preview_token": eski}, headers=headers)
 
     assert resp.status_code == 409
-    assert resp.json()["code"] == "financial_pending"
+    assert resp.json()["code"] == "preview_stale"
     assert await _rows(db_session, AuditAction.delete) == []
 
 

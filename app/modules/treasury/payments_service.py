@@ -273,19 +273,19 @@ def _collected_source_status() -> InvoiceStatus:
     )
 
 
-def _rederive_status(invoice: Invoice, paid_total: Decimal) -> None:
-    """🔴 K5 — durumu `Σ payments`ten TÜRETİR (yazma ve silme yolunda AYNI kod).
+def derived_status(invoice: Invoice, paid_total: Decimal) -> InvoiceStatus:
+    """🔴 K5 — faturanın `Σ payments`e göre OLMASI GEREKEN durumu (SAF: hiçbir şeyi değiştirmez).
 
-    İki yol için iki ayrı türetim yazılsaydı biri geri düşüşü unutur ve fatura
-    hiç tahsilatı olmadan `collected` kalırdı — saklanan bir `paid_amount`
-    olmadığı için hiçbir kolon farkı bunu ele vermezdi.
+    Yazma yolu, silme yolu ve silme ÖNİZLEMESİ AYNI kodu kullanır: iki yol için iki ayrı türetim
+    yazılsaydı biri geri düşüşü unutur ve fatura hiç tahsilatı olmadan `collected` kalırdı —
+    saklanan bir `paid_amount` olmadığı için hiçbir kolon farkı bunu ele vermezdi.
 
     GELEN faturaya hiç dokunulmaz: `collected` GİDEN makinenin terminalidir,
     gelen makinede (`pending → approved | disputed`) karşılığı YOKTUR ve
     ödemenin gelen tarafta bir durum üretmesi Hazine kapsamı DIŞIDIR (spec K5).
     """
     if invoice.direction is not InvoiceDirection.outgoing:
-        return
+        return invoice.status
 
     if paid_total >= invoice.total:
         # Damga yalnız matrisin TANIDIĞI geçişle konur: `(draft, mark-collected)`
@@ -295,14 +295,22 @@ def _rederive_status(invoice: Invoice, paid_total: Decimal) -> None:
             invoice.direction, invoice.status, InvoiceAction.mark_collected
         )
         if gecerli is None:
-            invoice.status = transitions.next_status(
+            return transitions.next_status(
                 invoice.direction, invoice.status, InvoiceAction.mark_collected
             )
     elif invoice.status is InvoiceStatus.collected:
         # Geri düşüş: damganın dayanağı kalmadı. Yalnız `collected`ten olur —
         # koşulsuz yazılsaydı bir TASLAK fatura, ödemesi silinerek "gönderilmiş"
         # sayılırdı.
-        invoice.status = _collected_source_status()
+        return _collected_source_status()
+    return invoice.status
+
+
+def _rederive_status(invoice: Invoice, paid_total: Decimal) -> None:
+    """Durumu `derived_status`a çeker (yazma ve silme yolunda AYNI kod)."""
+    yeni = derived_status(invoice, paid_total)
+    if yeni is not invoice.status:
+        invoice.status = yeni
 
 
 async def _locked_invoice(session: AsyncSession, actor: User, invoice_id: uuid.UUID) -> Invoice:

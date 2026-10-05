@@ -25,6 +25,7 @@ from app.modules.treasury.models import (
 from app.modules.treasury.models import (
     FinancialInstrumentStatus as Durum,
 )
+from tests._silme_yardimci import sil_aile
 
 KOK = "/financial-instruments"
 
@@ -121,8 +122,11 @@ async def test_DELETE_yalniz_admin_FULL_SILEMEZ(
     `DELETE /bank-accounts/{id}` de aynen boyledir.
     """
     cek = await cek_fabrikasi()
-    assert (await client.delete(f"{KOK}/{cek.id}", headers=muhasebe_headers)).status_code == 403
-    assert (await client.delete(f"{KOK}/{cek.id}", headers=admin_headers)).status_code == 204
+    cek_id = cek.id
+    assert (await client.delete(f"{KOK}/{cek_id}", headers=muhasebe_headers)).status_code == 403
+    assert (
+        await sil_aile(client, admin_headers, "financial_instrument", cek_id)
+    ).status_code == 204
 
 
 # --------------------------------------------------------------------------- #
@@ -633,7 +637,7 @@ async def test_YAZMA_uclari_DENETIM_gunlugu_yazar(
     elif islem == "update":
         await client.patch(f"{KOK}/{cek.id}", json={"bank_name": "İş Bank"}, headers=admin_headers)
     else:
-        await client.delete(f"{KOK}/{cek.id}", headers=admin_headers)
+        await sil_aile(client, admin_headers, "financial_instrument", cek.id)
 
     satirlar = (await seeded_db.execute(select(AuditLog))).scalars().all()
     metinler = [s.detail for s in satirlar]
@@ -645,18 +649,21 @@ async def test_YAZMA_uclari_DENETIM_gunlugu_yazar(
 # --------------------------------------------------------------------------- #
 
 
-async def test_DELETE_yalniz_PORTFOYDE(
+async def test_DELETE_tahsil_edilmis_cek_de_silinir_SIL_B2(
     client: AsyncClient, admin_headers: dict[str, str], cek_fabrikasi
 ) -> None:
-    """Tahsil edilmis bir cekin silinmesi MALI IZI yok ederdi."""
+    """SIL-B2: Sistem Yoneticisi her kosulda siler (K2/K4); eski "yalniz portfoyde" 409'u
+    yalniz silme yolunda kalkti. Silinen mali iz denetim satirina yazilir (fis dokumu dahil)."""
     portfoyde = await cek_fabrikasi()
     tahsil = await cek_fabrikasi(status=Durum.collected)
-    assert (await client.delete(f"{KOK}/{portfoyde.id}", headers=admin_headers)).status_code == 204
-    kapali = await client.delete(f"{KOK}/{tahsil.id}", headers=admin_headers)
-    assert kapali.status_code == 409, kapali.text
-    assert kapali.json()["detail"] == guards.TERMINAL_STATUS_DELETE
-    # …ve kayit AYAKTA kaldi.
-    assert (await client.get(f"{KOK}/{tahsil.id}", headers=admin_headers)).status_code == 200
+    portfoyde_id, tahsil_id = portfoyde.id, tahsil.id
+    assert (
+        await sil_aile(client, admin_headers, "financial_instrument", portfoyde_id)
+    ).status_code == 204
+    assert (
+        await sil_aile(client, admin_headers, "financial_instrument", tahsil_id)
+    ).status_code == 204
+    assert (await client.get(f"{KOK}/{tahsil_id}", headers=admin_headers)).status_code == 404
 
 
 # --------------------------------------------------------------------------- #

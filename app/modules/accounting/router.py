@@ -64,7 +64,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.accounting import (
@@ -89,6 +89,8 @@ from app.modules.accounting.schemas import (
 from app.modules.accounting.transitions import JournalAction
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
+from app.modules.silme import service as silme_service
+from app.modules.silme.params import DELETE_WITH_PREVIEW_RESPONSES, PreviewTokenQuery
 from app.modules.users.models import User
 
 router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES)
@@ -296,11 +298,7 @@ async def update_journal_entry_endpoint(
 @router.delete(
     "/journal-entries/{entry_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={
-        **DELETE_403_YANITI,
-        **_NOT_FOUND,
-        409: {"description": "Yalnızca taslak fiş silinebilir; kapalı dönemdeki fiş de silinemez"},
-    },
+    responses={**DELETE_WITH_PREVIEW_RESPONSES, **_NOT_FOUND},
     dependencies=[require_system_admin()],
 )
 async def delete_journal_entry_endpoint(
@@ -308,15 +306,18 @@ async def delete_journal_entry_endpoint(
     entry_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
+    preview_token: PreviewTokenQuery = None,
 ) -> None:
-    """Yevmiye fişini siler. YALNIZ Sistem Yöneticisi.
+    """Yevmiye fişini stornosu ve satırlarıyla birlikte siler. Yalnız Sistem Yöneticisi.
 
-    Yalnız `draft` fiş silinir; `posted`/`reversed` fiş **409**. Kapalı muhasebe döneminde de
-    **409** (engel yetki değil DÖNEMDİR: silinebilseydi kapalı dönemin mizanı geçmişe dönük
-    değişirdi). Bacaklar fişle birlikte silinir. Yanıt gövdesizdir.
+    ÖNİZLEME ZORUNLU.
+    Durumdan bağımsız (`posted`/`reversed` fiş de silinir) ve KAPALI DÖNEM durdurmaz: dönem
+    kilidi bu yolda atlanır, mizan geriye dönük değişir; denetim satırı bunu ayrıca yazar (K2).
+    Fiş ile stornosu çifti birlikte gider. Fişi doğuran belge (fatura, ödeme…) SİLİNMEZ.
+    Önce `GET /admin/silme/journal_entry/{id}/onizleme`, sonra bu uç `preview_token` ile:
+    eksikse 428 `preview_required`; ağaç değiştiyse 409 `preview_stale`. Yanıt `204`.
     """
-    entry = await service.entry_for_write(session, entry_id)
-    detail = await service.delete_entry(session, entry)
+    detail = await silme_service.sil(session, "journal_entry", entry_id, preview_token)
     await _audit(request, session, user, AuditAction.delete, detail)
 
 

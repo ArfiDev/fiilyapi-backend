@@ -80,7 +80,9 @@ def tek_pk_mi(tablo: Table) -> bool:
 def pk_in(tablo: Table, idler: Sequence[PkDemeti]):  # type: ignore[no-untyped-def]
     """Tek kolonlu PK'da `= ANY(dizi)` (boyut sınırı yok), bileşik PK'da satır karşılaştırması
     (çağıran `_parcala` ile parçalar)."""
-    kolonlar = list(tablo.primary_key.columns)
+    # `list(tablo.primary_key)`: `Table` ve `Alias` (ColumnSet; self-join
+    # kancaları) için çalışır.
+    kolonlar = list(tablo.primary_key)
     if len(kolonlar) == 1:
         return kolon_in(kolonlar[0], [pk[0] for pk in idler])
     return tuple_(*kolonlar).in_([tuple(pk) for pk in idler])
@@ -129,6 +131,40 @@ async def _alt_kimlikleri(
     return bulunan
 
 
+async def _kilitle_kosulsuz(
+    session: AsyncSession, metadata: MetaData, kenar: Kenar, ust_idler: Sequence[PkDemeti]
+) -> None:
+    """`kenar.kilit_kosulu`na uyan ALT satırları durumlarına BAKMADAN `FOR UPDATE` kilitler
+    (pk sırasıyla). Eşzamanlı yazar (onay) başlığı kilitliyse BEKLER; ardından gelen normal
+    `_alt_kimlikleri` sorgusu başlığın GÜNCEL durumunu okur (READ COMMITTED: yeni sorgu)."""
+    if kenar.kilit_kosulu is None:
+        return
+    alt = metadata.tables[kenar.alt]
+    ust = metadata.tables[kenar.ust]
+    alt_pk = list(alt.primary_key.columns)
+    ust_ad = ust.alias("silme_ust") if alt is ust else ust
+    for parca in pk_parcalari(ust, ust_idler):
+        sorgu = (
+            select(*alt_pk)
+            .select_from(alt.join(ust_ad, kenar.kilit_kosulu(alt, ust_ad)))
+            .where(pk_in(ust_ad, parca))
+            .order_by(*alt_pk)
+            .with_for_update(of=alt)
+        )
+        await session.execute(sorgu)
+
+
+async def kosulsuz_kilitle(session: AsyncSession, metadata: MetaData, agac: SilmeAgaci) -> None:
+    """ÖN KİLİT (silme yolu): `kilit_kosulu` olan kancaların alt satırlarını (hakediş başlığı)
+    ağaçtaki üst satırlardan (hakediş satırı) bulup kilitler. KİLİT SIRASI: başlık ÖNCE, satır
+    SONRA — `save_lines` ile AYNI (başlık → satır); sıra tersine olsaydı satır yazan yol ile
+    silme karşılıklı kilitlenirdi. `agac` KİLİTSİZ çözülmüş ağaçtır."""
+    for kenar in tum_kenarlar(metadata):
+        idler = agac.kayitlar.get(kenar.ust)
+        if kenar.kilit_kosulu is not None and idler:
+            await _kilitle_kosulsuz(session, metadata, kenar, sorted(idler, key=_pk_metni))
+
+
 def _kenar_indeksi(metadata: MetaData) -> dict[str, list[Kenar]]:
     indeks: dict[str, list[Kenar]] = defaultdict(list)
     for kenar in tum_kenarlar(metadata):
@@ -160,6 +196,8 @@ async def agac_coz(
             for kenar in kenarlar.get(ust_tablo, []):
                 if kenar.iliski == "detach":
                     continue
+                if kilitle:
+                    await _kilitle_kosulsuz(session, metadata, kenar, list(idler))
                 bulunan = await _alt_kimlikleri(
                     session, metadata, kenar, list(idler), kilitle=kilitle
                 )
@@ -216,12 +254,15 @@ async def ornekler(
 ) -> list[str]:
     """İlk `ORNEK_SAYISI` kaydın adı: tablo başına TEK sorgu, `ORDER BY ad LIMIT 5` (doğal sıra).
     Bileşik PK'lı tabloda (örnek kolonu olan yok) yalnız ilk `PARCA_BOYU` kimlik taranır."""
-    kolon_adlari = tablo_bilgisi(tablo).ornek
-    if not kolon_adlari:
+    bilgi = tablo_bilgisi(tablo)
+    if not bilgi.ornek and bilgi.ornek_ifadesi is None:
         return []
     t = metadata.tables[tablo]
     secilen = pk_parcalari(t, sorted(idler, key=_pk_metni))[0]
-    kolonlar = [t.c[ad] for ad in kolon_adlari]
+    if bilgi.ornek_ifadesi is not None:
+        kolonlar = list(bilgi.ornek_ifadesi(t))
+    else:
+        kolonlar = [t.c[ad] for ad in bilgi.ornek]
     sorgu = select(*kolonlar).where(pk_in(t, secilen)).order_by(*kolonlar).limit(ORNEK_SAYISI)
     satirlar = (await session.execute(sorgu)).all()
     return [" · ".join(str(d) for d in satir if d is not None) for satir in satirlar]
