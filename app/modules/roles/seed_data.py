@@ -460,9 +460,10 @@ IZN_MATRIX: dict[str, list[tuple[AccessLevel, Scope]]] = {
 
 #: Yeni rollerin gizli alan bayrakları (rol başına kutucuk). Satır var = gizli.
 IZN_HIDDEN_FIELDS: dict[str, tuple[HiddenCategory, ...]] = {
-    "planning_engineer": (HiddenCategory.tum_tutarlar,),
+    # IZN-B4c (CEO): tutarı gizli rol ücret/kişisel alanları da görmez (`maas_kisisel`).
+    "planning_engineer": (HiddenCategory.tum_tutarlar, HiddenCategory.maas_kisisel),
     "technical_office": (),
-    "warehouse_keeper": (HiddenCategory.tum_tutarlar,),
+    "warehouse_keeper": (HiddenCategory.tum_tutarlar, HiddenCategory.maas_kisisel),
     "viewer": (HiddenCategory.tum_tutarlar, HiddenCategory.maas_kisisel),
     "finance_manager": (),
     "cost_engineer": (HiddenCategory.maas_kisisel,),

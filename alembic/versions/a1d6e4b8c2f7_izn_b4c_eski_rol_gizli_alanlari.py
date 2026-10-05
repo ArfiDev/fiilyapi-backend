@@ -7,10 +7,13 @@ Satınalma kendi fiyatlarını göremiyordu. Onaylı kümeler:
 * `hr_manager`, `site_chief`, `field_engineer` → {sozlesme_fiyat, maliyet_kar, banka_kasa,
   satis_alici} (`maas_kisisel` AÇIK)
 * `procurement` → {sozlesme_fiyat, satis_alici, banka_kasa} (`maliyet_kar` + `maas_kisisel` AÇIK)
+* `planning_engineer`, `warehouse_keeper` (B1'in yeni rolleri) → {tum_tutarlar, maas_kisisel}
+  (CEO kararı: tutar gizli olan bu roller kişisel/ücret alanlarını da görmez)
 
 ## Kural (upgrade)
-Yalnız bu 4 rol anahtarında ve `role_hidden_fields` kümesi TAM OLARAK {tum_tutarlar} olan roller
-değişir: `tum_tutarlar` satırı silinir, onaylı kategoriler eklenir. Kümesi farklı olan rol (ekrandan
+Yalnız bu 6 rol anahtarında ve `role_hidden_fields` kümesi TAM OLARAK {tum_tutarlar} olan roller
+değişir: 4 eski rolde `tum_tutarlar` satırı silinir, onaylı kategoriler eklenir; 2 yeni rolde
+`maas_kisisel` eklenir (küme {tum_tutarlar, maas_kisisel}). Kümesi farklı olan rol (ekrandan
 değiştirilmiş) DOKUNULMAZ. Rol adı geçen bir "Gizli alanlar değişti: <rol adı> · ..." denetim
 kaydı (rol yönetimi API'si gizli alan değişikliğinde bunu `audit_log`a yazar) varsa, küme hâlâ
 {tum_tutarlar} olsa bile rol DOKUNULMAZ (biri ekrandan bilerek kaydetmiş demektir). Denetim kaydı
@@ -19,7 +22,10 @@ ad kaydı bulunamaz; bu durumda küme-eşitliği kuralı tek koruma olarak kalı
 sebebi WARNING olarak basılır.
 
 ## Downgrade
-Aynı 4 rolde küme TAM OLARAK onaylı kümeye eşitse geri {tum_tutarlar} yapılır; farklıysa dokunulmaz.
+Upgrade'in TERSİ: aynı 6 rolde küme TAM OLARAK onaylı kümeye eşitse VE rol adı geçen gizli alan
+denetim kaydı yoksa geri {tum_tutarlar} yapılır; küme farklıysa ya da denetim kaydı varsa (ekrandan
+bilerek onaylanmış küme) dokunulmaz. (Yeniden adlandırılmış rol: kayıt eski adla bulunamaz; küme
+eşitliği tek koruma kalır — bilinçli kabul.)
 
 Kilit: `roles` + `role_hidden_fields` SHARE ROW EXCLUSIVE tek ifadede; `SET LOCAL lock_timeout`.
 Migration `app` IMPORT ETMEZ (sabitler elle kopya; bekçisi
@@ -61,6 +67,12 @@ APPROVED_SETS: dict[str, frozenset[str]] = {
     "field_engineer": frozenset(_SAHA_VE_IK),
     "procurement": frozenset({"sozlesme_fiyat", "satis_alici", "banka_kasa"}),
 }
+#: ELLE KOPYA: `seed_data.IZN_HIDDEN_FIELDS` (B1'in yeni rolleri; CEO kararı: ücret de gizli).
+NEW_ROLE_SETS: dict[str, frozenset[str]] = {
+    "planning_engineer": frozenset({TUM_TUTARLAR, "maas_kisisel"}),
+    "warehouse_keeper": frozenset({TUM_TUTARLAR, "maas_kisisel"}),
+}
+TARGET_SETS: dict[str, frozenset[str]] = {**APPROVED_SETS, **NEW_ROLE_SETS}
 OLD_SET = frozenset({TUM_TUTARLAR})
 
 #: `app/modules/audit/messages/core.py::role_hidden_fields_updated` başlığı (elle kopya).
@@ -72,7 +84,7 @@ def _roles(bind: sa.Connection) -> dict[str, tuple[object, str]]:
         sa.text("SELECT id, key, name FROM roles WHERE key IN :keys").bindparams(
             sa.bindparam("keys", expanding=True)
         ),
-        {"keys": list(APPROVED_SETS)},
+        {"keys": list(TARGET_SETS)},
     ).all()
     return {key: (role_id, name) for role_id, key, name in rows}
 
@@ -121,7 +133,7 @@ def upgrade() -> None:
     roles = _roles(bind)
     changed: list[str] = []
     skipped: list[str] = []
-    for key, approved in APPROVED_SETS.items():
+    for key, approved in TARGET_SETS.items():
         if key not in roles:
             skipped.append(f"{key}: rol yok")
             continue
@@ -135,7 +147,8 @@ def upgrade() -> None:
             _replace(bind, role_id, approved)
             changed.append(key)
     logger.warning(
-        "IZN-B4c madde 20: tum_tutarlar -> onayli kume, degisen roller=%s; atlanan=%s",
+        "IZN-B4c madde 20: tum_tutarlar -> onayli kume (+ yeni rol maas_kisisel), "
+        "degisen roller=%s; atlanan=%s",
         changed,
         skipped,
     )
@@ -147,13 +160,16 @@ def downgrade() -> None:
     roles = _roles(bind)
     changed: list[str] = []
     skipped: list[str] = []
-    for key, approved in APPROVED_SETS.items():
+    for key, approved in TARGET_SETS.items():
         if key not in roles:
             continue
-        role_id, _name = roles[key]
+        role_id, name = roles[key]
         current = _current(bind, role_id)
         if current != approved:
             skipped.append(f"{key}: kume={sorted(current)} (onayli kume degil, dokunulmadi)")
+            continue
+        if _has_audit(bind, name):
+            skipped.append(f"{key}: gizli alan denetim kaydi var (dokunulmadi)")
             continue
         _replace(bind, role_id, OLD_SET)
         changed.append(key)

@@ -3,8 +3,10 @@
 Her test KENDİ TEK KULLANIMLIK veritabanını açar (`test_izn_b1_migration.py` emsali); revizyonlara
 AÇIKÇA çıkılır. `.env` ve `TEST_DATABASE_URL` veritabanı ELLENMEZ.
 
-Kural: yalnız 4 eski rol, kümesi TAM {tum_tutarlar} iken, rol adı geçen gizli alan denetim kaydı
-yokken değişir; ekrandan değiştirilmiş küme DOKUNULMAZ; downgrade yalnız onaylı kümeyi geri çevirir.
+Kural: yalnız 4 eski rol (onaylı küme) + 2 yeni rol (`planning_engineer`/`warehouse_keeper` →
+{tum_tutarlar, maas_kisisel}), kümesi TAM {tum_tutarlar} iken, rol adı geçen gizli alan denetim
+kaydı yokken değişir; ekrandan değiştirilmiş küme DOKUNULMAZ; downgrade upgrade'in AYNI iki
+koruyucusuyla (küme eşitliği + denetim kaydı) yalnız onaylı kümeyi geri çevirir.
 """
 
 import asyncpg
@@ -21,7 +23,10 @@ B4C_REVISION = "a1d6e4b8c2f7"
 TUM = {"tum_tutarlar"}
 DORT_ROL = ["hr_manager", "site_chief", "field_engineer", "procurement"]
 ONAYLI = {k: {c.value for c in v} for k, v in seed_data.ESKI_ROL_GIZLI_ALANLAR.items()}
-DOKUNULMAYAN = ["viewer", "warehouse_keeper", "planning_engineer", "cost_engineer", "patron"]
+DOKUNULMAYAN = ["viewer", "cost_engineer", "patron"]
+YENI_ROLLER = ["warehouse_keeper", "planning_engineer"]
+YENI_KUME = {"tum_tutarlar", "maas_kisisel"}
+HEPSI = DORT_ROL + YENI_ROLLER
 
 
 async def _tum_kumeler(conn: asyncpg.Connection) -> dict[str, set[str]]:
@@ -32,7 +37,7 @@ async def _tum_kumeler(conn: asyncpg.Connection) -> dict[str, set[str]]:
 async def _kur_onceki(database: str) -> asyncpg.Connection:
     _upgrade(ONCEKI_REVISION, database)
     conn = await _baglan(database)
-    for key in DORT_ROL:
+    for key in HEPSI:
         assert await _hidden(conn, key) == TUM, key  # B1'in türettiği durum
     return conn
 
@@ -68,9 +73,12 @@ def test_migration_sabitleri_seed_ile_ayni() -> None:
     assert {k: set(v) for k, v in modul.APPROVED_SETS.items()} == ONAYLI
     assert set(modul.APPROVED_SETS) == set(DORT_ROL)
     assert modul.OLD_SET == TUM
+    yeni = {k: {c.value for c in v} for k, v in seed_data.IZN_HIDDEN_FIELDS.items()}
+    assert {k: set(v) for k, v in modul.NEW_ROLE_SETS.items()} == {k: yeni[k] for k in YENI_ROLLER}
+    assert all(v == YENI_KUME for v in modul.NEW_ROLE_SETS.values())
 
 
-async def test_dort_rol_onayli_kumeye_gecer_digerleri_dokunulmaz() -> None:
+async def test_alti_rol_onayli_kumeye_gecer_digerleri_dokunulmaz() -> None:
     database = await _create_scratch_database()
     try:
         conn = await _kur_onceki(database)
@@ -82,13 +90,14 @@ async def test_dort_rol_onayli_kumeye_gecer_digerleri_dokunulmaz() -> None:
             await conn.close()
         for key in DORT_ROL:
             assert sonra[key] == ONAYLI[key], key
+        for key in YENI_ROLLER:
+            assert sonra[key] == YENI_KUME, key
         assert "tum_tutarlar" not in sonra["hr_manager"]
         assert "maas_kisisel" not in sonra["hr_manager"]
         assert {"maliyet_kar", "maas_kisisel"}.isdisjoint(sonra["procurement"])
-        degismeyen = {k: v for k, v in once.items() if k not in DORT_ROL}
-        assert {k: v for k, v in sonra.items() if k not in DORT_ROL} == degismeyen
+        degismeyen = {k: v for k, v in once.items() if k not in HEPSI}
+        assert {k: v for k, v in sonra.items() if k not in HEPSI} == degismeyen
         assert sonra["viewer"] == {"tum_tutarlar", "maas_kisisel"}
-        assert sonra["warehouse_keeper"] == TUM
         # Seed (create_all) durumuyla aynı gerçek: migration zinciri HEAD = seed.
         for key, kume in seed_data.HIDDEN_FIELDS.items():
             assert sonra[key] == {c.value for c in kume}, key
@@ -173,6 +182,68 @@ async def test_downgrade_onayli_olmayan_kumeye_dokunmaz() -> None:
             assert sonuc.returncode == 0, sonuc.stdout + sonuc.stderr
             assert await _hidden(conn, "hr_manager") == ONAYLI["hr_manager"] | {"maas_kisisel"}
             for key in ("site_chief", "field_engineer", "procurement"):
+                assert await _hidden(conn, key) == TUM, key
+        finally:
+            await conn.close()
+    finally:
+        await _drop_scratch_database(database)
+
+
+async def test_yeni_roller_ekrandan_degistirilmis_ya_da_denetimli_ise_dokunulmaz() -> None:
+    database = await _create_scratch_database()
+    try:
+        conn = await _kur_onceki(database)
+        try:
+            await conn.execute(
+                "INSERT INTO role_hidden_fields (role_id, category) "
+                "SELECT id, 'banka_kasa' FROM roles WHERE key = 'planning_engineer'"
+            )
+            ad = await conn.fetchval("SELECT name FROM roles WHERE key = 'warehouse_keeper'")
+            await conn.execute(
+                "INSERT INTO audit_log (id, action, detail) "
+                "VALUES (gen_random_uuid(), 'update', $1)",
+                f"Gizli alanlar değişti: {ad} · gizli: Tüm tutarlar",
+            )
+            _upgrade(B4C_REVISION, database)
+            assert await _hidden(conn, "planning_engineer") == {"tum_tutarlar", "banka_kasa"}
+            assert await _hidden(conn, "warehouse_keeper") == TUM
+        finally:
+            await conn.close()
+    finally:
+        await _drop_scratch_database(database)
+
+
+async def test_downgrade_de_denetim_kaydi_olan_rolu_atlar() -> None:
+    """Upgrade ile SİMETRİK: ekrandan (denetim kaydıyla) onaylı kümeye getirilmiş rol, kümesi
+    onaylı kümeye eşit olsa bile downgrade'de geri {tum_tutarlar}a ÇEVRİLMEZ."""
+    database = await _create_scratch_database()
+    try:
+        conn = await _kur_onceki(database)
+        try:
+            ad = await conn.fetchval("SELECT name FROM roles WHERE key = 'site_chief'")
+            # Denetim kaydı + onaylı küme: upgrade ATLAR (küme hâlâ {tum_tutarlar}).
+            await conn.execute(
+                "INSERT INTO audit_log (id, action, detail) "
+                "VALUES (gen_random_uuid(), 'update', $1)",
+                f"Gizli alanlar değişti: {ad} · gizli: Sözleşme fiyatları",
+            )
+            _upgrade(B4C_REVISION, database)
+            assert await _hidden(conn, "site_chief") == TUM
+            # Rol ekrandan onaylı kümeye getirilmiş (kayıt var) + diğerleri migration'la değişti.
+            await conn.execute(
+                "DELETE FROM role_hidden_fields WHERE role_id = "
+                "(SELECT id FROM roles WHERE key = 'site_chief')"
+            )
+            for kategori in sorted(ONAYLI["site_chief"]):
+                await conn.execute(
+                    "INSERT INTO role_hidden_fields (role_id, category) "
+                    "SELECT id, $1::hidden_category FROM roles WHERE key = 'site_chief'",
+                    kategori,
+                )
+            sonuc = _alembic("downgrade", ONCEKI_REVISION, database=database)
+            assert sonuc.returncode == 0, sonuc.stdout + sonuc.stderr
+            assert await _hidden(conn, "site_chief") == ONAYLI["site_chief"]  # dokunulmadı
+            for key in ("hr_manager", "field_engineer", "procurement", *YENI_ROLLER):
                 assert await _hidden(conn, key) == TUM, key
         finally:
             await conn.close()

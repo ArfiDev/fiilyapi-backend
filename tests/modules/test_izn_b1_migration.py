@@ -140,7 +140,10 @@ async def _hidden(conn, role_key: str) -> set[str]:
 def _b1_hidden(role_key: str) -> set[str]:
     """B1'in ÜRETTİĞİ gizli alanlar: eski rol `limited` → `tum_tutarlar` (madde 20 `izn_b4c`te)."""
     if role_key in seed_data.IZN_ROLE_ORDER:
-        return {c.value for c in seed_data.HIDDEN_FIELDS[role_key]}
+        kume = {c.value for c in seed_data.HIDDEN_FIELDS[role_key]}
+        if role_key in ("planning_engineer", "warehouse_keeper"):
+            kume.discard("maas_kisisel")  # IZN-B4c (CEO) migration'ı ekler; B1 durumu değil
+        return kume
     cells = {
         m: (c[seed_data.ROLE_ORDER.index(role_key)][0], c[seed_data.ROLE_ORDER.index(role_key)][1])
         for m, c in seed_data.MATRIX.items()

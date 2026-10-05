@@ -11,7 +11,17 @@ from io import BytesIO
 import openpyxl
 import pytest
 
+from app.core.field_mask import Hassas, etiketler, semalar_icinde
+from app.core.sayfalar import HiddenCategory, PageLevel
 from app.modules.payroll.export import HEADER_ROW, SHEET_TITLE
+from app.modules.payroll.schemas import (
+    PayrollPeriodDetailResponse,
+    PayrollPeriodListResponse,
+    PayrollPeriodPayResult,
+    PayrollSgkSummaryResponse,
+)
+from tests._ekip_dunyasi import rol_kur
+from tests._hassas_alan import gizli_alanlar_ayarla
 
 pytestmark = pytest.mark.asyncio
 
@@ -170,3 +180,132 @@ async def test_gizli_rolde_gecmis_excel_tutar_hucreleri_bos(
     satir = openpyxl.load_workbook(BytesIO(gizli.content)).worksheets[0]
     assert [satir.cell(row=2, column=c).value for c in (3, 4, 5, 6)] == [None] * 4
     assert satir.cell(row=2, column=2).value == "5"  # çalışan sayısı sayaçtır
+
+
+# --- Şemadan türeyen kapsam: `Hassas.maas_kisisel` etiketli HER alan (sahte-yeşil onarımı) ------
+#
+# Elle sayılan alan listeleri `previous_gross_amount` / `paid_net_total` / SGK `income_tax_total`
+# gibi alanları kaçırdı (etiketi `yok`a çevrilince testler yeşil kaldı). Bu bölüm etiketli alanları
+# ŞEMADAN okur: yeni etiketli alan eklenirse otomatik sınanır, etiketi düşen alan kırmızı verir.
+
+
+def _etiketli_tara(model, veri, yollar: dict[str, bool] | None = None) -> dict[str, bool]:
+    """`model` ağacındaki `maas_kisisel` etiketli alanlar → (en az bir örnekte DOLU mu)."""
+    yollar = {} if yollar is None else yollar
+    if isinstance(veri, list):
+        for oge in veri:
+            _etiketli_tara(model, oge, yollar)
+        return yollar
+    if not isinstance(veri, dict):
+        return yollar
+    for ad, alan in model.model_fields.items():
+        if Hassas.maas_kisisel in etiketler(alan):
+            yollar[ad] = yollar.get(ad, False) or veri.get(ad) is not None
+            continue
+        for alt in semalar_icinde(alan.annotation):
+            _etiketli_tara(alt, veri.get(ad), yollar)
+    return yollar
+
+
+@pytest.fixture
+async def gizli_onayci_headers(client, seeded_db, user_factory) -> dict[str, str]:
+    """`maas_kisisel` gizli, bordroyu DÜZENLER ve ONAYLAR (ödeme ucuna girebilen gizli rol)."""
+    rol = await rol_kur(seeded_db, "bordro_gizli_onayci", PageLevel.edit, approve=True)
+    await gizli_alanlar_ayarla(seeded_db, rol, {HiddenCategory.maas_kisisel})
+    from tests.modules.payroll.conftest import _auth, _login
+
+    return _auth(await _login(client, user_factory, "bordro_gizli_onayci", "bordro.onayci@ik3.co"))
+
+
+@pytest.fixture
+async def duzeltilmis(client, ik_headers, hesaplanmis):
+    """İK bir satırın brütünü elle düzeltir → `previous_gross_amount` DOLAR (9000.00)."""
+    detay = await _detay(client, ik_headers, hesaplanmis)
+    satir_id = _satirlar(detay)["Ayşe Demir"]["id"]
+    resp = await client.patch(
+        f"/payroll/lines/{satir_id}", json={"gross_amount": "10000.00"}, headers=ik_headers
+    )
+    assert resp.status_code == 200, resp.text
+    return hesaplanmis
+
+
+YUZEYLER = {
+    "donem_detayi": ("/payroll/periods/{id}", PayrollPeriodDetailResponse),
+    "donem_listesi": ("/payroll/periods", PayrollPeriodListResponse),
+    "sgk_ozeti": ("/payroll/periods/{id}/sgk-summary", PayrollSgkSummaryResponse),
+}
+#: Şemadan okunan küme etiketi DÜŞEN alanı göremez (etiket kalkınca alan taranmaz) → yüzey başına
+#: EN AZ bu alanlar etiketli olmak ZORUNDA (etiketi `yok`a çevrilen alan burada kırmızı verir).
+ZORUNLU_ETIKETLI = {
+    "donem_detayi": {
+        "gross_amount",
+        "net_amount",
+        "income_tax_amount",
+        "previous_gross_amount",
+        "net_total",
+        "gross_total",
+    },
+    "donem_listesi": {"gross_total", "sgk_employer_total", "net_total", "total_cost"},
+    "sgk_ozeti": {"sgk_premium_total", "income_tax_total", "stamp_tax_total", "sgk_payable_total"},
+}
+
+
+@pytest.mark.parametrize("yuzey", sorted(YUZEYLER))
+async def test_gizli_rolde_TUM_etiketli_tutar_alanlari_null_gizlemeyende_dolu(
+    client, ik_headers, gizli_headers, duzeltilmis, yuzey
+):
+    yol, model = YUZEYLER[yuzey]
+    yol = yol.format(id=duzeltilmis.id)
+    acik = await client.get(yol, headers=ik_headers)
+    gizli = await client.get(yol, headers=gizli_headers)
+    assert acik.status_code == gizli.status_code == 200, (acik.text, gizli.text)
+    acik_alanlar = _etiketli_tara(model, acik.json())
+    gizli_alanlar = _etiketli_tara(model, gizli.json())
+    assert acik_alanlar, "şemada etiketli alan bulunamadı (tarama boş)"
+    assert set(acik_alanlar) == set(gizli_alanlar)
+    assert ZORUNLU_ETIKETLI[yuzey] <= set(acik_alanlar), (
+        f"etiketi düşen alan: {sorted(ZORUNLU_ETIKETLI[yuzey] - set(acik_alanlar))}"
+    )
+    # Pozitif kontrol: gizlemeyen rolde her etiketli alan bir örnekte DOLU (aksi hâlde null testi
+    # etiket düşse de yeşil kalırdı).
+    bos_kalan = sorted(a for a, dolu in acik_alanlar.items() if not dolu)
+    assert not bos_kalan, f"gizlemeyen rolde bile null (test veriyi doldurmuyor): {bos_kalan}"
+    sizan = sorted(a for a, dolu in gizli_alanlar.items() if dolu)
+    assert not sizan, f"gizli rolde SIZAN etiketli alanlar: {sizan}"
+
+
+async def test_tarama_sahte_yesil_alanlarini_KAPSAR(client, ik_headers, gizli_headers, duzeltilmis):
+    """Yaşayan mutasyonlar: `previous_gross_amount` (satır) ve SGK `income_tax_total`."""
+    detay = _etiketli_tara(
+        PayrollPeriodDetailResponse, (await _detay(client, ik_headers, duzeltilmis))
+    )
+    assert "previous_gross_amount" in detay and detay["previous_gross_amount"] is True
+    sgk = await client.get(f"/payroll/periods/{duzeltilmis.id}/sgk-summary", headers=ik_headers)
+    assert _etiketli_tara(PayrollSgkSummaryResponse, sgk.json())["income_tax_total"] is True
+    gizli_detay = await _detay(client, gizli_headers, duzeltilmis)
+    ayse = _satirlar(gizli_detay)["Ayşe Demir"]
+    assert ayse["previous_gross_amount"] is None and ayse["is_overridden"] is True
+
+
+async def _onayla(client, headers, donem) -> None:
+    for _ in range(2):  # `draft → pending_approval → approved` (S8: atlama yok)
+        await client.post(f"/payroll/periods/{donem.id}/approve", headers=headers)
+    assert (await _detay(client, headers, donem))["status"] == "approved"
+
+
+async def test_odeme_sonucu_paid_net_total_gizlemeyende_dolu(client, ik_headers, hesaplanmis):
+    await _onayla(client, ik_headers, hesaplanmis)
+    resp = await client.post(f"/payroll/periods/{hesaplanmis.id}/pay", headers=ik_headers)
+    assert resp.status_code == 200, resp.text
+    taranan = _etiketli_tara(PayrollPeriodPayResult, resp.json())
+    assert taranan == {"paid_net_total": True}, taranan
+
+
+async def test_odeme_sonucu_paid_net_total_gizli_rolde_null(
+    client, ik_headers, gizli_onayci_headers, hesaplanmis
+):
+    await _onayla(client, ik_headers, hesaplanmis)
+    resp = await client.post(f"/payroll/periods/{hesaplanmis.id}/pay", headers=gizli_onayci_headers)
+    assert resp.status_code == 200, resp.text
+    assert _etiketli_tara(PayrollPeriodPayResult, resp.json()) == {"paid_net_total": False}
+    assert resp.json()["paid"] > 0  # sayaç gizlenmez

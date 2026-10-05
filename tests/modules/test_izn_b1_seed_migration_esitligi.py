@@ -90,10 +90,17 @@ def test_yeni_rol_matrisi_seed_ile_ayni(migration) -> None:
         )
 
 
+#: IZN-B4c (CEO): bu iki yeni rolün kümesine `maas_kisisel` `izn_b4c` migration'ıyla eklenir; B1
+#: migration'ının kendi sabiti B1 durumunu (yalnız `tum_tutarlar`) taşır, seed ise B4c sonrasını.
+_B4C_MAAS_EKLENEN = ("planning_engineer", "warehouse_keeper")
+
+
 def test_gizli_alan_bayraklari_seed_ile_ayni(migration) -> None:
-    assert {k: tuple(v) for k, v in migration.IZN_HIDDEN_FIELDS.items()} == {
-        k: tuple(c.value for c in v) for k, v in seed_data.IZN_HIDDEN_FIELDS.items()
+    beklenen = {
+        k: tuple(c.value for c in v if not (k in _B4C_MAAS_EKLENEN and c.value == "maas_kisisel"))
+        for k, v in seed_data.IZN_HIDDEN_FIELDS.items()
     }
+    assert {k: tuple(v) for k, v in migration.IZN_HIDDEN_FIELDS.items()} == beklenen
     assert set(migration.CATEGORIES) == {c.value for c in HiddenCategory}
     assert set(migration.LEVELS) == {level.value for level in PageLevel}
 

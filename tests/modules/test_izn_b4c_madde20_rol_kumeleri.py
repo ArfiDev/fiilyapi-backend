@@ -40,8 +40,9 @@ def test_onayli_kume_tablosu_ve_yeni_roller_aynen() -> None:
     assert hf["procurement"] == {H.sozlesme_fiyat, H.satis_alici, H.banka_kasa}
     for rol in ("patron", "accounting", "project_manager"):
         assert hf[rol] == frozenset(), rol
-    assert hf["planning_engineer"] == {H.tum_tutarlar}
-    assert hf["warehouse_keeper"] == {H.tum_tutarlar}
+    # CEO (B4c): tutarı gizli iki yeni rol kişisel/ücret alanlarını da görmez.
+    assert hf["planning_engineer"] == {H.tum_tutarlar, H.maas_kisisel}
+    assert hf["warehouse_keeper"] == {H.tum_tutarlar, H.maas_kisisel}
     assert hf["viewer"] == {H.tum_tutarlar, H.maas_kisisel}
     assert hf["cost_engineer"] == {H.maas_kisisel}
     assert hf["technical_office"] == frozenset() == hf["finance_manager"]
@@ -163,3 +164,34 @@ async def test_viewer_hala_hepsini_gizli_gorur(
     sayfa = (await client.get(f"/sites/{site.id}", headers=izleyici)).json()
     assert sayfa["budget"] is None
     assert sayfa["contract_amount"]["value"] is None
+
+
+async def test_planlama_muhendisi_kisisel_alanlari_GORMEZ(client, db_session, user_factory) -> None:
+    """`warehouse_keeper` personel sayfasını hiç görmez (403); küme tablosu yukarıda sınanır."""
+    rol = "planning_engineer"
+    ik = await _giris(client, db_session, user_factory, "hr_manager")
+    yanit = await client.post(
+        "/personnel",
+        json={
+            "full_name": "Ahmet Yılmaz",
+            "source": "company",
+            "tc_no": "10000000146",
+            "iban": "TR330006100519786457841326",
+            "wage_type": "daily",
+            "wage_amount": "1500.00",
+        },
+        headers=ik,
+    )
+    assert yanit.status_code == 201, yanit.text
+    pid = yanit.json()["id"]
+    # Pozitif kontrol: İK aynı kaydı dolu görür.
+    acik = (await client.get(f"/personnel/{pid}", headers=ik)).json()
+    assert acik["tc_no"] == "10000000146" and acik["iban"] is not None
+
+    kisi = await _giris(client, db_session, user_factory, rol)
+    detay = await client.get(f"/personnel/{pid}", headers=kisi)
+    assert detay.status_code == 200, f"{rol}: {detay.text}"
+    govde = detay.json()
+    assert govde["full_name"] == "Ahmet Yılmaz"
+    for alan in ("tc_no", "iban", "wage_amount"):
+        assert govde[alan] is None, f"{rol} {alan} GÖRDÜ"
