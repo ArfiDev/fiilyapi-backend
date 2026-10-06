@@ -1,8 +1,9 @@
 """Fiyatli Is Kalemi Katalogu Excel ucu (TKL-B5.2) — `/catalog/items` okumasiyla AYNI kapi:
 `contracts:view` + kapsam cifti. Okuma ucu: denetim satiri YAZMAZ.
 
-Veri `queries.list_items` ile (tek toplu `last_price.latest`, N+1 yok). Maske ELLE uygulanir
-(`kapsamla_maskele`): `limited` rolde Referans Fiyat / Fiyat Guncelleme / Son Fiyat / Kaynak /
+Veri `queries.list_items` ile (tek toplu `last_price.latest`, N+1 yok).
+Maske ELLE uygulanir (`maskele_baglamli`):
+`limited` rolde Referans Fiyat / Fiyat Guncelleme / Son Fiyat / Kaynak /
 Belge / Tarih / Fiyat Tarihi (`ref_price_date`, KAT-B1: fiyat gizliyken tarihi de gizli) BOS;
 poz, ad, birim, adam-saat, yuklenici, Kaynak Poz No gorunur (BOQ export emsali).
 """

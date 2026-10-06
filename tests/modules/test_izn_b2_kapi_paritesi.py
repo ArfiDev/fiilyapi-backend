@@ -660,7 +660,15 @@ async def test_effective_level_esik_karsilastirmalari_eski_duzeyle_ayni(
 async def test_kapsam_hibriti_eski_satirli_rolde_donmus_scope_satirsiz_rolde_tum_tutarlar(
     seeded_db,
 ) -> None:
-    from app.core.permissions import actor_scope
+    from app.modules.roles.models import Role
+    from app.modules.roles.repository import derived_role_matrix
+
+    async def actor_scope(session, user, modul):
+        # IZN-B6a: `core.permissions.actor_scope` söküldü; aynı kuralı görüntü matrisi taşır.
+        rol = await session.get(Role, user.role_id)
+        matris = await derived_role_matrix(session, rol.id, rol.key)
+        return next(scope for m, _lvl, scope in matris if m.key == modul)
+
     from app.modules.roles.models import HiddenCategory, RoleHiddenField
 
     muhasebe = await _kullanici(seeded_db, "accounting", "muh@scope.co")

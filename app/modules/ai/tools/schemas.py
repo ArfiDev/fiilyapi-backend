@@ -17,6 +17,10 @@ sayıya indirir. Burada üçü **üç ayrı sabit dizeye** çevrilir.
 
 ## 🔴 KAPSAM MASKESİ — daraltma şeması ucun NULL'ını KABUL ETMEK ZORUNDADIR
 
+(IZN-B4/B6a: eski kapsam maskesi (`field_scope`, `scoped_route`, `kapsam_rotasi`,
+`kapsam_kapisi`) SÖKÜLDÜ; yerine `core/mask_route` + `core/field_mask`.
+Aşağıdaki metin TARİHSEL gerekçedir (maskeli alan yine `null` gelir).)
+
 2026-09-19'dan beri altı modülde alan düzeyi kapsam maskesi vardır
 (`core/field_scope`): `limited` PARA kovasını, `finance` OPERASYONEL kovayı
 `null`a çeker. **Bu maske AI hattında da koşar** — araçlar servisi değil UCU

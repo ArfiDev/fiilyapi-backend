@@ -478,7 +478,15 @@ async def test_copy_eski_role_permissions_satirlarini_kopyalar_muhasebe_finance_
 ):
     """CEO onarımı: kopya donmuş eski `scope`u korur (Muhasebe `finance` maskesini kaybetmez)."""
     from app.core.access import Scope
-    from app.core.permissions import actor_scope
+    from app.modules.roles.models import Role
+    from app.modules.roles.repository import derived_role_matrix
+
+    async def actor_scope(session, user, modul):
+        # IZN-B6a: `core.permissions.actor_scope` söküldü; aynı kuralı görüntü matrisi taşır.
+        rol = await session.get(Role, user.role_id)
+        matris = await derived_role_matrix(session, rol.id, rol.key)
+        return next(scope for m, _lvl, scope in matris if m.key == modul)
+
     from app.modules.roles.models import RolePermission
 
     admin = await _giris(client, user_factory, "system_admin")

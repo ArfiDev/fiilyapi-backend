@@ -3,12 +3,10 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.core.access import DROPPED_SCOPES, AccessLevel, Scope
+from app.core.access import AccessLevel, Scope
 from app.core.errors import NotFoundError, PermissionLockedError
-from app.core.field_scope import gizlenen_kova
 from app.modules.roles.models import SYSTEM_ADMIN_KEY, Module, Role, RolePermission
 from app.modules.roles.repository import get_permission
-from app.modules.roles.scope_wiring import kablolu_moduller
 from app.modules.roles.service import rename_role
 from tests._legacy_permission_yardimcisi import update_role_permission
 
@@ -106,8 +104,8 @@ async def test_DUSEN_kapsam_ALL_hucreye_YAZILAMAZ(seeded_db):
 
     🔴 Docstring 2026-09-19 akşamı DÜZELTİLDİ: eski hâli "`Scope` karar
     mekanizmasına HİÇ bağlı değil, `permissions.py`de `scope` kelimesi geçmez"
-    diyordu. O cümle artık YANLIŞ — `core/permissions.actor_scope` tam olarak
-    `permission.scope`u okur. Testin ÖLÇTÜĞÜ şey değişmedi ama GEREKÇESİ değişti:
+    diyordu. O cümle artık YANLIŞ — eski `actor_scope` (IZN-B6a'da söküldü) tam olarak
+    `permission.scope`u okurdu. Testin ÖLÇTÜĞÜ şey değişmedi ama GEREKÇESİ değişti:
     `own` reddedilir çünkü uygulanmıyor değil, matristen DÜŞÜRÜLDÜ
     (`DROPPED_SCOPES`); uygulanan `limited`/`finance` ise artık serbestçe atanır.
     """
@@ -223,46 +221,6 @@ async def test_MASKELEYEN_kapsam_YAZAN_seviyeyle_BIRLESEMEZ(
     assert (after.access_level, after.scope) == eski, "Reddedilen istek satırı DEĞİŞTİRMEMELİ"
 
 
-def test_ATANABILIR_kapsam_listesi_IKI_KAYNAKTAN_TURETILIR() -> None:
-    """🔴 SAYI değil BEKÇİ: "uygulanan kapsamlar" üçüncü bir elle yazılmış liste OLAMAZ.
-
-    İki gerçek kaynak var ve birbirini tamamlamalı: `core.access.DROPPED_SCOPES`
-    (matristen DÜŞEN) ve `core.field_scope` maskesi (UYGULANAN). `Scope`a yeni
-    bir üye eklenip ikisinden birine yazılmazsa bu test kırılır ve ekleyeni
-    seçim yapmaya zorlar: ya maskeyi yaz ya düşenlere koy. Aksi hâlde
-    `update_role_permission` ya uygulanmayan bir kapsamı atattırır (bugün
-    onarılan kusurun aynısı) ya da uygulanan bir kapsamı sessizce reddeder.
-    """
-    maskeleyen = {kapsam for kapsam in Scope if gizlenen_kova(kapsam) is not None}
-
-    assert set(Scope) - DROPPED_SCOPES - {Scope.all} == maskeleyen, (
-        "`Scope` üyeleri ile maske/düşen listeleri ayrıştı: her üye ya "
-        "`DROPPED_SCOPES` içinde ya `field_scope` maskesinde olmalı (`all` hariç)."
-    )
-
-
-async def test_MASKESI_KALDIRILAN_kapsam_ANINDA_ATANAMAZ(seeded_db, monkeypatch):
-    """🔴 Kapı `field_scope`u GERÇEKTEN okuyor mu — yoksa elle yazılmış bir liste mi?
-
-    Üstteki `test_ATANABILIR_kapsam_listesi_*` iki kaynağın tümleyen kalmasını
-    çakar ama kapının o kaynağa BAĞLI olduğunu ölçmez: gövdede
-    `scope in {limited, finance}` yazsaydı o test de bu testin pozitif kontrolü de
-    yeşil kalırdı. Burada maske ÇALIŞMA ANINDA kaldırılır; kapı türetiyorsa
-    kapsam aynı anda atanamaz olur, elle listeliyorsa 200 dönmeye devam eder.
-
-    Özel (`_`) sözlüğe dokunmak bilinçlidir: ölçülen şey tam olarak o bağlantıdır.
-    """
-    from app.core import field_scope
-
-    monkeypatch.delitem(field_scope._GIZLENEN, Scope.limited)
-    role = await _role(seeded_db, "site_chief")
-
-    with pytest.raises(PermissionLockedError):
-        await update_role_permission(
-            seeded_db, role.id, "personnel", AccessLevel.view, Scope.limited
-        )
-
-
 async def test_RED_METINLERI_HENUZ_UYGULANMIYOR_DEMEZ(seeded_db):
     """🔴 Metin de bir sözleşmedir: "Kapsam kısıtı HENÜZ UYGULANMIYOR" artık YALAN.
 
@@ -294,33 +252,10 @@ async def test_RED_METINLERI_HENUZ_UYGULANMIYOR_DEMEZ(seeded_db):
 # --------------------------------------------------------------------------- #
 
 
-async def test_MODUL_EKSENLI_kapsam_kablolu_OLMAYAN_modulde_REDDEDILIR(seeded_db):
-    """🔴 POZİTİF KONTROL — envanter kaydı #4'ün taşıyıcı iddiasının ÖLÇÜMÜ.
-
-    Onarım ÖNCESİ: `payroll` hücresine `view/limited` KABUL ediliyordu (200) —
-    `payroll` routerı düz `APIRoute`, `PayrollLineResponse` para alanlarını tam
-    değeriyle dönüyordu; yönetici ayrı yetki verdiğini sanıyor, ikisi de her
-    şeyi gösteriyordu. `payroll` `kablolu_moduller()`de YOKTUR (ölçüldü,
-    `tests/modules/test_scope_wiring.py`). Bu test o kabulü ÇAKAR: aynı istek
-    artık `PermissionLockedError` vermeli.
-    """
-    assert "payroll" not in kablolu_moduller(), "Testin dayanağı: payroll KABLOSUZ olmalı"
-    role = await _role(seeded_db, "hr_manager")
-    before = await get_permission(seeded_db, role.id, "payroll")
-    eski = (before.access_level, before.scope)
-
-    with pytest.raises(PermissionLockedError):
-        await update_role_permission(seeded_db, role.id, "payroll", AccessLevel.view, Scope.limited)
-
-    after = await get_permission(seeded_db, role.id, "payroll")
-    assert (after.access_level, after.scope) == eski, "Reddedilen istek satırı DEĞİŞTİRMEMELİ"
-
-
 async def test_IZN_B4_limited_artik_HICBIR_modulde_atanamaz(seeded_db):
     """IZN-B4a: altı eski modül de yeni maskeye geçti, eski köprüyü taşıyan modül kalmadı
-    (`kablolu_moduller()` boş). Eski `limited`/`finance` hücre yazımı her modülde reddedilir.
+    (eski köprü söküldü, IZN-B6a). Eski `limited`/`finance` hücre yazımı her modülde reddedilir.
     Bu dosyadaki eski kapsam testleri B6'da (eski matris sökümü) birlikte silinir."""
-    assert kablolu_moduller() == frozenset()
     role = await _role(seeded_db, "site_chief")
     with pytest.raises(PermissionLockedError):
         await update_role_permission(seeded_db, role.id, "sites", AccessLevel.view, Scope.limited)
