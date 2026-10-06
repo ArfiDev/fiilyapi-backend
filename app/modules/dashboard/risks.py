@@ -74,9 +74,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, restricted_project_ids
-from app.core.permissions import can_read, can_read_projects
+from app.core.permissions import can_read_pages, can_read_pages_projects
 from app.core.timezone import today
 from app.modules.contracts.models import SubcontractorContract
+from app.modules.dashboard.kart_sayfalari import RISK_GECIKME, RISK_STOK, RISK_TAKVIM
 from app.modules.dashboard.schemas import (
     RiskAlert,
     RiskAlertsPlaceholder,
@@ -101,6 +102,13 @@ from app.modules.users.models import User
 STOCK_MODULE = "inventory"
 PROGRESS_PAYMENT_MODULE = "progress_payments"
 SCHEDULE_MODULE = "sites"
+
+#: Kaynak (yanıttaki `module` dizesi) -> kartı açan SAYFA kümesi (IZN-B5d).
+_KAYNAK_SAYFALARI = {
+    STOCK_MODULE: RISK_STOK,
+    PROGRESS_PAYMENT_MODULE: RISK_GECIKME,
+    SCHEDULE_MODULE: RISK_TAKVIM,
+}
 
 #: Kaynak basina satir TAVANI. Kart bir liste ekrani DEGIL bir OZETTIR (mockup
 #: uc satir cizer); tavansiz birakilsaydi tek bir kotu gunde panel yuzlerce
@@ -332,7 +340,7 @@ async def build_risks(
     kisitli = await restricted_project_ids(session, actor.id)  # DSC-B5 (Ü2): hakedis ticari
     projeler: dict[str, list[uuid.UUID]] = {}
     for module in (STOCK_MODULE, PROGRESS_PAYMENT_MODULE, SCHEDULE_MODULE):
-        izin = await can_read_projects(session, actor, module, gorunur)
+        izin = await can_read_pages_projects(session, actor, _KAYNAK_SAYFALARI[module], gorunur)
         projeler[module] = [
             pid
             for pid in gorunur
@@ -342,9 +350,13 @@ async def build_risks(
         izinler = {module: bool(ids) for module, ids in projeler.items()}
     else:  # projesi olmayan aktor: kart, ana rolun iznini yansitir (bos liste, "restricted" degil)
         izinler = {
-            STOCK_MODULE: await can_read(session, actor, STOCK_MODULE),
-            PROGRESS_PAYMENT_MODULE: await can_read(session, actor, PROGRESS_PAYMENT_MODULE),
-            SCHEDULE_MODULE: await can_read(session, actor, SCHEDULE_MODULE),
+            STOCK_MODULE: await can_read_pages(session, actor, _KAYNAK_SAYFALARI[STOCK_MODULE]),
+            PROGRESS_PAYMENT_MODULE: await can_read_pages(
+                session, actor, _KAYNAK_SAYFALARI[PROGRESS_PAYMENT_MODULE]
+            ),
+            SCHEDULE_MODULE: await can_read_pages(
+                session, actor, _KAYNAK_SAYFALARI[SCHEDULE_MODULE]
+            ),
         }
     sources = [
         RiskSource(

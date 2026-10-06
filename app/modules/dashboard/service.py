@@ -23,8 +23,9 @@ kaldirilinca gerekcesi de onunla birlikte tasinsin.
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, restricted_project_ids
-from app.core.permissions import can_read, can_read_projects
+from app.core.permissions import can_read_pages, can_read_pages_projects
 from app.modules.approvals import service as approvals_service
+from app.modules.dashboard.kart_sayfalari import PORTFOY, PROJE_KARTLARI
 from app.modules.dashboard.risks import build_risks
 from app.modules.dashboard.schemas import (
     DashboardProjectCard,
@@ -52,9 +53,7 @@ _RECEIVABLES_MODULE = "invoicing"
 _MARGIN_MODULE = "progress_payments"
 _APPROVALS_MODULE = "approvals"
 
-#: Proje kartlarinin ALAN kapisi. `pending_module` anahtarlarindan farklidir:
-#: bu deger yanitin GOVDESINE yazilmaz, yalnizca `can_read` kapisini adlandirir.
-_PROJECTS_MODULE = "projects"
+# IZN-B5d: kart kapilari MODUL degil SAYFA kumesidir (`kart_sayfalari.py`).
 
 #: 🔴 YALNIZ SAYIM ISTIYORUZ. `pending_for_user` sayfayi ve TOPLAMI ayri
 #: sorgulardan uretir; `limit=0` sayfayi bos birakir ve satir zenginlestirmesini
@@ -147,7 +146,8 @@ async def _portfolio(
     atlamasi YOKTUR, yani `projects:admin` tasiyan bir aktorun portfoyu sessizce
     EKSIK sayilirdi (ayni gerekce `_pending_approvals` notunda da var).
 
-    🔴 IZIN KAPISI (K4 sizintisi): `can_read(..., "progress_payments")`.
+    🔴 IZIN KAPISI (K4 sizintisi): `can_read_pages(..., PORTFOY)`
+    (IZN-B5d: isveren hakedis sayfa kumesi).
     `require_permission` UCU kapatir, bu ise TUREV ALANI kapatir. OLCULDU
     (`roles/seed_data.py` MATRIX): paneli acabilen ama `progress_payments`i
     okuyamayan rol tam olarak **`hr_manager`**dir (`dashboard = _LIM`,
@@ -167,15 +167,15 @@ async def _portfolio(
          sonuc 0.00'dir — 'bilinmiyor' DEGIL") ve zaten bagli olan
          `pending_approvals` sayacinin sifiri aynidir.
     """
-    # IZN-B3: izin PROJE BASINA (her projede O PROJEDEKI rolun hakedis Gorur'u; ekipte olmayan /
+    # IZN-B3: izin PROJE BASINA (her projede O PROJEDEKI rolun `PORTFOY` Gorur'u; ekipte olmayan /
     # "Tum projeler" kisi ana rolle) ve DSC-B5 (Ü2): hasilat ticari → disiplinle KISITLI projeler
     # toplama GIRMEZ. Gorunur projelerin HICBIRI izinli degilse `restricted()`; proje yoksa bos.
     gorunur = await projects_service.visible_projects(session, user)
     if not gorunur:
-        if scope.is_restricted or not await can_read(session, user, _PORTFOLIO_MODULE):
+        if scope.is_restricted or not await can_read_pages(session, user, PORTFOY):
             return restricted()
         return metric(None, _PORTFOLIO_MODULE)
-    izin = await can_read_projects(session, user, _PORTFOLIO_MODULE, [p.id for p in gorunur])
+    izin = await can_read_pages_projects(session, user, PORTFOY, [p.id for p in gorunur])
     kisitli = await restricted_project_ids(session, user.id)
     projects = [p for p in gorunur if izin[p.id] and p.id not in kisitli]
     if not projects:
@@ -192,7 +192,7 @@ def _receivables() -> MetricPlaceholder:
 
     BAGLANMADI, cunku iki ucun KAPISI FARKLIDIR ve baglamak yetki genislemesi
     olurdu:
-      * `GET /dashboard/summary` -> `require_permission("dashboard", view)`
+      * `GET /dashboard/summary` -> `require_page("genel.gosterge_paneli", "view")`
       * `GET /invoices/summary`  -> `require_permission("invoicing", view)`
     Tohumlanmis matriste (`roles/seed_data.py:175,195`) `hr_manager` icin
     `dashboard = _LIM` ama `invoicing = _N`; `site_chief` ve `field_engineer`
@@ -287,7 +287,7 @@ async def build_summary(
     """Gosterge paneli ozeti. Projeler + ONAY + PORTFOY + RISK gercek, iki kart bos.
 
     🔴 PROJE KARTLARININ ALAN KAPISI (K4 — turev alan sizintisi). Ucun kapisi
-    `require_permission("dashboard", view)`tir ve o YETMEZ: kart `code` · `name`
+    `require_page("genel.gosterge_paneli", "view")`tir ve o YETMEZ: kart `code` · `name`
     · `status` · **`budget`** · `progress_pct` tasir, yani AYNI VERI
     `GET /projects` ucundan da cikar ve orada `require_permission("projects",
     ...)` ile korunur. Kapi olmadan `projects` hucresi `none` yapilmis bir rol
@@ -299,8 +299,8 @@ async def build_summary(
     `test_seed_matrix.py` bunu kilitliyor — ama o kilit TOHUMUNDUR, CALISMA
     ANININ degil.
 
-    Emsal ayni dosyadadir: `_portfolio` `can_read("progress_payments")` ile,
-    `build_risks` UC ayri `can_read` ile kapalidir. Bu kart ISTISNAYDI.
+    Emsal ayni dosyadadir: `_portfolio` `can_read_pages(PORTFOY)` ile,
+    `build_risks` UC ayri sayfa kumesi kapisiyla (`can_read_pages*`) kapalidir. Bu kart ISTISNAYDI.
 
     ⚠️ Kapi kapaliyken `projects=[]` doner ve `active_project_count` ondan
     TURETILDIGI icin 0 olur — sema DEGISMEZ, alanlar yerinde durur. Bos liste
@@ -311,10 +311,10 @@ async def build_summary(
     # `gate_ok`) hem MASKE (aşağıdaki çapraz maske; IZN-B4 `field_mask` bağlamı) kapısından
     # geçer. Seviye sayfa hücresinden, maske rolün gizli kategorilerinden gelir. Sorgu sayısı
     # (`test_dashboard_pyt2_onay_sayaci.py`) bu yüzden güncellendi.
-    # IZN-B3: proje karti izni PROJE BASINA (o projedeki rolun `projects` Gorur'u; ekipte olmayan /
+    # IZN-B3: proje karti izni PROJE BASINA (rolun `PROJE_KARTLARI` Gorur'u; ekipte olmayan /
     # "Tum projeler" kisi ana rolle).
     uyelik = await list_projects_for_user(session, user.id)
-    izin = await can_read_projects(session, user, _PROJECTS_MODULE, [p.id for p in uyelik])
+    izin = await can_read_pages_projects(session, user, PROJE_KARTLARI, [p.id for p in uyelik])
     projects = [p for p in uyelik if izin[p.id]]
     role = await session.get(Role, user.role_id)
 

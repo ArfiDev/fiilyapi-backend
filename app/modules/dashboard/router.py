@@ -2,13 +2,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_page
 from app.modules.dashboard.schemas import DashboardSummaryResponse
 from app.modules.dashboard.service import build_summary
 from app.modules.users.models import User
@@ -25,7 +24,7 @@ router = APIRouter(
 @router.get(
     "/summary",
     response_model=DashboardSummaryResponse,
-    dependencies=[require_permission("dashboard", AccessLevel.view)],
+    dependencies=[require_page("genel.gosterge_paneli", "view")],
 )
 async def get_dashboard_summary_endpoint(
     user: Annotated[User, Depends(get_current_user)],

@@ -175,12 +175,39 @@ async def can_read_projects(
     çiftleriyle) kararı yeniden belirler. Ekipte olmayan / "Tüm projeler" / Sistem Yöneticisi →
     ana rol (`page_gate.decide` ile AYNI kural).
     """
+    return await _pairs_projects(
+        session, user, gate_flags(module_key, AccessLevel.view), project_ids
+    )
+
+
+async def can_read_pages_projects(
+    session: AsyncSession, user: User, page_keys: tuple[str, ...], project_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, bool]:
+    """`can_read_projects`in SAYFA KÜMESİYLE çalışan eşi (IZN-B5d, panel kartları).
+
+    Karar kuralı aynıdır; yalnız bayrak çiftleri modülün Görür sayfaları yerine açıkça verilen
+    `page_keys` sayfalarının Görür bayrağıdır (modülün komşu sayfaları kartı AÇMAZ).
+    """
+    pairs: tuple[tuple[str, Flag], ...] = tuple((key, "view") for key in page_keys)
+    return await _pairs_projects(session, user, pairs, project_ids)
+
+
+async def can_read_pages(session: AsyncSession, user: User, page_keys: tuple[str, ...]) -> bool:
+    """Projesiz dal: ANA rolün `page_keys` sayfalarından birinde Görür'ü var mı (bağlama YAZMAZ)."""
+    return await pages_ok(session, user, page_keys, "view", record=False)
+
+
+async def _pairs_projects(
+    session: AsyncSession,
+    user: User,
+    pairs: tuple[tuple[str, Flag], ...],
+    project_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, bool]:
     if not project_ids:
         return {}
     from app.core.gate_context import project_pairs
     from app.core.page_gate import cells_of_roles, cells_satisfy, load_cells, team_roles
 
-    pairs = gate_flags(module_key, AccessLevel.view)
     if await is_admin_role(session, user):
         return {pid: True for pid in project_ids}
     if not pairs:
