@@ -66,7 +66,12 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_pages, require_permission, require_system_admin
+from app.core.permissions import (
+    require_page,
+    require_pages,
+    require_permission,
+    require_system_admin,
+)
 from app.core.ratelimit import client_ip
 from app.modules.accounting import (
     export,
@@ -97,7 +102,8 @@ from app.modules.users.models import User
 router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
-_FULL = require_permission(guards.PERMISSION_MODULE, AccessLevel.full)
+# IZN-B5b madde 4: yevmiye yazmaları kendi sayfasının Düzenler'i (eskiden `accounting:full`).
+_YEVMIYE = require_page("mali.yevmiye", "edit")
 #: IZN-B2: fiş Kaydet (post) = Yevmiye sayfası ONAYLAR (eşik eski `full`).
 _POST_APPROVE = require_pages(("mali.yevmiye",), "approve")
 
@@ -175,7 +181,7 @@ async def list_journal_entries_endpoint(
     response_model=JournalEntryDetailResponse,
     status_code=status.HTTP_201_CREATED,
     responses={404: {"description": "Fiş satırındaki hesap bulunamadı"}, **_K1},
-    dependencies=[_FULL],
+    dependencies=[_YEVMIYE],
 )
 async def create_journal_entry_endpoint(
     request: Request,
@@ -266,7 +272,7 @@ async def get_journal_entry_endpoint(
     "/journal-entries/{entry_id}",
     response_model=JournalEntryDetailResponse,
     responses={**_NOT_FOUND, **_DURUM_CAKISMASI, 422: {"description": "Gövde kuralı ihlali"}},
-    dependencies=[_FULL],
+    dependencies=[_YEVMIYE],
 )
 async def update_journal_entry_endpoint(
     request: Request,
@@ -333,7 +339,7 @@ async def delete_journal_entry_endpoint(
         **_DURUM_CAKISMASI,
         **_K1,
     },
-    dependencies=[_FULL],
+    dependencies=[_YEVMIYE],
 )
 async def replace_journal_lines_endpoint(
     request: Request,
@@ -407,7 +413,7 @@ async def post_journal_entry_endpoint(
         **_NOT_FOUND,
         409: {"description": "Fiş kayıtlı değil · stornosu zaten var · fişin kendisi storno"},
     },
-    dependencies=[_FULL],
+    dependencies=[_YEVMIYE],
 )
 async def reverse_journal_entry_endpoint(
     request: Request,

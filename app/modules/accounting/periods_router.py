@@ -66,7 +66,8 @@ router = APIRouter(
 )
 
 _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
-_FULL = require_permission(guards.PERMISSION_MODULE, AccessLevel.full)
+# IZN-B5b madde 4: dönem kapatma = `mali.donem_kapanisi` Düzenler'i (eskiden `accounting:full`).
+_KAPAT = require_page("mali.donem_kapanisi", "edit")
 #: IZN-B2 §2.4: "dönemi yeniden aç" = Dönem Kapanışı sayfası ONAYLAR (eşik eski `admin` ile aynı).
 _ADMIN = require_page("mali.donem_kapanisi", "approve")
 
@@ -114,7 +115,7 @@ async def list_accounting_periods_endpoint(
     "/{year}/{month}/close",
     response_model=AccountingPeriodResponse,
     responses=_DONEM_CAKISMASI,
-    dependencies=[_FULL],
+    dependencies=[_KAPAT],
 )
 async def close_accounting_period_endpoint(
     request: Request,

@@ -57,9 +57,9 @@ SEED_ROLES = list(seed_data.ROLE_ORDER)
 _HAKEDIS_ISVEREN = frozenset(
     {"mali.hakedis_isveren", "proje.isveren_hakedis", "santiye.hakedisler"}
 )
-_HAKEDIS_TASERON = frozenset(
-    {"mali.hakedis_taseron", "proje.taseron_hakedis", "santiye.hakedisler"}
-)
+# IZN-B5b madde 6 (CEO kararı 2): `santiye.hakedisler` yalnız işveren ailesi.
+_HAKEDIS_TASERON = frozenset({"mali.hakedis_taseron", "proje.taseron_hakedis"})
+_EV_BUTCE = frozenset({"planlama.adam_saat_butcesi", "santiye.adam_saat_butcesi"})
 PAGE_GATE_OLD: dict[tuple[frozenset[str], str], list[tuple[str, AccessLevel]]] = {
     (frozenset({"mali.donem_kapanisi"}), "approve"): [("accounting", L.admin)],
     (frozenset({"ayarlar.onay_rolleri"}), "edit"): [("approvals", L.admin)],
@@ -92,6 +92,44 @@ PAGE_GATE_OLD: dict[tuple[frozenset[str], str], list[tuple[str, AccessLevel]]] =
     (frozenset({"saha.makine_kira"}), "approve"): [("equipment", L.full)],
     (frozenset({"stok.teklif_karsilastirma"}), "approve"): [("procurement", L.full)],
     (frozenset({"stok.satinalma_talepleri"}), "approve"): [("procurement", L.approve)],
+    # --- IZN-B5b madde 7 (C): sözleşme/teklif/katalog yazmaları sayfa başına (eski: contracts=full)
+    (frozenset({"teklif.teklif_hazirlama"}), "edit"): [("contracts", L.full)],
+    (frozenset({"teklif.sablonlar"}), "edit"): [("contracts", L.full)],
+    (frozenset({"teklif.is_kalemi_katalogu"}), "edit"): [("contracts", L.full)],
+    (frozenset({"teklif.taseron_firmalar"}), "edit"): [("contracts", L.full)],
+    (frozenset({"teklif.taseron_sozlesme"}), "edit"): [("contracts", L.full)],
+    (frozenset({"teklif.taseron_firmalar", "teklif.sozlesmeler"}), "edit"): [("contracts", L.full)],
+    (frozenset({"teklif.sozlesmeler", "teklif.taseron_sozlesme"}), "edit"): [("contracts", L.full)],
+    (frozenset({"teklif.isveren_sozlesme", "proje.is_kalemleri"}), "edit"): [("contracts", L.full)],
+    (frozenset({"teklif.poz_dagilimi", "proje.is_kalemleri"}), "edit"): [("contracts", L.full)],
+    # --- IZN-B5b (A): satış sekmeleri · /costs · muhasebe · makine
+    (frozenset({"mali.satis_blok"}), "edit"): [("projects", L.full)],
+    (frozenset({"mali.satis_unite"}), "edit"): [("projects", L.full)],
+    (frozenset({"mali.satis_toplu_uretim"}), "edit"): [("projects", L.full)],
+    (frozenset({"mali.satis_excel"}), "edit"): [("projects", L.full)],
+    (frozenset({"mali.satis_paylasim"}), "edit"): [("projects", L.full)],
+    (
+        frozenset(
+            {"genel.projeler", "genel.proje_takvimi", "proje.ozet", "proje.paylasim_tablosu"}
+        ),
+        "view",
+    ): [("projects", L.view)],
+    (frozenset({"mali.hesap_plani"}), "edit"): [("accounting", L.full)],
+    (frozenset({"mali.yevmiye"}), "edit"): [("accounting", L.full)],
+    (frozenset({"mali.donem_kapanisi"}), "edit"): [("accounting", L.full)],
+    (frozenset({"saha.makine_ekipman"}), "edit"): [("equipment", L.full)],
+    (frozenset({"saha.makine_calisma"}), "edit"): [("equipment", L.full)],
+    (frozenset({"saha.makine_yakit"}), "edit"): [("equipment", L.full)],
+    (frozenset({"saha.makine_kira"}), "edit"): [("equipment", L.full)],
+    # belge bağlama yazmaları (B5b yan bulgu): eski kapı `sales:view` (bilinçli daralma, aşağıda)
+    (frozenset({"mali.satis"}), "edit"): [("sales", L.view)],
+    # --- IZN-B5b (B): hakediş aileleri · planlama
+    (_HAKEDIS_ISVEREN, "edit"): [("progress_payments", L.draft)],
+    (_HAKEDIS_TASERON, "edit"): [("progress_payments", L.draft)],
+    (_EV_BUTCE, "edit"): [("earned_value", L.draft)],
+    (frozenset({"ayarlar.planlama"}), "edit"): [("earned_value", L.draft)],
+    (frozenset({"planlama.disiplin_yonetimi"}), "edit"): [("earned_value", L.full)],
+    (frozenset({"planlama.birim_oran_katalogu"}), "edit"): [("earned_value", L.full)],
     (_HAKEDIS_ISVEREN, "approve"): [("progress_payments", L.approve)],
     (_HAKEDIS_TASERON, "approve"): [("progress_payments", L.approve)],
     (
@@ -143,6 +181,25 @@ B5A_KASITLI_ROTALAR = frozenset(
     }
 )
 
+#: IZN-B5b BİLİNÇLİ DARALMALAR (CEO onaylı, API düzeyi; kendi davranış testleri `test_izn_b5b_*`):
+#: * madde 1-A: `PATCH /projects/{id}` artık `projects:full` değil `genel.projeler` Düzenler ister
+#:   (seed'de yalnız `patron` ve `project_manager` kaybeder; FE'de çağıran ekran yok).
+#: * yan bulgu: belge bağlama/künye yazmaları artık `<sahip>:view` değil sahibin ANA sayfasının
+#:   Düzenler'i (`mali.satis_unite` · `mali.satis` · `teklif.taseron_sozlesme`). Bu tablo bu
+#:   uçların eski kapısını ana sayfa komşusunun kapısıyla eşlediği için yalnız `sales` ucu fark
+#:   olarak GÖRÜNÜR (`sales:view` → `mali.satis` Düzenler); diğerleri aynı gerekçeyle listededir.
+B5B_KASITLI_ROTALAR = frozenset(
+    {
+        ("PATCH", "/projects/{project_id}"),
+        ("POST", "/sales/{owner_id}/documents"),
+        ("PATCH", "/sales/documents/{link_id}"),
+        ("POST", "/units/{owner_id}/documents"),
+        ("PATCH", "/units/documents/{link_id}"),
+        ("POST", "/subcontractor-contracts/{owner_id}/documents"),
+        ("PATCH", "/subcontractor-contracts/documents/{link_id}"),
+    }
+)
+
 
 # ---------------------------------------------------------------------------
 # Rota tablosundan kapıları oku
@@ -154,10 +211,11 @@ class Gate:
     kind: str  # perm | chain | any | page | sa (SIL-B1: yalnız Sistem Yöneticisi)
     spec: tuple  # perm/chain: (modül, düzey) · any: ((modül, düzey), ...) · page: (sayfa, bayrak)
     fn: object = None  # çağrılabilir kapı (perm/any/page) — chain'de None
+    multi_project: bool = False  # yalnız page: `require_page(..., multi_project=True)` (B5b)
 
     @property
     def key(self) -> tuple:
-        return (self.kind, self.spec)
+        return (self.kind, self.spec, self.multi_project)
 
 
 def _closure(fn) -> dict:
@@ -183,9 +241,23 @@ def _walk(dependant, out: list[Gate], seen: set[int]) -> None:
             elif "gates" in c:
                 out.append(Gate("any", tuple(c["gates"]), fn))
             elif "page_key" in c and "flag" in c:
-                out.append(Gate("page", (frozenset({c["page_key"]}), c["flag"]), fn))
+                out.append(
+                    Gate(
+                        "page",
+                        (frozenset({c["page_key"]}), c["flag"]),
+                        fn,
+                        bool(c.get("multi_project", False)),
+                    )
+                )
             elif "page_keys" in c and "flag" in c:
-                out.append(Gate("page", (frozenset(c["page_keys"]), c["flag"]), fn))
+                out.append(
+                    Gate(
+                        "page",
+                        (frozenset(c["page_keys"]), c["flag"]),
+                        fn,
+                        bool(c.get("multi_project", False)),
+                    )
+                )
         _walk(sub, out, seen)
 
 
@@ -249,7 +321,7 @@ async def route_decisions(session, user: User, levels: dict[str, AccessLevel]):
                 continue  # SIL-B1: eski kararla karşılaştırılmaz; ayrı karar testi sınar
             eski = eski and old_gate(levels, gate)
             yeni = yeni and cache[gate.key]
-        if eski != yeni and route not in B5A_KASITLI_ROTALAR:
+        if eski != yeni and route not in B5A_KASITLI_ROTALAR | B5B_KASITLI_ROTALAR:
             farklar.append(route)
     return farklar
 

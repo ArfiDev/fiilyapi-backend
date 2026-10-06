@@ -71,7 +71,9 @@ _IKAME_UCLARI = frozenset(
 #: ikamesi aynı iki ucu — approve/reject — taşımaya devam eder).
 #: SIL-B1: DELETE uçları (hakediş ×2, talep, teklif) `require_system_admin` kapısına taşındı (MODÜL
 #: kapısı taşımaz): 26→24 ve 22→20.
-_MODUL_OPERASYON_SAYISI = {"progress_payments": 24, "procurement": 20}
+#: IZN-B5b: hakediş YAZMA uçları (işveren 5 + taşeron 5) sayfa Düzenler kapısına (`require_pages`)
+#: taşındı → MODÜL kapısı taşıyan uç sayısı 24→14.
+_MODUL_OPERASYON_SAYISI = {"progress_payments": 14, "procurement": 20}
 
 #: Ölçümün o günkü DÖKÜMÜ — yalnız hata mesajında farkı basmak için tutulur;
 #: iddia SAYIYA yapılır (aşağıda), kümeye değil.
@@ -251,7 +253,7 @@ async def test_KALAN_KIRK_BES_operasyon_ikame_kapisi_TASIMAZ():
     )
     kalan = tum_modul_uclari - _IKAME_UCLARI
 
-    assert len(kalan) == 38, f"kalan operasyon sayısı 38 değil {len(kalan)}: {sorted(kalan)}"
+    assert len(kalan) == 28, f"kalan operasyon sayısı 28 değil {len(kalan)}: {sorted(kalan)}"
     sizanlar = kalan & _ikame_operasyonlari()
     assert not sizanlar, f"ikame kapısı onay/ret DIŞINDAKİ uçlara sızmış: {sorted(sizanlar)}"
 

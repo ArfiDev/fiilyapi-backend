@@ -56,7 +56,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import require_permission, require_system_admin
+from app.core.permissions import require_page, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.accounting import accounts_service, export, guards
 from app.modules.accounting.models import ChartAccountType
@@ -73,7 +73,8 @@ from app.modules.users.models import User
 router = APIRouter(tags=["accounting"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(guards.PERMISSION_MODULE, AccessLevel.view)
-_FULL = require_permission(guards.PERMISSION_MODULE, AccessLevel.full)
+# IZN-B5b madde 4: hesap planı yazması kendi sayfasının Düzenler'i (eskiden `accounting:full`).
+_HESAP_PLANI = require_page("mali.hesap_plani", "edit")
 
 # K7 sayfalama standardı: varsayılan 50, tavan 200 — tavan aşımı sessizce
 # KIRPILMAZ, 422 döner (ST/SA/`invoicing`/`treasury` ile birebir).
@@ -148,7 +149,7 @@ async def list_chart_accounts_endpoint(
     response_model=ChartAccountResponse,
     status_code=status.HTTP_201_CREATED,
     responses=_YAZMA_YANITLARI,
-    dependencies=[_FULL],
+    dependencies=[_HESAP_PLANI],
 )
 async def create_chart_account_endpoint(
     request: Request,
@@ -257,7 +258,7 @@ async def get_chart_account_endpoint(
     "/chart-of-accounts/{account_id}",
     response_model=ChartAccountResponse,
     responses={**_NOT_FOUND, **_YAZMA_YANITLARI},
-    dependencies=[_FULL],
+    dependencies=[_HESAP_PLANI],
 )
 async def update_chart_account_endpoint(
     request: Request,

@@ -25,7 +25,7 @@ from app.core.deps import get_current_user
 from app.core.discipline_scope import UNRESTRICTED
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_page, require_permission
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -51,7 +51,8 @@ router = APIRouter(
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)
-_FULL = require_permission("contracts", AccessLevel.full)
+# IZN-B5b madde 7: katalog yazmaları 'İş Kalemi Kataloğu' sayfasının Düzenler bayrağı.
+_FULL = require_page("teklif.is_kalemi_katalogu", "edit")
 
 _User = Annotated[User, Depends(get_current_user)]
 

@@ -16,7 +16,12 @@ from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import require_permission, require_system_admin
+from app.core.permissions import (
+    require_page,
+    require_pages,
+    require_permission,
+    require_system_admin,
+)
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit import messages
@@ -75,7 +80,13 @@ _VIEW = require_permission("contracts", AccessLevel.view)
 # IZN-B3: çok proje LİSTE uçları (parametresiz proje verisi): ana rol VEYA ekip rolü açar, satırlar
 # `visible_projects`te proje başına o projedeki rolle süzülür.
 _VIEW_LISTE = require_permission("contracts", AccessLevel.view, multi_project=True)
-_FULL = require_permission("contracts", AccessLevel.full)
+# IZN-B5b madde 7: sözleşme yazmaları sayfa başına (CEO kararı 3 + 5).
+_DAGILIM_EDIT = require_pages(("teklif.poz_dagilimi", "proje.is_kalemleri"), "edit")
+_ISVEREN_EDIT = require_pages(("teklif.isveren_sozlesme", "proje.is_kalemleri"), "edit")
+_TASERON_FIRMA_EKLE = require_pages(("teklif.taseron_firmalar", "teklif.sozlesmeler"), "edit")
+_TASERON_FIRMA_EDIT = require_page("teklif.taseron_firmalar", "edit")
+_TASERON_SOZ_OLUSTUR = require_pages(("teklif.sozlesmeler", "teklif.taseron_sozlesme"), "edit")
+_TASERON_SOZ_EDIT = require_page("teklif.taseron_sozlesme", "edit")
 # KULLANICI KARARI 2026-07-30 (kalıcı karar 2, `boq/router.py` deseninin aynısı):
 # silme YALNIZ sistem yöneticisindedir — `full` yazmayı kapsar, SİLMEYİ KAPSAMAZ.
 _ADMIN = require_permission("contracts", AccessLevel.admin)
@@ -162,7 +173,7 @@ async def get_contract_distribution_endpoint(
 @router.put(
     "/projects/{project_id}/contract/distribution",
     response_model=ContractDistributionResponse,
-    dependencies=[_FULL, RequireUnrestricted],
+    dependencies=[_DAGILIM_EDIT, RequireUnrestricted],
 )
 async def save_contract_distribution_endpoint(
     request: Request,
@@ -188,7 +199,7 @@ async def save_contract_distribution_endpoint(
     "/projects/{project_id}/contract/groups",
     response_model=EmployerContractGroupResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_ISVEREN_EDIT],
 )
 async def create_employer_contract_group_endpoint(
     request: Request,
@@ -211,7 +222,7 @@ async def create_employer_contract_group_endpoint(
 @router.patch(
     "/contracts/employer/groups/{group_id}",
     response_model=EmployerContractGroupResponse,
-    dependencies=[_FULL],
+    dependencies=[_ISVEREN_EDIT],
 )
 async def update_employer_contract_group_endpoint(
     request: Request,
@@ -261,7 +272,7 @@ async def delete_employer_contract_group_endpoint(
     "/projects/{project_id}/contract/items",
     response_model=EmployerContractItemResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_ISVEREN_EDIT],
 )
 async def create_employer_contract_item_endpoint(
     request: Request,
@@ -287,7 +298,7 @@ async def create_employer_contract_item_endpoint(
     "/projects/{project_id}/contract/items/bulk",
     response_model=EmployerContractItemsBulkResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_ISVEREN_EDIT],
 )
 async def create_employer_contract_items_bulk_endpoint(
     request: Request,
@@ -318,7 +329,7 @@ async def create_employer_contract_items_bulk_endpoint(
 @router.patch(
     "/contracts/employer/items/{item_id}",
     response_model=EmployerContractItemResponse,
-    dependencies=[_FULL],
+    dependencies=[_ISVEREN_EDIT],
 )
 async def update_employer_contract_item_endpoint(
     request: Request,
@@ -395,7 +406,7 @@ async def list_subcontractors_endpoint(
     "/subcontractors",
     response_model=SubcontractorResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_TASERON_FIRMA_EKLE],
 )
 async def create_subcontractor_endpoint(
     request: Request,
@@ -417,7 +428,7 @@ async def create_subcontractor_endpoint(
 @router.patch(
     "/subcontractors/{subcontractor_id}",
     response_model=SubcontractorResponse,
-    dependencies=[_FULL],
+    dependencies=[_TASERON_FIRMA_EDIT],
 )
 async def update_subcontractor_endpoint(
     request: Request,
@@ -480,7 +491,7 @@ async def delete_subcontractor_endpoint(
     "/projects/{project_id}/subcontractor-contracts",
     response_model=SubcontractorContractDetail,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_TASERON_SOZ_OLUSTUR],
 )
 async def create_subcontractor_contract_endpoint(
     request: Request,
@@ -569,7 +580,7 @@ async def get_subcontractor_contract_endpoint(
 @router.patch(
     "/subcontractor-contracts/{contract_id}",
     response_model=SubcontractorContractDetail,
-    dependencies=[_FULL],
+    dependencies=[_TASERON_SOZ_EDIT],
 )
 async def update_subcontractor_contract_endpoint(
     request: Request,
@@ -654,7 +665,7 @@ async def delete_subcontractor_contract_endpoint(
     "/subcontractor-contracts/{contract_id}/items",
     response_model=SubcontractorContractItemResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_TASERON_SOZ_EDIT],
 )
 async def create_subcontract_item_endpoint(
     request: Request,
@@ -677,7 +688,7 @@ async def create_subcontract_item_endpoint(
 @router.patch(
     "/subcontractor-contracts/items/{item_id}",
     response_model=SubcontractorContractItemResponse,
-    dependencies=[_FULL],
+    dependencies=[_TASERON_SOZ_EDIT],
 )
 async def update_subcontract_item_endpoint(
     request: Request,
@@ -723,7 +734,7 @@ async def delete_subcontract_item_endpoint(
 @router.post(
     "/subcontractor-contracts/{contract_id}/items/load-from-employer",
     response_model=SubcontractorContractItemsLoadResponse,
-    dependencies=[_FULL],
+    dependencies=[_TASERON_SOZ_EDIT],
 )
 async def load_subcontract_items_from_employer_endpoint(
     request: Request,

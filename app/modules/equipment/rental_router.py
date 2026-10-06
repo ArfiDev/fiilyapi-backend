@@ -33,7 +33,12 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import require_pages, require_permission, require_system_admin
+from app.core.permissions import (
+    require_page,
+    require_pages,
+    require_permission,
+    require_system_admin,
+)
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit.models import AuditAction
@@ -59,7 +64,8 @@ router = APIRouter(
 )
 
 _VIEW = require_permission(rental_service.PERMISSION_MODULE, AccessLevel.view)
-_FULL = require_permission(rental_service.PERMISSION_MODULE, AccessLevel.full)
+# IZN-B5b madde 11: kira yazmaları `saha.makine_kira` Düzenler'i (eskiden `equipment:full`).
+_KIRA = require_page("saha.makine_kira", "edit")
 #: IZN-B2: kira Onayla / Öde / Reddet = Kira Hakedişi sayfası ONAYLAR (eşik eski `full`).
 _RENTAL_APPROVE = require_pages(("saha.makine_kira",), "approve")
 
@@ -130,7 +136,7 @@ async def list_rental_invoices_endpoint(
         404: {"description": "Kiralama firması ya da şantiye bulunamadı (görünmeyen dahil)"},
         409: {"description": "Bu firma için aynı fatura numarası zaten kayıtlı"},
     },
-    dependencies=[_FULL],
+    dependencies=[_KIRA],
 )
 async def create_rental_invoice_endpoint(
     request: Request,
@@ -174,7 +180,7 @@ async def get_rental_invoice_endpoint(
         409: {"description": "Onaylanmış/ödenmiş hakediş düzenlenemez (K5)"},
         422: {"description": "Kiralık satırlar seçilen firmaya ait değil (K8)"},
     },
-    dependencies=[_FULL],
+    dependencies=[_KIRA],
 )
 async def update_rental_invoice_endpoint(
     request: Request,
@@ -197,7 +203,7 @@ async def update_rental_invoice_endpoint(
     "/rental-invoices/{invoice_id}/reload",
     response_model=RentalInvoiceDetailResponse,
     responses=_STATUS_RESPONSES,
-    dependencies=[_FULL],
+    dependencies=[_KIRA],
 )
 async def reload_rental_invoice_endpoint(
     request: Request,
@@ -283,7 +289,7 @@ async def reject_rental_invoice_endpoint(
         404: {"description": "Satır bulunamadı (faturası görünmeyen dahil)"},
         409: {"description": "Onaylanmış/ödenmiş hakedişin satırı düzenlenemez (K5)"},
     },
-    dependencies=[_FULL],
+    dependencies=[_KIRA],
 )
 async def update_rental_invoice_line_endpoint(
     request: Request,

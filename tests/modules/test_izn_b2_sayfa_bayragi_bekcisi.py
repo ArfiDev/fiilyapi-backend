@@ -140,28 +140,11 @@ VIEW_GATE_PAGES: dict[str, frozenset[str]] = {
 }
 
 #: `(modül, düzey)` yazma kapısını açan sayfalar (YAZMA eşiği tam o kapı; Düzenler bayrağı).
+# IZN-B5b: accounting/contracts/equipment/projects full · earned_value draft/full ·
+# progress_payments draft kapıları sayfa kapısına taşındı; bu satırların ucu kalmadı.
 EDIT_GATE_PAGES: dict[tuple[str, AccessLevel], frozenset[str]] = {
-    ("accounting", L.full): _p("mali.yevmiye", "mali.hesap_plani", "mali.donem_kapanisi"),
     ("boq", L.full): _p("santiye.is_kalemleri", "santiye.bolum_dagilimi"),
-    ("contracts", L.full): _p(
-        "teklif.teklif_hazirlama",
-        "teklif.sablonlar",
-        "teklif.sozlesmeler",
-        "teklif.taseron_firmalar",
-        "teklif.isveren_sozlesme",
-        "teklif.poz_dagilimi",
-        "teklif.taseron_sozlesme",
-        "teklif.is_kalemi_katalogu",
-        "proje.is_kalemleri",
-    ),
     ("documents", L.full): _p("mali.belge_arsivi", "proje.belgeler", "santiye.belgeler"),
-    ("earned_value", L.draft): _p(
-        "planlama.adam_saat_butcesi", "santiye.adam_saat_butcesi", "ayarlar.planlama"
-    ),
-    ("earned_value", L.full): _p("planlama.birim_oran_katalogu", "planlama.disiplin_yonetimi"),
-    ("equipment", L.full): _p(
-        "saha.makine_ekipman", "saha.makine_calisma", "saha.makine_yakit", "saha.makine_kira"
-    ),
     ("inventory", L.full): _p("stok.stok_depo", "santiye.stok"),
     ("invoicing", L.full): _p("mali.fatura"),
     ("payroll", L.full): _p("mali.bordro", "mali.sgk_bildirimi"),
@@ -169,20 +152,6 @@ EDIT_GATE_PAGES: dict[tuple[str, AccessLevel], frozenset[str]] = {
     ("procurement", L.request): _p("stok.satinalma_talepleri"),
     ("procurement", L.full): _p(
         "stok.siparisler", "stok.tedarikciler", "stok.teklif_karsilastirma"
-    ),
-    ("progress_payments", L.draft): _p(
-        "mali.hakedis_isveren",
-        "mali.hakedis_taseron",
-        "proje.isveren_hakedis",
-        "proje.taseron_hakedis",
-        "santiye.hakedisler",
-    ),
-    ("projects", L.full): _p(
-        "mali.satis_blok",
-        "mali.satis_unite",
-        "mali.satis_toplu_uretim",
-        "mali.satis_excel",
-        "mali.satis_paylasim",
     ),
     ("sales", L.full): _p("mali.satis"),
     ("settings", L.full): _p("ayarlar.sirket_bilgileri"),
@@ -199,7 +168,8 @@ EDIT_GATE_PAGES: dict[tuple[str, AccessLevel], frozenset[str]] = {
 }
 
 _HAKEDIS_ISVEREN = _p("mali.hakedis_isveren", "proje.isveren_hakedis", "santiye.hakedisler")
-_HAKEDIS_TASERON = _p("mali.hakedis_taseron", "proje.taseron_hakedis", "santiye.hakedisler")
+# IZN-B5b madde 6 (CEO kararı 2): `santiye.hakedisler` yalnız işveren ailesinde.
+_HAKEDIS_TASERON = _p("mali.hakedis_taseron", "proje.taseron_hakedis")
 _EV_FREEZE = _p("planlama.adam_saat_butcesi", "santiye.adam_saat_butcesi")
 _EV_DAILY = _p("planlama.gunluk_rapor", "santiye.gunluk_ilerleme_raporu")
 _EV_UNLOCK = _EV_FREEZE | _EV_DAILY
@@ -262,13 +232,141 @@ PAGE_EDIT_ROUTES: dict[tuple[str, str], frozenset[str]] = {
     ("PUT", "/roles/{role_id}/pages"): _p("ayarlar.sayfa_izinleri"),
 }
 
+# --- IZN-B5b: sayfa ayırma satırları (elle yazıldı; uygulamadan bağımsız) ---
+_HI = _HAKEDIS_ISVEREN
+_HT = _HAKEDIS_TASERON
+_EVB = _EV_FREEZE
+_ISV = _p("teklif.isveren_sozlesme", "proje.is_kalemleri")
+_DAGILIM = _p("teklif.poz_dagilimi", "proje.is_kalemleri")  # CEO kararı 3
+_OFR = "/offers/{offer_id}/revisions/{rev_no}"
+_B5B_EDIT_A: dict[tuple[str, str], frozenset[str]] = {
+    # madde 1 (CEO kararı 1): oluşturma + düzenleme tek sayfada
+    ("PATCH", "/projects/{project_id}"): _p("genel.projeler"),
+    # madde 2: satış sekmeleri
+    ("POST", "/projects/{project_id}/blocks"): _p("mali.satis_blok"),
+    ("PATCH", "/blocks/{block_id}"): _p("mali.satis_blok"),
+    ("POST", "/projects/{project_id}/units"): _p("mali.satis_unite"),
+    ("PATCH", "/units/{unit_id}"): _p("mali.satis_unite"),
+    ("POST", "/projects/{project_id}/units/bulk"): _p("mali.satis_toplu_uretim"),
+    ("POST", "/projects/{project_id}/units/bulk/preview"): _p("mali.satis_toplu_uretim"),
+    ("POST", "/projects/{project_id}/units/import/validate"): _p("mali.satis_excel"),
+    ("POST", "/projects/{project_id}/units/import"): _p("mali.satis_excel"),
+    ("PATCH", "/projects/{project_id}/units/allocation"): _p("mali.satis_paylasim"),
+    # madde 4: muhasebe
+    ("POST", "/chart-of-accounts"): _p("mali.hesap_plani"),
+    ("PATCH", "/chart-of-accounts/{account_id}"): _p("mali.hesap_plani"),
+    ("POST", "/journal-entries"): _p("mali.yevmiye"),
+    ("PATCH", "/journal-entries/{entry_id}"): _p("mali.yevmiye"),
+    ("PUT", "/journal-entries/{entry_id}/lines"): _p("mali.yevmiye"),
+    ("POST", "/journal-entries/{entry_id}/reverse"): _p("mali.yevmiye"),
+    ("POST", "/accounting-periods/{year}/{month}/close"): _p("mali.donem_kapanisi"),
+    # madde 11: makine
+    ("POST", "/equipment"): _p("saha.makine_ekipman"),
+    ("PATCH", "/equipment/{equipment_id}"): _p("saha.makine_ekipman"),
+    ("POST", "/equipment/{equipment_id}/documents"): _p("saha.makine_ekipman"),
+    ("PATCH", "/equipment/documents/{document_id}"): _p("saha.makine_ekipman"),
+    ("POST", "/equipment/work-logs"): _p("saha.makine_calisma"),
+    ("PATCH", "/equipment/work-logs/{log_id}"): _p("saha.makine_calisma"),
+    ("POST", "/equipment/fuel-logs"): _p("saha.makine_yakit"),
+    ("PATCH", "/equipment/fuel-logs/{log_id}"): _p("saha.makine_yakit"),
+    ("POST", "/equipment/rental-invoices"): _p("saha.makine_kira"),
+    ("PATCH", "/equipment/rental-invoices/{invoice_id}"): _p("saha.makine_kira"),
+    ("POST", "/equipment/rental-invoices/{invoice_id}/reload"): _p("saha.makine_kira"),
+    ("PATCH", "/equipment/rental-invoice-lines/{line_id}"): _p("saha.makine_kira"),
+    # yan bulgu (CEO): belge bağlama yazmaları = sahibin ANA sayfasının Düzenler'i
+    ("POST", "/units/{owner_id}/documents"): _p("mali.satis_unite"),
+    ("PATCH", "/units/documents/{link_id}"): _p("mali.satis_unite"),
+    ("POST", "/sales/{owner_id}/documents"): _p("mali.satis"),
+    ("PATCH", "/sales/documents/{link_id}"): _p("mali.satis"),
+    ("POST", "/subcontractor-contracts/{owner_id}/documents"): _p("teklif.taseron_sozlesme"),
+    ("PATCH", "/subcontractor-contracts/documents/{link_id}"): _p("teklif.taseron_sozlesme"),
+}
+_B5B_EDIT_B: dict[tuple[str, str], frozenset[str]] = {
+    # madde 5: hakediş aileleri
+    ("POST", "/projects/{project_id}/progress-payments"): _HI,
+    ("PATCH", "/progress-payments/{payment_id}"): _HI,
+    ("PUT", "/progress-payments/{payment_id}/lines"): _HI,
+    ("POST", "/progress-payments/{payment_id}/refresh-prices"): _HI,
+    ("POST", "/progress-payments/{payment_id}/submit"): _HI,
+    ("POST", "/subcontractor-contracts/{contract_id}/progress-payments"): _HT,
+    ("PATCH", "/subcontractor-progress-payments/{payment_id}"): _HT,
+    ("PUT", "/subcontractor-progress-payments/{payment_id}/lines"): _HT,
+    ("POST", "/subcontractor-progress-payments/{payment_id}/refresh-prices"): _HT,
+    ("POST", "/subcontractor-progress-payments/{payment_id}/submit"): _HT,
+    # madde 9: ayar ucu ↔ bütçe uçları ↔ gün dağıtımı (CEO kararı 4)
+    ("PUT", f"{_DAY}/settings"): _p("ayarlar.planlama"),
+    ("POST", f"{_DAY}/budget/revisions"): _EVB,
+    ("PUT", f"{_DAY}/budget/group-disciplines"): _EVB,
+    ("PATCH", f"{_DAY}/budget/items/{{boq_item_id}}"): _EVB,
+    ("PATCH", f"{_DAY}/budget/leaves"): _EVB,
+    ("POST", f"{_DAY}/budget/fill-from-catalog"): _EVB,
+    ("POST", f"{_DAY}/budget/fill-from-contract"): _EVB,
+    ("PUT", f"{_DAY}/budget/distributions"): _EVB,
+    ("PUT", f"{_DAY}/budget/windows"): _EVB,
+    ("PUT", f"{_DAY}/days/{{day}}/allocation"): _EVB,
+    # madde 10
+    ("POST", "/earned-value/disciplines"): _p("planlama.disiplin_yonetimi"),
+    ("PATCH", "/earned-value/disciplines/{discipline_id}"): _p("planlama.disiplin_yonetimi"),
+    ("POST", "/earned-value/catalog"): _p("planlama.birim_oran_katalogu"),
+    ("PATCH", "/earned-value/catalog/{item_id}"): _p("planlama.birim_oran_katalogu"),
+    ("POST", "/earned-value/catalog/{item_id}/adopt-actual"): _p("planlama.birim_oran_katalogu"),
+}
+_B5B_EDIT_C: dict[tuple[str, str], frozenset[str]] = {
+    ("POST", "/catalog/items"): _p("teklif.is_kalemi_katalogu"),
+    ("POST", "/catalog/items/bulk"): _p("teklif.is_kalemi_katalogu"),
+    ("PATCH", "/catalog/items/{item_id}"): _p("teklif.is_kalemi_katalogu"),
+    ("PUT", "/projects/{project_id}/contract/distribution"): _DAGILIM,
+    ("POST", "/projects/{project_id}/contract/groups"): _ISV,
+    ("POST", "/projects/{project_id}/contract/items"): _ISV,
+    ("POST", "/projects/{project_id}/contract/items/bulk"): _ISV,
+    ("PATCH", "/contracts/employer/groups/{group_id}"): _ISV,
+    ("PATCH", "/contracts/employer/items/{item_id}"): _ISV,
+    ("POST", "/subcontractors"): _p("teklif.taseron_firmalar", "teklif.sozlesmeler"),
+    ("PATCH", "/subcontractors/{subcontractor_id}"): _p("teklif.taseron_firmalar"),
+    ("POST", "/projects/{project_id}/subcontractor-contracts"): _p(
+        "teklif.sozlesmeler", "teklif.taseron_sozlesme"
+    ),
+    ("PATCH", "/subcontractor-contracts/{contract_id}"): _p("teklif.taseron_sozlesme"),
+    ("POST", "/subcontractor-contracts/{contract_id}/items"): _p("teklif.taseron_sozlesme"),
+    ("PATCH", "/subcontractor-contracts/items/{item_id}"): _p("teklif.taseron_sozlesme"),
+    ("POST", "/subcontractor-contracts/{contract_id}/items/load-from-employer"): _p(
+        "teklif.taseron_sozlesme"
+    ),
+    ("POST", "/offers/templates"): _p("teklif.sablonlar"),
+    ("POST", "/offers/templates/from-offer"): _p("teklif.sablonlar"),
+    ("PATCH", "/offers/templates/{template_id}"): _p("teklif.sablonlar"),
+    ("PUT", "/offers/templates/{template_id}/content"): _p("teklif.sablonlar"),
+    ("POST", "/offers/templates/{template_id}/default"): _p("teklif.sablonlar"),
+    ("POST", "/offers/templates/{template_id}/copy"): _p("teklif.sablonlar"),
+    ("PUT", "/offers/settings"): _p("teklif.teklif_hazirlama"),
+    ("POST", "/offers"): _p("teklif.teklif_hazirlama"),
+    ("PATCH", "/offers/{offer_id}"): _p("teklif.teklif_hazirlama"),
+    ("POST", "/offers/{offer_id}/revisions"): _p("teklif.teklif_hazirlama"),
+    ("PATCH", _OFR): _p("teklif.teklif_hazirlama"),
+    ("POST", _OFR + "/send"): _p("teklif.teklif_hazirlama"),
+    ("POST", _OFR + "/win"): _p("teklif.teklif_hazirlama"),
+    ("POST", _OFR + "/lose"): _p("teklif.teklif_hazirlama"),
+    ("POST", _OFR + "/withdraw"): _p("teklif.teklif_hazirlama"),
+    ("POST", _OFR + "/groups"): _p("teklif.teklif_hazirlama"),
+    ("PATCH", _OFR + "/groups/{group_id}"): _p("teklif.teklif_hazirlama"),
+    ("POST", _OFR + "/items"): _p("teklif.teklif_hazirlama"),
+    ("POST", _OFR + "/items/bulk"): _p("teklif.teklif_hazirlama"),
+    ("PATCH", _OFR + "/items/{item_id}"): _p("teklif.teklif_hazirlama"),
+}
+
 #: IZN-B5a madde 15: Görür bayraklı sayfa kapılı (`require_pages(..., "view")`) uçlar. Görür ya da
 #: Düzenler bayrağı açar (Düzenler Görür'ü içerir); `ayarlar.kullanicilar` bu uçları AÇMAZ.
 PAGE_VIEW_ROUTES: dict[tuple[str, str], frozenset[str]] = {
+    # IZN-B5b Ek (CEO kararı 6): maliyet özeti satış alt sayfalarına AÇILMAZ (4'lü küme)
+    ("GET", "/projects/{project_id}/costs"): _p(
+        "genel.projeler", "genel.proje_takvimi", "proje.ozet", "proje.paylasim_tablosu"
+    ),
     ("GET", "/modules"): _p("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"),
     ("GET", "/roles/{role_id}/permissions"): _p("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"),
     ("GET", "/roles/{role_id}/pages"): _p("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"),
 }
+
+PAGE_EDIT_ROUTES = {**PAGE_EDIT_ROUTES, **_B5B_EDIT_A, **_B5B_EDIT_B, **_B5B_EDIT_C}
 
 
 # --------------------------------------------------------------------------- #
@@ -392,3 +490,43 @@ async def test_gorur_biti_yazma_kapisi_acmaz_projects_full_ve_draft(seeded_db) -
         if page in SATIS_ALT_SAYFALAR:
             yazma -= PROJECTS_VIEW_YAZMA_UCLARI  # bilinçli fark (IZN-B5a madde 3), yalnız bu 2 uç
         assert yazma == set(), f"{page} Görür → yazma açıldı: {sorted(yazma)}"
+
+
+# --- IZN-B5b: YAPISAL bire bir karşılaştırma (körlük onarımı) ---------------------------------
+#
+# Eski bekçi yalnız "açılan ⊆ tablo" denetliyordu: bir ucun kapısı komşu sayfaya/eski sabite
+# döndürüldüğünde (örn. `contracts:full`) o kapıyı AÇAN sayfa tabloda yoksa fark gizli kalıyordu.
+# Bu test rotanın GERÇEK kapı bağımlılığını (`require_page`/`require_pages` kapanışındaki
+# sayfa kümesi + bayrak) okuyup elle yazılmış tabloyla BİREBİR karşılaştırır.
+
+
+def test_sayfa_kapili_uclar_tabloyla_birebir() -> None:
+    """Rota+bayrak başına TÜM sayfa kapıları (liste; ezilmez) ve `multi_project` karşılaştırılır.
+
+    Tablo satırı = tek kapı, `multi_project=False` varsayılır; bugün `multi_project=True` sayfa
+    kapısı yoktur (ölçüldü). İkinci bir sayfa kapısı ya da multi_project farkı KIRMIZI verir.
+    """
+    uygulama: dict[tuple[str, tuple[str, str]], list[tuple[frozenset[str], bool]]] = {}
+    for route, gates in ROTALAR.items():
+        for gate in gates:
+            if gate.kind != "page":
+                continue
+            pages, flag = gate.spec
+            if flag in ("edit", "view"):
+                uygulama.setdefault((flag, route), []).append(
+                    (frozenset(pages), gate.multi_project)
+                )
+    tablo = {("edit", r): [(p, False)] for r, p in PAGE_EDIT_ROUTES.items()} | {
+        ("view", r): [(p, False)] for r, p in PAGE_VIEW_ROUTES.items()
+    }
+    assert sorted(set(uygulama) - set(tablo)) == [], "kapısı sayfaya bağlı ama tabloda yok"
+    assert sorted(set(tablo) - set(uygulama)) == [], "tabloda var ama uç sayfa kapısı taşımıyor"
+    farkli = {
+        k: (
+            sorted((sorted(p), m) for p, m in tablo[k]),
+            sorted((sorted(p), m) for p, m in uygulama[k]),
+        )
+        for k in tablo
+        if sorted(map(repr, tablo[k])) != sorted(map(repr, uygulama[k]))
+    }
+    assert farkli == {}, farkli

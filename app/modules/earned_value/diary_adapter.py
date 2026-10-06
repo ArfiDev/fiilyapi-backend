@@ -36,15 +36,14 @@ from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import day_hooks
-from app.core.access import AccessLevel
 from app.core.day_hooks import SubmitContext, SubmitReason
 from app.core.discipline_scope import UNRESTRICTED, DisciplineScope, user_scope
 from app.core.errors import ConflictError, EarnedValueValidationError
-from app.core.page_gate import gate_ok
+from app.core.page_gate import pages_ok
 from app.modules.contracts.models import Subcontractor
 from app.modules.earned_value import budget_repository as repo
 from app.modules.earned_value import guards
-from app.modules.earned_value.access import PERMISSION_MODULE, assert_site_writable
+from app.modules.earned_value.access import BUDGET_PAGES, assert_site_writable
 from app.modules.earned_value.budget_scope import node_ids, prune_tree
 from app.modules.earned_value.budget_snapshot import frozen_tree
 from app.modules.earned_value.budget_tree import (
@@ -706,11 +705,12 @@ async def submit_blockers(session: AsyncSession, ctx: SubmitContext) -> list[Sub
     actor = await session.get(User, ctx.actor_id)
     gunluk = await session.get(SiteDiaryEntry, ctx.entry_id)
     # IZN-B3: planlama yazma yetkisi O PROJEDEKİ rolle ölçülür (günlüğün projesi); bağlama yazmaz.
-    if actor is None or not await gate_ok(
+    # IZN-B5b: kapı = bütçe sayfalarının Düzenler'i (ayarlar.planlama artık sayılmaz).
+    if actor is None or not await pages_ok(
         session,
         actor,
-        PERMISSION_MODULE,
-        AccessLevel.draft,
+        BUDGET_PAGES,
+        "edit",
         project_id=gunluk.project_id if gunluk is not None else None,
         record=False,
     ):

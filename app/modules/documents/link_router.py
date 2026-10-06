@@ -76,7 +76,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import require_permission, require_system_admin
+from app.core.permissions import require_page, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -102,6 +102,14 @@ router = APIRouter(
 #: Katalog okuma kapısı: `documents` modülünde hiçbir rol `none` değildir
 #: (spec §6) — slot listesini her rol görebilir.
 _CATALOG_VIEW = require_permission("documents", AccessLevel.view)
+
+#: IZN-B5b yan bulgu: BAĞLAMA/KÜNYE yazması = sahibin ANA sayfasının Düzenler'i (CEO kararı;
+#: eskiden `<sahip>:view` = gören yazardı). `section` bu turda KAPSAM DIŞI → eski görme kapısı.
+_YAZMA_SAYFASI: dict[str, str] = {
+    "unit": "mali.satis_unite",
+    "unit_sale": "mali.satis",
+    "subcontractor_contract": "teklif.taseron_sozlesme",
+}
 
 _OWNER_404 = {404: {"description": "Kayıt bulunamadı (görünmeyen dahil)"}}
 _LINK_404 = {404: {"description": "Belge bağı bulunamadı (görünmeyen kaydın bağı dahil)"}}
@@ -157,10 +165,13 @@ async def list_slot_types_endpoint(
 
 def _register(spec: OwnerSpec) -> None:
     # 🔴 KULLANICI KARARI 2026-09-05 ("şimdilik açık yap, izin matrisi sonra
-    # ayarlanacak"): BAĞLAMA/GÜNCELLEME kapısı `<sahip>:full` DEĞİL `<sahip>:view`.
+    # ayarlanacak"): BAĞLAMA/GÜNCELLEME kapısı `<sahip>:full` DEĞİL `<sahip>:view` idi
+    # (IZN-B5b: `unit`/`unit_sale`/`subcontractor_contract` için `_YAZMA_SAYFASI`).
     # Kural: "gördüğün kayda, yüklemeye yetkin varsa bağlayabilirsin."
     # SİLME bunun DIŞINDADIR (aşağıda) ve GÖRÜNÜRLÜK süzgeci DEĞİŞMEDİ.
     view = require_permission(spec.permission_module, AccessLevel.view)
+    sayfa = _YAZMA_SAYFASI.get(spec.key)
+    write = view if sayfa is None else require_page(sayfa, "edit")
     owner_path = f"{spec.route_root}/{{owner_id}}/documents"
     link_path = f"{spec.route_root}/documents/{{link_id}}"
 
@@ -188,7 +199,7 @@ def _register(spec: OwnerSpec) -> None:
             **_OWNER_404,
             422: {"description": "Slot bu kayıt için geçersiz ya da belge bu projede değil"},
         },
-        dependencies=[view],
+        dependencies=[write],
         operation_id=f"attach_{spec.key}_document",
         summary=f"{spec.label} belgesi bağla",
     )
@@ -207,7 +218,7 @@ def _register(spec: OwnerSpec) -> None:
         link_path,
         response_model=EntityDocumentLinkRead,
         responses=_LINK_404,
-        dependencies=[view],
+        dependencies=[write],
         operation_id=f"update_{spec.key}_document",
         summary=f"{spec.label} belgesi künyesi",
     )
