@@ -273,7 +273,9 @@ async def test_B10_CIFT_KAPI_katalog_genis_olsa_da_ucun_kapisi_KOSAR(
 ) -> None:
     """(a) ölçümünün dinamik kanıtı: araç ucun KENDİ kapısından geçer (çift kapı).
 
-    Katalog kapısı `actor.permissions`tır (`derived_role_matrix` → `display_level`, gösterge
+    IZN-B5e: katalog kapısı artık GERÇEK kapıdır (`actor.gecen_kapilar`); bu test ucun kendi
+    kapısını yalnız göstergeye (`gecen_kapilar=None` → `permissions`) düşürülmüş aktörle sınar.
+    Eski katalog kapısı `actor.permissions`tı (`derived_role_matrix` → `display_level`, gösterge
     düzeyi). Ölçüldü: tek hücre `mali.satis_toplu_uretim` Düzenler → `projects=full` gösterir,
     yani `proje_detayi` KATALOGDA görünür; ama sayfa uçta YOK (görme eşiği `(projects, full)`,
     `gate_flags(projects, view)` dışında). Uç 403 verir → araç `Restricted` döner, VERİ YOK.
@@ -302,7 +304,10 @@ async def test_B10_CIFT_KAPI_katalog_genis_olsa_da_ucun_kapisi_KOSAR(
         return kullanici
 
     async def _cagir(kullanici):
-        aktor = await actor_factory(kullanici)
+        import dataclasses
+
+        # Katalog kapısını göstergeye düşür: ucun kapısı TEK başına sınanır.
+        aktor = dataclasses.replace(await actor_factory(kullanici), gecen_kapilar=None)
         katalogda = "proje_detayi" in {s.ad for s in ToolRegistry(READ_TOOLS).katalog(aktor)}
         sonuc = await ToolRegistry(READ_TOOLS).invoke(
             arac_adi="proje_detayi",
