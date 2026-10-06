@@ -2,7 +2,8 @@
 
 ## Neden ROTA düzeyinde
 
-Eski kapsam maskesi (`scoped_route.kapsam_rotasi`) yalnız 6 izin modülünün routerlarındaydı ve her
+Eski kapsam maskesi (`kapsam_rotasi`, IZN-B6a'da söküldü) yalnız 6 izin modülünün
+routerlarındaydı ve her
 router iki parça gerektiriyordu (rota sınıfı + `kapsam_kapisi` bağımlılığı). Yeni maske TÜM
 routerlara yayılır ve TEK parçadır: rota sınıfı kendi bağımlılığını kendisi ekler
 (`dependencies=[maske bağlamı]`), yani "sınıfı koydum bağımlılığı unuttum" hâli doğamaz. Bekçisi
@@ -15,7 +16,7 @@ Bağımlılık yalnız `(session, request)`i bir `ContextVar`a koyar; etkin rol�
 gerçekten maskelenecekse çözülür. `/auth/me`, `/users`, silme uçları gibi hassas alanı olmayan
 uçlar SIFIR ek sorgu yer.
 
-`ContextVar` + `yield`li bağımlılık + `reset`, `scoped_route.kapsam_bagimligi_kur`un ÖLÇÜLMÜŞ
+`ContextVar` + `yield`li bağımlılık + `reset`, eski `kapsam_bagimligi_kur`un (söküldü) ÖLÇÜLMÜŞ
 desenidir (keep-alive bağlantıda ardışık istekler AYNI task'ta koşar; `reset` olmazsa bir isteğin
 bağlamı sonrakine taşınır).
 

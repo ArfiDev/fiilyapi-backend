@@ -27,6 +27,9 @@ açtığı kapı kapanırdı) ya da tümüyle açılır (dolayısıyla `wage_amo
 
 ## 🔴 `Scope`u KENDİ BAŞINA GÜVENLİK GEREKÇESİ SAYMA — ama artık DEKORATİF de DEĞİL
 
+[IZN-B4/B6a: eski kapsam maskesi (`field_scope`, `scoped_route`, `kapsam_rotasi`,
+`kapsam_kapisi`) SÖKÜLDÜ; yerine `core/mask_route` + `core/field_mask`.
+Aşağıdaki metin TARİHSEL gerekçedir.]
 🔴 **ESKİ GEREKÇE BAYATTI, KARAR AYNI KALDI** (ölçüldü, `tests/modules/ai/
 test_p8_kapsam_maskesi.py`; kardeşi `ai/tools/schemas.py:191`, `ai/registry.py`
 aynı düzeltmeyi taşır). Burada *"`Scope` enum'unun 14 isabetinin hepsi `roles/`

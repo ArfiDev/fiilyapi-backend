@@ -27,6 +27,10 @@ kapı `satisfies(permission.access_level, seviye)` ile **gerçekten** uygulanır
 
 ## `ActorContext`ta `scope` ALANI YOKTUR — ama gerekçesi artık BAŞKA
 
+IZN-B4/B6a: eski kapsam maskesi (`field_scope`, `scoped_route`, `kapsam_rotasi`,
+`kapsam_kapisi`) SÖKÜLDÜ; yerine `core/mask_route` + `core/field_mask`.
+Aşağıdaki metin TARİHSEL gerekçedir.
+
 🔴 **ESKİ GEREKÇE BAYATTI, KARAR AYNI KALDI** (ölçüldü, `tests/modules/ai/
 test_p8_kapsam_maskesi.py`). Burada *"`Scope` enum'unun 14 isabetinin hepsi
 `roles/` altındadır ve hiçbir süzgeç `permission.scope` OKUMAZ"* yazıyordu. Bu

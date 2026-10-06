@@ -1,4 +1,5 @@
-"""HASSAS ALAN MASKESİ — motor (IZN-B4, IZN-PLAN §3). `field_scope` (`limited`/`finance`) yerine.
+"""HASSAS ALAN MASKESİ — motor (IZN-B4, IZN-PLAN §3).
+Eski `field_scope` (`limited`/`finance`, IZN-B6a'da söküldü) yerine.
 
 ## Kural (tek cümle)
 

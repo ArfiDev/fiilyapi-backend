@@ -157,7 +157,7 @@ async def role_user_counts(
 
 @dataclass(frozen=True)
 class MaskBasis:
-    """Bir rolün alan maskesi için tek bakışlık özeti (`core.permissions.role_default_scope`)."""
+    """Bir rolün alan maskesi için tek bakışlık özeti (`derived_role_matrix` varsayılan kapsamı)."""
 
     has_legacy_rows: bool
     hides_all_amounts: bool
@@ -184,7 +184,7 @@ async def derived_role_matrix(
 
     `/auth/me.permissions` ve `GET /roles/{id}/permissions` bunu okur (frontend B6/F5'e kadar).
     Düzey: `page_gate.display_level` (Sistem Yöneticisi: her modül `admin`). Kapsam: eski satırı
-    olan modülde DONMUŞ eski satır; satırı olmayanda `role_default_scope` kuralı (satırı hiç
+    olan modülde DONMUŞ eski satır; satırı olmayanda varsayılan kural (satırı hiç
     olmayan rolde `tum_tutarlar` → `limited`). `cells` çağıranda yüklüyse (`/auth/me`) verilir:
     ikinci hücre sorgusu koşmaz.
     """

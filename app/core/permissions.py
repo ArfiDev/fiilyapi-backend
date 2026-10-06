@@ -4,15 +4,13 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.gate_context import Flag
 from app.core.openapi import SYSTEM_ADMIN_ONLY_DETAIL
 from app.core.page_gate import decide, gate_flags, gate_ok, is_admin_role, page_ok, pages_ok
-from app.core.scoped_route import kapsam_bagimligi_kur
 from app.modules.projects.context import request_project
-from app.modules.roles.repository import get_permission, role_mask_basis
 from app.modules.users.models import User
 
 _DENIED = "Bu işlem için yetkiniz yok"
@@ -223,55 +221,3 @@ async def _pairs_projects(
     return {
         pid: cells_satisfy(cells[team[pid]], scoped) if pid in team else main for pid in project_ids
     }
-
-
-async def actor_scope(session: AsyncSession, user: User, module_key: str) -> Scope:
-    """Aktörün O MODÜLDEKİ veri kapsamı (`RolePermission.scope`).
-
-    🔴 `require_permission` bir UCU, `can_read` bir ALANI kapatır; bu ise alan
-    kapısını KAPSAMA bağlar (`core.field_scope` üç kovayı anlatır).
-
-    İzin satırı yoksa `Scope.all` döner ve bu bilinçli bir fail-OPEN'dır: satır
-    yoksa `require_permission` ucu ZATEN 403 ile kapatmıştır, yani buraya
-    ulaşılmışsa erişim vardır. Burada `limited` varsaymak, kapsamı yapılandırılmamış
-    her rolün ekranını sessizce boşaltırdı.
-    """
-    permission = await get_permission(session, user.role_id, module_key)
-    if permission is not None:
-        return permission.scope
-    return await role_default_scope(session, user.role_id)
-
-
-async def role_default_scope(session: AsyncSession, role_id) -> Scope:
-    """Eski satırı OLMAYAN modül için kapsam (IZN-B2, CEO kararı HİBRİT).
-
-    * Rolün HİÇ eski `role_permissions` satırı yoksa (yeni 6 rol, B2 sonrası açılan özel/kopya
-      roller): `tum_tutarlar` gizliyse `limited`, değilse `all`. FAIL-CLOSED: yeni "Görüntüleyici"
-      B4'e kadar tutarları görmez.
-    * Rolün eski satırları varsa (8 seed rol + eski özel roller) ve bu modülün satırı yoksa:
-      eski davranış (`all`, belgelenmiş fail-OPEN) AYNEN. Bu rollerde kaydedilen gizli alanlar
-      B4'e kadar maskeyi DEĞİŞTİRMEZ (`RolePagesResponse.hidden_fields_effective=false`).
-    """
-    basis = await role_mask_basis(session, role_id)
-    return Scope.limited if (not basis.has_legacy_rows and basis.hides_all_amounts) else Scope.all
-
-
-def kapsam_kapisi(module_key: str):
-    """Routerın `dependencies=[...]`ine eklenen KÖPRÜ.
-
-    Bunu kuran router, `route_class=kapsam_rotasi(module_key, kapsamdan_oku)`
-    ile birlikte kullanılmalıdır; ikisinden biri eksikse maske sessizce
-    `all` görür. `tests/core/test_kapsam_baglantisi.py` bu çifti çakar.
-    """
-
-    async def _cozucu(
-        user: Annotated[User, Depends(get_current_user)],
-        session: DbSession,
-    ) -> Scope:
-        return await actor_scope(session, user, module_key)
-
-    # Kapsam bağımlılığı async generator'dır; function kapsamlı `get_db`ye
-    # bağlanabilmesi için kendisinin de function olması şart (yoksa import'ta
-    # DependencyScopeError). Maske ve serileştirme function_stack kapanmadan önce
-    # koştuğundan davranış değişmez.
-    return Depends(kapsam_bagimligi_kur(_cozucu), scope="function")
