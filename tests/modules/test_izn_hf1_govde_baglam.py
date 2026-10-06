@@ -333,17 +333,9 @@ SINIF_C_PATCH = [
 #: Form/multipart bağlam bildiren uçlar: JSON gövde bağlamı hiç değiştirmez (eski davranış).
 SINIF_FORM = [u for u in UCLAR if u.bildirilen and u.form]
 #: Açık beyaz liste: yeni PATCH/PUT ucu eklenir ya da bir uç çözücü kazanırsa test KIRMIZI olur,
-#: liste BİLİNÇLİ güncellenir. Saha (`/equipment/*`) ve satınalma (`/purchase-requests/*`)
-#: çözücüleri IZN-B4d'de eklenecek. `/financial-instruments/{instrument_id}` HF1'de çözücü aldı.
-BILINEN_COZUCUSUZ_PATCH = frozenset(
-    {
-        ("PATCH", "/purchase-requests/{request_id}"),
-        ("PATCH", "/equipment/{equipment_id}"),
-        ("PATCH", "/equipment/work-logs/{log_id}"),
-        ("PATCH", "/equipment/fuel-logs/{log_id}"),
-        ("PATCH", "/equipment/rental-invoices/{invoice_id}"),
-    }
-)
+#: liste BİLİNÇLİ güncellenir. `/financial-instruments/{instrument_id}` HF1'de, saha
+#: (`/equipment/*`) ve satınalma (`/purchase-requests/*`) çözücüleri IZN-B4d'de eklendi: borç 0.
+BILINEN_COZUCUSUZ_PATCH: frozenset[tuple[str, str]] = frozenset()
 
 
 def _kimlikler(uclar: list[_Uc]) -> list[str]:

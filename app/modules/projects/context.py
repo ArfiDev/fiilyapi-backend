@@ -18,9 +18,9 @@ TAŞIMA kuralı (IZN-HF1): yol çözücüsü eşleştiyse gövde bağlamı DEĞ�
 başka projeye "taşınıyormuş" gibi o projenin rolüyle okunup yazılamaz); P == Q → P; açık `null`
 (hedef = projesiz) P doluyken de taşımadır → `None`. Rota bağlam anahtarı bildirip gövde JSON olarak
 okunamıyorsa (tür/boş/bozuk/dict değil/değer dize-null değil) bağlam `None`. İçerik türü FastAPI'nin
-kuralıyla çözülür (büyük harf, `+json`). Bilinen borç: `RESOLVERS` dışı PATCH/PUT uçları kayıt
-çözücüsü almadıkça gövdeden bağlam alır (saha ve satınalma çözücüleri IZN-B4d'de eklenecek;
-`/financial-instruments` HF1'de eklendi; kalan liste `BILINEN_COZUCUSUZ_PATCH` testinde).
+kuralıyla çözülür (büyük harf, `+json`). `RESOLVERS` dışı PATCH/PUT ucu kayıt çözücüsü almadıkça
+gövdeden bağlam alır; böyle uç KALMADI (`/financial-instruments` HF1'de, saha ve satınalma
+IZN-B4d'de çözücü aldı). Bekçi: `BILINEN_COZUCUSUZ_PATCH` boş küme testi.
 Slug (`/projects/{slug}`, `/sites/{slug}` …) ÇÖZÜLÜR: UUID ile slug aynı projeyi verir.
 Slug kapsamı tekil değilse (şantiye / bölüm slug'ı proje / şantiye içinde tekildir)
 ve birden çok projede eşleşirse bağlam ÇÖZÜLMEZ
