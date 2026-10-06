@@ -11,7 +11,7 @@ from app.core.deps import get_current_user
 from app.core.errors import UnitValidationError
 from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission, require_system_admin
+from app.core.permissions import require_page, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -61,7 +61,13 @@ router = APIRouter(
 # `projects` modulunun seviyeleri kullanilir. Modul sayisi 17'de kalir.
 _VIEW = require_permission("projects", AccessLevel.view)
 # Yazma uclari `full` ister (spec §8): `view` yetmez (IDOR-13).
-_FULL = require_permission("projects", AccessLevel.full)
+# IZN-B5b madde 2: satış alt sayfalarının yazmaları SEKME BAŞINA kapılıdır (eskiden hepsi
+# `projects:full` = beş sekmeden herhangi birinin Düzenler'i). Okuma (`_VIEW`) değişmez.
+_BLOK = require_page("mali.satis_blok", "edit")
+_UNITE = require_page("mali.satis_unite", "edit")
+_TOPLU = require_page("mali.satis_toplu_uretim", "edit")
+_EXCEL = require_page("mali.satis_excel", "edit")
+_PAYLASIM = require_page("mali.satis_paylasim", "edit")
 # SILME uclari `require_system_admin` ile kapilidir (SIL-B1): modul seviyesi degil rol ANAHTARI.
 
 
@@ -132,7 +138,7 @@ async def list_units_endpoint(
     "/projects/{project_id}/blocks",
     response_model=BlockResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_BLOK],
 )
 async def create_block_endpoint(
     request: Request,
@@ -148,7 +154,7 @@ async def create_block_endpoint(
     return await service.block_response(session, block)
 
 
-@router.patch("/blocks/{block_id}", response_model=BlockResponse, dependencies=[_FULL])
+@router.patch("/blocks/{block_id}", response_model=BlockResponse, dependencies=[_BLOK])
 async def update_block_endpoint(
     request: Request,
     block_id: uuid.UUID,
@@ -167,7 +173,7 @@ async def update_block_endpoint(
     "/projects/{project_id}/units",
     response_model=UnitResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_UNITE],
 )
 async def create_unit_endpoint(
     request: Request,
@@ -182,7 +188,7 @@ async def create_unit_endpoint(
     return await service.unit_response(session, unit)
 
 
-@router.patch("/units/{unit_id}", response_model=UnitResponse, dependencies=[_FULL])
+@router.patch("/units/{unit_id}", response_model=UnitResponse, dependencies=[_UNITE])
 async def update_unit_endpoint(
     request: Request,
     unit_id: uuid.UUID,
@@ -249,7 +255,7 @@ async def delete_block_endpoint(
     "/projects/{project_id}/units/bulk",
     response_model=UnitListResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_TOPLU],
 )
 async def bulk_create_units_endpoint(
     request: Request,
@@ -271,7 +277,7 @@ async def bulk_create_units_endpoint(
 @router.post(
     "/projects/{project_id}/units/bulk/preview",
     response_model=UnitBulkPreview,
-    dependencies=[_FULL],
+    dependencies=[_TOPLU],
 )
 async def preview_bulk_units_endpoint(
     project_id: uuid.UUID,
@@ -300,7 +306,7 @@ async def preview_bulk_units_endpoint(
 @router.patch(
     "/projects/{project_id}/units/allocation",
     response_model=UnitListResponse,
-    dependencies=[_FULL],
+    dependencies=[_PAYLASIM],
 )
 async def update_allocation_endpoint(
     request: Request,
@@ -327,7 +333,7 @@ async def update_allocation_endpoint(
 @router.post(
     "/projects/{project_id}/units/import/validate",
     response_model=UnitImportValidation,
-    dependencies=[_FULL],
+    dependencies=[_EXCEL],
 )
 async def validate_import_endpoint(
     project_id: uuid.UUID,
@@ -369,7 +375,7 @@ async def validate_import_endpoint(
 @router.post(
     "/projects/{project_id}/units/import",
     response_model=UnitImportResult,
-    dependencies=[_FULL],
+    dependencies=[_EXCEL],
 )
 async def import_units_endpoint(
     request: Request,

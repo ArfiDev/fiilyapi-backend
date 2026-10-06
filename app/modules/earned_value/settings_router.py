@@ -1,7 +1,7 @@
 """Planlama (EV) uclari — settings_router. Kapilar ve kapsam: `access.py`.
 
 Santiye EV ayarlari (AYP ekrani; PLANLAMA-SPEC §3.8 K1/K5/K6/K19/K25): tek GET +
-tek PUT. Kapi: okuma `VIEW`, yazma `WRITE` (draft — saha muhendisi dahil, B1-8).
+tek PUT. Kapi: okuma `VIEW`, yazma `SETTINGS_WRITE` (ayarlar.planlama Duzenler, IZN-B5b).
 Kapsam: `access.visible_site` — gorunmeyen santiye ile olmayan santiye AYNI 404. PUT'ta
 kapsam + "tamamlanmis santiye salt okunur" `access.completed_site_guard` bagimliligidir
 (sira 404 → 409 → 422 govde; kilitli yetkili denetim `settings_service.save_settings`te).
@@ -26,8 +26,8 @@ from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.earned_value import audit_messages, settings_preview, settings_service
 from app.modules.earned_value.access import (
+    SETTINGS_WRITE,
     VIEW,
-    WRITE,
     SiteContext,
     completed_site_guard,
     visible_site,
@@ -60,7 +60,7 @@ async def get_settings_endpoint(
 @router.put(
     "/sites/{site_id}/earned-value/settings",
     response_model=SettingsRead,
-    dependencies=[WRITE, RequireUnrestricted],
+    dependencies=[SETTINGS_WRITE, RequireUnrestricted],
 )
 async def save_settings_endpoint(
     request: Request,

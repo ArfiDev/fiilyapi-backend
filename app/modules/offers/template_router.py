@@ -27,7 +27,11 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import require_permission, require_system_admin
+from app.core.permissions import (
+    require_page,
+    require_permission,
+    require_system_admin,
+)
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -52,8 +56,8 @@ router = APIRouter(
 )
 
 _VIEW = require_permission("contracts", AccessLevel.view)
-_FULL = require_permission("contracts", AccessLevel.full)
-_WRITE = [_FULL]
+# IZN-B5b madde 7: şablon yazmaları 'Teklif Şablonları' sayfasının Düzenler bayrağı.
+_WRITE = [require_page("teklif.sablonlar", "edit")]
 _User = Annotated[User, Depends(get_current_user)]
 _TemplateId = Annotated[uuid.UUID, Path()]
 _BASE = "/offers/templates"

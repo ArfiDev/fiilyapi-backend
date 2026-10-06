@@ -7,7 +7,8 @@ Santiye kapsami YOKTUR — izin kapisi yeter.
 |----|------|
 | disiplin listesi okuma | `VIEW` VEYA `user_management:view` (B0b) |
 | katalog okuma | `VIEW` |
-| disiplin/katalog yazma, "gerceklesen standart yap" | `CATALOG` (full) |
+| disiplin yazma | `DISCIPLINE_WRITE` (disiplin_yonetimi Duzenler, IZN-B5b) |
+| katalog yazma, "gerceklesen standart yap" | `CATALOG_WRITE` (birim_oran_katalogu Duzenler) |
 | disiplin silme | `ADMIN` (B1-9) |
 
 `GET` `record_audit` CAGIRMAZ; her yazma ucu TEK denetim satiri yazar
@@ -37,7 +38,12 @@ from app.modules.earned_value import (
     contract_adapter,
     discipline_adapter,
 )
-from app.modules.earned_value.access import CATALOG, PERMISSION_MODULE, VIEW
+from app.modules.earned_value.access import (
+    CATALOG_WRITE,
+    DISCIPLINE_WRITE,
+    PERMISSION_MODULE,
+    VIEW,
+)
 from app.modules.earned_value.schemas_catalog import (
     CatalogItemCreate,
     CatalogItemRead,
@@ -113,7 +119,7 @@ async def list_disciplines_endpoint(session: _Session) -> list[DisciplineRead]:
     "/earned-value/disciplines",
     response_model=DisciplineRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[CATALOG],
+    dependencies=[DISCIPLINE_WRITE],
 )
 async def create_discipline_endpoint(
     request: Request, data: DisciplineCreate, user: _User, session: _Session
@@ -128,7 +134,7 @@ async def create_discipline_endpoint(
 @router.patch(
     "/earned-value/disciplines/{discipline_id}",
     response_model=DisciplineRead,
-    dependencies=[CATALOG],
+    dependencies=[DISCIPLINE_WRITE],
 )
 async def update_discipline_endpoint(
     request: Request,
@@ -192,7 +198,7 @@ async def list_catalog_endpoint(
     "/earned-value/catalog",
     response_model=CatalogItemRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[CATALOG],
+    dependencies=[CATALOG_WRITE],
 )
 async def create_catalog_item_endpoint(
     request: Request, data: CatalogItemCreate, user: _User, session: _Session
@@ -208,7 +214,7 @@ async def create_catalog_item_endpoint(
 @router.patch(
     "/earned-value/catalog/{item_id}",
     response_model=CatalogItemRead,
-    dependencies=[CATALOG],
+    dependencies=[CATALOG_WRITE],
 )
 async def update_catalog_item_endpoint(
     request: Request,
@@ -227,7 +233,7 @@ async def update_catalog_item_endpoint(
 @router.post(
     "/earned-value/catalog/{item_id}/adopt-actual",
     response_model=CatalogItemRead,
-    dependencies=[CATALOG],
+    dependencies=[CATALOG_WRITE],
 )
 async def adopt_actual_endpoint(
     request: Request, item_id: uuid.UUID, user: _User, session: _Session

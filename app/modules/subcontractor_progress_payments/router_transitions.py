@@ -53,9 +53,11 @@ router = APIRouter(
     route_class=MaskeRotasi,
 )
 
-_DRAFT = require_permission("progress_payments", AccessLevel.draft)
-#: IZN-B2: Onayla/Reddet/Ödendi = taşeron hakediş sayfaları ONAYLAR (+ proje sekmesi + şantiye).
-_APPROVE_PAGES = ("mali.hakedis_taseron", "proje.taseron_hakedis", "santiye.hakedisler")
+#: IZN-B5b: taşeron hakediş ailesi (`santiye.hakedisler` işveren ailesidir; çıkarıldı, CEO k.2).
+HAKEDIS_TASERON = ("mali.hakedis_taseron", "proje.taseron_hakedis")
+_DRAFT = require_pages(HAKEDIS_TASERON, "edit")
+#: IZN-B2: Onayla/Reddet/Ödendi = taşeron hakediş sayfaları ONAYLAR (+ proje sekmesi).
+_APPROVE_PAGES = HAKEDIS_TASERON
 _APPROVE = require_pages(_APPROVE_PAGES, "approve")
 _ADMIN = require_permission("progress_payments", AccessLevel.admin)
 #: OK-1C — `approve`/`reject`in kapısı. Modül seviyesi AYNEN `approve`tır;

@@ -9,7 +9,7 @@ from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_page, require_permission
+from app.core.permissions import require_page, require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit import messages
@@ -173,7 +173,18 @@ async def get_project_endpoint(
     response_model=ProjectCostsResponse,
     # OKUMA ucu: `view` yeter (P10 spec §3). Audit YAZILMAZ — türev okuma hiçbir
     # şey değiştirmez, denetim günlüğünü kart açılışlarıyla şişirmek anlamsızdır.
-    dependencies=[require_permission("projects", AccessLevel.view)],
+    # IZN-B5b Ek/6: tüketici proje özeti; satış alt sayfalarının Görür'ü bu ucu AÇMAZ.
+    dependencies=[
+        require_pages(
+            (
+                "genel.projeler",
+                "genel.proje_takvimi",
+                "proje.ozet",
+                "proje.paylasim_tablosu",
+            ),
+            "view",
+        )
+    ],
 )
 async def get_project_costs_endpoint(
     project_id: uuid.UUID,
@@ -263,7 +274,9 @@ async def create_project_endpoint(
 @router.patch(
     "/{project_id}",
     response_model=ProjectDetailResponse,
-    dependencies=[require_permission("projects", AccessLevel.full)],
+    # IZN-B5b madde 1 (CEO A): oluştur + düzenle tek sayfada (`genel.projeler`); eskiden
+    # `projects:full` = satış sekmelerinin Düzenler'i (patron/PM daralması bilinçli kabul).
+    dependencies=[require_page("genel.projeler", "edit")],
 )
 async def update_project_endpoint(
     request: Request,

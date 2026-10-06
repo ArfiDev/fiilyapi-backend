@@ -1,7 +1,8 @@
 """Gunluk saat dagitimi + gun kilidi uclari — `/sites/{site_id}/earned-value/…`.
 
-Kapilar: okuma VIEW · dagitim yazma WRITE (K17: "dagitim blogunu duzenleme = earned_value
-yazma") · kilit acma APPROVE (§2 "yetkili gerekceyle acar"; B3'te rapor onayi da APPROVE).
+Kapilar: okuma VIEW · dagitim yazma BUDGET_WRITE (IZN-B5b: butce sayfalari; K17: "dagitim blogunu
+duzenleme = earned_value yazma") · kilit acma APPROVE (§2 "yetkili gerekceyle acar";
+B3'te rapor onayi da APPROVE).
 Bu modul import edilince EV adaptoru cekirdek porta KAYDOLUR (`diary_adapter.register`).
 """
 
@@ -26,9 +27,9 @@ from app.modules.earned_value import audit_messages as msg
 from app.modules.earned_value import day_view
 from app.modules.earned_value import diary_adapter as adp
 from app.modules.earned_value.access import (
+    BUDGET_WRITE,
     DAY_UNLOCK,
     VIEW,
-    WRITE,
     SiteContext,
     completed_site_guard,
     visible_site,
@@ -82,7 +83,7 @@ async def get_day(
     return await day_view.build_view(session, site_id, day, user, scope)
 
 
-@router.put(f"{_DAY}/allocation", response_model=DayView, dependencies=[WRITE])
+@router.put(f"{_DAY}/allocation", response_model=DayView, dependencies=[BUDGET_WRITE])
 async def put_day_allocation(
     request: Request,
     site_id: uuid.UUID,

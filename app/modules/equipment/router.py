@@ -48,7 +48,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import require_permission, require_system_admin
+from app.core.permissions import require_page, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit.models import AuditAction
@@ -88,7 +88,11 @@ router = APIRouter(
 )
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
-_FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
+# IZN-B5b madde 11: yazmalar SAYFA BAŞINA (eskiden hepsi `equipment:full` = dört makine
+# sayfasından herhangi birinin Düzenler'i). Belge ve kira yazmaları kendi router'larında.
+_EKIPMAN = require_page("saha.makine_ekipman", "edit")
+_CALISMA = require_page("saha.makine_calisma", "edit")
+_YAKIT = require_page("saha.makine_yakit", "edit")
 
 
 async def _audit(
@@ -172,7 +176,7 @@ async def equipment_summary_endpoint(
         404: {"description": "Seçilen şantiye, operatör ya da tedarikçi bulunamadı"},
         422: {"description": "Sahip olunan ekipmanda alış bedeli zorunludur (K2)"},
     },
-    dependencies=[_FULL],
+    dependencies=[_EKIPMAN],
 )
 async def create_equipment_endpoint(
     request: Request,
@@ -289,7 +293,7 @@ async def work_summary_export_endpoint(
         404: {"description": "Ekipman, şantiye ya da operatör bulunamadı (görünmeyen dahil)"},
         422: {"description": "K11 saat kuralları ya da K12 günlük 24 saat tavanı"},
     },
-    dependencies=[_FULL],
+    dependencies=[_CALISMA],
 )
 async def create_work_log_endpoint(
     request: Request,
@@ -317,7 +321,7 @@ async def get_work_log_endpoint(
     "/work-logs/{log_id}",
     response_model=WorkLogResponse,
     responses={422: {"description": "K11 saat kuralları ya da K12 günlük 24 saat tavanı"}},
-    dependencies=[_FULL],
+    dependencies=[_CALISMA],
 )
 async def update_work_log_endpoint(
     request: Request,
@@ -408,7 +412,7 @@ async def fuel_summary_endpoint(
     response_model=FuelLogResponse,
     status_code=status.HTTP_201_CREATED,
     responses={404: {"description": "Ekipman ya da şantiye bulunamadı (görünmeyen dahil)"}},
-    dependencies=[_FULL],
+    dependencies=[_YAKIT],
 )
 async def create_fuel_log_endpoint(
     request: Request,
@@ -432,7 +436,7 @@ async def get_fuel_log_endpoint(
     return FuelLogResponse.model_validate(await service.visible_fuel_log(session, user, log_id))
 
 
-@router.patch("/fuel-logs/{log_id}", response_model=FuelLogResponse, dependencies=[_FULL])
+@router.patch("/fuel-logs/{log_id}", response_model=FuelLogResponse, dependencies=[_YAKIT])
 async def update_fuel_log_endpoint(
     request: Request,
     log_id: uuid.UUID,
@@ -518,7 +522,7 @@ async def get_equipment_detail_endpoint(
     "/{equipment_id}",
     response_model=EquipmentResponse,
     responses={422: {"description": "Sahip olunan ekipmanda alış bedeli zorunludur (K2)"}},
-    dependencies=[_FULL],
+    dependencies=[_EKIPMAN],
 )
 async def update_equipment_endpoint(
     request: Request,

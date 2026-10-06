@@ -4,10 +4,12 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from app.core.access import AccessLevel, Scope
+from app.core.sayfalar import PageLevel
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.projects.models import ProjectContract
 from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.users.models import ProjectMember
+from tests._ekip_dunyasi import rol_kur
 from tests._legacy_permission_yardimcisi import sync_page_cells
 
 
@@ -251,7 +253,10 @@ async def test_patch_project_outside_access_is_404_and_changes_nothing(
     """
     granted = await project_factory("GK-A")
     hidden = await project_factory("OSB-1", name="Dokunulmamis Ad")
+    # IZN-B5b madde 1: PATCH /projects/{id} artık `genel.projeler` Düzenler'i ister (patron/PM
+    # seed'de yalnız Görür) → kapsamı sınırlı, o sayfayı düzenleyebilen özel rol.
     user = await user_factory(email="scoped-pm@t.co", password="parola1234", role_key="patron")
+    user.role_id = (await rol_kur(db_session, "scoped_projeler_edit", PageLevel.edit)).id
     db_session.add(ProjectMember(user_id=user.id, project_id=granted.id, role_id=user.role_id))
     await db_session.flush()
     login = await client.post(
@@ -277,7 +282,7 @@ async def test_patch_project_outside_access_is_404_and_changes_nothing(
 
 async def test_patch_updates_and_audits(client, db_session, user_factory, project_factory):
     project = await project_factory("T-1", name="Eski Ad")
-    token = await _login_with_all_access(client, db_session, user_factory, "project_manager")
+    token = await _login_with_all_access(client, db_session, user_factory, "system_admin")
 
     resp = await client.patch(
         f"/projects/{project.id}", json={"name": "Yeni Ad"}, headers=_auth(token)
@@ -296,7 +301,7 @@ async def test_patch_updates_and_audits(client, db_session, user_factory, projec
 async def test_patch_ignores_project_type(client, db_session, user_factory, project_factory):
     """ProjectUpdate'te alan yok — gonderilirse sessizce yok sayilir (extra alan)."""
     project = await project_factory("T-2", project_type="taahhut")
-    token = await _login_with_all_access(client, db_session, user_factory, "patron")
+    token = await _login_with_all_access(client, db_session, user_factory, "system_admin")
 
     resp = await client.patch(
         f"/projects/{project.id}",

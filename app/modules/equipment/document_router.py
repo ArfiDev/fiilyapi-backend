@@ -44,7 +44,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import require_permission, require_system_admin
+from app.core.permissions import require_page, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
@@ -70,7 +70,8 @@ router = APIRouter(
 )
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
-_FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
+# IZN-B5b madde 11: belge yazması `saha.makine_ekipman` Düzenler'i (eskiden `equipment:full`).
+_EKIPMAN = require_page("saha.makine_ekipman", "edit")
 
 _UPLOAD_CHUNK_BYTES = 65536
 """`documents/router.py`nin AYNI sabiti — tavanı aşan istek en fazla bu kadar
@@ -205,7 +206,7 @@ async def list_equipment_documents_endpoint(
         413: {"description": "Dosya boyutu tavanı aşıyor"},
         422: {"description": "Desteklenmeyen dosya türü ya da geçersiz belge tipi"},
     },
-    dependencies=[_FULL],
+    dependencies=[_EKIPMAN],
 )
 async def create_equipment_document_endpoint(
     request: Request,
@@ -248,7 +249,7 @@ async def create_equipment_document_endpoint(
     "/documents/{document_id}",
     response_model=EquipmentDocumentResponse,
     responses={404: {"description": "Belge bulunamadı (görünmeyen ekipmanın belgesi dahil)"}},
-    dependencies=[_FULL],
+    dependencies=[_EKIPMAN],
 )
 async def update_equipment_document_endpoint(
     request: Request,

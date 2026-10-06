@@ -6,9 +6,9 @@ none < view < draft < request < approve < full < admin):
 | kapi        | seviye  | ne acar |
 |-------------|---------|---------|
 | `VIEW`      | view    | butun okumalar, onizleme |
-| `WRITE`     | draft   | ayarlar, butce girdileri (oran/esleme/dagilim/pencere), taslak ac |
+| `SETTINGS_WRITE`/`BUDGET_WRITE` | sayfa Duzenler | ayar PUT · butce + gun dagitimi (IZN-B5b) |
 | `APPROVE`   | approve | baseline dondur, taslak sil (B3: rapor onayi + kilit acma) |
-| `CATALOG`   | full    | sirket katalogu + disiplin yazma, "gerceklesen standart yap" |
+| `DISCIPLINE_WRITE`/`CATALOG_WRITE` | sayfa Duzenler | disiplin · katalog yazma (IZN-B5b) |
 | `ADMIN`     | admin   | disiplin silme (B1-9) |
 
 Kapsam maskesi BAGLANMAZ (adam-saat para degil): router duz `APIRoute`dir,
@@ -44,7 +44,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.errors import ConflictError, NotFoundError
-from app.core.permissions import require_pages, require_permission
+from app.core.permissions import require_page, require_pages, require_permission
 from app.modules.projects.models import Project
 from app.modules.projects.service import visible_projects
 from app.modules.sites import repository as sites_repository
@@ -55,7 +55,6 @@ from app.modules.users.models import User
 PERMISSION_MODULE = "earned_value"
 
 VIEW = require_permission(PERMISSION_MODULE, AccessLevel.view)
-WRITE = require_permission(PERMISSION_MODULE, AccessLevel.draft)
 APPROVE = require_permission(PERMISSION_MODULE, AccessLevel.approve)
 #: IZN-B2: ONAYLAR eylemleri sayfa bayrağından geçer (modül kapısı `APPROVE` yalnız DELETE
 #: bütçe taslağı ucunda kalır: SIL hattı). Eşikler eski `approve` ile aynıdır.
@@ -74,7 +73,15 @@ DAY_UNLOCK = require_pages(
     ),
     "approve",
 )
-CATALOG = require_permission(PERMISSION_MODULE, AccessLevel.full)
+#: IZN-B5b: yazma kapıları UÇ BAŞINA kendi sayfasına bağlıdır (eski `WRITE`/`CATALOG` modül kapıları
+#: komşu sayfaları da açıyordu): ayar PUT → `ayarlar.planlama` · bütçe uçları + gün dağıtımı +
+#: servis içi gönder kapısı → bütçe sayfaları (EVB) · disiplin → `disiplin_yonetimi` · katalog →
+#: `birim_oran_katalogu`.
+BUDGET_PAGES = ("planlama.adam_saat_butcesi", "santiye.adam_saat_butcesi")
+SETTINGS_WRITE = require_page("ayarlar.planlama", "edit")
+BUDGET_WRITE = require_pages(BUDGET_PAGES, "edit")
+DISCIPLINE_WRITE = require_page("planlama.disiplin_yonetimi", "edit")
+CATALOG_WRITE = require_page("planlama.birim_oran_katalogu", "edit")
 ADMIN = require_permission(PERMISSION_MODULE, AccessLevel.admin)
 
 

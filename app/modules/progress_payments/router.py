@@ -61,9 +61,12 @@ _VIEW = require_permission("progress_payments", AccessLevel.view)
 # IZN-B3: çok proje LİSTE uçları: ana rol VEYA ekip rolü açar, satırlar `visible_projects`te proje
 # başına o projedeki rolle süzülür.
 _VIEW_LISTE = require_permission("progress_payments", AccessLevel.view, multi_project=True)
-_DRAFT = require_permission("progress_payments", AccessLevel.draft)
+#: IZN-B5b: işveren hakediş YAZMA uçları (oluştur/düzenle/satır/fiyat yenile/onaya gönder) işveren
+#: ailesinin sayfa kümesinin Düzenler'ine bağlıdır; taşeron hakediş sayfaları bu uçları AÇMAZ.
+_HAKEDIS_ISVEREN = ("mali.hakedis_isveren", "proje.isveren_hakedis", "santiye.hakedisler")
+_DRAFT = require_pages(_HAKEDIS_ISVEREN, "edit")
 #: IZN-B2: Onayla/Reddet/Ödendi = hakediş sayfaları ONAYLAR (işveren + proje sekmesi + şantiye).
-_APPROVE_PAGES = ("mali.hakedis_isveren", "proje.isveren_hakedis", "santiye.hakedisler")
+_APPROVE_PAGES = _HAKEDIS_ISVEREN
 _APPROVE = require_pages(_APPROVE_PAGES, "approve")
 _ADMIN = require_permission("progress_payments", AccessLevel.admin)
 #: OK-1C — `approve`/`reject`in kapısı. Modül seviyesi AYNEN `approve`tır;

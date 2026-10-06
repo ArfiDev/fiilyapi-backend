@@ -19,7 +19,7 @@ from app.core.deps import get_current_user
 from app.core.discipline_deps import RequireUnrestricted
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission, require_system_admin
+from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit import messages
@@ -29,6 +29,9 @@ from app.modules.silme import service as silme_service
 from app.modules.silme.params import DELETE_WITH_PREVIEW_RESPONSES, PreviewTokenQuery
 from app.modules.subcontractor_progress_payments import read, service, summary
 from app.modules.subcontractor_progress_payments.models import SubcontractorPaymentStatus
+from app.modules.subcontractor_progress_payments.router_transitions import (
+    HAKEDIS_TASERON,
+)
 from app.modules.subcontractor_progress_payments.router_transitions import (
     router as transitions_router,
 )
@@ -55,7 +58,9 @@ _VIEW = require_permission("progress_payments", AccessLevel.view)
 # IZN-B3: çok proje LİSTE uçları: ana rol VEYA ekip rolü açar, satırlar `visible_projects`te proje
 # başına o projedeki rolle süzülür.
 _VIEW_LISTE = require_permission("progress_payments", AccessLevel.view, multi_project=True)
-_DRAFT = require_permission("progress_payments", AccessLevel.draft)
+#: IZN-B5b: taşeron hakediş YAZMA uçları taşeron ailesinin sayfa kümesinin Düzenler'ine bağlıdır
+#: (`santiye.hakedisler` işveren ailesidir; bu uçları AÇMAZ). Küme `router_transitions`ta tanımlı.
+_DRAFT = require_pages(HAKEDIS_TASERON, "edit")
 
 
 @router.get(

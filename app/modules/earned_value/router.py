@@ -1,6 +1,6 @@
 """Adam-saat butcesi uclari (BUT ekrani) — `/sites/{site_id}/earned-value/budget…`.
 
-Kapilar `access.py` (VIEW/WRITE/APPROVE). Yazma uclari kapsami `_Writable` bagimliligindan
+Kapilar `access.py` (VIEW/BUDGET_WRITE/APPROVE). Yazma uclari kapsami `_Writable` bagimliligindan
 alir: gorunmeyen 404 → tamamlanmis santiye 409 → govde 422 (PLN-B3.0; kilitli yetkili
 denetim serviste). Her yazma TEK denetim olayi yazar; GET'ler
 ve kalici olmayan onizleme yazmaz. Yazma uclari guncel butce gorunumunu doner.
@@ -34,8 +34,8 @@ from app.modules.earned_value import budget_service as svc
 from app.modules.earned_value import contract_rates
 from app.modules.earned_value.access import (
     BASELINE_FREEZE,
+    BUDGET_WRITE,
     VIEW,
-    WRITE,
     SiteContext,
     completed_site_guard,
     visible_site,
@@ -136,7 +136,7 @@ async def list_budget_revisions(site_id: uuid.UUID, user: _User, session: _Db) -
     f"{_BASE}/revisions",
     response_model=RevisionOut,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[WRITE, RequireUnrestricted],
+    dependencies=[BUDGET_WRITE, RequireUnrestricted],
 )
 async def open_budget_draft(
     request: Request, site_id: uuid.UUID, ctx: _Writable, user: _User, session: _Db
@@ -192,7 +192,7 @@ async def get_budget_revision_diff(
 @router.put(
     f"{_BASE}/group-disciplines",
     response_model=BudgetView,
-    dependencies=[WRITE, RequireUnrestricted],
+    dependencies=[BUDGET_WRITE, RequireUnrestricted],
 )
 async def put_group_disciplines(
     request: Request,
@@ -211,7 +211,9 @@ async def put_group_disciplines(
     return await _view(session, ctx)
 
 
-@router.patch(f"{_BASE}/items/{{boq_item_id}}", response_model=BudgetView, dependencies=[WRITE])
+@router.patch(
+    f"{_BASE}/items/{{boq_item_id}}", response_model=BudgetView, dependencies=[BUDGET_WRITE]
+)
 async def patch_budget_item(
     request: Request,
     site_id: uuid.UUID,
@@ -231,7 +233,7 @@ async def patch_budget_item(
     return await _view(session, ctx, scope)
 
 
-@router.patch(f"{_BASE}/leaves", response_model=BudgetView, dependencies=[WRITE])
+@router.patch(f"{_BASE}/leaves", response_model=BudgetView, dependencies=[BUDGET_WRITE])
 async def patch_budget_leaves(
     request: Request,
     site_id: uuid.UUID,
@@ -300,7 +302,9 @@ def _recent(c: ops.Candidate, sites: list[SiteItemActual]) -> RecentActualOut:
 
 
 @router.post(
-    f"{_BASE}/fill-from-catalog", response_model=FillOut, dependencies=[WRITE, RequireUnrestricted]
+    f"{_BASE}/fill-from-catalog",
+    response_model=FillOut,
+    dependencies=[BUDGET_WRITE, RequireUnrestricted],
 )
 async def fill_budget_from_catalog(
     request: Request, site_id: uuid.UUID, ctx: _Writable, user: _User, session: _Db
@@ -334,7 +338,7 @@ async def fill_budget_from_catalog(
 @router.post(
     f"{_BASE}/fill-from-contract",
     response_model=FillFromContractOut,
-    dependencies=[WRITE, RequireUnrestricted],
+    dependencies=[BUDGET_WRITE, RequireUnrestricted],
 )
 async def fill_budget_from_contract(
     request: Request, site_id: uuid.UUID, ctx: _Writable, user: _User, session: _Db
@@ -386,7 +390,9 @@ async def fill_budget_from_contract(
 
 
 @router.put(
-    f"{_BASE}/distributions", response_model=BudgetView, dependencies=[WRITE, RequireUnrestricted]
+    f"{_BASE}/distributions",
+    response_model=BudgetView,
+    dependencies=[BUDGET_WRITE, RequireUnrestricted],
 )
 async def put_budget_distributions(
     request: Request,
@@ -406,7 +412,7 @@ async def put_budget_distributions(
 
 
 @router.put(
-    f"{_BASE}/windows", response_model=BudgetView, dependencies=[WRITE, RequireUnrestricted]
+    f"{_BASE}/windows", response_model=BudgetView, dependencies=[BUDGET_WRITE, RequireUnrestricted]
 )
 async def put_budget_windows(
     request: Request,
