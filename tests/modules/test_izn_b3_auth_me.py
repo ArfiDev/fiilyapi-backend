@@ -10,13 +10,13 @@ from __future__ import annotations
 import json
 
 from httpx import AsyncClient
-from sqlalchemy import event, select
+from sqlalchemy import delete, event, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.sayfalar import SAYFA_ANAHTARLARI
 from app.modules.catalog.models import EvDiscipline
 from app.modules.earned_value.models import ContractorType
-from app.modules.roles.models import Role
+from app.modules.roles.models import Role, RolePagePermission
 from app.modules.users.models import ProjectMember, ProjectMemberDiscipline, User
 from tests.conftest import test_engine
 
@@ -159,3 +159,26 @@ async def test_sorgu_sayisi_proje_ve_rol_sayisindan_bagimsiz_ve_yuk_boyutu_sinir
     assert boyut_otuz - boyut_bir <= 30 * 120, (boyut_bir, boyut_otuz)
     # Yeni rol ≈ bir sayfa haritası (100 sayfa × ~55 B ≈ 5.5 KB; ölçüldü) + 1 proje satırı.
     assert 3_000 < boyut_rol - boyut_otuz < 8_000, (boyut_otuz, boyut_rol)
+
+
+async def test_ekip_rolunun_silinen_hucresi_none_olarak_role_pages_te_kalir(
+    client, user_factory, seeded_db, project_factory
+) -> None:
+    """IZN-B6a-me: ekip rolünün hücresiz sayfası `role_pages`ten DÜŞMEZ; katalogdan `none` gelir."""
+    proje = await project_factory("A")
+    saha = await _role(seeded_db, "field_engineer")
+    kisi = await user_factory(email="q@t.co", password=PASSWORD, role_key="site_chief")
+    seeded_db.add(ProjectMember(user_id=kisi.id, project_id=proje.id, role_id=saha.id))
+    await seeded_db.execute(
+        delete(RolePagePermission).where(
+            RolePagePermission.role_id == saha.id,
+            RolePagePermission.page_key == "mali.yevmiye",
+        )
+    )
+    await seeded_db.flush()
+
+    me = await _me(client, seeded_db, kisi)
+    sayfalar = me["role_pages"]["field_engineer"]["pages"]
+    assert set(sayfalar) == set(SAYFA_ANAHTARLARI)
+    assert len(sayfalar) == 100
+    assert sayfalar["mali.yevmiye"] == {"level": "none", "approve": False}

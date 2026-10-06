@@ -21,6 +21,7 @@ from app.core.sayfalar import (
 )
 from app.core.slug import slugify
 from app.modules.audit import messages
+from app.modules.pages.grants import grants_from_cells
 from app.modules.pages.schemas import PageGrant
 from app.modules.roles.models import (
     SYSTEM_ADMIN_KEY,
@@ -142,17 +143,6 @@ async def _get_role_or_404(session: AsyncSession, role_id: uuid.UUID) -> Role:
     return role
 
 
-def _grants_from_rows(rows: list[RolePagePermission]) -> dict[str, PageGrant]:
-    """Rolün 100 sayfası: satırı olmayan (ya da katalogdan kalkmış) sayfa Görmez sayılır."""
-    by_key = {row.page_key: row for row in rows if row.page_key in SAYFA_BY_KEY}
-    return {
-        key: PageGrant(level=by_key[key].level, approve=by_key[key].can_approve)
-        if key in by_key
-        else PageGrant(level=PageLevel.none, approve=False)
-        for key in SAYFA_ANAHTARLARI
-    }
-
-
 async def role_page_grants(session: AsyncSession, role: Role) -> dict[str, PageGrant]:
     """Rolün sayfa hücreleri. Sistem Yöneticisi hücre taşımaz → çözücü haritası (her yer Edit)."""
     if role.key == SYSTEM_ADMIN_KEY:
@@ -160,7 +150,7 @@ async def role_page_grants(session: AsyncSession, role: Role) -> dict[str, PageG
             key: PageGrant(level=level, approve=approve)
             for key, (level, approve) in sistem_yoneticisi_sayfalari().items()
         }
-    return _grants_from_rows(await list_role_page_cells(session, role.id))
+    return grants_from_cells(await list_role_page_cells(session, role.id))
 
 
 async def get_role_pages(session: AsyncSession, role_id: uuid.UUID) -> RolePagesResponse:

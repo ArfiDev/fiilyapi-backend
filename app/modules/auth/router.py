@@ -16,6 +16,7 @@ from app.modules.audit.service import record_audit
 from app.modules.auth.schemas import LoginRequest, MeResponse, PageGrant, RefreshRequest, TokenPair
 from app.modules.auth.service import AuthError, authenticate
 from app.modules.auth.team import load_team, team_projects, team_role_pages
+from app.modules.pages.grants import grants_from_cells
 from app.modules.roles.repository import (
     derived_role_matrix,
     list_role_hidden_categories,
@@ -134,9 +135,8 @@ async def me(
             for cell in await list_role_page_cells(session, user.role_id)
             if cell.page_key in SAYFA_BY_KEY
         ]
-        pages = {
-            cell.page_key: PageGrant(level=cell.level, approve=cell.can_approve) for cell in rows
-        }
+        # Hücresiz sayfa katalogdan `none` ile dolar (IZN-B6a-me); `cells` YALNIZ gerçek satırlar.
+        pages = grants_from_cells(rows)
         cells = {cell.page_key: (cell.level, cell.can_approve) for cell in rows}
         hidden_fields = await list_role_hidden_categories(session, user.role_id)
     matrix = await derived_role_matrix(session, user.role_id, user.role.key, cells)

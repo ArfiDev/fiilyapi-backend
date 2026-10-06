@@ -262,10 +262,14 @@ async def test_me_ozel_rolun_ekrandan_degistirilmis_hucresi_ve_bayragi_yanita_ya
     assert me["hidden_fields"] == ["banka_kasa"]
 
 
-async def test_me_hucresi_olmayan_rol_bos_harita_alir_bilinmezlik_kurali(
+async def test_me_hucresi_olmayan_rol_katalogdan_none_ile_tamamlanir(
     client, seeded_db, user_factory
 ):
-    """Sayfa hücresi hiç yoksa `pages` boştur (FE: bilinmez = görünür; sınır backend'dedir)."""
+    """IZN-B6a-me: hücresiz rolün `pages`i BOŞ değil, katalogdan 100 sayfa `none` (approve=false).
+
+    Eski "bilinmezlik kuralı" (hücresiz sayfa yanıttan düşer) frontend'de bilinmez = görünür
+    demekti; yeni sayfa eklenip eski role backfill unutulursa menüde SIZAR. Kapılar eksik hücreyi
+    zaten `none` sayar → yanıt kapıyla aynı karara varır (fail-closed)."""
     muhasebe = await _rol(seeded_db, "accounting")
     await seeded_db.execute(
         delete(RolePagePermission).where(RolePagePermission.role_id == muhasebe.id)
@@ -273,10 +277,29 @@ async def test_me_hucresi_olmayan_rol_bos_harita_alir_bilinmezlik_kurali(
     await seeded_db.execute(delete(RoleHiddenField).where(RoleHiddenField.role_id == muhasebe.id))
     await seeded_db.flush()
     me = await _me(client, await _giris(client, user_factory, "accounting"))
-    assert me["pages"] == {}
+    assert set(me["pages"]) == set(SAYFA_ANAHTARLARI)
+    assert len(me["pages"]) == 100
+    assert all(g == {"level": "none", "approve": False} for g in me["pages"].values())
     assert me["hidden_fields"] == []
     # IZN-B2: kapılar hücreden karar verir → hücresiz rol HER modülde `none` (fail-closed).
     assert me["permissions"]["accounting"] == "none"
+
+
+async def test_me_ana_rolde_tek_hucre_silinince_sayfa_none_olarak_yanitta_kalir(
+    client, seeded_db, user_factory
+):
+    muhasebe = await _rol(seeded_db, "accounting")
+    await seeded_db.execute(
+        delete(RolePagePermission).where(
+            RolePagePermission.role_id == muhasebe.id,
+            RolePagePermission.page_key == "mali.yevmiye",
+        )
+    )
+    await seeded_db.flush()
+    me = await _me(client, await _giris(client, user_factory, "accounting"))
+    assert len(me["pages"]) == 100
+    assert me["pages"]["mali.yevmiye"] == {"level": "none", "approve": False}
+    assert me["pages"]["mali.mizan"] == _beklenen_pages("accounting")["mali.mizan"]
 
 
 async def test_me_katalogda_olmayan_bayat_anahtar_yanita_girmez(client, izn_db, user_factory):

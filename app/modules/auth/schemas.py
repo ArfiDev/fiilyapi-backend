@@ -60,8 +60,9 @@ class MeResponse(BaseModel):
     permissions: dict[str, AccessLevel]
     # IZN-B1 (EKLEYİCİ): aktörün ANA rolünün sayfa izinleri: sayfa anahtarı -> {level, approve}.
     # Anahtar kümesi `GET /pages` kataloğudur. Sistem Yöneticisi için her sayfa
-    # {edit, approve=onay eylemi var mı}. Rolün satırı olmayan sayfa haritada YER ALMAZ; frontend
-    # bunu "bilinmezlik" sayar (`permissions` ile aynı kural). Henüz KAPI DEĞİL: uç kapıları
+    # {edit, approve=onay eylemi var mı}. Rolün satırı olmayan sayfa katalogdan `none`
+    # (approve=false) ile DOLDURULUR (IZN-B6a-me; kapılar da eksik hücreyi none sayar).
+    # Henüz KAPI DEĞİL: uç kapıları
     # `permissions` (eski modül matrisi) ile çalışmaya devam eder (B2'de köprülenir).
     pages: dict[PageKey, PageGrant]
     # Ana rolün gizlediği hassas alan kategorileri (kutucuk işaretli olanlar), sıralı.
