@@ -60,6 +60,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import today
 from app.modules.accounting.balance import POSTING_STATUSES, ZERO
+from app.modules.accounting.bordro_hesaplari import bordro_hesabi_mi
 from app.modules.accounting.models import (
     ChartAccount,
     JournalEntry,
@@ -257,7 +258,7 @@ async def build_ledger(
         dis = dis.limit(limit)
     satirlar = (await session.execute(dis)).mappings().all()
 
-    return LedgerResponse(
+    yanit = LedgerResponse(
         items=[
             LedgerRow(
                 entry_id=satir["entry_id"],
@@ -287,3 +288,17 @@ async def build_ledger(
         offset=offset,
         carried_balance=carried,
     )
+    # IZN-B5a (21a): suzgec bordro beslenen bir hesabi gosteriyorsa devir o hesabin birikimidir.
+    if account_id is not None:
+        # Satir varsa kod oradan okunur (ek sorgu YOK); bos sayfada tek hafif sorgu.
+        kod = (
+            satirlar[0]["account_code"]
+            if satirlar
+            else (
+                await session.execute(
+                    select(ChartAccount.code).where(ChartAccount.id == account_id)
+                )
+            ).scalar_one_or_none()
+        )
+        yanit._bordro_hesabi = kod is not None and bordro_hesabi_mi(kod)
+    return yanit

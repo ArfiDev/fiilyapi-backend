@@ -14,10 +14,12 @@ from app.modules.personnel.schemas import (
     HrExpiringDocument,
 )
 from app.modules.personnel.service.core import SUMMARY_LIST_LIMIT
+from app.modules.personnel.visibility import visible_project_ids
+from app.modules.users.models import User
 
 
 async def build_hr_documents_summary(
-    session: AsyncSession, *, today: date | None = None
+    session: AsyncSession, *, today: date | None = None, actor: User | None = None
 ) -> HrDocumentsSummaryResponse:
     """BT özeti: 5 KPI + tip dağılımı + iki liste — SABİT sorgu sayısı (N+1 yok).
 
@@ -39,6 +41,8 @@ async def build_hr_documents_summary(
     types = await repository.list_document_types(session)
     active_published_count = await repository.count_active_published_personnel(session)
     rows = await repository.list_active_published_document_rows(session)
+    # IZN-B5a: görünmeyen projenin ADI sızmaz (`actor=None` yalnız HTTP dışı doğrudan servis).
+    visible = await visible_project_ids(session, actor) if actor is not None else None
 
     total_documents = len(rows)
     valid = expiring = expired = 0
@@ -62,7 +66,10 @@ async def build_hr_documents_summary(
             _is_mandatory,
             validity_months,
             project_name,
+            assigned_project_id,
         ) = row
+        if visible is not None and assigned_project_id not in visible:
+            project_name = None
         state = status.derive_document_status(valid_until, validity_months, today=today)
         if state == status.STATUS_VALID:
             valid += 1

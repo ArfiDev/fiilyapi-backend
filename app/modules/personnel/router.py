@@ -39,7 +39,7 @@ from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.personnel import export, repository, service
 from app.modules.personnel.export import XLSX_MEDIA_TYPE, build_personnel_workbook
-from app.modules.personnel.models import LeaveStatus
+from app.modules.personnel.models import LeaveStatus, Personnel
 from app.modules.personnel.schemas import (
     HrDocumentsSummaryResponse,
     HrLeavesSummaryResponse,
@@ -61,6 +61,8 @@ from app.modules.personnel.schemas import (
     PersonnelUpdate,
     SelfLeaveRequestCreate,
 )
+from app.modules.personnel.visibility import filter_hidden, hide_assignment, visible_project_ids
+from app.modules.personnel.write_gate import reject_hidden_unique_fields
 from app.modules.site_diary.models import WorkerSource
 from app.modules.users.models import User
 
@@ -107,21 +109,36 @@ async def personnel_items(
     *,
     limit: int | None,
     offset: int = 0,
+    actor: User | None = None,
 ) -> list[PersonnelResponse]:
     """Ekranı da Excel'i de BESLEYEN tek okuma yolu (EXPORT-XLSX §1).
 
     `limit=None` süzgece uyan TÜM kayıtları getirir (`repository.list_personnel`
     docstring'i): dışa aktarma sessizce kırpılmaz.
     """
+    visible = await visible_project_ids(session, actor) if actor is not None else None
+    if visible is not None and filter_hidden(filters.project_id, visible):
+        return []  # görünmeyen proje süzgeci: var/yok sızmaz (IZN-B5a)
     rows = await repository.list_personnel(
         session, limit=limit, offset=offset, **filters.as_kwargs()
     )
-    return [PersonnelResponse.model_validate(row) for row in rows]
+    items = [PersonnelResponse.model_validate(row) for row in rows]
+    return items if visible is None else [hide_assignment(i, visible) for i in items]
+
+
+async def _response_for(
+    session: AsyncSession, user: User, personnel: Personnel
+) -> PersonnelResponse:
+    """Tek personel yanıtı: görünmeyen projeye atama `null` (IZN-B5a)."""
+    return hide_assignment(
+        PersonnelResponse.model_validate(personnel), await visible_project_ids(session, user)
+    )
 
 
 @router.get("/personnel", response_model=PersonnelListResponse, dependencies=[_VIEW])
 async def list_personnel_endpoint(
     session: DbSession,
+    user: Annotated[User, Depends(get_current_user)],
     filters: Annotated[PersonnelFilters, Depends()],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -136,8 +153,9 @@ async def list_personnel_endpoint(
     Sayfa tavanı **200'de KALIR**: `limit=None` yalnız `export.xlsx` ucunun
     hakkıdır (orada sayfalama kavramı yoktur).
     """
-    items = await personnel_items(session, filters, limit=limit, offset=offset)
-    total = await repository.count_personnel(session, **filters.as_kwargs())
+    items = await personnel_items(session, filters, limit=limit, offset=offset, actor=user)
+    hidden = filter_hidden(filters.project_id, await visible_project_ids(session, user))
+    total = 0 if hidden else await repository.count_personnel(session, **filters.as_kwargs())
     return PersonnelListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -149,6 +167,7 @@ async def list_personnel_endpoint(
 )
 async def personnel_export_endpoint(
     session: DbSession,
+    user: Annotated[User, Depends(get_current_user)],
     filters: Annotated[PersonnelFilters, Depends()],
 ) -> Response:
     """PE "Dışa Aktar": kartoteksin Excel çıktısı — EKRANLA AYNI KÜME.
@@ -164,7 +183,7 @@ async def personnel_export_endpoint(
     Okuma ucudur — `_audit` ÇAĞIRMAZ ve `Request` parametresi bile ALMAZ
     (`units/router.py` P4 T7 kuralı).
     """
-    items = await personnel_items(session, filters, limit=None)
+    items = await personnel_items(session, filters, limit=None, actor=user)
     # IZN-B4c: rolün gizlediği hücre (SGK, ücret) `None` olur → hücre BOŞ kalır (`export._text`).
     masked = [await maskele_baglamli(item) for item in items]
     return Response(
@@ -181,6 +200,7 @@ async def personnel_export_endpoint(
 )
 async def hr_documents_summary_endpoint(
     session: DbSession,
+    user: Annotated[User, Depends(get_current_user)],
 ) -> HrDocumentsSummaryResponse:
     """BT özet ucu: 5 KPI + belge tipi dağılımı + süresi-dolan/yaklaşan listeleri.
 
@@ -188,7 +208,7 @@ async def hr_documents_summary_endpoint(
     deseni). Sayılar yalnız AKTİF + YAYINDA personeli kapsar; durum türevi
     `status.py` tek kaynağından, sorgu sayısı veri büyüklüğünden bağımsızdır.
     """
-    return await service.build_hr_documents_summary(session)
+    return await service.build_hr_documents_summary(session, actor=user)
 
 
 @router.post(
@@ -203,7 +223,8 @@ async def create_personnel_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> PersonnelResponse:
-    personnel = await service.create_personnel(session, data)
+    await reject_hidden_unique_fields(session, user, request, data)
+    personnel = await service.create_personnel(session, data, actor=user)
     await record_audit(
         session,
         action=AuditAction.create,
@@ -211,13 +232,14 @@ async def create_personnel_endpoint(
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )
-    return PersonnelResponse.model_validate(personnel)
+    return await _response_for(session, user, personnel)
 
 
 @router.get("/personnel/{personnel_id}", response_model=PersonnelResponse, dependencies=[_VIEW])
 async def get_personnel_endpoint(
     personnel_id: str,
     session: DbSession,
+    user: Annotated[User, Depends(get_current_user)],
 ) -> PersonnelResponse:
     """URL-4 — yol parametresi UUID **ya da** ad slug'ı kabul eder.
 
@@ -227,7 +249,7 @@ async def get_personnel_endpoint(
     süzgeci DELMEZ; izinsiz kullanıcı slug'la da UUID'yle de aynı 403'ü alır.
     """
     personnel = await service.get_personnel(session, parse_ref(personnel_id))
-    return PersonnelResponse.model_validate(personnel)
+    return await _response_for(session, user, personnel)
 
 
 @router.patch("/personnel/{personnel_id}", response_model=PersonnelResponse, dependencies=[_FULL])
@@ -239,7 +261,7 @@ async def update_personnel_endpoint(
     session: DbSession,
 ) -> PersonnelResponse:
     """Pasifleştirme de BURADAN geçer (`{"is_active": false}`) — DELETE ucu yoktur."""
-    personnel = await service.update_personnel(session, personnel_id, data)
+    personnel = await service.update_personnel(session, personnel_id, data, actor=user)
     await record_audit(
         session,
         action=AuditAction.update,
@@ -247,7 +269,7 @@ async def update_personnel_endpoint(
         actor_user_id=user.id,
         ip_address=client_ip(request),
     )
-    return PersonnelResponse.model_validate(personnel)
+    return await _response_for(session, user, personnel)
 
 
 # --- İK-1 T3: belge alt-kaynağı (spec §3) ------------------------------------
@@ -396,6 +418,7 @@ async def list_leave_types_endpoint(
 @router.get("/leave-requests", response_model=LeaveRequestListResponse, dependencies=[_VIEW])
 async def list_leave_requests_endpoint(
     session: DbSession,
+    user: Annotated[User, Depends(get_current_user)],
     status_filter: Annotated[LeaveStatus | None, Query(alias="status")] = None,
     personnel_id: uuid.UUID | None = None,
     project_id: uuid.UUID | None = None,
@@ -408,6 +431,8 @@ async def list_leave_requests_endpoint(
     `limit` tavanı 200'dür (TB3 korkuluğu): tavanı aşan istek SESSİZCE KIRPILMAZ,
     422 olur — ekran eksik listeyi tam sanmasın.
     """
+    if filter_hidden(project_id, await visible_project_ids(session, user)):
+        return LeaveRequestListResponse(items=[], total=0, limit=limit, offset=offset)
     items, total = await service.list_leave_requests(
         session,
         status=status_filter,

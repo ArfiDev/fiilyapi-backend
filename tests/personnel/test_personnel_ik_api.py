@@ -12,12 +12,14 @@ Servis kuralları `test_personnel_ik_service.py`de; burada HTTP STATÜLERİ ve
 import uuid
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.personnel import guards
 from app.modules.personnel.models import Personnel
 from app.modules.personnel.schemas import PersonnelUpdate
 from app.modules.sites.models import Section, Site
+from app.modules.users.models import User
 
 GECERLI_TCKN = "10000000146"
 
@@ -42,6 +44,18 @@ def _tam(project_id: str, **fark) -> dict:
         "is_draft": False,
         **fark,
     }
+
+
+@pytest.fixture
+async def ik_headers(ik_headers: dict[str, str], seeded_db: AsyncSession) -> dict[str, str]:
+    """IZN-B5a madde 23a: atama alanı artık aktörün GÖRDÜĞÜ projeyi ister; bu dosyanın İK
+    kullanıcısı "Tüm projeler" kişisidir (görünürlük kısıtı `test_izn_b5a_personel.py`de)."""
+    kullanici = (
+        await seeded_db.execute(select(User).where(User.email == "ik@personnel.co"))
+    ).scalar_one()
+    kullanici.all_projects = True
+    await seeded_db.flush()
+    return ik_headers
 
 
 @pytest.fixture
@@ -198,15 +212,19 @@ async def test_project_id_suzgeci_yetki_genisletmez_idor(
 ):
     """`?project_id=` yalnız SÜZGEÇtir; `personnel` şirket-geneli varlıktır.
 
-    Kapsamı alakasız bir projeyle sınırlanmış İK kullanıcısı, `project_id` süzgeciyle
-    başka bir projeye atanmış personeli GÖREBİLİR — süzgeç yetki kapısı DEĞİLDİR.
+    IZN-B5a (CEO, bilinçli fark): kapsamı alakasız bir projeyle sınırlanmış İK kullanıcısı,
+    GÖREMEDİĞİ projeyle süzünce BOŞ liste alır (var/yok sızmaz); personelin kendisi ise
+    süzgeçsiz listede yine görünür (proje alanı `null`). Ayrıntı: `test_izn_b5a_personel.py`.
     """
     await client.post("/personnel", json=_tam(str(proje.id)), headers=ik_headers)
     yanit = await client.get(
         "/personnel", params={"project_id": str(proje.id)}, headers=kisitli_ik_headers
     )
     assert yanit.status_code == 200, yanit.text
-    assert yanit.json()["total"] == 1
+    assert yanit.json()["total"] == 0
+    liste = await client.get("/personnel", headers=kisitli_ik_headers)
+    assert liste.json()["total"] == 1  # personel şirket-geneli: yine görünür
+    assert liste.json()["items"][0]["assigned_project_id"] is None
 
 
 # --- IBAN doğrulaması: personel giriş noktaları (canlı smoke bulgusu) --------

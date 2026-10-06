@@ -4,12 +4,14 @@ Yalnizca SELECT: bu tablo icin UPDATE/DELETE yardimcisi YOKTUR (degistirilemezli
 """
 
 import uuid
+from collections.abc import Sequence
 from datetime import date
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import day_end_utc, day_start_utc
+from app.modules.audit.gizli_tutar import TutarOlayi
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.roles.models import Role
 from app.modules.users.models import User
@@ -29,6 +31,14 @@ def _escape_like(term: str) -> str:
     )
 
 
+def _olay_kosulu(olay: TutarOlayi) -> ColumnElement[bool]:
+    """`TutarOlayi.eslesir`in SQL karsiligi (onek + varsa isaret)."""
+    kosul = AuditLog.detail.startswith(olay.onek, autoescape=True)
+    if olay.isaret is not None:
+        kosul = and_(kosul, AuditLog.detail.contains(olay.isaret, autoescape=True))
+    return kosul
+
+
 def _filters(
     *,
     actor_user_id: uuid.UUID | None,
@@ -36,6 +46,7 @@ def _filters(
     date_from: date | None,
     date_to: date | None,
     q: str | None,
+    gizli_olaylar: Sequence[TutarOlayi] = (),
 ) -> list[ColumnElement[bool]]:
     """Opsiyonel filtreleri AND'lenecek kosullara cevirir.
 
@@ -44,6 +55,10 @@ def _filters(
     karsilastirma icin UTC'ye cevrilir. Boylece kullanicinin "bugun" filtresi TR
     gunuyle birebir ortusur ve `date_to=bugun` gec saatli kayitlari kirpmaz.
     (`occurred_at` timestamptz oldugu icin karsilastirma tz-farkindadir.)
+
+    `gizli_olaylar` (IZN-B5a): okuyucunun gizli kategorilerindeki tutarli olaylar. `q` bu satirlarin
+    DETAY metninde ARANMAZ (aktor adinda aranir): aksi hâlde gizli tutar "1250 var mi?" diye
+    aranip toplam sayidan dogrulanirdi (arama oracle'i).
     """
     conditions: list[ColumnElement[bool]] = []
     if actor_user_id is not None:
@@ -57,9 +72,15 @@ def _filters(
     term = (q or "").strip()
     if term:
         pattern = f"%{_escape_like(term)}%"
+        detay_eslesir = AuditLog.detail.ilike(pattern, escape=_LIKE_ESCAPE)
+        if gizli_olaylar:
+            detay_eslesir = and_(
+                detay_eslesir,
+                not_(or_(*(_olay_kosulu(olay) for olay in gizli_olaylar))),
+            )
         conditions.append(
             or_(
-                AuditLog.detail.ilike(pattern, escape=_LIKE_ESCAPE),
+                detay_eslesir,
                 User.full_name.ilike(pattern, escape=_LIKE_ESCAPE),
             )
         )
@@ -74,6 +95,7 @@ async def list_audit_entries(
     date_from: date | None = None,
     date_to: date | None = None,
     q: str | None = None,
+    gizli_olaylar: Sequence[TutarOlayi] = (),
     limit: int | None = 50,
     offset: int = 0,
 ) -> list[AuditRow]:
@@ -93,6 +115,7 @@ async def list_audit_entries(
                 date_from=date_from,
                 date_to=date_to,
                 q=q,
+                gizli_olaylar=gizli_olaylar,
             )
         )
         .order_by(AuditLog.occurred_at.desc())
@@ -112,6 +135,7 @@ async def count_audit_entries(
     date_from: date | None = None,
     date_to: date | None = None,
     q: str | None = None,
+    gizli_olaylar: Sequence[TutarOlayi] = (),
 ) -> int:
     """Ayni filtrelerle toplam kayit sayisi — `total` sayfadan degil filtreden etkilenir."""
     stmt = (
@@ -125,6 +149,7 @@ async def count_audit_entries(
                 date_from=date_from,
                 date_to=date_to,
                 q=q,
+                gizli_olaylar=gizli_olaylar,
             )
         )
     )

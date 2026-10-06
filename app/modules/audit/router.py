@@ -19,6 +19,12 @@ from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.modules.audit import repository
 from app.modules.audit.export import build_audit_workbook
+from app.modules.audit.gizli_tutar import (
+    TutarOlayi,
+    detay_maskele,
+    gizli_kategoriler,
+    gizli_olaylar,
+)
 from app.modules.audit.models import AuditAction
 from app.modules.audit.repository import AuditRow
 from app.modules.audit.schemas import AuditActorRead, AuditItem, AuditListResponse
@@ -57,13 +63,14 @@ class AuditFilters:
         }
 
 
-def _to_item(row: AuditRow) -> AuditItem:
+def _to_item(row: AuditRow, olaylar: tuple[TutarOlayi, ...]) -> AuditItem:
     entry, actor, role = row
     return AuditItem(
         id=entry.id,
         occurred_at=entry.occurred_at,
         action=entry.action,
-        detail=entry.detail,
+        # Politika A (IZN-B5a): okuyucunun kategorisi gizliyse tutarli olayin metni sabit ifade.
+        detail=detay_maskele(entry.detail, olaylar),
         # asyncpg INET'i IPv4Address/IPv6Address dondurur — metne cevrilmeden serilestirilemez.
         ip_address=str(entry.ip_address) if entry.ip_address is not None else None,
         actor=(
@@ -88,11 +95,12 @@ async def list_audit_log_endpoint(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> AuditListResponse:
     """Filtrelenebilir/sayfalanabilir denetim gunlugu listesi (`occurred_at DESC`)."""
-    kwargs = filters.as_kwargs()
+    olaylar = gizli_olaylar(await gizli_kategoriler())
+    kwargs = {**filters.as_kwargs(), "gizli_olaylar": olaylar}
     rows = await repository.list_audit_entries(session, limit=limit, offset=offset, **kwargs)
     total = await repository.count_audit_entries(session, **kwargs)
     return AuditListResponse(
-        items=[_to_item(row) for row in rows], total=total, limit=limit, offset=offset
+        items=[_to_item(row, olaylar) for row in rows], total=total, limit=limit, offset=offset
     )
 
 
@@ -111,8 +119,11 @@ async def export_audit_log_endpoint(
     Liste ucuyle AYNI filtreler gecerlidir; `limit`/`offset` YOKTUR — eslesen tum
     kayitlar yazilir (sessiz kirpma yapilmaz, bkz. plan Task 5 sinir notu).
     """
-    rows = await repository.list_audit_entries(session, limit=None, **filters.as_kwargs())
-    buffer = build_audit_workbook(rows)
+    olaylar = gizli_olaylar(await gizli_kategoriler())
+    rows = await repository.list_audit_entries(
+        session, limit=None, **filters.as_kwargs(), gizli_olaylar=olaylar
+    )
+    buffer = build_audit_workbook(rows, gizli_olaylar=olaylar)
     return Response(
         content=buffer.getvalue(),
         media_type=XLSX_MEDIA_TYPE,

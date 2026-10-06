@@ -71,6 +71,7 @@ from sqlalchemy import ColumnElement, Select, Subquery, case, func, literal, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.accounting.balance import ZERO, posting_filter
+from app.modules.accounting.bordro_hesaplari import bordro_hesabi_mi
 from app.modules.accounting.models import ChartAccount, JournalEntry, JournalLine
 from app.modules.accounting.reports_schemas import (
     TrialBalanceResponse,
@@ -79,6 +80,15 @@ from app.modules.accounting.reports_schemas import (
 )
 
 __all__ = ["build_trial_balance", "month_end", "year_start"]
+
+_TUTAR_ALANLARI = (
+    "opening_debit",
+    "opening_credit",
+    "period_debit",
+    "period_credit",
+    "closing_debit",
+    "closing_credit",
+)
 
 
 def year_start(year: int) -> date:
@@ -236,6 +246,11 @@ async def build_trial_balance(
         period_credit=sum((r.period_credit for r in rows), ZERO),
         closing_debit=sum((r.closing_debit for r in rows), ZERO),
         closing_credit=sum((r.closing_credit for r in rows), ZERO),
+    )
+    # IZN-B5a (21a): bordro beslenen bir hesapta HAREKET/BAKIYE varsa genel toplam o tutari icerir.
+    totals._bordro_dahil = any(
+        bordro_hesabi_mi(r.account_code) and any(getattr(r, alan) for alan in _TUTAR_ALANLARI)
+        for r in rows
     )
     return TrialBalanceResponse(
         year=year,

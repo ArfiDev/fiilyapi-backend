@@ -59,11 +59,12 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from app.core.field_mask import Hassas
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.accounting import codes, guards
+from app.modules.accounting.bordro_hesaplari import bordro_ek_kategori
 from app.modules.accounting.models import ChartAccountType, JournalEntryStatus, JournalSourceType
 
 __all__ = [
@@ -225,6 +226,13 @@ class ChartAccountResponse(_ChartAccountStored):
     class_code: str
     level: int
 
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "ChartAccountResponse", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        """IZN-B5a (21a): yalniz bordro beslenen hesabin bakiyesi `maas_kisisel` ile de gizlenir."""
+        return bordro_ek_kategori([model.code], etiketler)
+
     @classmethod
     def from_row(cls, account, balance: Decimal) -> "ChartAccountResponse":  # noqa: ANN001
         """Satır + bakiye ikilisini TEK yerde birleştirir.
@@ -378,7 +386,10 @@ class JournalLineResponse(BaseModel):
     def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
         model: "JournalLineResponse", alan_adi: str, etiketler: frozenset[Hassas]
     ) -> frozenset[Hassas]:
-        return _bordro_fisi_ek_kategori(model.source_type, etiketler)
+        # IZN-B5a (21a): kaynak tipine EK olarak bordro beslenen HESAP da (elle fis dahil).
+        return bordro_ek_kategori(
+            [model.account_code], _bordro_fisi_ek_kategori(model.source_type, etiketler)
+        )
 
 
 class JournalEntryResponse(BaseModel):
@@ -478,7 +489,10 @@ class LedgerRow(BaseModel):
     def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
         model: "LedgerRow", alan_adi: str, etiketler: frozenset[Hassas]
     ) -> frozenset[Hassas]:
-        return _bordro_fisi_ek_kategori(model.source_type, etiketler)
+        # IZN-B5a (21a): kaynak tipine EK olarak bordro beslenen HESAP da (elle fis dahil).
+        return bordro_ek_kategori(
+            [model.account_code], _bordro_fisi_ek_kategori(model.source_type, etiketler)
+        )
 
 
 class LedgerResponse(BaseModel):
@@ -494,3 +508,13 @@ class LedgerResponse(BaseModel):
     limit: int
     offset: int
     carried_balance: MaliTutar
+
+    #: IZN-B5a (21a): `account_id` suzgeci bordro beslenen bir hesabi gosteriyorsa devreden bakiye
+    #: o hesabin birikimidir. YANIT ALANI DEGILDIR (OpenAPI degismez); `ledger.py` doldurur.
+    _bordro_hesabi: bool = PrivateAttr(default=False)
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "LedgerResponse", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return etiketler | {Hassas.maas_kisisel} if model._bordro_hesabi else etiketler

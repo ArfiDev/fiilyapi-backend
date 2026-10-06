@@ -33,7 +33,7 @@ from app.core.sayfalar import (
 )
 from app.modules.roles import seed_data
 from app.modules.roles.models import IZN_ROLE_KEYS
-from tests._izn_b1_esikleri import b1_matrisi, b1_rows, b1_spec
+from tests._izn_b1_esikleri import b1_matrisi, b1_onay_var, b1_rows, b1_spec
 
 MIGRATION_PATH = next(
     (Path(__file__).parents[2] / "alembic" / "versions").glob("*_izn_b1_sayfa_katalogu.py")
@@ -107,7 +107,7 @@ def test_gizli_alan_bayraklari_seed_ile_ayni(migration) -> None:
 
 def test_sayfa_eslemesi_ve_esik_tablosu_katalogla_birebir(migration) -> None:
     assert list(migration.PAGES) == [
-        (s.key, s.eski_modul, s.onay_var, b1_spec(s)) for s in SAYFALAR
+        (s.key, s.eski_modul, b1_onay_var(s), b1_spec(s)) for s in SAYFALAR
     ]
     assert migration.MODULSUZ_VARSAYILAN == {
         k: v.value for k, v in seed_data.MODULSUZ_VARSAYILAN.items()

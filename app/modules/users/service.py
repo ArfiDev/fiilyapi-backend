@@ -153,8 +153,9 @@ async def delete_user(session: AsyncSession, user_id: uuid.UUID) -> None:
 
 
 async def user_responses(session: AsyncSession, users: list[User]) -> list[UserResponse]:
-    """Kullanıcı yanıtları; `project_count` TEK `COUNT … GROUP BY` ile (N+1 yok)."""
+    """Kullanıcı yanıtları; `project_count` ve rol adı/anahtarı TEK sorguyla (N+1 yok)."""
     counts = await repository.project_counts(session, [u.id for u in users])
+    labels = await repository.role_labels(session, {u.role_id for u in users})
     return [
         UserResponse(
             id=u.id,
@@ -162,6 +163,8 @@ async def user_responses(session: AsyncSession, users: list[User]) -> list[UserR
             full_name=u.full_name,
             title=u.title,
             role_id=u.role_id,
+            role_name=labels[u.role_id][0],
+            role_key=labels[u.role_id][1],
             status=u.status,
             last_login_at=u.last_login_at,
             all_projects=u.all_projects,

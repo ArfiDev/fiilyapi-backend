@@ -58,8 +58,10 @@ ENVANTER_ANAHTARSIZ = [4, 58, 60, 90, 91, 98, 99]
 #: Onaylı Sayfa İzinleri mockup'ında "Onaylar" kutucuğu basılan 73 açık satır + grupları kapalı
 #: 27 satır için karar (#2 Onay Kutusu, #14 İzin Yönetimi, #31 Satın Alma Talepleri,
 #: #34 Teklif Karşılaştırma). Toplam 25.
+#: IZN-B5a madde 5 (CEO onaylı): #2 Onay Kutusu listeden ÇIKTI — Onaylar biti işlevsizdi
+#: (onay kutusunda onay/ret her evrakın KENDİ sayfa bayrağıyla kapılıdır). Toplam 24.
 ENVANTER_ONAY_VAR = [
-    2, 11, 12, 14, 17, 18, 22, 31, 34, 35, 41, 46, 47, 49, 50, 51, 55, 57, 65, 66, 72, 73, 78,
+    11, 12, 14, 17, 18, 22, 31, 34, 35, 41, 46, 47, 49, 50, 51, 55, 57, 65, 66, 72, 73, 78,
     80, 88,
 ]  # fmt: skip
 
