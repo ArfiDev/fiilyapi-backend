@@ -451,6 +451,8 @@ def sayfa_matrisi(hucreler: ModulHucreleri) -> dict[str, tuple[PageLevel, bool]]
 
 
 #: `limited` kapsamı rol bayrağı `tum_tutarlar`a çevrilir (§1.3); `finance` karşılıksızdır.
+#: 🔴 YALNIZ B1 migration'ının TARİHİNİ anlatır (+ test yardımcısı): seed artık bundan TÜRETİLMEZ,
+#: eski rollerin kümesi `seed_data.ESKI_ROL_GIZLI_ALANLAR` (IZN-B4c madde 20).
 def gizli_alanlar(hucreler: ModulHucreleri) -> frozenset[HiddenCategory]:
     """Rolün herhangi bir (erişimi olan) hücresinde `limited` kapsam varsa `tum_tutarlar`."""
     limited = any(

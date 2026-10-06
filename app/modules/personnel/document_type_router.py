@@ -48,6 +48,7 @@ from fastapi import APIRouter
 
 from app.core.access import AccessLevel
 from app.core.db import DbSession
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.permissions import require_permission
 from app.modules.personnel import repository, service
@@ -56,7 +57,7 @@ from app.modules.personnel.schemas import (
     PersonnelDocumentTypeResponse,
 )
 
-router = APIRouter(tags=["personnel"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["personnel"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 

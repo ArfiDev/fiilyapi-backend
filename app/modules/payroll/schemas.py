@@ -16,6 +16,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.field_mask import Hassas
 from app.modules.payroll import income_tax
 from app.modules.payroll.models import (
     BRACKET_BOUND_PRECISION,
@@ -38,6 +39,21 @@ MAX_PAYROLL_YEAR = 2100
 #: `Annotated` tipidir, paylaşılan bir `Field` NESNESİ değil: tek bir `FieldInfo`
 #: üç alana birden verilseydi Pydantic onu paylaşılan durum olarak taşırdı.
 Money = Annotated[Decimal, Field(ge=0, max_digits=MONEY_PRECISION, decimal_places=MONEY_SCALE)]
+
+# 🔴 GECE KARARI (IZN-B4c, payroll): bordro TUTARLARI (brüt, net, kesinti, SGK/vergi/damga payları,
+# banka/elden bölüşümü, matrah, toplamlar, işveren maliyeti) = `maas_kisisel`. Rolün gizlediği
+# alan `null` döner → yanıt tipi `| None`dır. `bank_amount`/`cash_amount` bir HESAP DEĞİL, o satırın
+# ödeme bölüşümüdür (hesap no/IBAN bordroda YOKTUR) → `banka_kasa` EKLENMEDİ. Oranlar, yüzdeler,
+# vergi dilimi sınırları (mevzuat parametresi), gün sayısı = `Hassas.yok`. Sayaçlar (`int`) bekçiye
+# takılmaz ve gizlenmez. İstek şemasındaki `Girdi` alanları (brüt/banka/elden) PATCH'te gizli rol
+# tarafından dolu gönderilirse 403.
+BordroTutar = Annotated[Decimal | None, Hassas.maas_kisisel]
+BordroTutarGirdisi = Annotated[Money | None, Hassas.maas_kisisel]
+Gun = Annotated[Decimal | None, Hassas.yok]
+Oran = Annotated[Decimal, Hassas.yok]
+OranOpsiyonel = Annotated[Decimal | None, Hassas.yok]
+# Sayaç: tutar DEĞİL (bekçi ad listesi `paid` tokenini yakalar, IZN-B4b onarımı).
+SatirSayaci = Annotated[int, Hassas.yok]
 
 
 class PayrollComputeResult(BaseModel):
@@ -112,8 +128,8 @@ class PayrollPeriodPayResult(BaseModel):
 
     period_status: PayrollPeriodStatus
     paid_at: datetime
-    paid: int = Field(description="Ödendi damgası basılan satır sayısı")
-    paid_net_total: Decimal = Field(description="Ödenen satırların net toplamı")
+    paid: SatirSayaci = Field(description="Ödendi damgası basılan satır sayısı")
+    paid_net_total: BordroTutar = Field(description="Ödenen satırların net toplamı")
     skipped_unapproved: int = Field(description="Onaylanmadığı için ödenmeyen satır")
     skipped_uncomputed: int = Field(description="Brütü hesaplanamadığı için ödenmeyen satır (S4)")
     skipped_excluded: int = Field(description="Taşeron olduğu için ödenmeyen satır (K2)")
@@ -187,9 +203,9 @@ class PayrollLineUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    gross_amount: Money | None = None
-    bank_amount: Money | None = None
-    cash_amount: Money | None = None
+    gross_amount: BordroTutarGirdisi = None
+    bank_amount: BordroTutarGirdisi = None
+    cash_amount: BordroTutarGirdisi = None
 
     @model_validator(mode="after")
     def _en_az_bir_alan_ve_bolusum_butun(self) -> "PayrollLineUpdate":
@@ -222,27 +238,27 @@ class PayrollLineResponse(BaseModel):
     personnel_source: WorkerSource
     #: 🔴 PUAN-SAAT-3: **`int` DEĞİL `Decimal`** — adam-gün artık bir SAYIM değil
     #: bir TÜREVDİR (`toplam saat ÷ 9`, E5 349-350) ve yarım günü temsil eder.
-    days: Decimal | None
-    gross_amount: Decimal | None
-    deduction_amount: Decimal | None
-    net_amount: Decimal | None
-    bank_amount: Decimal | None
-    cash_amount: Decimal | None
+    days: Gun
+    gross_amount: BordroTutar
+    deduction_amount: BordroTutar
+    net_amount: BordroTutar
+    bank_amount: BordroTutar
+    cash_amount: BordroTutar
     #: --- IK3-GV K1: vergi SNAPSHOT'ı (üçü birlikte dolar ya da birlikte `null`) ---
     #: `tax_base_amount` = brüt − SGK işçi − işsizlik işçi (asgari ücret
     #: istisnası bu matrahta KALIR — indirim değil KREDİdir, KK-7);
     #: `cumulative_tax_base` = yıl başından bu ay DAHİL biriken matrah;
     #: `income_tax_amount` = o ayın gelir vergisi, istisna DÜŞÜLMÜŞ (taban 0).
-    tax_base_amount: Decimal | None
-    cumulative_tax_base: Decimal | None
-    income_tax_amount: Decimal | None
+    tax_base_amount: BordroTutar
+    cumulative_tax_base: BordroTutar
+    income_tax_amount: BordroTutar
     status: PayrollLineStatus
     #: K2 — satırın niçin ödemeye girmediği YAZILI (sessiz atlama yok).
     excluded_reason: str | None
     #: K3 izi — ekran "elle düzeltildi" rozetini bundan basar.
     is_overridden: bool
     overridden_at: datetime | None
-    previous_gross_amount: Decimal | None
+    previous_gross_amount: BordroTutar
 
 
 class PayrollSectionResponse(BaseModel):
@@ -270,19 +286,19 @@ class PayrollSummaryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     line_count: int
-    net_total: Decimal
+    net_total: BordroTutar
     net_personnel_count: int
-    bank_total: Decimal
+    bank_total: BordroTutar
     bank_personnel_count: int
     #: Ödeme tabanı boşken **`null`** — 0 basmak "hepsi banka" yalanı olurdu.
-    bank_pct: Decimal | None
-    cash_total: Decimal
+    bank_pct: OranOpsiyonel
+    cash_total: BordroTutar
     cash_personnel_count: int
-    cash_pct: Decimal | None
-    gross_total: Decimal
-    sgk_employer_total: Decimal
+    cash_pct: OranOpsiyonel
+    gross_total: BordroTutar
+    sgk_employer_total: BordroTutar
     #: brüt + (SGK işveren + işsizlik işveren + kısa çalışma) — spec §7.
-    total_employer_cost: Decimal
+    total_employer_cost: BordroTutar
     uncomputed_count: int
     excluded_count: int
     unknown_cost_count: int
@@ -320,12 +336,12 @@ class PayrollPeriodListRow(BaseModel):
     payment_due_date: date | None
     paid_at: datetime | None
     personnel_count: int
-    gross_total: Decimal
+    gross_total: BordroTutar
     #: BG 47 — YALNIZ SGK işveren payı; toplam maliyetin üç kaleminden biri.
-    sgk_employer_total: Decimal
-    net_total: Decimal
+    sgk_employer_total: BordroTutar
+    net_total: BordroTutar
     #: BG 49 — `total_employer_cost` ile AYNI kaynaktan (`compute`), kopya değil.
-    total_cost: Decimal
+    total_cost: BordroTutar
 
 
 class PayrollPeriodListResponse(BaseModel):
@@ -363,25 +379,27 @@ class PayrollSgkSummaryResponse(BaseModel):
     sgk_submitted_at: datetime | None
     #: --- KPI dörtlüsü (SGK 55-58) ---
     declared_personnel_count: int = Field(description="SGK 55 — bildirilen çalışan (4a + 4b)")
-    sgk_base_total: Decimal = Field(description="SGK 56 — SGK matrahı")
-    sgk_premium_total: Decimal = Field(description="SGK 57 — SGK primi (işçi + işveren)")
-    unemployment_total: Decimal = Field(description="SGK 58 — işsizlik sigortası (işçi + işveren)")
+    sgk_base_total: BordroTutar = Field(description="SGK 56 — SGK matrahı")
+    sgk_premium_total: BordroTutar = Field(description="SGK 57 — SGK primi (işçi + işveren)")
+    unemployment_total: BordroTutar = Field(
+        description="SGK 58 — işsizlik sigortası (işçi + işveren)"
+    )
     #: --- işçi payları (SGK 69-73) ---
-    sgk_employee_total: Decimal
-    unemployment_employee_total: Decimal
-    income_tax_total: Decimal
-    stamp_tax_total: Decimal
-    employee_deduction_total: Decimal = Field(description="SGK 73 — toplam işçi kesintisi")
+    sgk_employee_total: BordroTutar
+    unemployment_employee_total: BordroTutar
+    income_tax_total: BordroTutar
+    stamp_tax_total: BordroTutar
+    employee_deduction_total: BordroTutar = Field(description="SGK 73 — toplam işçi kesintisi")
     #: --- işveren payları (SGK 79-82) ---
-    sgk_employer_total: Decimal
-    unemployment_employer_total: Decimal
-    short_work_total: Decimal
+    sgk_employer_total: BordroTutar
+    unemployment_employer_total: BordroTutar
+    short_work_total: BordroTutar
     #: SGK 82 — **ÜÇ kalemin tamamı** (spec §7); brüt DAHİL DEĞİLDİR (o BY 90'ın
     #: `total_employer_cost`udur, ayrı bir kavramdır).
-    employer_burden_total: Decimal
+    employer_burden_total: BordroTutar
     #: SGK 86-91 — etiket AÇIKÇA "İşçi + İşveren SGK + İşsizlik" (SGK 89): gelir
     #: vergisi/damga (vergi dairesine gider) ve kısa çalışma bu toplamda YOKTUR.
-    sgk_payable_total: Decimal
+    sgk_payable_total: BordroTutar
     uncomputed_count: int
     unknown_rate_count: int
     #: 🔴 IK3-GV K6 — gelir vergisi ve damga artık ORANDAN değil SATIRDAN gelir
@@ -425,6 +443,10 @@ _EMPLOYEE_RATE_FIELDS = (
 
 MAX_TOTAL_PCT = Decimal("100")
 
+#: Oran girdileri mevzuat parametresidir, kişisel veri DEĞİL → `Hassas.yok` (GECE KARARI).
+RateGirdisi = Annotated[Rate, Hassas.yok]
+RateGirdisiOpsiyonel = Annotated[Rate | None, Hassas.yok]
+
 
 class PayrollRateUpdate(BaseModel):
     """`PUT /payroll/rates/{year}/{source}` gövdesi — **TAM SET** (K1).
@@ -437,17 +459,17 @@ class PayrollRateUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    sgk_employee_pct: Rate
-    unemployment_employee_pct: Rate
+    sgk_employee_pct: RateGirdisi
+    unemployment_employee_pct: RateGirdisi
     #: 🔴 IK3-GV K3 — `null` = DİLİMLİ MOTOR, dolu = DÜZ ORAN. Alan ZORUNLUDUR
     #: (varsayılanı YOKTUR): `null`ın atlanarak da elde edilebilmesi, kısmi
     #: gönderimin "sessizce 0" olmasıyla aynı sınıf bir yalan üretirdi —
     #: kullanıcı rejim seçimini AÇIKÇA yapar.
-    income_tax_pct: Rate | None
-    stamp_tax_pct: Rate
-    sgk_employer_pct: Rate
-    unemployment_employer_pct: Rate
-    short_work_pct: Rate
+    income_tax_pct: RateGirdisiOpsiyonel
+    stamp_tax_pct: RateGirdisi
+    sgk_employer_pct: RateGirdisi
+    unemployment_employer_pct: RateGirdisi
+    short_work_pct: RateGirdisi
     #: Eski yılın seti SİLİNMEZ, pasifleştirilir (models.py): geçmiş bordronun
     #: hesabı okunabilir kalmalıdır.
     is_active: bool = True
@@ -484,14 +506,14 @@ class PayrollRateResponse(BaseModel):
     id: uuid.UUID
     year: int
     personnel_source: WorkerSource
-    sgk_employee_pct: Decimal
-    unemployment_employee_pct: Decimal
+    sgk_employee_pct: Oran
+    unemployment_employee_pct: Oran
     #: 🔴 K3 — `null` = dilimli motor (`payroll_tax_brackets`), dolu = düz oran.
-    income_tax_pct: Decimal | None
-    stamp_tax_pct: Decimal
-    sgk_employer_pct: Decimal
-    unemployment_employer_pct: Decimal
-    short_work_pct: Decimal
+    income_tax_pct: OranOpsiyonel
+    stamp_tax_pct: Oran
+    sgk_employer_pct: Oran
+    unemployment_employer_pct: Oran
+    short_work_pct: Oran
     is_active: bool
 
 
@@ -518,6 +540,10 @@ BracketBound = Annotated[
 ]
 
 
+#: Vergi dilimi üst sınırı = şirket geneli mevzuat parametresi (`Hassas.yok`, GECE KARARI).
+BracketSiniriGirdisi = Annotated[BracketBound | None, Hassas.yok]
+
+
 class PayrollTaxBracketInput(BaseModel):
     """Tarifenin BİR dilimi — gövdedeki hâli.
 
@@ -532,8 +558,8 @@ class PayrollTaxBracketInput(BaseModel):
     ordinal: int = Field(ge=1)
     #: 🔴 `null` = **SON dilim** ("üstü"), "sınır girilmedi" DEĞİL. Varsayılanı
     #: `None`dır çünkü son dilimde alanın YOKLUĞU anlamın kendisidir.
-    upper_bound: BracketBound | None = None
-    rate_pct: Rate
+    upper_bound: BracketSiniriGirdisi = None
+    rate_pct: RateGirdisi
 
 
 class PayrollTaxBracketSetUpdate(BaseModel):
@@ -585,8 +611,8 @@ class PayrollTaxBracketResponse(BaseModel):
     income_kind: IncomeKind
     ordinal: int
     #: 🔴 `null` = son dilim ("üstü") — 0 ile KARIŞTIRILMAZ.
-    upper_bound: Decimal | None
-    rate_pct: Decimal
+    upper_bound: OranOpsiyonel
+    rate_pct: Oran
     is_active: bool
 
 

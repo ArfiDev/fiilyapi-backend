@@ -33,6 +33,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.sayfalar import HiddenCategory
 from app.modules.accounting.chart_seed_data import CHART_ACCOUNTS
 from app.modules.accounting.models import ChartAccount, JournalSourceType
 from app.modules.payroll.models import (
@@ -55,6 +56,7 @@ from app.modules.site_diary.models import WorkerSource
 from app.modules.sites.models import Site
 from app.modules.timesheet.models import TimesheetCode, TimesheetEntry
 from app.modules.users.models import User
+from tests._hassas_alan import rol_gizli
 
 # BY başlığındaki dönem yerine T1 SEED yılı kullanılır: oran seti 2026'ya bağlıdır.
 YIL = 2026
@@ -265,6 +267,16 @@ async def admin_headers(client: AsyncClient, user_factory) -> dict[str, str]:
 async def ik_headers(client: AsyncClient, user_factory) -> dict[str, str]:
     """`hr_manager` (`payroll=_F`) — bordronun gerçek kullanıcısı."""
     return _auth(await _login(client, user_factory, "hr_manager", "bordro.ik@ik3.co"))
+
+
+@pytest.fixture
+async def gizli_headers(
+    client: AsyncClient, seeded_db: AsyncSession, user_factory
+) -> dict[str, str]:
+    """`maas_kisisel` gizli özel rol (bordro sayfası düzenler) — bordro tutarları `null` döner ve
+    PATCH'te dolu tutar 403 alır (IZN-B4c maske testleri). `hr_manager` artık GÖRÜR (madde 20)."""
+    await rol_gizli(seeded_db, "bordro_gizli", {HiddenCategory.maas_kisisel})
+    return _auth(await _login(client, user_factory, "bordro_gizli", "bordro.gizli@ik3.co"))
 
 
 @pytest.fixture

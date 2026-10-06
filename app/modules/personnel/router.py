@@ -29,6 +29,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -63,7 +64,7 @@ from app.modules.personnel.schemas import (
 from app.modules.site_diary.models import WorkerSource
 from app.modules.users.models import User
 
-router = APIRouter(tags=["personnel"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["personnel"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
@@ -164,8 +165,10 @@ async def personnel_export_endpoint(
     (`units/router.py` P4 T7 kuralı).
     """
     items = await personnel_items(session, filters, limit=None)
+    # IZN-B4c: rolün gizlediği hücre (SGK, ücret) `None` olur → hücre BOŞ kalır (`export._text`).
+    masked = [await maskele_baglamli(item) for item in items]
     return Response(
-        content=build_personnel_workbook(items).getvalue(),
+        content=build_personnel_workbook(masked).getvalue(),
         media_type=XLSX_MEDIA_TYPE,
         headers={"Content-Disposition": http.content_disposition(export.filename())},
     )

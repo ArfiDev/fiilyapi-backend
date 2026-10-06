@@ -24,9 +24,11 @@ KALIR** (elden ödeme meşrudur); yalnız DOLU geldiğinde sınanır.
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.core.field_mask import Hassas
 from app.core.iban import iban_field_validator
 from app.modules.personnel import guards
 from app.modules.personnel.models import (
@@ -37,6 +39,18 @@ from app.modules.personnel.models import (
     WageType,
 )
 from app.modules.site_diary.models import WorkerSource
+
+# 🔴 GECE KARARI (IZN-B4c, personnel): maaş, IBAN, TCKN, SGK no, doğum tarihi, telefon, adres,
+# e-posta, acil durum telefonu = `maas_kisisel` (fail-closed: SGK no ve acil durum telefonu da
+# kişisel sayıldı). Ad soyad, meslek, işe giriş, cinsiyet/medeni hâl, izin tipi/gerekçesi kimlik
+# veya operasyonel veridir, GİZLENMEZ. İzin günü/devreden/borç GÜN sayısıdır, tutar değil → `yok`.
+# `Girdi` takma adları İSTEK gövdesindedir (PUT/PATCH'te gizli rol dolu alan gönderirse 403).
+KisiselMetin = Annotated[str | None, Hassas.maas_kisisel]
+KisiselTarih = Annotated[date | None, Hassas.maas_kisisel]
+KisiselTutar = Annotated[Decimal | None, Hassas.maas_kisisel]
+GunSayisi = Annotated[Decimal, Hassas.yok]
+GunSayisiOpsiyonel = Annotated[Decimal | None, Hassas.yok]
+
 
 _FREE_LABEL_MAX = 150
 
@@ -52,21 +66,21 @@ class PersonnelCreate(BaseModel):
     is_active: bool = True
 
     # --- İK-1 kart alanları (PE 51-118) — HEPSİ opsiyonel (spec §5 K3) --------
-    tc_no: str | None = Field(default=None, max_length=11)
-    birth_date: date | None = None
+    tc_no: KisiselMetin = Field(default=None, max_length=11)
+    birth_date: KisiselTarih = None
     gender: Gender | None = None
     marital_status: MaritalStatus | None = None
-    phone: str | None = Field(default=None, max_length=30)
-    email: str | None = Field(default=None, max_length=255)
-    address: str | None = None
+    phone: KisiselMetin = Field(default=None, max_length=30)
+    email: KisiselMetin = Field(default=None, max_length=255)
+    address: KisiselMetin = None
     emergency_contact_name: str | None = Field(default=None, max_length=200)
-    emergency_contact_phone: str | None = Field(default=None, max_length=30)
+    emergency_contact_phone: KisiselMetin = Field(default=None, max_length=30)
     hire_date: date | None = None
     wage_type: WageType | None = None
-    wage_amount: Decimal | None = Field(default=None, ge=0)
+    wage_amount: KisiselTutar = Field(default=None, ge=0)
     payment_method: PaymentMethod | None = None
-    iban: str | None = Field(default=None, max_length=34)
-    sgk_no: str | None = Field(default=None, max_length=20)
+    iban: KisiselMetin = Field(default=None, max_length=34)
+    sgk_no: KisiselMetin = Field(default=None, max_length=20)
     assigned_project_id: uuid.UUID | None = None
     assigned_section_id: uuid.UUID | None = None
     # Taslak varsayılan (mockup "Taslak" butonu); yayın akışı açıkça `false` gönderir.
@@ -85,21 +99,21 @@ class PersonnelUpdate(BaseModel):
     is_active: bool | None = None
 
     # --- İK-1 kart alanları — kısmi gönderim (spec §5 K3) --------------------
-    tc_no: str | None = Field(default=None, max_length=11)
-    birth_date: date | None = None
+    tc_no: KisiselMetin = Field(default=None, max_length=11)
+    birth_date: KisiselTarih = None
     gender: Gender | None = None
     marital_status: MaritalStatus | None = None
-    phone: str | None = Field(default=None, max_length=30)
-    email: str | None = Field(default=None, max_length=255)
-    address: str | None = None
+    phone: KisiselMetin = Field(default=None, max_length=30)
+    email: KisiselMetin = Field(default=None, max_length=255)
+    address: KisiselMetin = None
     emergency_contact_name: str | None = Field(default=None, max_length=200)
-    emergency_contact_phone: str | None = Field(default=None, max_length=30)
+    emergency_contact_phone: KisiselMetin = Field(default=None, max_length=30)
     hire_date: date | None = None
     wage_type: WageType | None = None
-    wage_amount: Decimal | None = Field(default=None, ge=0)
+    wage_amount: KisiselTutar = Field(default=None, ge=0)
     payment_method: PaymentMethod | None = None
-    iban: str | None = Field(default=None, max_length=34)
-    sgk_no: str | None = Field(default=None, max_length=20)
+    iban: KisiselMetin = Field(default=None, max_length=34)
+    sgk_no: KisiselMetin = Field(default=None, max_length=20)
     assigned_project_id: uuid.UUID | None = None
     assigned_section_id: uuid.UUID | None = None
     is_draft: bool | None = None
@@ -137,21 +151,21 @@ class PersonnelResponse(BaseModel):
     is_active: bool
 
     # --- İK-1 kart alanları ---------------------------------------------------
-    tc_no: str | None
-    birth_date: date | None
+    tc_no: KisiselMetin
+    birth_date: KisiselTarih
     gender: Gender | None
     marital_status: MaritalStatus | None
-    phone: str | None
-    email: str | None
-    address: str | None
+    phone: KisiselMetin
+    email: KisiselMetin
+    address: KisiselMetin
     emergency_contact_name: str | None
-    emergency_contact_phone: str | None
+    emergency_contact_phone: KisiselMetin
     hire_date: date | None
     wage_type: WageType | None
-    wage_amount: Decimal | None
+    wage_amount: KisiselTutar
     payment_method: PaymentMethod | None
-    iban: str | None
-    sgk_no: str | None
+    iban: KisiselMetin
+    sgk_no: KisiselMetin
     assigned_project_id: uuid.UUID | None
     assigned_section_id: uuid.UUID | None
     is_draft: bool
@@ -260,7 +274,7 @@ class HrDocumentTypeBreakdown(BaseModel):
     type_name: str
     is_mandatory: bool
     validity_months: int | None
-    total_documents: int
+    total_documents: Annotated[int, Hassas.yok]
     valid: int
     expiring: int
     expired: int
@@ -300,7 +314,7 @@ class HrDocumentsSummaryResponse(BaseModel):
     girmez (`missing` tanımıyla tutarlı). Durum türevi `status.py` tek kaynağından.
     """
 
-    total_documents: int
+    total_documents: Annotated[int, Hassas.yok]
     valid: int
     expiring: int
     expired: int
@@ -523,7 +537,7 @@ class LeaveBalanceUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    carried_over: Decimal = Field(ge=0, max_digits=5, decimal_places=1)
+    carried_over: GunSayisi = Field(ge=0, max_digits=5, decimal_places=1)
 
 
 class LeaveBalanceResponse(BaseModel):
@@ -545,9 +559,9 @@ class LeaveBalanceResponse(BaseModel):
     seniority_years: int | None
     seniority_months: int | None
     annual_entitlement: int | None
-    carried_over: Decimal
+    carried_over: GunSayisi
     used: int
-    remaining: Decimal | None
+    remaining: GunSayisiOpsiyonel
     usage_pct: int | None
 
 
@@ -576,7 +590,7 @@ class HrLeavesSummaryResponse(BaseModel):
     pending_requests: int
     on_leave_today: int
     days_used_this_month: int
-    total_leave_debt: Decimal
+    total_leave_debt: GunSayisi
     carryover_risk_personnel: int
     unknown_entitlement_personnel: int
     balances: list[LeaveBalanceResponse]

@@ -52,8 +52,8 @@ from app.core.router_registry import ROUTERS
 #: ZORUNLU küme: bu rota-sahibi modüllerde etiketsiz alan KIRMIZI. Sonraki dilimler BURAYA ekler.
 ZORUNLU_MODULLER: frozenset[str] = frozenset(
     {"accounting", "approvals", "boq", "catalog", "contracts", "customers", "dashboard",
-     "invoicing", "offers", "progress_payments", "projects", "sales", "sites",
-     "subcontractor_progress_payments", "treasury", "units"}
+     "invoicing", "offers", "payroll", "personnel", "progress_payments", "projects", "sales",
+     "sites", "subcontractor_progress_payments", "timesheet", "treasury", "units"}
 )  # fmt: skip
 
 #: Modülün TAMAMI değil yalnız bazı şemaları zorunlu olanlar: modül → şema sınıf adları.
@@ -74,12 +74,12 @@ EXPORT_UCLARI: dict[tuple[str, str], str] = {
     ("GET", "/trial-balance/export.xlsx"): "MASKELI",
     ("GET", "/equipment/work-summary/export.xlsx"): "RAPOR",
     ("GET", "/offers/{offer_id}/revisions/{rev_no}/export"): "MASKELI",
-    ("GET", "/payroll/periods/export.xlsx"): "RAPOR",
-    ("GET", "/payroll/periods/{period_id}/export"): "RAPOR",
-    ("GET", "/personnel/export.xlsx"): "RAPOR",
+    ("GET", "/payroll/periods/export.xlsx"): "MASKELI",
+    ("GET", "/payroll/periods/{period_id}/export"): "MASKELI",
+    ("GET", "/personnel/export.xlsx"): "MASKELI",
     ("GET", "/projects/{project_id}/units/export.xlsx"): "MASKELI",
     ("GET", "/purchase-requests/{request_id}/quotes/export.xlsx"): "RAPOR",
-    ("GET", "/sites/{site_id}/timesheet/export.xlsx"): "RAPOR",
+    ("GET", "/sites/{site_id}/timesheet/export.xlsx"): "MASKELI",
 }
 
 

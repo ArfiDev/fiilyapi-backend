@@ -90,10 +90,17 @@ def test_yeni_rol_matrisi_seed_ile_ayni(migration) -> None:
         )
 
 
+#: IZN-B4c (CEO): bu iki yeni rolün kümesine `maas_kisisel` `izn_b4c` migration'ıyla eklenir; B1
+#: migration'ının kendi sabiti B1 durumunu (yalnız `tum_tutarlar`) taşır, seed ise B4c sonrasını.
+_B4C_MAAS_EKLENEN = ("planning_engineer", "warehouse_keeper")
+
+
 def test_gizli_alan_bayraklari_seed_ile_ayni(migration) -> None:
-    assert {k: tuple(v) for k, v in migration.IZN_HIDDEN_FIELDS.items()} == {
-        k: tuple(c.value for c in v) for k, v in seed_data.IZN_HIDDEN_FIELDS.items()
+    beklenen = {
+        k: tuple(c.value for c in v if not (k in _B4C_MAAS_EKLENEN and c.value == "maas_kisisel"))
+        for k, v in seed_data.IZN_HIDDEN_FIELDS.items()
     }
+    assert {k: tuple(v) for k, v in migration.IZN_HIDDEN_FIELDS.items()} == beklenen
     assert set(migration.CATEGORIES) == {c.value for c in HiddenCategory}
     assert set(migration.LEVELS) == {level.value for level in PageLevel}
 
@@ -123,8 +130,11 @@ def test_donusum_fonksiyonu_tum_roller_icin_ayni_sonucu_verir(migration) -> None
         assert _tuple_rows(migration._page_cells(cells)) == b1_rows(seed_data.MATRIX, role_key), (
             role_key
         )
+        # B1'in TARİHİ: eski rol `limited` kapsamından küresel `tum_tutarlar` türetirdi. Seed bugün
+        # `ESKI_ROL_GIZLI_ALANLAR`dır (IZN-B4c madde 20; B1 → HEAD eşitliği
+        # `test_izn_b4c_migration.py`te); burada yalnız B1 dönüşümü kendi tarihine bağlanır.
         assert set(migration._hidden_categories(cells)) == {
-            c.value for c in seed_data.HIDDEN_FIELDS[role_key]
+            c.value for c in gizli_alanlar(_modul_hucreleri(cells))
         }, role_key
     for role_key in seed_data.IZN_ROLE_ORDER:
         cells = _app_cells(seed_data.IZN_MATRIX, seed_data.IZN_ROLE_ORDER, role_key)
@@ -156,6 +166,10 @@ def test_donusum_rastgele_modul_hucreleriyle_de_AYNI_migration_kopyasi(migration
         }
         # DB CHECK: onay görünmeyen sayfada olamaz.
         assert all(not (lv == "none" and ap) for lv, ap in beklenen.values())
+
+
+def _modul_hucreleri(cells: dict[str, tuple[str, str]]):
+    return {m: (AccessLevel(a), Scope(sc)) for m, (a, sc) in cells.items()}
 
 
 def _tuple_rows(rows) -> dict[str, tuple[str, bool]]:

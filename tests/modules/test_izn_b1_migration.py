@@ -22,7 +22,7 @@ import uuid
 
 import asyncpg
 
-from app.core.sayfalar import SAYFA_ANAHTARLARI
+from app.core.sayfalar import SAYFA_ANAHTARLARI, gizli_alanlar
 from app.modules.roles import seed_data
 from tests._izn_b1_esikleri import b1_rows
 from tests.modules.approvals.test_ok1a_migration import (
@@ -137,6 +137,20 @@ async def _hidden(conn, role_key: str) -> set[str]:
     return {row[0] for row in rows}
 
 
+def _b1_hidden(role_key: str) -> set[str]:
+    """B1'in ÜRETTİĞİ gizli alanlar: eski rol `limited` → `tum_tutarlar` (madde 20 `izn_b4c`te)."""
+    if role_key in seed_data.IZN_ROLE_ORDER:
+        kume = {c.value for c in seed_data.HIDDEN_FIELDS[role_key]}
+        if role_key in ("planning_engineer", "warehouse_keeper"):
+            kume.discard("maas_kisisel")  # IZN-B4c (CEO) migration'ı ekler; B1 durumu değil
+        return kume
+    cells = {
+        m: (c[seed_data.ROLE_ORDER.index(role_key)][0], c[seed_data.ROLE_ORDER.index(role_key)][1])
+        for m, c in seed_data.MATRIX.items()
+    }
+    return {c.value for c in gizli_alanlar(cells)}
+
+
 def _expected_pages(role_key: str) -> dict[str, tuple[str, bool]]:
     """B1 migration'ının ÜRETTİĞİ hücreler (B1 eşikleriyle; B2 düzeltmesi `izn_b2`de)."""
     if role_key in seed_data.IZN_ROLE_ORDER:
@@ -196,7 +210,7 @@ async def test_upgrade_tablolari_enumlari_ve_100_sayfalik_hucreleri_kurar() -> N
             # Seed durumunda her rolün hücreleri ve gizli alanları PAGE_MATRIX/HIDDEN_FIELDS'tir.
             for role_key in NON_ADMIN_ESKI_ROLLER + YENI_ROL_ANAHTARLARI:
                 assert await _page_cells(conn, role_key) == _expected_pages(role_key), role_key
-                beklenen = {c.value for c in seed_data.HIDDEN_FIELDS[role_key]}
+                beklenen = _b1_hidden(role_key)
                 assert await _hidden(conn, role_key) == beklenen, role_key
 
             # Seed durumunda sapma YOK; ama eşikli eşleme eski sade eşlemeyi KISAR (genişleme yok):
