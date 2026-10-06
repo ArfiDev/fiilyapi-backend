@@ -58,14 +58,16 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
+from app.core.page_gate import gate_flags
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
+from app.core.tasima import assert_tasima_yetkisi
 from app.modules.approvals.gate import require_pages_or_chain_step
 from app.modules.approvals.models import ApprovalDocumentType
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
-from app.modules.procurement import export, service, summary, transitions
+from app.modules.procurement import export, guards, service, summary, transitions
 from app.modules.procurement.models import (
     PurchaseOrderStatus,
     PurchasePriority,
@@ -329,6 +331,15 @@ async def update_purchase_request_endpoint(
     `lines` gönderilirse kalemler REPLACE edilir (tek atomik işlem); hiç
     göndermemek onlara DOKUNMAZ, boş liste hepsini SİLER.
     """
+    await assert_tasima_yetkisi(
+        session,
+        request,
+        user,
+        gate_flags(service.PERMISSION_MODULE, AccessLevel.request),
+        data,
+        proje_yok=guards.REQUEST_PROJECT_INVALID,
+        santiye_yok=guards.REQUEST_SITE_INVALID,
+    )
     purchase_request = await service.visible_request_locked(session, user, request_id)
     purchase_request, detail = await service.update_request(session, user, purchase_request, data)
     await _audit(request, session, user, AuditAction.update, detail)

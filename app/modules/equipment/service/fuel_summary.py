@@ -43,7 +43,7 @@ async def fuel_summary(
     eşikler burada YENİDEN yazılmaz. `lt_per_hour_avg` payda 0 ise `null`dur
     (dönemin ÇALIŞMA KAYDI saat toplamı — modüller arası bağ, M4:39).
     """
-    project_ids = await _visible_project_ids(session, actor)
+    project_ids = await _visible_project_ids(session, actor, liste=True)
     ilk, son = month_bounds(year, month)
     ham = await repository.fuel_summary_rows(
         session, project_ids, date_from=ilk, date_to=son, equipment_id=equipment_id

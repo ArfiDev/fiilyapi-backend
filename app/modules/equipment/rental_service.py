@@ -133,7 +133,9 @@ async def visible_invoice(
     invoice = await rental_repository.get_invoice(session, invoice_ref)
     if invoice is None:
         raise NotFoundError(INVOICE_MISSING)
-    if not await service._is_visible_site(session, actor, invoice.site_id):
+    # IZN-B5f: slug ile açılan detay liste ile AYNI kapsamı kullanır.
+    liste = not isinstance(invoice_ref, uuid.UUID)
+    if not await service._is_visible_site(session, actor, invoice.site_id, liste=liste):
         raise NotFoundError(INVOICE_MISSING)
     return invoice
 
@@ -561,7 +563,7 @@ async def list_invoices(
     LİSTE döndürür, 404 değil — 404, süzgeci bir keşif aracına çevirir
     (kullanıcı hangi kimliklerin var olduğunu deneme yanılmayla öğrenirdi).
     """
-    project_ids = await service._visible_project_ids(session, actor)
+    project_ids = await service._visible_project_ids(session, actor, liste=True)
     suzgecler = {
         "supplier_id": supplier_id,
         "site_id": site_id,

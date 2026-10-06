@@ -44,7 +44,7 @@ async def list_suppliers(
     """TED kart izgarasinin veri kaynagi. **Katalogda kapsam suzgeci YOK**
     (modul docstring'i); kapsam yalniz PARA turevine uygulanir."""
     totals = repository.supplier_order_totals(
-        await _visible_project_ids(session, actor), today().year
+        await _visible_project_ids(session, actor, liste=True), today().year
     )
     rows = await repository.list_suppliers(
         session, totals, q=q, category=category, is_active=is_active, limit=limit, offset=offset
@@ -72,7 +72,7 @@ async def get_supplier_card(
 ) -> SupplierCard:
     """Detay ucu liste ile AYNI turetmeyi kullanir (`repository` gerekcesi)."""
     totals = repository.supplier_order_totals(
-        await _visible_project_ids(session, actor), today().year
+        await _visible_project_ids(session, actor, liste=True), today().year
     )
     row = await repository.get_supplier_with_totals(session, totals, supplier_id)
     if row is None:

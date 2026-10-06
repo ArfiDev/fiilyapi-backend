@@ -185,7 +185,7 @@ async def build_summary(
     today = today or timezone.today()
     horizon = today + timedelta(days=EXPIRING_SOON_DAYS)
 
-    project_ids = await _visible_project_ids(session, actor)
+    project_ids = await _visible_project_ids(session, actor, liste=True)
     rows = await repository.list_active_document_rows_for_summary(session, project_ids)
     required_types = [t for t in await repository.list_document_types(session) if t.is_required]
     present_pairs = await repository.list_active_equipment_type_pairs(session, project_ids)

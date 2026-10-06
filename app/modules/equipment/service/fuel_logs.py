@@ -60,7 +60,7 @@ async def list_fuel_logs(
     offset: int,
 ) -> tuple[list[EquipmentFuelLog], int]:
     """Liste + `total` TEK kapsam kararını paylaşır (TB3 kanonu)."""
-    project_ids = await _visible_project_ids(session, actor)
+    project_ids = await _visible_project_ids(session, actor, liste=True)
     suzgecler = {
         "equipment_id": equipment_id,
         "site_id": site_id,

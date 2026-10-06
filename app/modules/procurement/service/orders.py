@@ -178,7 +178,7 @@ async def list_orders(
     Uc sorgu kosar ve sayisi SATIR SAYISINDAN BAGIMSIZDIR (N+1 yok): gorunur
     projeler · sayfa (tedarikci adi ve talep numarasi JOIN'li) · sayim.
     """
-    project_ids = await _visible_project_ids(session, actor)
+    project_ids = await _visible_project_ids(session, actor, liste=True)
     suzgec = {"status": status, "project_id": project_id, "supplier_id": supplier_id, "q": q}
     rows = await repository.list_orders(session, project_ids, limit=limit, offset=offset, **suzgec)
     total = await repository.count_orders(session, project_ids, **suzgec)

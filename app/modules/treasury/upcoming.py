@@ -141,7 +141,7 @@ from app.modules.invoicing.models import Invoice, InvoiceDirection, InvoiceStatu
 from app.modules.payroll import payable
 from app.modules.payroll.guards import PERMISSION_MODULE as PAYROLL_PERMISSION_MODULE
 from app.modules.payroll.models import PayrollPeriod, PayrollPeriodStatus
-from app.modules.projects.service import visible_projects
+from app.modules.projects.service import sirket_liste_ciftleri, visible_projects
 from app.modules.subcontractor_progress_payments import amounts
 from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
@@ -153,6 +153,7 @@ from app.modules.treasury.schemas import (
     UpcomingPaymentsResponse,
     UpcomingSourceType,
 )
+from app.modules.treasury.service import PERMISSION_MODULE
 from app.modules.users.models import User
 
 __all__ = [
@@ -476,7 +477,12 @@ async def build_upcoming_payments(
     """
     bugun = today()
     son = bugun + timedelta(days=days)
-    project_ids = [p.id for p in await visible_projects(session, actor)]
+    project_ids = [
+        p.id
+        for p in await visible_projects(
+            session, actor, sirket_ciftleri=sirket_liste_ciftleri(PERMISSION_MODULE)
+        )
+    ]
 
     satirlar = await _invoice_rows(session, project_ids, bugun, son)
     satirlar += await _progress_payment_rows(session, project_ids, bugun, son)

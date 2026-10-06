@@ -89,7 +89,7 @@ async def work_summary(
     ile GİRMEZ; toplamın kendisi `null` yapılmaz (tek bilinmeyen makine yüzünden
     bütün tabloyu gizlemek kullanıcıyı ekranın tamamından ederdi).
     """
-    project_ids = await _visible_project_ids(session, actor)
+    project_ids = await _visible_project_ids(session, actor, liste=True)
     ilk, son = month_bounds(year, month)
     ham = await repository.work_summary_rows(
         session, project_ids, date_from=ilk, date_to=son, site_id=site_id

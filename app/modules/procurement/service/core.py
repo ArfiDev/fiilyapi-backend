@@ -17,7 +17,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.procurement import guards
-from app.modules.projects.service import visible_projects
+from app.modules.projects.service import sirket_liste_ciftleri, visible_projects
 from app.modules.users.models import User
 
 PERMISSION_MODULE = guards.PERMISSION_MODULE
@@ -27,8 +27,13 @@ ithalati donguye girerdi). Bu ad geriye donuk takma addir; router ve testler
 `service.PERMISSION_MODULE` yazmaya devam eder."""
 
 
-async def _visible_project_ids(session: AsyncSession, actor: User) -> list[uuid.UUID]:
-    return [p.id for p in await visible_projects(session, actor)]
+async def _visible_project_ids(
+    session: AsyncSession, actor: User, *, liste: bool = False
+) -> list[uuid.UUID]:
+    """`liste=True`: şirket türü liste/özet ucu (IZN-B5f 23b) — satırlar kişinin O PROJEDEKİ
+    rolünün `satınalma` sayfa izniyle süzülür (detay ucuyla aynı kural)."""
+    ciftler = sirket_liste_ciftleri(PERMISSION_MODULE) if liste else ()
+    return [p.id for p in await visible_projects(session, actor, sirket_ciftleri=ciftler)]
 
 
 def _strip(deger: str | None) -> str | None:
