@@ -15,6 +15,7 @@ from app.modules.roles.models import (
 )
 from app.modules.roles.schemas import RoleCreate
 from tests._legacy_permission_yardimcisi import update_role_permission
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 
 async def test_create_custom_role_eski_hucre_ACMAZ_100_sayfa_hucresi_acar(seeded_db):
@@ -171,6 +172,4 @@ async def test_olmayan_modul_hala_404(seeded_db):
         seeded_db, RoleCreate(key="ozel_rol4", name="Özel4", emoji="", description="")
     )
     with pytest.raises(NotFoundError):
-        await update_role_permission(
-            seeded_db, role.id, "boyle_bir_modul_yok", AccessLevel.view, Scope.all
-        )
+        await modul_duzeyi_yaz(seeded_db, role.id, "boyle_bir_modul_yok", AccessLevel.view)

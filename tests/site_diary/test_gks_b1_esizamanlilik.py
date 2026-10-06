@@ -27,17 +27,16 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.access import AccessLevel
 from app.core.db import get_db
-from app.core.sayfalar import PageLevel
 from app.core.security import create_access_token, hash_password
 from app.main import app
 from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.projects.models import Project
-from app.modules.roles.models import Module, ModuleGroup, Role, RolePagePermission, RolePermission
+from app.modules.roles.models import Role
 from app.modules.site_diary import guards, service
 from app.modules.site_diary.models import SiteDiaryEntry, SiteDiaryLine
 from app.modules.sites.models import Site
 from app.modules.users.models import ProjectMember, User
-from tests._proje_ekibi import modul_sayfa_hucreleri
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._yaris import YARIS_TAVANI_SN, kilitte_bekleyen_sorgu
 from tests.conftest import test_engine
 
@@ -50,12 +49,11 @@ _INTEGRITY_DETAIL = "Veri bütünlüğü hatası"
 
 
 class _Kurulum:
-    def __init__(self, user: User, project_id, site_id, item_id, module_created: bool) -> None:
+    def __init__(self, user: User, project_id, site_id, item_id) -> None:
         self.user = user
         self.project_id = project_id
         self.site_id = site_id
         self.item_id = item_id
-        self.module_created = module_created
 
     @property
     def headers(self) -> dict[str, str]:
@@ -86,29 +84,11 @@ async def kurulum():
 
 async def _kur() -> _Kurulum:
     async with _SessionFactory() as session:
-        modul = (
-            await session.execute(select(Module).where(Module.key == service.PERMISSION_MODULE))
-        ).scalar_one_or_none()
-        olusturuldu = modul is None
-        if modul is None:
-            modul = Module(key=service.PERMISSION_MODULE, name="Günlük", group=ModuleGroup.SAHA)
-            session.add(modul)
         role = Role(key=_ROLE_KEY, name="GKS-B1 Yarışı")
         session.add(role)
         await session.flush()
-        session.add(
-            RolePermission(role_id=role.id, module_id=modul.id, access_level=AccessLevel.full)
-        )
         # IZN-B2: kapılar sayfa hücresinden karar verir (`site_diary:view/full` = Günlük Kayıt).
-        session.add(
-            RolePagePermission(
-                role_id=role.id,
-                page_key="saha.gunluk_kayit",
-                level=PageLevel.edit,
-                can_approve=False,
-            )
-        )
-        await modul_sayfa_hucreleri(session, role.id, service.PERMISSION_MODULE)
+        await modul_duzeyi_yaz(session, role, service.PERMISSION_MODULE, AccessLevel.full)
         user = User(
             email="gks-b1-yaris@sd.co",
             password_hash=hash_password("parola1234"),
@@ -137,7 +117,7 @@ async def _kur() -> _Kurulum:
         )
         session.add(item)
         await session.commit()
-        return _Kurulum(user, project.id, site.id, item.id, olusturuldu)
+        return _Kurulum(user, project.id, site.id, item.id)
 
 
 async def _temizle(k: _Kurulum) -> None:
@@ -149,8 +129,6 @@ async def _temizle(k: _Kurulum) -> None:
         await session.execute(delete(Project).where(Project.id == k.project_id))
         await session.execute(delete(User).where(User.id == k.user.id))
         await session.execute(delete(Role).where(Role.key == _ROLE_KEY))
-        if k.module_created:
-            await session.execute(delete(Module).where(Module.key == service.PERMISSION_MODULE))
         await session.commit()
 
 

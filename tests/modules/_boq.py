@@ -14,7 +14,6 @@ from sqlalchemy import select
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.sites.models import Site
-from tests._modul_duzeyi_yardimcisi import set_permission_uyumlu as _set_permission  # noqa: F401
 
 
 async def _login(client, user_factory, role_key: str, email: str | None = None) -> str:

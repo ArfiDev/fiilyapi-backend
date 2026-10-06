@@ -547,17 +547,14 @@ async def test_copy_sistem_yoneticisi_kopyasinda_legacy_admin_full_olur(
 async def test_sistem_yoneticisi_rolunu_yalniz_sistem_yoneticisi_atar_rol_yonetimi_sahibi_dahil(
     client, izn_db, user_factory
 ):
-    from app.core.access import Scope
     from app.modules.roles.service import create_custom_role
-    from tests._legacy_permission_yardimcisi import update_role_permission
+    from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
     aktor_rol = await create_custom_role(
         izn_db, RoleCreate(key="rol_yoneticisi", name="Rol Yön", emoji="", description="")
     )
     # Rol Yönetimi Düzenler (eski user_management admin) + Kullanıcılar Düzenler.
-    await update_role_permission(
-        izn_db, aktor_rol.id, "user_management", AccessLevel.admin, Scope.all
-    )
+    await modul_duzeyi_yaz(izn_db, aktor_rol.id, "user_management", AccessLevel.admin)
     aktor = await _giris(client, user_factory, "rol_yoneticisi")
     sysadmin_rol = await _rol(izn_db, "system_admin")
     cevap = await client.post(

@@ -36,6 +36,7 @@ from decimal import Decimal
 import pytest
 
 from app.core.access import AccessLevel, Scope
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 from ._boq import _auth, _login_with_access
 
@@ -170,11 +171,13 @@ async def test_SAYACLAR_ve_RISK_metinleri_her_kapsamda_DURUR(
 
 
 async def _kapsamli_panel(client, db_session, user_factory, eposta: str, projects_kapsami: Scope):
-    from ._boq import _set_permission
-
     token = await _login_with_access(client, db_session, user_factory, "project_manager", eposta)
-    await _set_permission(
-        db_session, "project_manager", "projects", AccessLevel.view, projects_kapsami
+    await modul_duzeyi_yaz(
+        db_session,
+        "project_manager",
+        "projects",
+        AccessLevel.view,
+        tum_tutarlar=projects_kapsami is Scope.limited,
     )
     resp = await client.get("/dashboard/summary", headers=_auth(token))
     assert resp.status_code == 200, resp.text

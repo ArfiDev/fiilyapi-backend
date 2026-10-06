@@ -46,7 +46,7 @@ from app.modules.roles.models import Role
 from app.modules.roles.schemas import RoleCreate
 from app.modules.roles.service import create_custom_role
 from app.modules.users.models import User
-from tests._legacy_permission_yardimcisi import update_role_permission
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz, modul_duzeyleri_yaz
 
 L = AccessLevel
 MODULES = [m["key"] for m in seed_data.MODULES]
@@ -450,8 +450,7 @@ async def _ozel_rol(session, levels: dict[str, AccessLevel], tag: str) -> User:
     role = await create_custom_role(
         session, RoleCreate(key=tag, name=tag, emoji="", description="")
     )
-    for module, level in levels.items():
-        await update_role_permission(session, role.id, module, level, Scope.all)
+    await modul_duzeyleri_yaz(session, role.id, levels)
     return await _kullanici(session, tag, f"{tag}@parite.co")
 
 
@@ -780,13 +779,12 @@ async def test_atama_kurali_kendi_sayfa_hucrelerini_asan_rolu_atayamaz(
 ) -> None:
     """`require_assignable_role`: Sistem Yöneticisi olmayan aktör, kendi hücrelerini (düzey +
     onay) aşan rolü atayamaz (eski modül karşılaştırmasının karşılığı)."""
-    from tests._legacy_permission_yardimcisi import update_role_permission as yaz
-
     aktor_rol = await create_custom_role(
         seeded_db, RoleCreate(key="ik_yonetici", name="İK Yönetici", emoji="", description="")
     )
-    for modul, seviye in (("user_management", L.full), ("accounting", L.view)):
-        await yaz(seeded_db, aktor_rol.id, modul, seviye, Scope.all)
+    await modul_duzeyleri_yaz(
+        seeded_db, aktor_rol.id, {"user_management": L.full, "accounting": L.view}
+    )
     aktor = await _giris(client, user_factory, "ik_yonetici")
     accounting = (
         await seeded_db.execute(select(Role).where(Role.key == "accounting"))
@@ -794,7 +792,7 @@ async def test_atama_kurali_kendi_sayfa_hucrelerini_asan_rolu_atayamaz(
     viewer_gibi = await create_custom_role(
         seeded_db, RoleCreate(key="dar_rol", name="Dar", emoji="", description="")
     )
-    await yaz(seeded_db, viewer_gibi.id, "accounting", L.view, Scope.all)
+    await modul_duzeyi_yaz(seeded_db, viewer_gibi.id, "accounting", L.view)
 
     asan = await client.post(
         "/users",
