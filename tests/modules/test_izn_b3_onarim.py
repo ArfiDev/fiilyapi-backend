@@ -449,7 +449,7 @@ async def test_govdedeki_site_id_proje_baglamini_cozer_ekip_rolu_yalniz_o_projed
     """Oluşturma uçlarında proje yol parametresinde değil GÖVDEDEDİR (`site_id`): ana rolü yetersiz
     ama Kule'de güçlü kişi Kule şantiyesi için kapıyı geçer (422 = gövde doğrulaması), Köprü
     şantiyesi için 403 alır. Uç gövde modeli `site_id`yi BİLDİRMELİDİR (`WarehouseCreate`): modelin
-    bildirmediği anahtar bağlam sayılmaz (IZN-B4c onarımı, `test_izn_b4c_govde_baglam.py`)."""
+    bildirmediği anahtar bağlam sayılmaz (IZN-HF1, `test_izn_hf1_govde_baglam.py`)."""
     kule, kopru = iki_proje
     guclu = await rol_kur(seeded_db, "izn_guclu", PageLevel.edit, approve=True)
     await rol_kur(seeded_db, "izn_hicbiri", PageLevel.none)

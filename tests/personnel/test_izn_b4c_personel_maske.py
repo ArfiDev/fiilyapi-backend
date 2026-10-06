@@ -144,7 +144,7 @@ async def test_gizlemeyen_rol_kisisel_alani_yazar(client, ik_headers, kisi):
 
 
 # --- Gövdeye eklenen `project_id` maskeyi / yazma kapısını ATLATMAZ (çürütme bulgusu) ---
-# Çekirdek düzeltmenin kendi testleri: `tests/modules/test_izn_b4c_govde_baglam.py`.
+# Çekirdek düzeltmenin kendi testleri: `tests/modules/test_izn_hf1_govde_baglam.py` (IZN-HF1).
 
 
 @pytest.fixture
