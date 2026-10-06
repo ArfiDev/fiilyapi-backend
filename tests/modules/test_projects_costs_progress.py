@@ -23,6 +23,7 @@ from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
 )
 from app.modules.users.models import ProjectMember
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests.conftest import test_engine
 
 from ._projects_costs import (
@@ -34,7 +35,6 @@ from ._projects_costs import (
     _sale,
     _scoped_login,
     _set_budget_lines,
-    _set_permission,
     _units,
 )
 
@@ -243,7 +243,7 @@ async def test_costs_gorunmeyen_proje_var_olmayandan_ayirt_edilemez(
 async def test_costs_view_seviyesi_yeterlidir(client, db_session, user_factory, project_factory):
     """Uç OKUMADIR: `projects:view` yeter, `full` şart değildir."""
     project = await project_factory(code="VW-1")
-    await _set_permission(db_session, "site_chief", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "site_chief", "projects", AccessLevel.view)
     user = await user_factory(email="sef@p10.co", password="parola1234", role_key="site_chief")
     db_session.add(ProjectMember(user_id=user.id, project_id=project.id, role_id=user.role_id))
     await db_session.flush()

@@ -23,9 +23,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.access import AccessLevel
 from app.modules.audit.models import AuditAction, AuditLog
-from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, SectionType, Site
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._section_types import SEED_SECTION_TYPES, SEED_TYPE_IDS, seed_section_types
 from tests.conftest import test_engine
 
@@ -49,18 +48,7 @@ async def _login(client, session, user_factory, role_key: str) -> str:
 
 
 async def _set_sites_level(session, role_key: str, level: AccessLevel) -> None:
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (await session.execute(select(Module.id).where(Module.key == "sites"))).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
+    await modul_duzeyi_yaz(session, role_key, "sites", level)
 
 
 @pytest.fixture

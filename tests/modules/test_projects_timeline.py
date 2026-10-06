@@ -26,14 +26,14 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date
 
-from sqlalchemy import delete, event, select
+from sqlalchemy import delete, event
 
 from app.core import timezone
-from app.core.access import AccessLevel, Scope
-from app.modules.roles.models import Module, Role, RoleHiddenField, RolePermission
+from app.core.access import AccessLevel
+from app.modules.roles.models import RoleHiddenField
 from app.modules.sites.models import Section, SectionMilestone, SectionStatus, Site
 from app.modules.users.models import ProjectMember
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests.conftest import test_engine
 
 VIEW_ROLE = "site_chief"  # projects=view (seed); testte açıkça kurulur
@@ -41,28 +41,6 @@ VIEW_ROLE = "site_chief"  # projects=view (seed); testte açıkça kurulur
 
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
-
-
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    """İzin hücresini seed matrisinden BAĞIMSIZ kurar: matris kullanıcı
-    tarafından düzenlenebilir, testin dayanağı seed değeri olmamalı."""
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
 
 
 async def _login(client, user_factory, role_key: str, *, email: str | None = None) -> str:
@@ -161,7 +139,7 @@ async def test_timeline_unauthenticated(client):
 
 async def test_timeline_forbidden_without_projects_view(client, user_factory, seeded_db):
     """`projects` izni `none` olan rol 403 alır (seed: procurement = none)."""
-    await _set_permission(seeded_db, "procurement", "projects", AccessLevel.none)
+    await modul_duzeyi_yaz(seeded_db, "procurement", "projects", AccessLevel.none)
     _, token = await _login(client, user_factory, "procurement")
     resp = await client.get("/projects/timeline", headers=_auth(token))
     assert resp.status_code == 403
@@ -172,7 +150,7 @@ async def test_timeline_rotasi_project_id_ile_golgelenmez(
 ):
     """ROTA TUZAĞI: `/projects/{project_id}` daha ÖNCE tanımlanırsa `timeline`
     bir UUID sanılır ve uç 422 ile hiç çalışmaz. Bu test o sıralamayı sabitler."""
-    await _set_permission(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
     user, token = await _login(client, user_factory, VIEW_ROLE)
     await _grant(seeded_db, user, project_id=None, all_projects=True)
 
@@ -186,7 +164,7 @@ async def test_timeline_rotasi_project_id_ile_golgelenmez(
 
 async def test_timeline_bos_portfoy(client, user_factory, seeded_db):
     """Görünür projesi olmayan kullanıcı boş liste + `today` alır (patlama yok)."""
-    await _set_permission(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
     _, token = await _login(client, user_factory, VIEW_ROLE)
 
     resp = await client.get("/projects/timeline", headers=_auth(token))
@@ -228,7 +206,7 @@ async def test_timeline_govdesi(client, user_factory, seeded_db, project_factory
     )
     await _milestone(seeded_db, temel.id, "Temel tamamlandı", date(2025, 7, 31))
 
-    await _set_permission(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
     user, token = await _login(client, user_factory, VIEW_ROLE)
     await _grant(seeded_db, user, project_id=project.id)
     # Sözleşme bedeli `sozlesme_fiyat` kategorisidir; `limited` seed rolü tum_tutarlar gizler.
@@ -274,7 +252,7 @@ async def test_timeline_ilerleme_yuzdesi_HIC_YOK(client, user_factory, seeded_db
     site = await _site(seeded_db, project.id, "SNT-2")
     await _section(seeded_db, site.id, "Faz", sort_order=1)
 
-    await _set_permission(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
     user, token = await _login(client, user_factory, VIEW_ROLE)
     await _grant(seeded_db, user, project_id=project.id)
 
@@ -294,7 +272,7 @@ async def test_timeline_bolumsuz_proje_bos_liste_doner(
     santiyeli = await project_factory("SNT-ONLY", name="Bölümsüz Şantiye")
     await _site(seeded_db, santiyeli.id, "SNT-3")
 
-    await _set_permission(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
     user, token = await _login(client, user_factory, VIEW_ROLE)
     await _grant(seeded_db, user, project_id=bos.id)
     await _grant(seeded_db, user, project_id=santiyeli.id)
@@ -321,7 +299,7 @@ async def test_timeline_gorunmeyen_proje_yanitta_yok(
     gizli_bolum = await _section(seeded_db, gizli_site.id, "Gizli Bölüm", sort_order=1)
     await _milestone(seeded_db, gizli_bolum.id, "Gizli Milestone", date(2026, 5, 5))
 
-    await _set_permission(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
     user, token = await _login(client, user_factory, VIEW_ROLE)
     await _grant(seeded_db, user, project_id=gorunur.id)
 
@@ -356,7 +334,7 @@ async def test_timeline_deterministik_sira(client, user_factory, seeded_db, proj
     m_b = await _milestone(seeded_db, esit_1.id, "M-B", date(2026, 1, 2), sort_order=2)
     m_a = await _milestone(seeded_db, esit_1.id, "M-A", date(2026, 1, 1), sort_order=1)
 
-    await _set_permission(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
     user, token = await _login(client, user_factory, VIEW_ROLE)
     await _grant(seeded_db, user, project_id=None, all_projects=True)
 
@@ -379,7 +357,7 @@ async def test_timeline_deterministik_sira(client, user_factory, seeded_db, proj
 async def test_timeline_n_plus_1_yok(client, user_factory, seeded_db, project_factory):
     """Veri hacmi büyüyünce sorgu sayısı SABİT kalmalı. N+1 geri gelirse ikinci
     ölçüm birinciden büyük çıkar ve bu test kırmızıya döner."""
-    await _set_permission(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, VIEW_ROLE, "projects", AccessLevel.view)
     user, token = await _login(client, user_factory, VIEW_ROLE)
     await _grant(seeded_db, user, project_id=None, all_projects=True)
 

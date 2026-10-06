@@ -17,13 +17,10 @@ cozulmezse baska bir projenin bolumu sessizce duzenlenebilir.
 
 import uuid
 
-from sqlalchemy import select
-
-from app.core.access import AccessLevel, Scope
-from app.modules.roles.models import Module, Role, RolePermission
+from app.core.access import AccessLevel
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import ProjectMember
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._sites_sayfalari import sites_sayfalarini_kapat
 
 # 2026-07-28 kullanici karariyla Satinalma da sites=view aldi; artik HICBIR
@@ -47,28 +44,6 @@ async def _login(client, user_factory, role_key: str, *, grant_all: bool, sessio
         await session.flush()
     resp = await client.post("/auth/login", json={"email": address, "password": "parola1234"})
     return resp.json()["access_token"]
-
-
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    """Bir rolun modul iznini dogrudan ayarlar — testin 403 kapisini seed
-    degerlerinden BAGIMSIZ dogrulayabilmesi icin."""
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -116,7 +91,7 @@ async def test_role_without_sites_permission_is_forbidden_everywhere(
     client, db_session, user_factory, project_factory
 ):
     site, section = await _fixture_tree(db_session, project_factory)
-    await _set_permission(db_session, NO_ACCESS_ROLE, "sites", AccessLevel.none)
+    await modul_duzeyi_yaz(db_session, NO_ACCESS_ROLE, "sites", AccessLevel.none)
     await sites_sayfalarini_kapat(db_session, NO_ACCESS_ROLE)  # IZN-B5c: dar görme genişlemesi
     token = await _login(client, user_factory, NO_ACCESS_ROLE, grant_all=True, session=db_session)
 

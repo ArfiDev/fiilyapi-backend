@@ -54,9 +54,8 @@ from app.modules.subcontractor_progress_payments.models import (
     SubcontractorProgressPayment,
 )
 from app.modules.users.models import ProjectMember
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests.conftest import test_engine
-
-from ._boq import _set_permission
 
 
 @contextmanager
@@ -657,7 +656,7 @@ async def test_TAKVIM_kapisi_kapatilinca_YALNIZ_takvim_susar(
     matriste hicbir rolle tetiklenmez — bekcisi olmasaydi kapiyi silen mutasyon
     SAG KALIRDI (olculdu: sag kaldi).
 
-    Bu yuzden izin hucresi testte KAPATILIR (`_set_permission` emsali,
+    Bu yuzden izin hucresi testte KAPATILIR (`modul_duzeyi_yaz` emsali,
     `test_ilr_ilerleme.py:489`). Iddia cift yonludur: takvim satiri DUSER, oteki
     iki kaynak KONUSMAYA DEVAM EDER — "her seyi kapat" mutasyonu da yakalanir.
     """
@@ -669,7 +668,7 @@ async def test_TAKVIM_kapisi_kapatilinca_YALNIZ_takvim_susar(
     await _giris(seeded_db, depo, demir, "2")
     await _hakedis(seeded_db, proje, yazan, onay_gunu=today() - timedelta(days=44), vade_gun=30)
     await _aktor(seeded_db, user_factory, "risk-nosite@d.co", role_key="patron")
-    await _set_permission(seeded_db, "patron", SCHEDULE_MODULE, AccessLevel.none)
+    await modul_duzeyi_yaz(seeded_db, "patron", SCHEDULE_MODULE, AccessLevel.none)
 
     kart = await _panel(client, "risk-nosite@d.co")
 

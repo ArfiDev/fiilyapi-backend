@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.modules.dashboard.schemas import (
     DashboardSummaryResponse,
     MetricPlaceholder,
@@ -11,8 +11,7 @@ from app.modules.dashboard.schemas import (
 )
 from app.modules.roles.models import Role
 from tests._hassas_alan import gizli_alanlar_ayarla
-
-from ._boq import _set_permission
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 
 def test_metric_placeholder_defaults_to_unavailable():
@@ -163,8 +162,8 @@ async def test_projects_izni_KAPALIYKEN_panel_proje_karti_BASMAZ(
     #    aşağıdaki "BÜTÇE sızdı" iddiası o zaman kapıdan değil maskeden geçerdi
     #    ve kapı kaldırılsa bile YEŞİL kalırdı (sahte-yeşil). Kapsam açıkça
     #    `all`a çekilir ki ölçülen tek şey izin hücresi olsun.
-    await _set_permission(seeded_db, "hr_manager", "dashboard", AccessLevel.view, Scope.all)
-    await _set_permission(seeded_db, "hr_manager", "projects", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(seeded_db, "hr_manager", "dashboard", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, "hr_manager", "projects", AccessLevel.view)
     # IZN-B4: maske `role_hidden_fields`tan gelir; seed `limited` rolü tutarları gizler → sıfırla.
     rol = (await seeded_db.execute(select(Role).where(Role.key == "hr_manager"))).scalar_one()
     await gizli_alanlar_ayarla(seeded_db, rol, [])
@@ -177,7 +176,7 @@ async def test_projects_izni_KAPALIYKEN_panel_proje_karti_BASMAZ(
     assert "7654321.00" in izinli.text
 
     # (b) Hucre CALISMA ANINDA kapatilir — uc hâlâ acik (403 DEGIL) ama kart bos.
-    await _set_permission(seeded_db, "hr_manager", "projects", AccessLevel.none)
+    await modul_duzeyi_yaz(seeded_db, "hr_manager", "projects", AccessLevel.none)
 
     kapali = await _ozet(client, "ik-panel@t.co")
     assert kapali.status_code == 200, kapali.text

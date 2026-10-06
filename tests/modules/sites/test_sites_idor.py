@@ -23,10 +23,9 @@ import uuid
 
 from sqlalchemy import func, select
 
-from app.core.access import AccessLevel, Scope
-from app.modules.roles.models import Module, Role, RolePermission
+from app.core.access import AccessLevel
 from app.modules.sites.models import Section, Site
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._silme_yardimci import sil_aile
 from tests._sites_sayfalari import sites_sayfalarini_kapat
 
@@ -54,31 +53,6 @@ async def _login(client, session, user_factory, role_key: str, *, grant_all: boo
         await session.flush()
     resp = await client.post("/auth/login", json={"email": address, "password": "parola1234"})
     return resp.json()["access_token"]
-
-
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    """Izin kapisini seed matrisinden BAGIMSIZ kilar.
-
-    Matris kullanici tarafindan duzenlenebilir; testin dayanagi seed degeri
-    olsaydi matris degistigi gun test sessizce anlamsizlasirdi.
-    """
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
 
 
 async def _tree(session, project_factory, code: str = "IDOR") -> tuple[Site, Section]:
@@ -195,7 +169,7 @@ async def test_view_permission_rejects_writes_403(
     client, db_session, user_factory, project_factory
 ):
     """Okuma izni yazmaya DONUSMEZ; kapi servise ulasmadan kapanir (403)."""
-    await _set_permission(db_session, VIEW_ROLE, "sites", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, VIEW_ROLE, "sites", AccessLevel.view)
     site, _ = await _tree(db_session, project_factory, "IDOR-24")
     token = await _login(client, db_session, user_factory, VIEW_ROLE, grant_all=True)
 
@@ -221,7 +195,7 @@ async def test_view_permission_rejects_writes_403(
 async def test_no_permission_returns_403(client, db_session, user_factory, project_factory):
     """Seed matrisinde `sites:none` tasiyan rol YOK; izin satiri testte acikca
     none'a cekilir (matris kullanici tarafindan duzenlenebilir)."""
-    await _set_permission(db_session, NONE_ROLE, "sites", AccessLevel.none)
+    await modul_duzeyi_yaz(db_session, NONE_ROLE, "sites", AccessLevel.none)
     await sites_sayfalarini_kapat(db_session, NONE_ROLE)  # IZN-B5c: dar görme genişlemesi
     site, section = await _tree(db_session, project_factory, "IDOR-25")
     token = await _login(client, db_session, user_factory, NONE_ROLE, grant_all=True)
@@ -301,7 +275,7 @@ async def test_delete_site_invisible_returns_404_and_record_survives(
     """27. `sites:admin` VAR ama Sistem Yoneticisi DEGIL -> 403 (SIL-B1: kapi once kosar);
     gorunmeyen ve var olmayan kimlik AYNI yaniti alir (varlik sizmaz) + kayit YERINDE."""
     site, _ = await _tree(db_session, project_factory, "IDOR-27")
-    await _set_permission(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=False)
 
     invisible = await sil_aile(client, _auth(token), "site", site.id)
@@ -317,7 +291,7 @@ async def test_delete_section_invisible_returns_404_and_record_survives(
 ):
     """28. Bolum kimligi uzerinden dolayli silme de gorunurluk suzgecinden gecer."""
     _, section = await _tree(db_session, project_factory, "IDOR-28")
-    await _set_permission(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=False)
 
     invisible = await sil_aile(client, _auth(token), "section", section.id)
@@ -341,7 +315,7 @@ async def test_delete_site_with_full_permission_returns_403(
     goruluyor olur. Kullanicinin projeye erisimi VARDIR — yani 404 degil,
     dogrudan izin kapisindan 403 beklenir.
     """
-    await _set_permission(db_session, WRITE_ROLE, "sites", AccessLevel.full)
+    await modul_duzeyi_yaz(db_session, WRITE_ROLE, "sites", AccessLevel.full)
     site, _ = await _tree(db_session, project_factory, "IDOR-29")
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=True)
 
@@ -361,7 +335,7 @@ async def test_delete_section_with_full_permission_returns_403(
     client, db_session, user_factory, project_factory
 ):
     """30 — bolum silme de `admin` ister; bolum AYRI izin modulu degildir."""
-    await _set_permission(db_session, WRITE_ROLE, "sites", AccessLevel.full)
+    await modul_duzeyi_yaz(db_session, WRITE_ROLE, "sites", AccessLevel.full)
     _, section = await _tree(db_session, project_factory, "IDOR-30")
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=True)
 
@@ -382,7 +356,7 @@ async def test_delete_section_with_full_permission_returns_403(
 async def test_delete_both_with_view_permission_returns_403(
     client, db_session, user_factory, project_factory
 ):
-    await _set_permission(db_session, VIEW_ROLE, "sites", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, VIEW_ROLE, "sites", AccessLevel.view)
     site, section = await _tree(db_session, project_factory, "IDOR-31")
     token = await _login(client, db_session, user_factory, VIEW_ROLE, grant_all=True)
 
@@ -397,7 +371,7 @@ async def test_delete_both_with_view_permission_returns_403(
 async def test_delete_both_with_no_permission_returns_403(
     client, db_session, user_factory, project_factory
 ):
-    await _set_permission(db_session, NONE_ROLE, "sites", AccessLevel.none)
+    await modul_duzeyi_yaz(db_session, NONE_ROLE, "sites", AccessLevel.none)
     await sites_sayfalarini_kapat(db_session, NONE_ROLE)  # IZN-B5c: dar görme genişlemesi
     site, section = await _tree(db_session, project_factory, "IDOR-32")
     token = await _login(client, db_session, user_factory, NONE_ROLE, grant_all=True)
@@ -421,7 +395,7 @@ async def test_admin_without_project_access_delete_returns_404(
     Eskiden 404'tu (once gorunurluk). Artik kapi (Sistem Yoneticisi) handler'dan ONCE kosar ve
     gorunmeyen / var olmayan kayit AYNI 403'u alir: varlik yine sizmaz. Kayit YERINDE kalir.
     """
-    await _set_permission(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
     site, section = await _tree(db_session, project_factory, "IDOR-33")
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=False)
 
@@ -447,7 +421,7 @@ async def test_error_bodies_do_not_leak_record_existence(
     404 disiplinini bosa cikarirdi; tarama alan adiyla degil ICERIKLE calisir.
     """
     site, section = await _tree(db_session, project_factory, "IDOR-LEAK")
-    await _set_permission(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, WRITE_ROLE, "sites", AccessLevel.admin)
     token = await _login(client, db_session, user_factory, WRITE_ROLE, grant_all=False)
 
     responses = [

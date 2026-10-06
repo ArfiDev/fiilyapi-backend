@@ -14,36 +14,9 @@ uygulanır; merkez depo (`site_id IS NULL`) `inventory` izni olan HERKESE görü
 import uuid
 
 import pytest
-from sqlalchemy import select
 
-from app.core.access import AccessLevel, Scope
-from app.modules.roles.models import Module, Role, RolePermission
-from tests._legacy_permission_yardimcisi import sync_page_cells
-
-
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    """İzin kapısını seed matrisinden BAĞIMSIZ kılar (`sites` IDOR deseni).
-
-    Matris kullanıcı tarafından düzenlenebilir; testin dayanağı seed değeri
-    olsaydı matris değiştiği gün test sessizce anlamsızlaşırdı.
-    """
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
+from app.core.access import AccessLevel
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 
 @pytest.mark.asyncio
@@ -106,7 +79,7 @@ async def test_silmede_kapi_gorunurlukten_once_kosar_403(
     sızmaz ("yetkiliyse söyleyebiliriz" kestirmesi yetkili hesabı keşif aracına çevirirdi).
     """
     gizli = await depo_fabrikasi("D-9 Gizli Ambar", site=gorunmeyen_santiye)
-    await _set_permission(seeded_db, "procurement", "inventory", AccessLevel.admin)
+    await modul_duzeyi_yaz(seeded_db, "procurement", "inventory", AccessLevel.admin)
 
     yanit = await client.delete(f"/warehouses/{gizli.id}", headers=satinalma_headers)
     olmayan = await client.delete(f"/warehouses/{uuid.uuid4()}", headers=satinalma_headers)

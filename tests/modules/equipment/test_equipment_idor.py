@@ -11,32 +11,9 @@ atlanması yeter, çünkü sızıntı tek uçtan olur.
 import uuid
 
 import pytest
-from sqlalchemy import select
 
-from app.core.access import AccessLevel, Scope
-from app.modules.roles.models import Module, Role, RolePermission
-from tests._legacy_permission_yardimcisi import sync_page_cells
-
-
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    """İzin kapısını seed matrisinden BAĞIMSIZ kılar (ST IDOR deseni)."""
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
+from app.core.access import AccessLevel
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 
 @pytest.mark.asyncio
@@ -113,7 +90,7 @@ async def test_yetki_gorunurlugun_onune_gecmez(
     "yetkiliyse söyleyebiliriz" kestirmesi yetkili hesabı keşif aracına
     çevirirdi (ST IDOR dersi)."""
     gizli = await ekipman_fabrikasi("Gizli Ekskavatör", site=gorunmeyen_santiye)
-    await _set_permission(seeded_db, "site_chief", "equipment", AccessLevel.admin)
+    await modul_duzeyi_yaz(seeded_db, "site_chief", "equipment", AccessLevel.admin)
 
     yanit = await client.get(f"/equipment/{gizli.id}", headers=sef_headers)
     assert yanit.status_code == 404, yanit.text

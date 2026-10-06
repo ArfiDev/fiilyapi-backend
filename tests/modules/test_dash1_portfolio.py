@@ -28,13 +28,13 @@ from decimal import Decimal
 
 from sqlalchemy import delete, select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.modules.progress_payments.models import ProgressPaymentStatus
 from app.modules.roles.models import Role, RoleHiddenField
 from app.modules.users.models import ProjectMember
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 from . import _ilr
-from ._boq import _set_permission
 
 #: Zarf tek fiyatla kurulur ki testteki carpim GOZLE dogrulanabilsin.
 _BIRIM = "1000.00"
@@ -259,10 +259,10 @@ async def test_portfoy_hakedis_izni_OLMAYAN_role_SAYIYI_SIZDIRMAZ(
     #    bile test YESIL kalirdi. OLCULDU (2026-09-19): `dashboard/service.py`
     #    icindeki `can_read` kapisi silinip test kosuldu, YESIL kaldi. Kapsam
     #    ACIKCA `all`a cekilir ki deneyin tek degiskeni izin hucresi olsun;
-    #    hucrenin KENDISI de seed'e birakilmaz (`_set_permission` kanonu: matris
+    #    hucrenin KENDISI de seed'e birakilmaz (`modul_duzeyi_yaz` kanonu: matris
     #    degistiginde test sessizce anlamsizlasmasin).
-    await _set_permission(db_session, "hr_manager", "dashboard", AccessLevel.view, Scope.all)
-    await _set_permission(db_session, "hr_manager", "progress_payments", AccessLevel.none)
+    await modul_duzeyi_yaz(db_session, "hr_manager", "dashboard", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "hr_manager", "progress_payments", AccessLevel.none)
     headers = await _login_kapsamli(client, db_session, user_factory, "hr_manager", "pf5@d1.co")
 
     kisitli = await _portfoy(client, headers)
@@ -278,7 +278,7 @@ async def test_portfoy_hakedis_izni_OLMAYAN_role_SAYIYI_SIZDIRMAZ(
     #    kisitla" mutasyonunu yakalar, (b) kapsamin gercekten `all` oldugunu
     #    KANITLAR — maske hâlâ isleseydi izin acilsa bile deger `None` kalirdi,
     #    yani yukaridaki kapsam satiri curuse bu yari KIRILIR.
-    await _set_permission(db_session, "hr_manager", "progress_payments", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "hr_manager", "progress_payments", AccessLevel.view)
     # IZN-B1+: gizli alan bayraklari rol satirlarindadir (kapsamdan turetilmez) → "kapsam all"
     # tek basina maskeyi kaldirmaz; acik hâl icin rolun bayraklari da temizlenir.
     rol_id = (

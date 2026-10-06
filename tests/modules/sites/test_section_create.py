@@ -38,12 +38,11 @@ import uuid
 import pytest
 from sqlalchemy import func, select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.modules.audit.messages import section_created
 from app.modules.audit.models import AuditAction, AuditLog
-from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, SectionStatus, Site
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._section_types import SEED_TYPE_IDS, seed_section_types
 
 SITE_MISSING = "Şantiye bulunamadı"
@@ -86,26 +85,6 @@ async def _login(client, session, user_factory, role_key: str, *, grant_all: boo
         await session.flush()
     resp = await client.post("/auth/login", json={"email": address, "password": "parola1234"})
     return resp.json()["access_token"]
-
-
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
 
 
 async def _site(session, project_factory, slug: str) -> Site:
@@ -511,7 +490,7 @@ async def test_create_without_full_permission_returns_403(
     client, db_session, user_factory, project_factory
 ):
     site = await _site(db_session, project_factory, "P6T3-403")
-    await _set_permission(db_session, VIEW_ROLE, "sites", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, VIEW_ROLE, "sites", AccessLevel.view)
     token = await _login(client, db_session, user_factory, VIEW_ROLE, grant_all=True)
 
     resp = await client.post(f"/sites/{site.id}/sections", json=_published(), headers=_auth(token))

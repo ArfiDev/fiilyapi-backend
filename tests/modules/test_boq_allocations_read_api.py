@@ -19,35 +19,14 @@ from decimal import Decimal
 from sqlalchemy import event, func, select
 from sqlalchemy.engine import Engine
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.modules.audit.models import AuditLog
 from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
-from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import ProjectMember
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 # --- Kurulum yardimcilari (test_boq_allocations_api.py deseniyle birebir) ----
-
-
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
 
 
 async def _login(
@@ -282,7 +261,7 @@ async def test_view_seviyeli_kullanici_200_alir(client, db_session, user_factory
     item = await _item(db_session, site, group)
     kat = await _section(db_session, site, "Kat 6-10")
     await _allocation(db_session, item, kat, "120.000")
-    await _set_permission(db_session, "site_chief", "boq", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "site_chief", "boq", AccessLevel.view)
     token = await _login(client, db_session, user_factory, "site_chief", "r5@boqalloc.co")
 
     resp = await client.get(_url(item.id), headers=_auth(token))
