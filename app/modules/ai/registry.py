@@ -108,6 +108,11 @@ class ActorContext:
     #: DSC-B5 (Ü2): kullanıcı disiplin kapsamıyla KISITLI mı (`user_scope(...).is_restricted`).
     #: `scope` ALANI DEĞİL (S1 bekçisi, izin-matrisi `Scope`u ile karışmasın diye ayrı ad).
     disiplin_kisitli: bool = False
+    #: IZN-B5e: kataloğun GERÇEK kapı kararı — ana rolün `page_gate.gate_ok` ile (proje bağlamsız,
+    #: ekip rolü sayılmaz) GEÇTİĞİ `(modül, düzey)` çiftleri. `permissions` yalnız GÖSTERGEDİR
+    #: (`display_level`, kapıdan biraz geniş); katalog kapısı bunu okur. `None` = çözülmemiş aktör
+    #: (DB'siz test aktörü): eski `permissions` yoluna düşer.
+    gecen_kapilar: frozenset[tuple[str, AccessLevel]] | None = None
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -182,12 +187,22 @@ class KapsamGerekli(ValueError):
     """
 
 
-def kapilar_gecti(spec: ToolSpec, permissions: Mapping[str, AccessLevel]) -> bool:
+def kapilar_gecti(
+    spec: ToolSpec,
+    permissions: Mapping[str, AccessLevel],
+    gecen_kapilar: frozenset[tuple[str, AccessLevel]] | None = None,
+) -> bool:
     """`kapilar` demetinin **HER** üyesi ayrı ayrı sağlanmalı.
+
+    `gecen_kapilar` verilmişse (`aktor_baglami` her zaman verir) karar GERÇEK kapıdandır
+    (`page_gate.gate_ok`): `(modül, düzey)` tam o çiftle aranır, `permissions` gösterge düzeyine
+    BAKILMAZ. Verilmemişse (DB'siz test aktörü) `permissions` yoluna düşer.
 
     Varsayılan KAPALI: izin satırı yoksa `AccessLevel.none` sayılır — `can_read`
     ve `require_permission` ile aynı fail-closed duruş.
     """
+    if gecen_kapilar is not None:
+        return all(kapi in gecen_kapilar for kapi in spec.kapilar)
     return all(
         satisfies(permissions.get(modul, AccessLevel.none), seviye)
         for modul, seviye in spec.kapilar
@@ -243,7 +258,7 @@ class ToolRegistry:
         """İzin kapıları + DSC-B5 (Ü2) disiplin süzgeci: kısıtlıya ticari araç sunulmaz."""
         if actor.disiplin_kisitli and spec.disiplin_kisitliya_kapali:
             return False
-        return kapilar_gecti(spec, actor.permissions)
+        return kapilar_gecti(spec, actor.permissions, actor.gecen_kapilar)
 
     def dusurulen_moduller(self, actor: ActorContext) -> list[str]:
         """Yetkisi olmadığı için kataloğa GİRMEYEN araçların modülleri (S9-c).
