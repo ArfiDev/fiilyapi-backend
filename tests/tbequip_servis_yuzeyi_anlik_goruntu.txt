@@ -29,13 +29,13 @@ async def _assert_daily_cap(session: sqlalchemy.ext.asyncio.session.AsyncSession
 def _assert_purchase_amount(ownership: app.modules.equipment.models.EquipmentOwnership, purchase_amount: decimal.Decimal | None) -> None
 async def _assert_references(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, *, site_id: uuid.UUID | None, operator_id: uuid.UUID | None, supplier_id: uuid.UUID | None) -> None
 def _assert_rental_period(start: datetime.date | None, end: datetime.date | None) -> None
-async def _is_visible_site(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, site_id: uuid.UUID | None) -> bool
+async def _is_visible_site(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, site_id: uuid.UUID | None, *, liste: bool = False) -> bool
 async def _lock_equipment(session: sqlalchemy.ext.asyncio.session.AsyncSession, *equipment_ids: uuid.UUID) -> None
 def _monday(gun: datetime.date) -> datetime.date
 def _month_bounds(bugun: datetime.date) -> tuple[datetime.date, datetime.date]
 def _quantize_unit_price(value: decimal.Decimal) -> decimal.Decimal
 def _resolve_hours(*, start_time: datetime.time | None, end_time: datetime.time | None, hours: decimal.Decimal | None) -> decimal.Decimal
-async def _visible_project_ids(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User) -> list[uuid.UUID]
+async def _visible_project_ids(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, *, liste: bool = False) -> list[uuid.UUID]
 def _week_buckets(ilk: datetime.date, son: datetime.date, gunluk: list[sqlalchemy.engine.row.Row]) -> list[app.modules.equipment.schemas.WorkSummaryWeek]
 async def create_equipment(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, data: app.modules.equipment.schemas.EquipmentCreate) -> tuple[app.modules.equipment.models.Equipment, str]
 async def create_fuel_log(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, data: app.modules.equipment.schemas.FuelLogCreate) -> tuple[app.modules.equipment.models.EquipmentFuelLog, str]

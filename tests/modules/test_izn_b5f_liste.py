@@ -71,7 +71,11 @@ from tests._proje_ekibi import ekibe_ekle, tum_projeler
 from tests.modules.treasury._hz1_upcoming import _sorgu_sayaci
 
 PASSWORD = "parola1234"
-BUGUN = today()
+
+
+def _bugun():
+    """Gün sınırı test GÖVDESİNDE okunur (modül düzeyinde `today()` yasak; TMP-FIX #167)."""
+    return today()
 
 
 class Dunya:
@@ -106,8 +110,8 @@ async def _proje_verisi(session, proje, site, yaratan: User, tedarikci: Supplier
             invoice_no=f"B5F-G-{n}",
             document_type=InvoiceDocumentType.einvoice,
             status=InvoiceStatus.approved,
-            issue_date=BUGUN,
-            due_date=BUGUN + timedelta(days=5),
+            issue_date=_bugun(),
+            due_date=_bugun() + timedelta(days=5),
             party_name=f"Tedarikçi {n}",
             project_id=proje.id,
             site_id=site.id,
@@ -127,8 +131,8 @@ async def _proje_verisi(session, proje, site, yaratan: User, tedarikci: Supplier
             invoice_no=f"B5F-C-{n}",
             document_type=InvoiceDocumentType.einvoice,
             status=InvoiceStatus.sent,
-            issue_date=BUGUN,
-            due_date=BUGUN + timedelta(days=9),
+            issue_date=_bugun(),
+            due_date=_bugun() + timedelta(days=9),
             party_name=f"Müşteri {n}",
             project_id=proje.id,
             site_id=site.id,
@@ -148,8 +152,8 @@ async def _proje_verisi(session, proje, site, yaratan: User, tedarikci: Supplier
             direction=FinancialInstrumentDirection.received,
             serial_no=f"B5F-CEK-{n}",
             drawer_name=f"Keşideci {n}",
-            issue_date=BUGUN,
-            due_date=BUGUN + timedelta(days=3),
+            issue_date=_bugun(),
+            due_date=_bugun() + timedelta(days=3),
             amount=Decimal("1000.00") * carpan,
             status=FinancialInstrumentStatus.portfolio,
             project_id=proje.id,
@@ -157,7 +161,7 @@ async def _proje_verisi(session, proje, site, yaratan: User, tedarikci: Supplier
     )
     talep = PurchaseRequest(
         request_no=f"B5F-T-{n}",
-        request_date=BUGUN,
+        request_date=_bugun(),
         priority=PurchasePriority.normal,
         project_id=proje.id,
         site_id=site.id,
@@ -187,7 +191,7 @@ async def _proje_verisi(session, proje, site, yaratan: User, tedarikci: Supplier
     session.add(
         EquipmentWorkLog(
             equipment_id=makine.id,
-            work_date=BUGUN,
+            work_date=_bugun(),
             site_id=site.id,
             record_type=WorkLogType.worked,
             hours=Decimal("1.00") * carpan,
@@ -196,7 +200,7 @@ async def _proje_verisi(session, proje, site, yaratan: User, tedarikci: Supplier
     session.add(
         EquipmentFuelLog(
             equipment_id=makine.id,
-            fuel_date=BUGUN,
+            fuel_date=_bugun(),
             site_id=site.id,
             liters=Decimal("100.000") * carpan,
             unit_price=Decimal("40.0000"),
@@ -208,8 +212,8 @@ async def _proje_verisi(session, proje, site, yaratan: User, tedarikci: Supplier
             invoice_no=f"B5F-KF-{n}",
             slug=f"b5f-kf-{n}",
             invoice_amount=Decimal("1000.00") * carpan,
-            period_year=BUGUN.year,
-            period_month=BUGUN.month,
+            period_year=_bugun().year,
+            period_month=_bugun().month,
             site_id=site.id,
             rate_period=EquipmentRatePeriod.hourly,
             vat_rate=Decimal("0.20"),
@@ -233,7 +237,7 @@ async def _proje_verisi(session, proje, site, yaratan: User, tedarikci: Supplier
             mime_type="application/pdf",
             size_bytes=3,
             content=b"abc",
-            valid_until=BUGUN - timedelta(days=2),
+            valid_until=_bugun() - timedelta(days=2),
         )
     )
     await session.flush()
@@ -273,7 +277,7 @@ async def dunya(seeded_db, user_factory, project_factory, client) -> Dunya:
             invoice_no="B5F-SIRKET",
             document_type=InvoiceDocumentType.einvoice,
             status=InvoiceStatus.sent,
-            issue_date=BUGUN,
+            issue_date=_bugun(),
             party_name="Şirket Geneli",
             subtotal=Decimal("1.00"),
             advance_amount=Decimal("0.00"),
@@ -299,7 +303,16 @@ async def dunya(seeded_db, user_factory, project_factory, client) -> Dunya:
     return dunya
 
 
-_AY = {"year": BUGUN.year, "month": BUGUN.month}
+#: Özet uçlarının ay parametresi: parametrize anında değil, ÇAĞRI anında çözülür (`_cozumle`).
+_AY: dict = {}
+
+
+def _cozumle(params: dict) -> dict:
+    if params is _AY:
+        bugun = _bugun()
+        return {"year": bugun.year, "month": bugun.month}
+    return params
+
 
 #: (ad, yol, parametre) — belgedeki 17 uç (§23.2: 9 liste + 8 özet/rapor; /suppliers kartı ayrıca).
 UCLAR: list[tuple[str, str, dict]] = [
@@ -335,7 +348,7 @@ def _sirala(govde):
 
 
 async def _al(client, baslik, yol, params):
-    yanit = await client.get(yol, params=params, headers=baslik)
+    yanit = await client.get(yol, params=_cozumle(params), headers=baslik)
     assert yanit.status_code == 200, f"{yol}: {yanit.status_code} {yanit.text}"
     return _sirala(yanit.json())
 
@@ -366,7 +379,7 @@ async def test_ters_yon_DEGISMEZ_ana_rol_gormuyorsa_liste_403(
     client, dunya, ad, yol, params
 ) -> None:
     """Ana rol sayfayı görmüyor, A'daki ekip rolü görüyor → liste 403 (multi_project YOK)."""
-    yanit = await client.get(yol, params=params, headers=dunya.basliklar["ters"])
+    yanit = await client.get(yol, params=_cozumle(params), headers=dunya.basliklar["ters"])
     assert yanit.status_code == 403, f"{ad}: {yanit.status_code} {yanit.text}"
 
 
