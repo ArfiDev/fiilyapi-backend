@@ -32,6 +32,7 @@ from app.modules.roles.models import Module, Role, RoleHiddenField, RolePermissi
 from app.modules.sites.models import Section, SectionStatus, Site
 from tests._legacy_permission_yardimcisi import sync_page_cells
 from tests._section_types import seed_section_types
+from tests._sites_sayfalari import sites_sayfalarini_kapat
 
 SECTION_MISSING = "Bölüm bulunamadı"
 USER_MISSING = "Seçilen kullanıcı bulunamadı"
@@ -232,6 +233,7 @@ async def test_get_section_without_permission_returns_403(
     client, db_session, user_factory, project_factory
 ):
     await _set_permission(db_session, NONE_ROLE, "sites", AccessLevel.none)
+    await sites_sayfalarini_kapat(db_session, NONE_ROLE)  # IZN-B5c: dar görme genişlemesi
     _, section = await _tree(db_session, project_factory, "P6T2-403")
     token = await _login(client, db_session, user_factory, NONE_ROLE, grant_all=True)
 

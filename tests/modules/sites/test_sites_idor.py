@@ -28,6 +28,7 @@ from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
 from tests._legacy_permission_yardimcisi import sync_page_cells
 from tests._silme_yardimci import sil_aile
+from tests._sites_sayfalari import sites_sayfalarini_kapat
 
 SITE_MISSING = "Şantiye bulunamadı"
 SYSTEM_ADMIN_ONLY = "Bu işlemi yalnızca Sistem Yöneticisi yapabilir"
@@ -221,6 +222,7 @@ async def test_no_permission_returns_403(client, db_session, user_factory, proje
     """Seed matrisinde `sites:none` tasiyan rol YOK; izin satiri testte acikca
     none'a cekilir (matris kullanici tarafindan duzenlenebilir)."""
     await _set_permission(db_session, NONE_ROLE, "sites", AccessLevel.none)
+    await sites_sayfalarini_kapat(db_session, NONE_ROLE)  # IZN-B5c: dar görme genişlemesi
     site, section = await _tree(db_session, project_factory, "IDOR-25")
     token = await _login(client, db_session, user_factory, NONE_ROLE, grant_all=True)
 
@@ -396,6 +398,7 @@ async def test_delete_both_with_no_permission_returns_403(
     client, db_session, user_factory, project_factory
 ):
     await _set_permission(db_session, NONE_ROLE, "sites", AccessLevel.none)
+    await sites_sayfalarini_kapat(db_session, NONE_ROLE)  # IZN-B5c: dar görme genişlemesi
     site, section = await _tree(db_session, project_factory, "IDOR-32")
     token = await _login(client, db_session, user_factory, NONE_ROLE, grant_all=True)
 

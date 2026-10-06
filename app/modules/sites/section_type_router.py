@@ -1,8 +1,8 @@
 """BLF-B1 — sirket geneli bolum tipi uclari (`GET`/`POST /section-types`).
 
-Izin modulu `sites`tir, AYRI modul ACILMAZ (izin isleri en son). Okuma `view`,
-ekleme bolum OLUSTURMA ucuyla (`POST /sites/{id}/sections`) AYNI kapidir (`full`):
-bolum olusturabilen tip ekleyebilir. Silme / yeniden adlandirma ucu YOKTUR.
+Okuma `sites:view`. Ekleme (IZN-B5c) sayfa kapisidir: `santiye.bolumler` VEYA `bolum.detay`
+Duzenler'i (= bolum formunun iki hali: olusturma + duzenleme; tip secici ikisinde de vardir).
+Proje baglami YOKTUR (sirket geneli). Silme / yeniden adlandirma ucu YOKTUR.
 
 Hassas alan maskesi (`MaskeRotasi`) `router.py` ile AYNIDIR; yanit hassas alan tasimaz.
 """
@@ -16,7 +16,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission
+from app.core.permissions import require_pages, require_permission
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -32,8 +32,7 @@ router = APIRouter(
 )
 
 _VIEW = require_permission("sites", AccessLevel.view)
-# `router.py::create_section_endpoint` kapisinin (`_FULL`) AYNISI — tek kaynak o.
-_FULL = require_permission("sites", AccessLevel.full)
+_YAZ = require_pages(("santiye.bolumler", "bolum.detay"), "edit")
 
 
 @router.get("/section-types", response_model=list[SectionTypeRead], dependencies=[_VIEW])
@@ -47,7 +46,7 @@ async def list_section_types_endpoint(session: DbSession) -> list[SectionTypeRea
     response_model=SectionTypeRead,
     status_code=status.HTTP_201_CREATED,
     responses={status.HTTP_409_CONFLICT: {"model": SectionTypeConflict}},
-    dependencies=[_FULL],
+    dependencies=[_YAZ],
 )
 async def create_section_type_endpoint(
     request: Request,

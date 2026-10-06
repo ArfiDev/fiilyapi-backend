@@ -305,10 +305,11 @@ async def test_view_rolu_OKUR_BAGLAR_GUNCELLER_ama_SILEMEZ(
     belge_fabrikasi,
 ) -> None:
     """Kapı kararı (görme → bağlama) IZN-B5b'de DEĞİŞTİ (CEO, yan bulgu): `unit`, `unit_sale`,
-    `subcontractor_contract` sahiplerinde BAĞLAMA/KÜNYE yazması sahibin ANA sayfasının
-    Düzenler'i ister (`link_router._YAZMA_SAYFASI`); `accounting` rolü bu sayfaları yalnız
-    GÖRÜR → OKUR ama BAĞLAYAMAZ/GÜNCELLEYEMEZ. `section` bu turda kapsam dışı → eski
-    2026-09-05 kararı (`sites:view` yeter). SİLME her durumda `full`/Sistem Yöneticisi (403).
+    `subcontractor_contract` (IZN-B5c: + `section` → `bolum.detay`) sahiplerinde BAĞLAMA/KÜNYE
+    yazması sahibin ANA sayfasının Düzenler'i ister (`link_router._YAZMA_SAYFASI`);
+    `accounting` rolü bu sayfaları yalnız
+    GÖRÜR → OKUR ama BAĞLAYAMAZ/GÜNCELLEYEMEZ (4 sahipte de; `section` istisnası IZN-B5c'de
+    kalktı). SİLME her durumda `full`/Sistem Yöneticisi (403).
 
     KARŞIT KANITLA ölçülür: rolün aynı ucu bir sahipte geçmesi, ötekinde 403 alması.
     """
@@ -321,29 +322,19 @@ async def test_view_rolu_OKUR_BAGLAR_GUNCELLER_ama_SILEMEZ(
         await client.get(_owner_path(sahip, sahip.owner_id), headers=muhasebe_headers)
     ).status_code == 200
 
-    if sahip.spec.key == "section":
-        olustur = await client.post(
-            _owner_path(sahip, sahip.owner_id), json=govde, headers=muhasebe_headers
-        )
-        assert olustur.status_code == 201, olustur.text
-        link = _link_path(sahip, olustur.json()["id"])
-        assert (
-            await client.patch(link, json={"note": "muhasebe"}, headers=muhasebe_headers)
-        ).status_code == 200
-    else:
-        reddedilen = await client.post(
-            _owner_path(sahip, sahip.owner_id), json=govde, headers=muhasebe_headers
-        )
-        assert reddedilen.status_code == 403, reddedilen.text
-        # Bağı yetkili (admin) kurar; görme rolü künyesini GÜNCELLEYEMEZ.
-        olustur = await client.post(
-            _owner_path(sahip, sahip.owner_id), json=govde, headers=admin_headers
-        )
-        assert olustur.status_code == 201, olustur.text
-        link = _link_path(sahip, olustur.json()["id"])
-        assert (
-            await client.patch(link, json={"note": "muhasebe"}, headers=muhasebe_headers)
-        ).status_code == 403
+    reddedilen = await client.post(
+        _owner_path(sahip, sahip.owner_id), json=govde, headers=muhasebe_headers
+    )
+    assert reddedilen.status_code == 403, reddedilen.text
+    # Bağı yetkili (admin) kurar; görme rolü künyesini GÜNCELLEYEMEZ.
+    olustur = await client.post(
+        _owner_path(sahip, sahip.owner_id), json=govde, headers=admin_headers
+    )
+    assert olustur.status_code == 201, olustur.text
+    link = _link_path(sahip, olustur.json()["id"])
+    assert (
+        await client.patch(link, json={"note": "muhasebe"}, headers=muhasebe_headers)
+    ).status_code == 403
 
     # DELETE — KARŞIT KANIT: view YETMEZ
     silme = await client.delete(link, headers=muhasebe_headers)
