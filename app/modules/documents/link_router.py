@@ -109,6 +109,7 @@ _YAZMA_SAYFASI: dict[str, str] = {
     "unit": "mali.satis_unite",
     "unit_sale": "mali.satis",
     "subcontractor_contract": "teklif.taseron_sozlesme",
+    "section": "bolum.detay",
 }
 
 _OWNER_404 = {404: {"description": "Kayıt bulunamadı (görünmeyen dahil)"}}

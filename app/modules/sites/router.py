@@ -4,14 +4,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped
 from app.core.discipline_scope import DisciplineScope
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
-from app.core.permissions import require_permission, require_system_admin
+from app.core.permissions import require_page, require_pages, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
 from app.modules.audit import messages
@@ -44,8 +43,68 @@ router = APIRouter(
     route_class=MaskeRotasi,
 )
 
-_VIEW = require_permission("sites", AccessLevel.view)
-_FULL = require_permission("sites", AccessLevel.full)
+# IZN-B5c: `sites` modul kapisi (`sites:view` / `sites:full`) YERINE sayfa kapilari. Yazma uclari
+# kendi sayfasinin Duzenler'ine, okuma uclari sayfa kumelerinin Gorur'une baglidir.
+# Sayfa kumeleri bilerek ACIK yazilir (katalogdan turetilmez): kapi degisikligi diff'te gorunur.
+_SITES_ESKI_GORUR = ("santiye.bolumler", "bolum.detay")  # eski sites:view sayfalari
+_SITE_YAZ = require_page("proje.santiyeler", "edit")  # W1/W2: sirket kaydi = proje sayfasi
+_SECTION_OLUSTUR = require_page("santiye.bolumler", "edit")  # W3
+_SECTION_DUZENLE = require_page("bolum.detay", "edit")  # W4
+# Madde 16: `proje.santiyeler` Gorur'u kendi ekraninin okuma uclarini acar.
+_PROJE_SITELERI_GORUR = require_pages(("proje.santiyeler", *_SITES_ESKI_GORUR), "view")
+# DAR GENISLEME (CEO onayli): eski kume (`_SITES_ESKI_GORUR`) + sayfa alt ekranlarinin Gorur'u
+# (adres anahtari/bolum cozumu bu uclardan gecer). Kayit kapsami ve yanit maskesi AYNEN.
+_SITE_GORUR = require_pages(
+    (
+        "proje.santiyeler",
+        "santiye.bolumler",
+        "santiye.is_kalemleri",
+        "santiye.puantaj",
+        "santiye.stok",
+        "santiye.hakedisler",
+        "santiye.gunluk_kayit",
+        "santiye.belgeler",
+        "santiye.bolum_dagilimi",
+        "santiye.gunluk_ozet",
+        "santiye.gunluk_planlama",
+        "santiye.adam_saat_butcesi",
+        "santiye.planlama_paneli",
+        "santiye.gunluk_ilerleme_raporu",
+        "santiye.haftalik_qurr",
+        "bolum.detay",
+        "bolum.is_kalemleri",
+        "bolum.puantaj",
+        "bolum.malzeme",
+        "bolum.hakedis",
+        "bolum.gunluk_kayit",
+        "bolum.gunluk_kayit_detay",
+    ),
+    "view",
+)
+_SECTION_GORUR = require_pages(
+    (
+        "santiye.bolumler",
+        "santiye.gunluk_kayit",
+        "bolum.detay",
+        "bolum.is_kalemleri",
+        "bolum.puantaj",
+        "bolum.malzeme",
+        "bolum.hakedis",
+        "bolum.gunluk_kayit",
+        "bolum.gunluk_kayit_detay",
+    ),
+    "view",
+)
+_SECTIONS_LISTE_GORUR = require_pages(
+    (
+        "santiye.bolumler",
+        "bolum.detay",
+        "santiye.stok",
+        "santiye.puantaj",
+        "santiye.gunluk_planlama",
+    ),
+    "view",
+)
 # SILME uclari `require_system_admin` ile kapilidir (SIL-B1): modul seviyesi degil rol ANAHTARI.
 
 
@@ -82,7 +141,11 @@ async def _detail_of(
     return await service.build_site_detail(session, site, actor, site.project, scope)
 
 
-@router.get("/projects/{project_id}/sites", response_model=SiteListResponse, dependencies=[_VIEW])
+@router.get(
+    "/projects/{project_id}/sites",
+    response_model=SiteListResponse,
+    dependencies=[_PROJE_SITELERI_GORUR],
+)
 async def list_sites_endpoint(
     project_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
@@ -96,7 +159,7 @@ async def list_sites_endpoint(
     "/projects/{project_id}/sites",
     response_model=SiteDetailResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_SITE_YAZ],
 )
 async def create_site_endpoint(
     request: Request,
@@ -128,7 +191,7 @@ async def create_site_endpoint(
     return await _detail_of(session, site, current_user, scope)
 
 
-@router.get("/sites/{site_id}", response_model=SiteDetailResponse, dependencies=[_VIEW])
+@router.get("/sites/{site_id}", response_model=SiteDetailResponse, dependencies=[_SITE_GORUR])
 async def get_site_endpoint(
     site_id: str,
     user: Annotated[User, Depends(get_current_user)],
@@ -154,7 +217,7 @@ async def get_site_endpoint(
     )
 
 
-@router.patch("/sites/{site_id}", response_model=SiteDetailResponse, dependencies=[_FULL])
+@router.patch("/sites/{site_id}", response_model=SiteDetailResponse, dependencies=[_SITE_YAZ])
 async def update_site_endpoint(
     request: Request,
     site_id: uuid.UUID,
@@ -198,7 +261,11 @@ async def delete_site_endpoint(
     await _audit(request, session, current_user, AuditAction.delete, detail)
 
 
-@router.get("/sites/{site_id}/sections", response_model=SectionListResponse, dependencies=[_VIEW])
+@router.get(
+    "/sites/{site_id}/sections",
+    response_model=SectionListResponse,
+    dependencies=[_SECTIONS_LISTE_GORUR],
+)
 async def list_sections_endpoint(
     site_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
@@ -219,7 +286,7 @@ async def _owning_site_name(session: AsyncSession, section: Section) -> str:
     "/sites/{site_id}/sections",
     response_model=SectionDetailResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_FULL],
+    dependencies=[_SECTION_OLUSTUR],
 )
 async def create_section_endpoint(
     request: Request,
@@ -240,7 +307,9 @@ async def create_section_endpoint(
     return await service.build_section_detail(session, section, current_user, scope)
 
 
-@router.get("/sections/{section_id}", response_model=SectionDetailResponse, dependencies=[_VIEW])
+@router.get(
+    "/sections/{section_id}", response_model=SectionDetailResponse, dependencies=[_SECTION_GORUR]
+)
 async def get_section_endpoint(
     section_id: str,
     user: Annotated[User, Depends(get_current_user)],
@@ -292,7 +361,9 @@ async def delete_section_endpoint(
     await _audit(request, session, current_user, AuditAction.delete, detail)
 
 
-@router.patch("/sections/{section_id}", response_model=SectionDetailResponse, dependencies=[_FULL])
+@router.patch(
+    "/sections/{section_id}", response_model=SectionDetailResponse, dependencies=[_SECTION_DUZENLE]
+)
 async def update_section_endpoint(
     request: Request,
     section_id: uuid.UUID,

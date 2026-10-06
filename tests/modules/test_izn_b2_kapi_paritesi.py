@@ -54,6 +54,59 @@ SEED_ROLES = list(seed_data.ROLE_ORDER)
 
 #: `require_page` kapılarının ESKİ karşılığı: bayrağın yerine geçtiği `(modül, düzey)` VE'si.
 #: Yeni bir `require_page` kapısı eklenirse BURAYA eski kapı yazılmadan test kırmızıdır.
+_PV = frozenset(  # projects:view sayfaları
+    {
+        "genel.projeler",
+        "genel.proje_takvimi",
+        "mali.satis_blok",
+        "mali.satis_unite",
+        "mali.satis_excel",
+        "mali.satis_paylasim",
+        "proje.ozet",
+        "proje.paylasim_tablosu",
+    }
+)
+_B5C_BOLUM = frozenset(
+    {
+        "bolum.detay",
+        "bolum.is_kalemleri",
+        "bolum.puantaj",
+        "bolum.malzeme",
+        "bolum.hakedis",
+        "bolum.gunluk_kayit",
+        "bolum.gunluk_kayit_detay",
+    }
+)
+_B5C_SITE_GORUR = frozenset(
+    {
+        "proje.santiyeler",
+        "santiye.bolumler",
+        "santiye.is_kalemleri",
+        "santiye.puantaj",
+        "santiye.stok",
+        "santiye.hakedisler",
+        "santiye.gunluk_kayit",
+        "santiye.belgeler",
+        "santiye.bolum_dagilimi",
+        "santiye.gunluk_ozet",
+        "santiye.gunluk_planlama",
+        "santiye.adam_saat_butcesi",
+        "santiye.planlama_paneli",
+        "santiye.gunluk_ilerleme_raporu",
+        "santiye.haftalik_qurr",
+    }
+    | _B5C_BOLUM
+)
+_B5C_SECTION_GORUR = frozenset({"santiye.bolumler", "santiye.gunluk_kayit"} | _B5C_BOLUM)
+_B5C_SECTIONS_LISTE_GORUR = frozenset(
+    {
+        "santiye.bolumler",
+        "bolum.detay",
+        "santiye.stok",
+        "santiye.puantaj",
+        "santiye.gunluk_planlama",
+    }
+)
 _HAKEDIS_ISVEREN = frozenset(
     {"mali.hakedis_isveren", "proje.isveren_hakedis", "santiye.hakedisler"}
 )
@@ -151,6 +204,18 @@ PAGE_GATE_OLD: dict[tuple[frozenset[str], str], list[tuple[str, AccessLevel]]] =
         ),
         "approve",
     ): [("earned_value", L.approve)],
+    # --- IZN-B5c: sites yazmaları sayfa başına (eski: sites=full) · madde 16 · dar görme
+    (frozenset({"proje.santiyeler"}), "edit"): [("sites", L.full)],
+    (frozenset({"santiye.bolumler"}), "edit"): [("sites", L.full)],
+    (frozenset({"bolum.detay"}), "edit"): [("sites", L.full)],
+    (frozenset({"santiye.bolumler", "bolum.detay"}), "edit"): [("sites", L.full)],
+    (frozenset({"proje.santiyeler", "santiye.bolumler", "bolum.detay"}), "view"): [
+        ("sites", L.view)
+    ],
+    (_PV | {"proje.santiyeler"}, "view"): [("projects", L.view)],
+    (_B5C_SITE_GORUR, "view"): [("sites", L.view)],
+    (_B5C_SECTION_GORUR, "view"): [("sites", L.view)],
+    (_B5C_SECTIONS_LISTE_GORUR, "view"): [("sites", L.view)],
 }
 
 #: Kasıtlı fark listesi (yukarıdaki docstring). `(yöntem, yol)` kümeleri. DELETE'ler listede YOK:
@@ -197,6 +262,26 @@ B5B_KASITLI_ROTALAR = frozenset(
         ("PATCH", "/units/documents/{link_id}"),
         ("POST", "/subcontractor-contracts/{owner_id}/documents"),
         ("PATCH", "/subcontractor-contracts/documents/{link_id}"),
+    }
+)
+
+#: IZN-B5c BİLİNÇLİ FARKLAR (CEO onaylı; kendi davranış testleri `test_izn_b5c.py`):
+#: * bölüm belgesi bağlama/künye yazması artık `sites:view` değil `bolum.detay` Düzenler'i
+#:   (seed'de 10 rol daralır; anahtar `sites:full`'a eşlendiği için fark burada görünmez, gerekçeyle
+#:   listededir — B5b belge bağlama kayıtlarıyla aynı).
+#: * `POST /projects/{id}/sites` ve `PATCH /sites/{id}` artık `sites:full` değil `proje.santiyeler`
+#:   Düzenler'i ister (özel rol kombinasyonu `sites=full ∧ projects=none` daralır; seed 0).
+#: * dar görme genişlemesi: `GET /sites/{id}` · `/sections/{id}` · `/sites/{id}/sections` artık iç
+#:   sayfa Görür'ü ile de açılır (seed'de yalnız `warehouse_keeper` kazanır; `test_izn_b5c.py`).
+B5C_KASITLI_ROTALAR = frozenset(
+    {
+        ("POST", "/sections/{owner_id}/documents"),
+        ("PATCH", "/sections/documents/{link_id}"),
+        ("POST", "/projects/{project_id}/sites"),
+        ("PATCH", "/sites/{site_id}"),
+        ("GET", "/sites/{site_id}"),
+        ("GET", "/sections/{section_id}"),
+        ("GET", "/sites/{site_id}/sections"),
     }
 )
 
@@ -321,7 +406,10 @@ async def route_decisions(session, user: User, levels: dict[str, AccessLevel]):
                 continue  # SIL-B1: eski kararla karşılaştırılmaz; ayrı karar testi sınar
             eski = eski and old_gate(levels, gate)
             yeni = yeni and cache[gate.key]
-        if eski != yeni and route not in B5A_KASITLI_ROTALAR | B5B_KASITLI_ROTALAR:
+        if (
+            eski != yeni
+            and route not in B5A_KASITLI_ROTALAR | B5B_KASITLI_ROTALAR | B5C_KASITLI_ROTALAR
+        ):
             farklar.append(route)
     return farklar
 

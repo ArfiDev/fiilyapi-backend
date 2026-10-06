@@ -17,6 +17,7 @@ import pytest
 from fastapi.routing import APIRoute
 
 from app.core.access import AccessLevel
+from app.core.page_gate import gate_flags
 from app.main import app
 from app.modules.ai.registry import ToolKapsami, ToolKumesi, ToolRegistry, ToolSpec
 from app.modules.ai.result import Restricted, ToolError
@@ -24,6 +25,7 @@ from app.modules.ai.tools import schemas
 from app.modules.ai.tools.catalog import CATALOG, READ_TOOLS, YONETISIM_DENYLIST
 from app.modules.ai.transport import YolReddedildi, kacisla
 from tests.modules.ai.conftest import sahte_aktor, tam_izin
+from tests.modules.test_izn_b2_kapi_paritesi import ROTALAR, Gate
 
 AI_KOK = Path(__file__).parents[3] / "app" / "modules" / "ai"
 
@@ -73,84 +75,251 @@ def _api_rotalari(rotalar) -> list[APIRoute]:
     return cikti
 
 
-def _kapilar(rota: APIRoute) -> set[tuple[str, AccessLevel]]:
-    """Rotanın kapıları — CLOSURE serbest değişkenlerinden.
-
-    🔴 Ayrım FONKSİYON ADINDAN yapılmaz: `require_permission` da
-    `require_permission_or_chain_step` de içeride `_check` adında bir kapanış
-    döndürür. Ölçülen şey kapanışın TAŞIDIĞI değerlerdir. Yalnız birini tanıyan
-    bir betik "kapısız operasyon 23" der; gerçek **17**'dir.
-    """
-    bulunan: set[tuple[str, AccessLevel]] = set()
-    for bagimlilik in rota.dependant.dependencies:
-        cagri = bagimlilik.call
-        kod = getattr(cagri, "__code__", None)
-        kapanis = getattr(cagri, "__closure__", None)
-        if kod is None or not kapanis:
-            continue
-        serbest = {
-            ad: hucre.cell_contents for ad, hucre in zip(kod.co_freevars, kapanis, strict=True)
-        }
-        if "module_key" in serbest and "min_level" in serbest:
-            bulunan.add((serbest["module_key"], serbest["min_level"]))
-    return bulunan
+#: (sayfa, bayrak) çiftleri — bir kapının açılması için üyelerden HERHANGİ BİRİ yeter (VEYA).
+KapiCiftleri = frozenset[tuple[str, str]]
 
 
 def _get_rotalari() -> dict[str, APIRoute]:
     return {r.path: r for r in _api_rotalari(app.routes) if "GET" in (r.methods or set())}
 
 
-# --------------------------------------------------------------------------- #
-# B10 — kapı BEYANI == ucun GERÇEK kapısı (KÜME)
-# --------------------------------------------------------------------------- #
+def _uc_kapilari(uc: str) -> list[Gate]:
+    """Ucun GERÇEK kapıları — IZN-B5c: B2 birebir bekçisinin TEK okuyucusu (`route_gates`).
+
+    🔴 Eski çıkarıcı yalnız `module_key`/`min_level` kapanışını tanıyordu. IZN-B5c'de
+    `GET /projects/{project_id}` ve `GET /sites/{site_id}` `require_pages(...)`a geçti ve
+    çıkarıcı onları `set()` (kapısız) gördü. Daha kötüsü bir KÖR NOKTA idi: kapısız beyanlı bir
+    araç (`onay_kutum`, `yetkilerim`) sayfa kapılı bir ucu sarsaydı `set() == set()` +
+    `UNGATED_ALLOWLIST` ile YEŞİL kalırdı. Okuyucu artık beş kapı türünü tanır: `perm`
+    (`require_permission`), `any` (`require_any_permission`), `page` (`require_page` /
+    `require_pages`), `chain` (`require_pages_or_chain_step`), `sa` (`require_system_admin`).
+    """
+    kapilar = ROTALAR.get(("GET", uc))
+    assert kapilar is not None, (
+        f"rota tablosunda yok: GET {uc}. Kapı çıkarılamadı — bu SKIP değil KIRMIZIDIR."
+    )
+    return kapilar
 
 
-def test_B10_POZITIF_KONTROL_kapi_cikarici_IKI_FABRIKAYI_da_taniyor() -> None:
-    """Çıkarıcı yalnız `require_permission`ı tanısaydı zincir uçları 'kapısız'
-    görünürdü. Ölçülmüş olgu: `require_permission_or_chain_step` de kapanışında
-    `module_key`/`min_level` taşır (bilinçli tasarım — gate.py docstring'i)."""
+def _kapi_ciftleri(kapi: Gate) -> KapiCiftleri | None:
+    """Kapının sayfa-bayrak kümesi. `None` = AI beyanıyla ifade EDİLEMEZ (`sa`)."""
+    if kapi.kind == "perm":
+        return frozenset(gate_flags(*kapi.spec))
+    if kapi.kind == "any":
+        return frozenset(cift for modul, duzey in kapi.spec for cift in gate_flags(modul, duzey))
+    if kapi.kind in ("page", "chain"):
+        sayfalar, bayrak = kapi.spec
+        return frozenset((sayfa, bayrak) for sayfa in sayfalar)
+    return None
+
+
+def _beyan_ciftleri(spec: ToolSpec) -> dict[tuple[str, AccessLevel], KapiCiftleri]:
+    """Aracın kapı beyanının sayfa-bayrak kümesi: `(modül, düzey)` → `gate_flags`."""
+    return {kapi: frozenset(gate_flags(*kapi)) for kapi in spec.kapilar}
+
+
+def _b10_ihlali(spec: ToolSpec) -> str | None:
+    """B10 kuralı — **AI ⊆ uç** (GENİŞLEME YOK; AI'ın uçtan dar olması kabul).
+
+    Ucun HER kapısı (VE) için beyandaki en az bir kapının sayfa-bayrak kümesi o kapının
+    kümesinin ALT KÜMESİ olmalıdır: beyanı sağlayan her aktör ucun kapısını da sağlar.
+
+    Ölçülmüş bağlam (IZN-B5c): araç uca `ReadOnlyTransport` → okuma düzlemi üzerinden gider ve
+    ucun kendi kapısı ORADA da koşar (çift kapı; handler servis import EDEMEZ — B14). Yani beyan
+    uçtan geniş olsa veri sızmaz, araç `Restricted` döner; ama katalog aktöre işe yaramayan bir
+    araç sunar ve beyan YALAN olur. Bu yüzden ⊆ kırmızı çizgidir.
+    """
+    beyan = _beyan_ciftleri(spec)
+    bos = sorted((m, d.value) for (m, d), ciftler in beyan.items() if not ciftler)
+    if bos:
+        # `gate_flags(approve/admin)` boştur; boş küme her kümenin alt kümesidir → ölçülemez.
+        return f"`{spec.ad}` beyanı hiçbir sayfa bayrağına karşılık gelmiyor: {bos}"
     rotalar = _get_rotalari()
-    zincirli = rotalar.get("/projects/{project_id}/progress-payments/diary-suggestion")
-    assert zincirli is not None
-    # İKİ kapı taşıyan iki uçtan biri (ölçüldü: tam 2 operasyon).
-    assert len(_kapilar(zincirli)) == 2, _kapilar(zincirli)
-    assert {m for m, _ in _kapilar(zincirli)} == {"progress_payments", "site_diary"}
+    for uc in spec.ucler:
+        if uc not in rotalar:
+            return f"`{spec.ad}` var olmayan bir ucu sarıyor: {uc}"
+        kapilar = _uc_kapilari(uc)
+        if not kapilar and uc not in UNGATED_ALLOWLIST:
+            return (
+                f"`{uc}` kapısız görünüyor ama UNGATED_ALLOWLIST'te YOK. Ya kapı çıkarıcı onu "
+                "göremiyor ya da yeni bir kapısız uç doğdu ve bilinçli olarak listeye yazılmalı."
+            )
+        for kapi in kapilar:
+            uc_ciftleri = _kapi_ciftleri(kapi)
+            if uc_ciftleri is None or not any(c <= uc_ciftleri for c in beyan.values()):
+                return (
+                    f"`{spec.ad}` ucun açtığından FAZLASINI açıyor (AI ⊄ uç): {uc}\n"
+                    f"  uç kapısı: {kapi.kind} {sorted(uc_ciftleri or ())}\n"
+                    f"  beyan: {sorted((m, d.value) for m, d in spec.kapilar)}"
+                )
+    return None
+
+
+def _beyan_ucle_esit(spec: ToolSpec) -> bool:
+    beyan = set(_beyan_ciftleri(spec).values())
+    return all({_kapi_ciftleri(k) for k in _uc_kapilari(uc)} == beyan for uc in spec.ucler)
+
+
+#: 🔴 AI'ın uçtan DAR olduğu araçlar — **AD AD + GEREKÇE**. Dar = güvenli (genişleme yok) ama
+#: bilinçli olmalı: beyanı ucun kümesine EŞİT olmayan her araç burada yazılıdır, yazılı olup
+#: artık eşit olan (bayat satır) da KIRMIZIDIR.
+B10_DAR_ISTISNALARI: dict[str, str] = {
+    "proje_detayi": (
+        "IZN-B5c madde 16: uç `require_pages(projects:view'ın 8 sayfası + proje.santiyeler, "
+        "view)`. Beyan `(projects, view)` = 8 sayfa. Yalnız `proje.santiyeler` Görür'ü olan rol "
+        "ucu açar ama aracı katalogda görmez (dar)."
+    ),
+    "santiye_detayi": (
+        "IZN-B5c dar genişleme (CEO onaylı): uç `require_pages(proje.santiyeler + santiye.*/"
+        "bolum.* iç sayfaları = 22 sayfa, view)`. Beyan `(sites, view)` = eski 2 sayfa "
+        "(santiye.bolumler, bolum.detay). Alt ekran sayfalarının Görür'ü ucu açar, aracı açmaz."
+    ),
+}
+
+
+# --------------------------------------------------------------------------- #
+# B10 — kapı BEYANI ⊆ ucun GERÇEK kapısı (sayfa-bayrak KÜMESİ)
+# --------------------------------------------------------------------------- #
+
+
+def test_B10_POZITIF_KONTROL_kapi_cikarici_TUM_FABRIKALARI_taniyor() -> None:
+    """Çıkarıcı bir fabrikayı tanımasaydı o uç 'kapısız' görünür ve B10 ya yanlış kırmızı
+    ya da (kapısız beyanlı araçta) SESSİZ YEŞİL olurdu. Her fabrika gerçek bir uçta ölçülür."""
+    turler = {g.kind for gates in ROTALAR.values() for g in gates}
+    assert turler == {"perm", "any", "page", "chain", "sa"}, turler
+
+    # require_permission — İKİ kapı taşıyan uç (VE).
+    zincirli = _uc_kapilari("/projects/{project_id}/progress-payments/diary-suggestion")
+    assert {(g.kind, g.spec[0]) for g in zincirli} == {
+        ("perm", "progress_payments"),
+        ("perm", "site_diary"),
+    }
+    # require_pages — IZN-B5c.
+    (proje,) = _uc_kapilari("/projects/{project_id}")
+    assert proje.kind == "page"
+    assert _kapi_ciftleri(proje) == frozenset(
+        gate_flags("projects", AccessLevel.view) + (("proje.santiyeler", "view"),)
+    )
+    # require_page (tek sayfa).
+    (yeni_proje,) = ROTALAR[("POST", "/projects")]
+    assert _kapi_ciftleri(yeni_proje) == frozenset({("genel.projeler", "edit")})
+    # require_pages_or_chain_step — onay eylemi.
+    (onay,) = ROTALAR[("POST", "/progress-payments/{payment_id}/approve")]
+    assert onay.kind == "chain" and onay.spec[1] == "approve"
+    # require_any_permission.
+    (herhangi,) = _uc_kapilari("/earned-value/disciplines")
+    assert herhangi.kind == "any" and _kapi_ciftleri(herhangi)
 
 
 @pytest.mark.parametrize("spec", CATALOG, ids=lambda s: s.ad)
-def test_B10_arac_kapi_beyani_ucun_GERCEK_kapisina_ESITTIR(spec: ToolSpec) -> None:
-    rotalar = _get_rotalari()
-    for uc in spec.ucler:
-        rota = rotalar.get(uc)
-        assert rota is not None, (
-            f"`{spec.ad}` var olmayan bir ucu sarıyor: {uc}. "
-            "Kapı çıkarılamadı — bu SKIP değil KIRMIZIDIR."
+def test_B10_arac_kapi_beyani_ucun_GERCEK_kapisinin_ALT_KUMESIDIR(spec: ToolSpec) -> None:
+    ihlal = _b10_ihlali(spec)
+    assert ihlal is None, ihlal
+    if _beyan_ucle_esit(spec):
+        assert spec.ad not in B10_DAR_ISTISNALARI, (
+            f"`{spec.ad}` beyanı artık ucla EŞİT — B10_DAR_ISTISNALARI satırı bayat, silinmeli."
         )
-        gercek = _kapilar(rota)
-        assert gercek == set(spec.kapilar), (
-            f"`{spec.ad}` kapı BEYANI ile ucun GERÇEK kapısı ayrışıyor.\n"
-            f"  beyan: {sorted(spec.kapilar)}\n  gerçek: {sorted(gercek)}"
+    else:
+        assert spec.ad in B10_DAR_ISTISNALARI, (
+            f"`{spec.ad}` beyanı ucun kapısından DAR ama gerekçesi yazılı değil. "
+            "B10_DAR_ISTISNALARI'na ad + neden yaz ya da beyanı ucla eşitle."
         )
-        if not gercek:
-            assert uc in UNGATED_ALLOWLIST, (
-                f"`{uc}` kapısız görünüyor ama UNGATED_ALLOWLIST'te YOK. "
-                "Ya kapı çıkarıcı onu göremiyor (kırmızı) ya da yeni bir "
-                "kapısız uç doğdu ve bilinçli olarak listeye yazılmalı."
-            )
 
 
-def test_B10_MUTASYON_module_key_degistirilirse_KIRMIZI_olur() -> None:
-    """`kapilar`daki `module_key` değiştirilirse test kırmızı olmalı — yani B10
-    eşdeğer bir mutant taşımıyor."""
+def test_B10_DAR_ISTISNALARI_yalniz_katalog_araclarini_tasir() -> None:
+    assert set(B10_DAR_ISTISNALARI) <= {s.ad for s in CATALOG}
+
+
+def test_B10_MUTASYON_beyan_uctan_GENIS_ya_da_farkli_olursa_KIRMIZI_olur() -> None:
+    """B10 eşdeğer mutant taşımıyor: beyanı ucun kümesinden GENİŞ/farklı yapan her mutant
+    `_b10_ihlali`nde yakalanır (kalıcı mutasyon bekçisi)."""
     import dataclasses
 
-    from app.modules.ai.tools.catalog import PROJELERI_LISTELE
-
-    mutant = dataclasses.replace(
-        PROJELERI_LISTELE, kapilar=frozenset({("inventory", AccessLevel.view)})
+    from app.modules.ai.tools.catalog import (
+        ONAY_KUTUM,
+        PROJE_DETAYI,
+        PROJELERI_LISTELE,
+        SANTIYE_DETAYI,
     )
-    rota = _get_rotalari()["/projects"]
-    assert _kapilar(rota) != set(mutant.kapilar)
+
+    def _mutant(spec: ToolSpec, **degisen) -> ToolSpec:
+        return dataclasses.replace(spec, **degisen)
+
+    view, full = AccessLevel.view, AccessLevel.full
+    mutantlar = {
+        # Eski bekçinin mutantı: başka modül.
+        "listele_inventory": _mutant(PROJELERI_LISTELE, kapilar=frozenset({("inventory", view)})),
+        # IZN-B5c ucunda başka modül / daha geniş düzey (satış toplu üretim sayfası uçta YOK).
+        "proje_detayi_sites": _mutant(PROJE_DETAYI, kapilar=frozenset({("sites", view)})),
+        "proje_detayi_full": _mutant(PROJE_DETAYI, kapilar=frozenset({("projects", full)})),
+        "santiye_detayi_projects": _mutant(SANTIYE_DETAYI, kapilar=frozenset({("projects", view)})),
+        # Kör nokta: kapısız beyan + sayfa kapılı uç (eski çıkarıcıda SESSİZ YEŞİL).
+        "kapisiz_beyan_sayfa_kapili_uc": _mutant(
+            ONAY_KUTUM, ucler=("/projects/{project_id}",), yol_parametreleri={}
+        ),
+        # Ölçülemeyen beyan: `approve` hiçbir sayfa bayrağına karşılık gelmez.
+        "approve_beyan": _mutant(
+            PROJE_DETAYI, kapilar=frozenset({("projects", AccessLevel.approve)})
+        ),
+    }
+    hayatta = sorted(ad for ad, m in mutantlar.items() if _b10_ihlali(m) is None)
+    assert hayatta == [], f"B10 bu mutantları YAKALAMIYOR: {hayatta}"
+    # Pozitif kontrol: gerçek beyanlar ihlalsiz (mutantlar boş yere kırmızı değil).
+    assert _b10_ihlali(PROJE_DETAYI) is None and _b10_ihlali(SANTIYE_DETAYI) is None
+
+
+async def test_B10_CIFT_KAPI_katalog_genis_olsa_da_ucun_kapisi_KOSAR(
+    seeded_db, user_factory, project_factory, transport_factory, actor_factory, monkeypatch
+) -> None:
+    """(a) ölçümünün dinamik kanıtı: araç ucun KENDİ kapısından geçer (çift kapı).
+
+    Katalog kapısı `actor.permissions`tır (`derived_role_matrix` → `display_level`, gösterge
+    düzeyi). Ölçüldü: tek hücre `mali.satis_toplu_uretim` Düzenler → `projects=full` gösterir,
+    yani `proje_detayi` KATALOGDA görünür; ama sayfa uçta YOK (görme eşiği `(projects, full)`,
+    `gate_flags(projects, view)` dışında). Uç 403 verir → araç `Restricted` döner, VERİ YOK.
+    Pozitif kontrol: uç kümesindeki `genel.projeler` Görür'ü kapıdan GEÇER (ekipte olmadığı
+    için kapsamda 404 → `NotFound`; `Restricted` DEĞİL).
+    """
+    from app.core.sayfalar import PageLevel
+    from app.modules.ai import audit as ai_audit
+    from app.modules.ai.result import NotFound
+    from app.modules.roles.models import Role, RolePagePermission
+
+    async def _sahte(**kwargs):
+        return None
+
+    monkeypatch.setattr(ai_audit, "record_tool_call", _sahte)
+    proje = await project_factory(code="B10-CK", name="Çift Kapı")
+
+    async def _tek_hucreli(sayfa: str, duzey: PageLevel, etiket: str):
+        rol = Role(key=f"b10_{etiket}", name=etiket, emoji="", description="", is_system=False)
+        seeded_db.add(rol)
+        await seeded_db.flush()
+        seeded_db.add(RolePagePermission(role_id=rol.id, page_key=sayfa, level=duzey))
+        await seeded_db.flush()
+        kullanici = await user_factory(f"b10_{etiket}@fiil.example.com", "Sifre1234!", rol.key)
+        seeded_db.expunge(kullanici)  # okuma düzlemi aynı session'ı kullanır (B9 fikstürü notu)
+        return kullanici
+
+    async def _cagir(kullanici):
+        aktor = await actor_factory(kullanici)
+        katalogda = "proje_detayi" in {s.ad for s in ToolRegistry(READ_TOOLS).katalog(aktor)}
+        sonuc = await ToolRegistry(READ_TOOLS).invoke(
+            arac_adi="proje_detayi",
+            argumanlar={"project_id": str(proje.id)},
+            actor=aktor,
+            transport=transport_factory(kullanici),
+        )
+        return katalogda, sonuc
+
+    katalogda, sonuc = await _cagir(
+        await _tek_hucreli("mali.satis_toplu_uretim", PageLevel.edit, "toplu")
+    )
+    assert katalogda, "ön koşul: katalog bu aktöre aracı sunuyor (display düzeyi)"
+    assert isinstance(sonuc, Restricted), f"uç kapısı koşmadı: {type(sonuc).__name__}"
+
+    katalogda, sonuc = await _cagir(await _tek_hucreli("genel.projeler", PageLevel.view, "gp"))
+    assert katalogda and isinstance(sonuc, NotFound), type(sonuc).__name__
 
 
 def test_B10_ZINCIR_dalindaki_mutant_HAYATTA_KALABILIR_bu_hal_AYRICA_ele_alinir() -> None:

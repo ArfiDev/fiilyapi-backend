@@ -161,7 +161,6 @@ EDIT_GATE_PAGES: dict[tuple[str, AccessLevel], frozenset[str]] = {
         "santiye.gunluk_planlama",
         "bolum.gunluk_kayit_detay",
     ),
-    ("sites", L.full): _p("santiye.bolumler", "bolum.detay"),
     ("timesheet", L.full): _p("saha.puantaj", "santiye.puantaj"),
     ("treasury", L.full): _p("mali.hazine", "mali.cek_odeme"),
     ("user_management", L.full): _p("ayarlar.kullanicilar"),
@@ -366,7 +365,49 @@ PAGE_VIEW_ROUTES: dict[tuple[str, str], frozenset[str]] = {
     ("GET", "/roles/{role_id}/pages"): _p("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"),
 }
 
-PAGE_EDIT_ROUTES = {**PAGE_EDIT_ROUTES, **_B5B_EDIT_A, **_B5B_EDIT_B, **_B5B_EDIT_C}
+
+# IZN-B5c: sites modülü yazmaları sayfa başına + bölüm belgesi bağlama (+7 Düzenler) ve madde 16 /
+# dar görme genişlemesi (+5 Görür). Elle yazıldı (uygulamadan türetilmez).
+_B5C_SANTIYE_TUM = (
+    "santiye.bolumler", "santiye.is_kalemleri", "santiye.puantaj", "santiye.stok",
+    "santiye.hakedisler", "santiye.gunluk_kayit", "santiye.belgeler", "santiye.bolum_dagilimi",
+    "santiye.gunluk_ozet", "santiye.gunluk_planlama", "santiye.adam_saat_butcesi",
+    "santiye.planlama_paneli", "santiye.gunluk_ilerleme_raporu", "santiye.haftalik_qurr",
+)  # fmt: skip
+_B5C_BOLUM_TUM = (
+    "bolum.detay", "bolum.is_kalemleri", "bolum.puantaj", "bolum.malzeme", "bolum.hakedis",
+    "bolum.gunluk_kayit", "bolum.gunluk_kayit_detay",
+)  # fmt: skip
+_B5C_EDIT: dict[tuple[str, str], frozenset[str]] = {
+    ("POST", "/projects/{project_id}/sites"): _p("proje.santiyeler"),
+    ("PATCH", "/sites/{site_id}"): _p("proje.santiyeler"),
+    ("POST", "/sites/{site_id}/sections"): _p("santiye.bolumler"),
+    ("PATCH", "/sections/{section_id}"): _p("bolum.detay"),
+    ("POST", "/section-types"): _p("santiye.bolumler", "bolum.detay"),
+    ("POST", "/sections/{owner_id}/documents"): _p("bolum.detay"),
+    ("PATCH", "/sections/documents/{link_id}"): _p("bolum.detay"),
+}
+_B5C_VIEW: dict[tuple[str, str], frozenset[str]] = {
+    ("GET", "/projects/{project_id}/sites"): _p(
+        "proje.santiyeler", "santiye.bolumler", "bolum.detay"
+    ),
+    ("GET", "/projects/{project_id}"): _p(
+        "genel.projeler", "genel.proje_takvimi", "mali.satis_blok", "mali.satis_unite",
+        "mali.satis_excel", "mali.satis_paylasim", "proje.ozet", "proje.paylasim_tablosu",
+        "proje.santiyeler",
+    ),
+    ("GET", "/sites/{site_id}"): _p("proje.santiyeler", *_B5C_SANTIYE_TUM, *_B5C_BOLUM_TUM),
+    ("GET", "/sections/{section_id}"): _p(
+        "santiye.bolumler", "santiye.gunluk_kayit", *_B5C_BOLUM_TUM
+    ),
+    ("GET", "/sites/{site_id}/sections"): _p(
+        "santiye.bolumler", "bolum.detay",
+        "santiye.stok", "santiye.puantaj", "santiye.gunluk_planlama",
+    ),
+}  # fmt: skip
+
+PAGE_EDIT_ROUTES = {**PAGE_EDIT_ROUTES, **_B5B_EDIT_A, **_B5B_EDIT_B, **_B5B_EDIT_C, **_B5C_EDIT}
+PAGE_VIEW_ROUTES = {**PAGE_VIEW_ROUTES, **_B5C_VIEW}
 
 
 # --------------------------------------------------------------------------- #
@@ -391,7 +432,11 @@ def _gate_izinli(route, gate, page: str, flag: str) -> bool:
     if gate_flag == "approve":
         return flag == "approve" and page in APPROVE_ROUTE_PAGES.get(route, frozenset())
     if gate_flag == "view":
-        return flag in ("view", "edit") and page in PAGE_VIEW_ROUTES.get(route, frozenset())
+        # Onaylar bayrağı testte Görür düzeyiyle kurulur (`_tek_hucreli_kullanici`) → Görür
+        # kapısı da açar (B5c: `bolum.gunluk_kayit_detay` GET kümesinde).
+        return flag in ("view", "edit", "approve") and page in PAGE_VIEW_ROUTES.get(
+            route, frozenset()
+        )
     return flag == "edit" and page in PAGE_EDIT_ROUTES.get(route, frozenset())
 
 

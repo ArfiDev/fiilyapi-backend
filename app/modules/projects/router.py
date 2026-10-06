@@ -142,7 +142,24 @@ async def get_projects_timeline_endpoint(
 @router.get(
     "/{project_id}",
     response_model=ProjectDetailResponse,
-    dependencies=[require_permission("projects", AccessLevel.view)],
+    # IZN-B5c madde 16: eski `projects:view` sayfa kumesi + `proje.santiyeler` (proje sayfasi
+    # `useProject` ile bu ucu okur). Liste (`GET ""`) 61'e ACILMAZ.
+    dependencies=[
+        require_pages(
+            (
+                "genel.projeler",
+                "genel.proje_takvimi",
+                "mali.satis_blok",
+                "mali.satis_unite",
+                "mali.satis_excel",
+                "mali.satis_paylasim",
+                "proje.ozet",
+                "proje.paylasim_tablosu",
+                "proje.santiyeler",
+            ),
+            "view",
+        )
+    ],
 )
 async def get_project_endpoint(
     project_id: str,

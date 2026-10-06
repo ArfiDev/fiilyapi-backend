@@ -24,6 +24,7 @@ from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import ProjectMember
 from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._sites_sayfalari import sites_sayfalarini_kapat
 
 # 2026-07-28 kullanici karariyla Satinalma da sites=view aldi; artik HICBIR
 # seed rolu sites=none tasimiyor. Bu yuzden 403 kapisi seed degerine
@@ -116,6 +117,7 @@ async def test_role_without_sites_permission_is_forbidden_everywhere(
 ):
     site, section = await _fixture_tree(db_session, project_factory)
     await _set_permission(db_session, NO_ACCESS_ROLE, "sites", AccessLevel.none)
+    await sites_sayfalarini_kapat(db_session, NO_ACCESS_ROLE)  # IZN-B5c: dar görme genişlemesi
     token = await _login(client, user_factory, NO_ACCESS_ROLE, grant_all=True, session=db_session)
 
     for method, url, payload in _all_endpoints(site, section):
