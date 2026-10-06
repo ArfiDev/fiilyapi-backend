@@ -11,10 +11,11 @@ import pytest
 from sqlalchemy import select
 
 from app.core.access import AccessLevel, Scope
+from app.core.sayfalar import PageLevel
 from app.core.security import create_access_token
-from app.modules.roles.models import Module, ModuleGroup, RolePermission
+from app.modules.roles.models import Module, ModuleGroup, RolePagePermission, RolePermission
 from app.modules.roles.seed_data import MATRIX, MODULES, ROLE_ORDER
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 pytestmark = pytest.mark.asyncio
 
@@ -100,17 +101,7 @@ async def test_ai_tools_kimliksiz_401(client) -> None:
 async def test_ai_tools_ai_izni_YOKSA_403(client, user_factory, seeded_db) -> None:
     """Kapısının gerçekten koştuğunun kanıtı: `ai` hücresi `none`a düşürülür."""
     user = await user_factory("kapali@fiil.example.com", "Sifre1234!", "site_chief")
-    modul = (await seeded_db.execute(select(Module).where(Module.key == "ai"))).scalar_one()
-    izin = (
-        await seeded_db.execute(
-            select(RolePermission).where(
-                RolePermission.module_id == modul.id, RolePermission.role_id == user.role_id
-            )
-        )
-    ).scalar_one()
-    izin.access_level = AccessLevel.none
-    await seeded_db.flush()
-    await sync_page_cells(seeded_db, izin.role_id)
+    await modul_duzeyi_yaz(seeded_db, user.role_id, "ai", AccessLevel.none)
 
     yanit = await client.get("/ai/tools", headers=await _bearer(client, user))
     assert yanit.status_code == 403, yanit.text
@@ -292,19 +283,20 @@ async def test_ozel_rol_ai_hucresi_UPDATE_edilebilir(seeded_db, user_factory, cl
 
     Seed yolunda özel rol yoktur (seed 8 rolü yazar), ama `create_custom_role`
     yeni rol açtığında `ai` hücresinin de üretildiğini ölçüyoruz — yoksa Ayarlar
-    ekranı o hücreyi hiç değiştiremez (`update_role_permission` 404 atar).
+    ekranı o hücreyi hiç değiştiremez (`modul_duzeyi_yaz` geçerli modülde hata atmaz;
+    bilinmeyen modülde `NotFoundError` atar).
     """
     from app.modules.roles.schemas import RoleCreate
     from app.modules.roles.service import create_custom_role
-    from tests._legacy_permission_yardimcisi import update_role_permission
 
     rol = await create_custom_role(
         seeded_db, RoleCreate(key="ai_sonda", name="AI Sonda Rolü", emoji="🧪")
     )
     await seeded_db.flush()
 
-    guncel = await update_role_permission(seeded_db, rol.id, "ai", AccessLevel.view, Scope.all)
-    assert guncel.access_level is AccessLevel.view
+    await modul_duzeyi_yaz(seeded_db, rol.id, "ai", AccessLevel.view)
+    hucre = await seeded_db.get(RolePagePermission, (rol.id, "genel.fiil_ai"))
+    assert hucre is not None and hucre.level is PageLevel.view
 
 
 async def test_ozel_rol_olusturma_eski_satir_yazmaz_100_sayfa_hucresi_yazar(seeded_db) -> None:

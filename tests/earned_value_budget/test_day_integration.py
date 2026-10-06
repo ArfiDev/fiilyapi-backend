@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.day_hooks import registered
 from app.modules.contracts.models import Subcontractor
 from app.modules.earned_value import diary_adapter
@@ -21,7 +21,7 @@ from app.modules.earned_value.models import EvReportApproval
 from app.modules.roles import service as role_service
 from app.modules.roles.schemas import RoleCreate
 from app.modules.site_diary.models import SiteDiaryWorkerCount, WorkerSource
-from tests._legacy_permission_yardimcisi import update_role_permission
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 from .conftest import DAY
 from .test_day_allocation import _body, _day
@@ -122,7 +122,7 @@ async def test_formen_cannot_submit_on_ev_site(
     role = await role_service.create_custom_role(
         seeded_db, RoleCreate(key="formen", name="Formen", emoji="", description="")
     )
-    await update_role_permission(seeded_db, role.id, "site_diary", AccessLevel.full, Scope.all)
+    await modul_duzeyi_yaz(seeded_db, role.id, "site_diary", AccessLevel.full)
     formen = await _headers(client, seeded_db, user_factory, "formen", "formen@ev-b2.co", proje)
     resp = await _submit(client, formen, saha_gunu["diary"])
     assert resp.status_code == 422

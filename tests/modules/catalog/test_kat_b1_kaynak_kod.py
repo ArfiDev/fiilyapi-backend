@@ -21,8 +21,9 @@ from app.core.sayfalar import HiddenCategory
 from app.modules.catalog.export import COLUMN_HEADERS
 from app.modules.catalog.models import ContractorType, EvCatalogItem
 from tests._hassas_alan import rol_gizle
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
-from .._boq import _auth, _login_with_access, _set_permission
+from .._boq import _auth, _login_with_access
 from .test_catalog_items_api import (  # noqa: F401  (fikstur + yardimcilar yeniden kullanilir)
     URL,
     _disiplin,
@@ -272,7 +273,7 @@ async def test_limited_kapsamda_fiyat_tarihi_gizli_kaynak_kodu_gorunur(
     await _ekle(
         client, admin, kab, source_code="15.100.1001", ref_price="9.90", ref_price_date="2026-01-01"
     )
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     await rol_gizle(db_session, "accounting", HiddenCategory.sozlesme_fiyat)
     sinirli = await _giris(client, db_session, user_factory, "accounting")
     gizli = (await client.get(URL, headers=sinirli)).json()["items"][0]
@@ -309,7 +310,7 @@ async def test_excel_limited_rolde_fiyat_tarihi_bos_kaynak_poz_no_gorunur(
     await _ekle(
         client, admin, kab, source_code="15.100.1001", ref_price="9.90", ref_price_date="2026-01-01"
     )
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     await rol_gizle(db_session, "accounting", HiddenCategory.sozlesme_fiyat)
     token = await _login_with_access(
         client, db_session, user_factory, "accounting", f"lim.{uuid.uuid4().hex[:6]}@tkl.co"

@@ -12,15 +12,16 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import func, select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.sayfalar import HiddenCategory
 from app.modules.audit.models import AuditAction
 from app.modules.offers.models import OfferSettings
 from app.modules.users.models import User
 from tests._hassas_alan import rol_gizle
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._proje_ekibi import baska_projede_disiplinli
 
-from .._boq import _audit_details, _auth, _login_with_access, _set_permission
+from .._boq import _audit_details, _auth, _login_with_access
 
 URL = "/offers/settings"
 
@@ -225,7 +226,7 @@ async def test_contracts_yok_roller_403(client, admin, db_session, user_factory,
 
 
 async def test_contracts_view_okur_ama_yazamaz(client, admin, db_session, user_factory) -> None:
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     assert (await client.get(URL, headers=muhasebe)).status_code == 200
     assert (await client.put(URL, json=_govde(), headers=muhasebe)).status_code == 403
@@ -265,7 +266,7 @@ async def test_maliyet_kar_gizli_rolde_genel_gider_ve_kar_varsayilani_gizlenir_K
 ) -> None:
     """IZN-B4a: varsayılan genel gider/kâr oranları `maliyet_kar` (revizyon oranlarıyla geri
     hesaplanabilir); KDV oranı ve geçerlilik günü herkese açık. Bayraksız rol hepsini görür."""
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     await rol_gizle(db_session, "accounting")
     acik = (
         await client.get(URL, headers=await _giris(client, db_session, user_factory, "accounting"))

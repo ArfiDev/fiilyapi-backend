@@ -53,8 +53,7 @@ from app.modules.ai.registry import (
 from app.modules.ai.result import AracSonucu, Empty, Ok, Restricted, ToolError, Truncated
 from app.modules.ai.stream import sse_kodla
 from app.modules.ai.tools.catalog import NAVIGATE_TO, REGISTRY, YETKILERIM
-from app.modules.roles.models import Module, RolePermission
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 pytestmark = pytest.mark.asyncio
 
@@ -628,15 +627,6 @@ async def test_TAZE_kimlik_tur_ortasinda_yetki_iptalini_GORUR(
     kullan → ikinci çağrı da geçer ve bu test KIRMIZI olur.
     """
     user, bearer = await _kullanici(user_factory, seeded_db, "taze@fiil.example.com")
-    modul = (await seeded_db.execute(select(Module).where(Module.key == "timesheet"))).scalar_one()
-    izin = (
-        await seeded_db.execute(
-            select(RolePermission).where(
-                RolePermission.module_id == modul.id, RolePermission.role_id == user.role_id
-            )
-        )
-    ).scalar_one()
-
     spec, kosanlar = _sahte_spec(
         "puantaj_gibi",
         lambda: Ok(data=[1], row_count=1),
@@ -649,9 +639,7 @@ async def test_TAZE_kimlik_tur_ortasinda_yetki_iptalini_GORUR(
         async def tur(self, **kwargs):
             # İlk turdan SONRA yetkiyi geri al.
             if len(self.cagrilar) == 1:
-                izin.access_level = AccessLevel.none
-                await seeded_db.flush()
-                await sync_page_cells(seeded_db, izin.role_id)
+                await modul_duzeyi_yaz(seeded_db, user.role_id, "timesheet", AccessLevel.none)
             async for olay in super().tur(**kwargs):
                 yield olay
 
@@ -727,17 +715,7 @@ async def test_chat_KIMLIKSIZ_401(client) -> None:
 
 async def test_chat_ai_izni_YOKSA_403(client, user_factory, seeded_db) -> None:
     user = await user_factory("chatkapali@fiil.example.com", "Sifre1234!", "site_chief")
-    modul = (await seeded_db.execute(select(Module).where(Module.key == "ai"))).scalar_one()
-    izin = (
-        await seeded_db.execute(
-            select(RolePermission).where(
-                RolePermission.module_id == modul.id, RolePermission.role_id == user.role_id
-            )
-        )
-    ).scalar_one()
-    izin.access_level = AccessLevel.none
-    await seeded_db.flush()
-    await sync_page_cells(seeded_db, izin.role_id)
+    await modul_duzeyi_yaz(seeded_db, user.role_id, "ai", AccessLevel.none)
     seeded_db.expunge(user)
     basliklar = {"Authorization": f"Bearer {create_access_token(user.id, user.token_version)}"}
 
