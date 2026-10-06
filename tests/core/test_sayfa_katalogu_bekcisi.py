@@ -84,8 +84,11 @@ PAGE_KEY_UZUNLUK_TAVANI = 64  # role_page_permissions.page_key varchar(64)
 
 
 def test_katalog_tam_100_sayfadir() -> None:
-    assert len(SAYFALAR) == 100
-    assert len(SAYFA_ANAHTARLARI) == 100
+    # Katalog büyürse/küçülürse: (1) seed + (2) CANLIDAKİ eski rollere BACKFILL migration ŞART
+    # (yoksa hücresiz sayfa `none` sayılır: sessiz kapanma). Bkz. test_izn_b6me_seed_hucre_bekcisi.
+    mesaj = "Katalog sayısı değişti: eski rollere backfill migration ŞART (hücre eksik kalmasın)"
+    assert len(SAYFALAR) == 100, mesaj
+    assert len(SAYFA_ANAHTARLARI) == 100, mesaj
 
 
 def test_anahtarlar_tekil_ve_bicimli() -> None:

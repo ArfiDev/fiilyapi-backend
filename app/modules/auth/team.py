@@ -11,9 +11,8 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.sayfalar import SAYFA_BY_KEY
 from app.modules.auth.schemas import MeProject, MeRolePages
-from app.modules.pages.schemas import PageGrant
+from app.modules.pages.grants import grants_from_cells
 from app.modules.roles.models import Role, RoleHiddenField, RolePagePermission
 from app.modules.users.models import ProjectMember, ProjectMemberDiscipline
 
@@ -57,25 +56,19 @@ async def team_role_pages(
     """Ekipte kullanılan ve ANA rolden FARKLI her rolün sayfa hücreleri + gizli kategorileri.
 
     Ana rolle aynı anahtarlı ekip rolü buraya girmez (istemci ana `pages`i kullanır). Rolün
-    satırı olmayan sayfa haritada YER ALMAZ (`/auth/me.pages` ile aynı "bilinmezlik" kuralı).
+    satırı olmayan sayfa katalogdan `none` ile doldurulur (`/auth/me.pages` ile aynı kural).
     """
     role_ids = {m.role_id: key for m, key in team if key != main_role_key}
     if not role_ids:
         return {}
-    pages: dict[uuid.UUID, dict[str, PageGrant]] = {rid: {} for rid in role_ids}
+    rows_by_role: dict[uuid.UUID, list[RolePagePermission]] = {rid: [] for rid in role_ids}
     cells = await session.execute(
-        select(
-            RolePagePermission.role_id,
-            RolePagePermission.page_key,
-            RolePagePermission.level,
-            RolePagePermission.can_approve,
-        )
+        select(RolePagePermission)
         .where(RolePagePermission.role_id.in_(role_ids))
         .order_by(RolePagePermission.page_key)
     )
-    for role_id, page_key, level, approve in cells.all():
-        if page_key in SAYFA_BY_KEY:
-            pages[role_id][page_key] = PageGrant(level=level, approve=approve)
+    for cell in cells.scalars():
+        rows_by_role[cell.role_id].append(cell)
     hidden: dict[uuid.UUID, list] = {rid: [] for rid in role_ids}
     for role_id, category in (
         await session.execute(
@@ -87,7 +80,8 @@ async def team_role_pages(
         hidden[role_id].append(category)
     return {
         key: MeRolePages(
-            pages=pages[role_id], hidden_fields=sorted(hidden[role_id], key=lambda c: c.value)
+            pages=grants_from_cells(rows_by_role[role_id]),
+            hidden_fields=sorted(hidden[role_id], key=lambda c: c.value),
         )
         for role_id, key in role_ids.items()
     }
