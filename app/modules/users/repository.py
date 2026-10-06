@@ -71,6 +71,17 @@ async def project_counts(session: AsyncSession, user_ids: list[uuid.UUID]) -> di
     return {user_id: count for user_id, count in rows.all()}
 
 
+async def role_labels(
+    session: AsyncSession, role_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, tuple[str, str]]:
+    """Rol kimliği → (görünen ad, anahtar) — TEK sorgu; `User.role` (lazy="raise") yüklü
+    olmasa da çalışır."""
+    if not role_ids:
+        return {}
+    rows = await session.execute(select(Role.id, Role.name, Role.key).where(Role.id.in_(role_ids)))
+    return {role_id: (name, key) for role_id, name, key in rows.all()}
+
+
 async def get_user(session: AsyncSession, user_id: uuid.UUID) -> User | None:
     result = await session.execute(
         select(User).options(joinedload(User.role)).where(User.id == user_id)

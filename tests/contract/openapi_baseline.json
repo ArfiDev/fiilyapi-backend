@@ -48904,6 +48904,14 @@
             "title": "Role Id",
             "type": "string"
           },
+          "role_key": {
+            "title": "Role Key",
+            "type": "string"
+          },
+          "role_name": {
+            "title": "Role Name",
+            "type": "string"
+          },
           "status": {
             "$ref": "#/components/schemas/UserStatus"
           },
@@ -48918,6 +48926,8 @@
           "full_name",
           "title",
           "role_id",
+          "role_name",
+          "role_key",
           "status",
           "all_projects",
           "project_count"

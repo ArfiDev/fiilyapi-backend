@@ -78,6 +78,11 @@ class UserResponse(BaseModel):
     full_name: str
     title: str
     role_id: uuid.UUID
+    # IZN-B5a: ana rolün görünen adı (salt okuma; rol adı gizli veri değil).
+    # `GET /roles` Kullanıcılar sayfasında Görür kişiye kapalı; liste rol sütunu bu alandan dolar.
+    role_name: str
+    # Rol anahtarı gizli değil; frontend rol rengini (RolePill/UserAvatar) bu anahtarla seçer.
+    role_key: str
     status: UserStatus
     last_login_at: datetime | None = None
     # IZN-B3: "Tüm projeler" işareti ve proje ekibi satır sayısı (liste satırı: "N proje" /

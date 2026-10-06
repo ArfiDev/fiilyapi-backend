@@ -32,6 +32,20 @@ def _p(*keys: str) -> frozenset[str]:
     return frozenset(keys)
 
 
+#: IZN-B5a madde 3 (CEO onaylı bilinçli genişleme): görme eşiği `draft/full` → `view`.
+SATIS_ALT_SAYFALAR = (
+    "mali.satis_blok",
+    "mali.satis_unite",
+    "mali.satis_excel",
+    "mali.satis_paylasim",
+)
+#: Bu uçlar ZATEN `projects:view` kapısındaydı (yazma yetkisi servis içi `documents` denetimiyle
+#: ayrıca sınanır); `projects:view` bayrağı taşıyan HER sayfa (artık satış alt sayfaları da) açar.
+PROJECTS_VIEW_YAZMA_UCLARI = frozenset(
+    {("PATCH", "/units/documents/{link_id}"), ("POST", "/units/{owner_id}/documents")}
+)
+
+
 # --------------------------------------------------------------------------- #
 # DÜĞME TABLOSU (test sabiti): hangi sayfa hangi modül kapısını hangi bayrakla açar
 # --------------------------------------------------------------------------- #
@@ -100,7 +114,15 @@ VIEW_GATE_PAGES: dict[str, frozenset[str]] = {
         "santiye.hakedisler",
         "bolum.hakedis",
     ),
-    "projects": _p("genel.projeler", "genel.proje_takvimi", "proje.ozet", "proje.paylasim_tablosu"),
+    "projects": _p(
+        "genel.projeler",
+        "genel.proje_takvimi",
+        "proje.ozet",
+        "proje.paylasim_tablosu",
+        # bilinçli fark (IZN-B5a madde 3, CEO onaylı): satış alt sayfalarının Görür biti veri
+        # getirmiyordu (görme eşiği draft/full); eşik `view`e çekildi → `projects:view` kapısı.
+        *SATIS_ALT_SAYFALAR,
+    ),
     "sales": _p("mali.satis"),
     "settings": _p("ayarlar.denetim_gunlugu"),
     "site_diary": _p(
@@ -229,6 +251,8 @@ PAGE_EDIT_ROUTES: dict[tuple[str, str], frozenset[str]] = {
     ("POST", "/projects"): _p("genel.projeler"),
     ("POST", "/employers"): _p("genel.projeler"),
     ("PUT", "/payroll/tax-brackets/{year}/{income_kind}"): _p("ayarlar.bordro_oranlari"),
+    # IZN-B5a madde 8: oran ucu vergi dilimi ucuyla AYNI kapıda (eskiden `payroll:full`).
+    ("PUT", "/payroll/rates/{year}/{source}"): _p("ayarlar.bordro_oranlari"),
     ("PUT", "/approvals/settings"): _p("ayarlar.onay_rolleri"),
     ("GET", "/approvals/roles"): _p("ayarlar.onay_rolleri"),
     ("PUT", "/approvals/roles/{user_id}"): _p("ayarlar.onay_rolleri"),
@@ -236,6 +260,14 @@ PAGE_EDIT_ROUTES: dict[tuple[str, str], frozenset[str]] = {
     ("PATCH", "/roles/{role_id}"): _p("ayarlar.rol_yonetimi"),
     ("POST", "/roles/{role_id}/copy"): _p("ayarlar.rol_yonetimi"),
     ("PUT", "/roles/{role_id}/pages"): _p("ayarlar.sayfa_izinleri"),
+}
+
+#: IZN-B5a madde 15: Görür bayraklı sayfa kapılı (`require_pages(..., "view")`) uçlar. Görür ya da
+#: Düzenler bayrağı açar (Düzenler Görür'ü içerir); `ayarlar.kullanicilar` bu uçları AÇMAZ.
+PAGE_VIEW_ROUTES: dict[tuple[str, str], frozenset[str]] = {
+    ("GET", "/modules"): _p("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"),
+    ("GET", "/roles/{role_id}/permissions"): _p("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"),
+    ("GET", "/roles/{role_id}/pages"): _p("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"),
 }
 
 
@@ -260,6 +292,8 @@ def _gate_izinli(route, gate, page: str, flag: str) -> bool:
     pages, gate_flag = gate.spec  # page | chain
     if gate_flag == "approve":
         return flag == "approve" and page in APPROVE_ROUTE_PAGES.get(route, frozenset())
+    if gate_flag == "view":
+        return flag in ("view", "edit") and page in PAGE_VIEW_ROUTES.get(route, frozenset())
     return flag == "edit" and page in PAGE_EDIT_ROUTES.get(route, frozenset())
 
 
@@ -355,4 +389,6 @@ async def test_gorur_biti_yazma_kapisi_acmaz_projects_full_ve_draft(seeded_db) -
         user = await _tek_hucreli_kullanici(seeded_db, page, "view", sira)
         acilan = set(await _acilan_rotalar(seeded_db, user))
         yazma = {r for r in acilan if r[0] in ("POST", "PATCH", "PUT", "DELETE")}
+        if page in SATIS_ALT_SAYFALAR:
+            yazma -= PROJECTS_VIEW_YAZMA_UCLARI  # bilinçli fark (IZN-B5a madde 3), yalnız bu 2 uç
         assert yazma == set(), f"{page} Görür → yazma açıldı: {sorted(yazma)}"

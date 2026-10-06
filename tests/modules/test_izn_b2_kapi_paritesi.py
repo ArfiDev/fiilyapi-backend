@@ -76,6 +76,11 @@ PAGE_GATE_OLD: dict[tuple[frozenset[str], str], list[tuple[str, AccessLevel]]] =
     (frozenset({"genel.projeler"}), "edit"): [("projects", L.admin)],
     (frozenset({"ayarlar.rol_yonetimi"}), "edit"): [("user_management", L.admin)],
     (frozenset({"ayarlar.sayfa_izinleri"}), "edit"): [("user_management", L.admin)],
+    # IZN-B5a madde 15: rol ayrıntı uçları (GET) yalnız rol ekranlarının Görür'üyle açılır; eski
+    # kapı `user_management=view`di (bilinçli DARALMA, aşağıdaki B5A_KASITLI_ROTALAR).
+    (frozenset({"ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"}), "view"): [
+        ("user_management", L.view)
+    ],
     # Onay eylemi uçları (IZN-B2 onarım): sayfa ONAYLAR bayrağı ↔ eski modül kapısı.
     (frozenset({"ik.izin_yonetimi"}), "approve"): [("personnel", L.full)],
     (frozenset({"mali.yevmiye"}), "approve"): [("accounting", L.full)],
@@ -120,6 +125,23 @@ ADMIN_USER_MGMT_ROTALARI = {
     ("PATCH", "/users/{user_id}/password"),
     ("PUT", "/roles/{role_id}/permissions/{module_key}"),
 }
+
+
+#: IZN-B5a BİLİNÇLİ FARKLAR (CEO onaylı sızıntı onarımı): eski kapıyla karşılaştırılmaz, kendi
+#: davranış testleri `tests/modules/test_izn_b5a_hizli_a.py`dedir.
+#: * madde 15: `GET /roles` · `/modules` · `/roles/{id}/permissions` · `/roles/{id}/pages` artık
+#:   `user_management=view` (= `ayarlar.kullanicilar` Görür) ile AÇILMAZ (daralma).
+#: * madde 8: `PUT /payroll/rates/{year}/{source}` artık `payroll=full` değil
+#:   `ayarlar.bordro_oranlari` Düzenler ister (vergi dilimi ucuyla aynı kapı).
+B5A_KASITLI_ROTALAR = frozenset(
+    {
+        ("GET", "/roles"),
+        ("GET", "/modules"),
+        ("GET", "/roles/{role_id}/permissions"),
+        ("GET", "/roles/{role_id}/pages"),
+        ("PUT", "/payroll/rates/{year}/{source}"),
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +249,7 @@ async def route_decisions(session, user: User, levels: dict[str, AccessLevel]):
                 continue  # SIL-B1: eski kararla karşılaştırılmaz; ayrı karar testi sınar
             eski = eski and old_gate(levels, gate)
             yeni = yeni and cache[gate.key]
-        if eski != yeni:
+        if eski != yeni and route not in B5A_KASITLI_ROTALAR:
             farklar.append(route)
     return farklar
 

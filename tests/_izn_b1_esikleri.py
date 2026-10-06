@@ -17,11 +17,31 @@ from app.core.sayfalar import (
 )
 from app.modules.roles import seed_data
 
+#: IZN-B5a (CEO onaylı): B1 migration'ının DONMUŞ eşik metinlerinden B5a'nın değiştirdikleri.
+#: madde 3 → 36/37/39/40 görme eşiği draft → view; madde 5 → #2 Onay Kutusu onay eşiği f → "-"
+#: (katalogda `onay_var` True → False). Bu hücrelerin DB'deki eski değerleri için lider tarafından
+#: veri migration'ı gerekir (B5a ajanı migration yazmaz); B1/B2 migration testleri bu farkı bilir.
+ESIK_SPEC_B5A_FARKLARI: dict[int, str] = {
+    2: "n|-|f",
+    36: "d|f|-",
+    37: "d|f|-",
+    39: "d|f|-",
+    40: "d|f|-",
+}
+B5A_ONAY_VAR_ESKI: frozenset[str] = frozenset({"genel.onay_kutusu"})
+
+
+def b1_onay_var(sayfa) -> bool:
+    """B1 migration'ının DONMUŞ `has_approval` değeri (B5a madde 5 öncesi)."""
+    return sayfa.onay_var or sayfa.key in B5A_ONAY_VAR_ESKI
+
 
 def b1_spec(sayfa) -> str:
-    """B1 migration'ının DONMUŞ eşik metni: B2 düzeltmesinin değiştirdiği 6 sayfada eski değer."""
-    return ESIK_SPEC_B1_FARKLARI.get(sayfa.envanter_no) or esik_spec(
-        sayfa.envanter_no, sayfa.eski_modul
+    """B1 migration eşik metni (DONMUŞ): B2 ve B5a düzeltmelerinin değiştirdiği sayfalarda eski."""
+    return (
+        ESIK_SPEC_B1_FARKLARI.get(sayfa.envanter_no)
+        or ESIK_SPEC_B5A_FARKLARI.get(sayfa.envanter_no)
+        or esik_spec(sayfa.envanter_no, sayfa.eski_modul)
     )
 
 

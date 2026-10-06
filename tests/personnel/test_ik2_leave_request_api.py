@@ -312,9 +312,21 @@ async def test_liste_personnel_id_suzgeci(client, ik_headers, personel, diger_pe
 
 @pytest.mark.asyncio
 async def test_liste_project_id_suzgeci(
-    client, ik_headers, personel, diger_personel, yillik, proje
+    client, ik_headers, seeded_db, personel, diger_personel, yillik, proje
 ):
-    """`project_id` PERSONELİN projesi üzerinden daraltır (personelde proje kolonu var)."""
+    """`project_id` PERSONELİN projesi üzerinden daraltır (personelde proje kolonu var).
+
+    IZN-B5a: süzgeç görünür kümeyle sınırlı → İK kullanıcısı "Tüm projeler" kişisi yapılır.
+    """
+    from sqlalchemy import select
+
+    from app.modules.users.models import User
+
+    kullanici = (
+        await seeded_db.execute(select(User).where(User.email == "ik@personnel.co"))
+    ).scalar_one()
+    kullanici.all_projects = True
+    await seeded_db.flush()
     await _talep_olustur(client, ik_headers, personel, yillik)
     await _talep_olustur(client, ik_headers, diger_personel, yillik)
     yanit = await client.get(f"/leave-requests?project_id={proje.id}", headers=ik_headers)

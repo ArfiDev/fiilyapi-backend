@@ -21,6 +21,7 @@ from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.core.timezone import DISPLAY_TIMESTAMP_FORMAT, to_display
+from app.modules.audit.gizli_tutar import TutarOlayi, detay_maskele
 from app.modules.audit.models import AuditAction
 from app.modules.audit.repository import AuditRow
 
@@ -60,15 +61,19 @@ def _actor_label(row: AuditRow) -> str:
     return f"{actor.full_name}{_ACTOR_SEPARATOR}{role_name}" if role_name else actor.full_name
 
 
-def _cells(row: AuditRow) -> tuple[str, ...]:
-    """Tek denetim satirini mockup sutun sirasinda METIN hucrelere cevirir."""
+def _cells(row: AuditRow, gizli_olaylar: Sequence[TutarOlayi] = ()) -> tuple[str, ...]:
+    """Tek denetim satirini mockup sutun sirasinda METIN hucrelere cevirir.
+
+    `gizli_olaylar`: okuyucunun gizli kategorilerindeki tutarli olaylar (IZN-B5a, Politika A) —
+    eslesen satirin Detay hucresi sabit ifadeyle yazilir (liste ucuyla AYNI kural).
+    """
     entry = row[0]
     return (
         # Ekranla ayni saat: `occurred_at` UTC saklanir, TR'ye cevrilerek yazilir.
         to_display(entry.occurred_at).strftime(DISPLAY_TIMESTAMP_FORMAT),
         _actor_label(row),
         ACTION_LABELS.get(entry.action, str(entry.action.value)),
-        str(entry.detail),
+        detay_maskele(str(entry.detail), gizli_olaylar),
         str(entry.ip_address) if entry.ip_address is not None else EMPTY_VALUE,
     )
 
@@ -85,7 +90,9 @@ def _write_row(sheet: Worksheet, index: int, values: Sequence[str]) -> None:
         sheet.cell(row=index, column=column).value = value
 
 
-def build_audit_workbook(rows: Iterable[AuditRow]) -> BytesIO:
+def build_audit_workbook(
+    rows: Iterable[AuditRow], gizli_olaylar: Sequence[TutarOlayi] = ()
+) -> BytesIO:
     """Denetim satirlarindan xlsx calisma kitabi uretir ve bellekteki tamponu doner.
 
     Bos girdide bile gecerli bir dosya doner: yalnizca baslik satiri yazilir.
@@ -96,7 +103,7 @@ def build_audit_workbook(rows: Iterable[AuditRow]) -> BytesIO:
 
     _write_row(sheet, 1, COLUMN_HEADERS)
     for index, row in enumerate(rows, start=2):
-        _write_row(sheet, index, _cells(row))
+        _write_row(sheet, index, _cells(row, gizli_olaylar))
     _apply_layout(sheet)
 
     buffer = BytesIO()

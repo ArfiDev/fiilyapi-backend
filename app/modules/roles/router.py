@@ -9,7 +9,14 @@ from app.core.deps import get_current_user
 from app.core.errors import NotFoundError
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
-from app.core.permissions import require_page, require_permission, require_system_admin
+from app.core.page_gate import decide
+from app.core.permissions import (
+    _DENIED,
+    require_page,
+    require_pages,
+    require_permission,
+    require_system_admin,
+)
 from app.core.ratelimit import client_ip
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -30,11 +37,27 @@ from app.modules.users.models import User
 
 router = APIRouter(route_class=MaskeRotasi, tags=["roles"], responses=COMMON_ERROR_RESPONSES)
 
+#: IZN-B5a (madde 15): rol uçlarını `ayarlar.kullanicilar` GÖRÜR bitinin açması bir sızıntıydı
+#: (rol ekranlarına bağımsız). Rol ayrıntı uçları (`/modules`, `/roles/{id}/permissions|pages`)
+#: yalnız rol ekranlarının Görür'üyle açılır.
+_ROL_EKRANLARI = ("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri")
+_ROL_EKRANI_GORUR = require_pages(_ROL_EKRANLARI, "view")
+
+
+async def _rol_listesi_kapisi(
+    user: Annotated[User, Depends(get_current_user)], session: DbSession
+) -> None:
+    """`GET /roles`: rol ekranları Görür VEYA `ayarlar.kullanicilar` DÜZENLER (kullanıcıya rol
+    atamak rol listesini gerektirir; salt Görür bunu yapamaz). 403 gövdesi diğer kapılarla aynı."""
+    pairs = (*((key, "view") for key in _ROL_EKRANLARI), ("ayarlar.kullanicilar", "edit"))
+    if not await decide(session, user, pairs):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_DENIED)
+
 
 @router.get(
     "/roles",
     response_model=list[RoleResponse],
-    dependencies=[require_permission("user_management", AccessLevel.view)],
+    dependencies=[Depends(_rol_listesi_kapisi)],
 )
 async def list_roles_endpoint(
     session: DbSession,
@@ -45,7 +68,7 @@ async def list_roles_endpoint(
 @router.get(
     "/modules",
     response_model=list[ModuleResponse],
-    dependencies=[require_permission("user_management", AccessLevel.view)],
+    dependencies=[_ROL_EKRANI_GORUR],
 )
 async def list_modules_endpoint(
     session: DbSession,
@@ -56,7 +79,7 @@ async def list_modules_endpoint(
 @router.get(
     "/roles/{role_id}/permissions",
     response_model=list[PermissionCell],
-    dependencies=[require_permission("user_management", AccessLevel.view)],
+    dependencies=[_ROL_EKRANI_GORUR],
 )
 async def get_role_permissions_endpoint(
     role_id: uuid.UUID,
@@ -157,7 +180,7 @@ async def update_permission_endpoint(
 @router.get(
     "/roles/{role_id}/pages",
     response_model=RolePagesResponse,
-    dependencies=[require_permission("user_management", AccessLevel.view)],
+    dependencies=[_ROL_EKRANI_GORUR],
 )
 async def get_role_pages_endpoint(
     role_id: uuid.UUID,

@@ -27,6 +27,7 @@ from app.modules.personnel.schemas import (
     PersonnelUpdate,
 )
 from app.modules.projects import repository as projects_repository
+from app.modules.projects import service as projects_service
 from app.modules.sites import repository as sites_repository
 from app.modules.users.models import User
 
@@ -76,17 +77,26 @@ async def _validate_assignment_scope(
     session: AsyncSession,
     project_id: uuid.UUID | None,
     section_id: uuid.UUID | None,
+    actor: User | None = None,
 ) -> None:
     """Atama alanları BİRLEŞİK değerler üzerinde doğrulanır (spec §5 K4).
+
+    IZN-B5a (madde 23a): `actor` verilmişse aktörün GÖREMEDİĞİ proje (ve o projenin bölümü) YOK
+    gibi 404 döner — aynı gövde, varlık sızmaz. `visible_projects` Sistem Yöneticisi ve "Tüm
+    projeler" kişisinde hepsini döner (davranış aynı). `actor=None` yalnız HTTP dışı doğrudan
+    servis çağrısıdır (süzgeçsiz); router HER ZAMAN aktörü geçer.
 
     * proje verilmiş ve YOK → 404 (gövde içi varlık ref);
     * bölüm verilmiş ama proje yok → 422 (bölüm projesiz olamaz);
     * bölüm verilmiş ve YOK → 404;
     * bölüm o projeye ait DEĞİL → 422 (`documents.SITE_NOT_IN_PROJECT` deseni).
     """
+    gorunur: set[uuid.UUID] | None = None
+    if actor is not None and (project_id is not None or section_id is not None):
+        gorunur = {p.id for p in await projects_service.visible_projects(session, actor)}
     if project_id is not None:
         project = await projects_repository.get_project(session, project_id)
-        if project is None:
+        if project is None or (gorunur is not None and project.id not in gorunur):
             raise NotFoundError(guards.PROJECT_NOT_FOUND)
     if section_id is not None:
         if project_id is None:
@@ -95,6 +105,8 @@ async def _validate_assignment_scope(
         if section is None:
             raise NotFoundError(guards.SECTION_NOT_FOUND)
         site = await sites_repository.get_site(session, section.site_id)
+        if site is not None and gorunur is not None and site.project_id not in gorunur:
+            raise NotFoundError(guards.SECTION_NOT_FOUND)
         if site is None or site.project_id != project_id:
             raise PersonnelValidationError(guards.SECTION_NOT_IN_PROJECT)
 
@@ -106,10 +118,28 @@ def _assert_publish_ready(merged: object) -> None:
         raise PersonnelValidationError(guards.PUBLISH_MISSING.format(", ".join(eksik)))
 
 
-async def create_personnel(session: AsyncSession, data: PersonnelCreate) -> Personnel:
+async def _assert_current_assignment_visible(
+    session: AsyncSession, personnel: Personnel, actor: User | None
+) -> None:
+    """Mevcut atama aktöre GÖRÜNMEYEN projedeyse atama alanlarını değiştiren PATCH 404 (IZN-B5a).
+
+    Görünmeyen projeden çıkarmak/taşımak gizli projede yazmaktır; yanıt "proje yok" ile aynıdır.
+    """
+    if actor is None or personnel.assigned_project_id is None:
+        return
+    gorunur = {p.id for p in await projects_service.visible_projects(session, actor)}
+    if personnel.assigned_project_id not in gorunur:
+        raise NotFoundError(guards.PROJECT_NOT_FOUND)
+
+
+async def create_personnel(
+    session: AsyncSession, data: PersonnelCreate, *, actor: User | None = None
+) -> Personnel:
     guards.validate_personnel_source(data.source, data.subcontractor_id)
     await _validate_tckn(session, data.tc_no)
-    await _validate_assignment_scope(session, data.assigned_project_id, data.assigned_section_id)
+    await _validate_assignment_scope(
+        session, data.assigned_project_id, data.assigned_section_id, actor
+    )
     if not data.is_draft:
         _assert_publish_ready(data)
 
@@ -132,7 +162,11 @@ async def create_personnel(session: AsyncSession, data: PersonnelCreate) -> Pers
 
 
 async def update_personnel(
-    session: AsyncSession, personnel_id: uuid.UUID, data: PersonnelUpdate
+    session: AsyncSession,
+    personnel_id: uuid.UUID,
+    data: PersonnelUpdate,
+    *,
+    actor: User | None = None,
 ) -> Personnel:
     """Kısmi güncelleme (`model_dump(exclude_unset=True)`) — gönderilmeyen alan değişmez.
 
@@ -154,9 +188,10 @@ async def update_personnel(
 
     # Atama alanları yalnız biri bile değiştiyse birleşik değerlerle doğrulanır.
     if "assigned_project_id" in updates or "assigned_section_id" in updates:
+        await _assert_current_assignment_visible(session, personnel, actor)
         efektif_proje = updates.get("assigned_project_id", personnel.assigned_project_id)
         efektif_bolum = updates.get("assigned_section_id", personnel.assigned_section_id)
-        await _validate_assignment_scope(session, efektif_proje, efektif_bolum)
+        await _validate_assignment_scope(session, efektif_proje, efektif_bolum, actor)
 
     # Yayın zorunluluğu: sonuçta yayın olacaksa (zaten yayın ya da bu PATCH yayına
     # çeviriyorsa) birleşik kayıt TAM olmalı — aksi hâlde 422 ve satır YAZILMAZ.

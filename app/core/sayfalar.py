@@ -144,14 +144,14 @@ _SEVIYE_HARFI: Final[dict[str, AccessLevel]] = {
 # B1 migration'ı (`izn_b1`) DONMUŞ B1 değerleriyle kalır; `izn_b2` aynı sayfaları yeniden türetir.
 # fmt: off
 _ESIKLER: Final[dict[int, str]] = {
-    1: "v|-|-", 2: "n|-|f", 3: "v|-|-", 5: "v|x|-", 6: "v|-|-",
+    1: "v|-|-", 2: "n|-|-", 3: "v|-|-", 5: "v|x|-", 6: "v|-|-",
     7: "v|f|-", 8: "v|f|-", 9: "v|f|-", 10: "v|f|-", 11: "v|f|f", 12: "v|f|x",
     13: "v|f|-", 14: "v|f|f", 15: "v|f|-",
     16: "v|-|-", 17: "v|d|a", 18: "v|-|a", 19: "v|-|-", 20: "v|f|-", 21: "v|f|-",
     22: "v|f|projects:x&f", 23: "v|f|-", 24: "v|f|-", 25: "v|f|-", 26: "v|f|-", 27: "v|f|-",
     28: "v|f|-", 29: "v|f|-",
     30: "v|f|-", 31: "v|r|a", 32: "v|f|-", 33: "v|f|-", 34: "v|f|f",
-    35: "v|f|f", 36: "d|f|-", 37: "d|f|-", 38: "f|f|-", 39: "d|f|-", 40: "d|f|-",
+    35: "v|f|f", 36: "v|f|-", 37: "v|f|-", 38: "f|f|-", 39: "v|f|-", 40: "v|f|-",
     41: "v|f|f", 42: "v|f|-", 43: "v|-|-", 44: "v|-|-", 45: "v|-|-", 46: "v|f|x",
     47: "v|f|f", 48: "v|f|-", 49: "v|f|f", 50: "v|d|a", 51: "v|d|a",
     52: "v|-|-", 53: "v|-|-", 54: "v|-|-", 55: "v|f|f", 56: "v|-|-", 57: "v|f|f", 59: "v|f|-",
@@ -232,7 +232,7 @@ _B = "Bölüm"
 _HAM: Final[tuple[tuple, ...]] = (
     # --- Genel (6) ---
     (1, "genel.gosterge_paneli", "Gösterge Paneli", _G.genel, None, "/", "dashboard", "dashboard", False, ()),
-    (2, "genel.onay_kutusu", "Onay Kutusu", _G.genel, None, "/onay-kutusu", "onay_kutusu", "approvals", True, ()),
+    (2, "genel.onay_kutusu", "Onay Kutusu", _G.genel, None, "/onay-kutusu", "onay_kutusu", "approvals", False, ()),
     (3, "genel.fiil_ai", "FİİL AI", _G.genel, None, "/asistan", "ai", "ai", False, ()),
     (4, "genel.raporlar", "Raporlar", _G.genel, None, "/raporlar", "raporlar", None, False, ()),
     (5, "genel.projeler", "Projeler", _G.genel, None, "/projeler", "proje", "projects", False, ()),

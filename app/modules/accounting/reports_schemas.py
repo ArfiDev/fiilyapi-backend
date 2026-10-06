@@ -23,9 +23,10 @@ from datetime import date
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, PrivateAttr
 
 from app.core.field_mask import Hassas
+from app.modules.accounting.bordro_hesaplari import bordro_ek_kategori
 from app.modules.accounting.schemas import MaliTutar
 
 __all__ = [
@@ -49,6 +50,14 @@ __all__ = [
 ]
 
 
+def _satir_kodlari(satirlar):  # noqa: ANN001, ANN202
+    return [kod for satir in satirlar for kod in satir.account_codes]
+
+
+def _bolum_kodlari(bolumler):  # noqa: ANN001, ANN202
+    return [kod for bolum in bolumler for kod in _satir_kodlari(bolum.lines)]
+
+
 class TrialBalanceTotals(BaseModel):
     """tfoot `GENEL TOPLAM` (mockup satır 161-171) — altı kolonun AYRI toplamı.
 
@@ -66,6 +75,18 @@ class TrialBalanceTotals(BaseModel):
     period_credit: MaliTutar
     closing_debit: MaliTutar
     closing_credit: MaliTutar
+
+    #: IZN-B5a (21a): toplam, bordro beslenen (`335`/`361`/`730`) bir satiri ICERIYOR mu?
+    #: Servis doldurur. YANIT ALANI DEGILDIR (OpenAPI degismez): `model_copy` ozel ozniteligi
+    #: tasir, `KATEGORI_COZ` onu okur. Icerirse genel toplam `maas_kisisel` ile de gizlenir
+    #: (aksi hâlde "toplam − gorunen satirlar" bordroyu verirdi).
+    _bordro_dahil: bool = PrivateAttr(default=False)
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "TrialBalanceTotals", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return etiketler | {Hassas.maas_kisisel} if model._bordro_dahil else etiketler
 
 
 class TrialBalanceRow(BaseModel):
@@ -92,6 +113,12 @@ class TrialBalanceRow(BaseModel):
     period_credit: MaliTutar
     closing_debit: MaliTutar
     closing_credit: MaliTutar
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "TrialBalanceRow", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return bordro_ek_kategori([model.account_code], etiketler)
 
 
 class TrialBalanceResponse(BaseModel):
@@ -210,6 +237,12 @@ class BalanceSheetLine(BaseModel):
     account_codes: list[str]
     group_codes: list[str]
 
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "BalanceSheetLine", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return bordro_ek_kategori(model.account_codes, etiketler)
+
 
 class BalanceSheetSection(BaseModel):
     """Bölüm bandı + kalemleri + ara toplam (mockup BL:50-55 kalıbı).
@@ -224,6 +257,15 @@ class BalanceSheetSection(BaseModel):
     subtotal: MaliTutar
     lines: list[BalanceSheetLine]
 
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "BalanceSheetSection", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        # Ara toplam, bordro iceren bir kalemi KAPSIYORSA gizlenir (cikarma yoluyla turetme).
+        return bordro_ek_kategori(
+            (kod for kalem in model.lines for kod in kalem.account_codes), etiketler
+        )
+
 
 class BalanceSheetSide(BaseModel):
     """Bilançonun bir TARAFI — AKTİF (BL:44-63) ya da PASİF (BL:66-88).
@@ -237,6 +279,20 @@ class BalanceSheetSide(BaseModel):
     total_label: str
     total: MaliTutar
     sections: list[BalanceSheetSection]
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "BalanceSheetSide", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return bordro_ek_kategori(
+            (
+                kod
+                for bolum in model.sections
+                for kalem in bolum.lines
+                for kod in kalem.account_codes
+            ),
+            etiketler,
+        )
 
 
 class BalanceSheetResponse(BaseModel):
@@ -294,6 +350,12 @@ class CashFlowStatementLine(BaseModel):
     amount: MaliTutar
     account_codes: list[str]
 
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "CashFlowStatementLine", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return bordro_ek_kategori(model.account_codes, etiketler)
+
 
 class CashFlowStatementSection(BaseModel):
     """`A`/`B`/`C` bölümü + kalemleri + ara toplam (mockup NA:68-79 kalıbı).
@@ -310,6 +372,12 @@ class CashFlowStatementSection(BaseModel):
     subtotal: MaliTutar
     lines: list[CashFlowStatementLine]
 
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "CashFlowStatementSection", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return bordro_ek_kategori(_satir_kodlari(model.lines), etiketler)
+
 
 class MonthlyCashPoint(BaseModel):
     """`Aylık Nakit Pozisyonu` grafiğinin bir noktası (mockup NA:108-131).
@@ -323,6 +391,16 @@ class MonthlyCashPoint(BaseModel):
     year: int
     month: int
     closing_cash: MaliTutar
+
+    #: IZN-B5a: noktanin bakiyesi bordro iceren bir donem akisini kapsiyor mu (servis doldurur;
+    #: yanit alani DEGILDIR, OpenAPI degismez).
+    _bordro_dahil: bool = PrivateAttr(default=False)
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "MonthlyCashPoint", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return etiketler | {Hassas.maas_kisisel} if model._bordro_dahil else etiketler
 
 
 class CashFlowStatementResponse(BaseModel):
@@ -361,6 +439,15 @@ class CashFlowStatementResponse(BaseModel):
     closing_cash: MaliTutar
     monthly_cash: list[MonthlyCashPoint]
 
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "CashFlowStatementResponse", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        # Acilis nakdi onceki donemlerin birikimidir; net degisim/kapanis bu donemin akisini icerir.
+        if alan_adi == "opening_cash":
+            return etiketler
+        return bordro_ek_kategori(_bolum_kodlari(model.sections), etiketler)
+
 
 # --------------------------------------------------------------------------- #
 # MT-2 — Gelir Tablosu (mockup `Ekran 11 - Mali Tablo.dc.html`, GT:86-147)
@@ -398,6 +485,12 @@ class IncomeStatementLine(BaseModel):
     amount: MaliTutar
     account_codes: list[str]
 
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "IncomeStatementLine", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return bordro_ek_kategori(model.account_codes, etiketler)
+
 
 class IncomeStatementSection(BaseModel):
     """`GELİRLER` (GT:95) ya da `GİDERLER` (GT:113) bölümü + ara toplamı.
@@ -413,6 +506,12 @@ class IncomeStatementSection(BaseModel):
     subtotal_label: str
     subtotal: MaliTutar
     lines: list[IncomeStatementLine]
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "IncomeStatementSection", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        return bordro_ek_kategori(_satir_kodlari(model.lines), etiketler)
 
 
 class IncomeStatementResponse(BaseModel):
@@ -452,3 +551,12 @@ class IncomeStatementResponse(BaseModel):
     total_expense: MaliTutar
     profit_label: str
     period_profit: MaliTutar
+
+    @staticmethod
+    def KATEGORI_COZ(  # noqa: N802 — `field_mask.KATEGORI_COZ_OZNITELIGI` sözleşmesi
+        model: "IncomeStatementResponse", alan_adi: str, etiketler: frozenset[Hassas]
+    ) -> frozenset[Hassas]:
+        # Gider ve donem kari bordro iceren bir satiri kapsar; gelir toplami bagimsizdir.
+        if alan_adi == "total_revenue":
+            return etiketler
+        return bordro_ek_kategori(_bolum_kodlari(model.sections), etiketler)

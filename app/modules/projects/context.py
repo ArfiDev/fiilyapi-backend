@@ -344,7 +344,110 @@ async def _purchase_order_project(session: AsyncSession, ref: uuid.UUID | str) -
     return await _unique(session, select(PurchaseOrder.project_id).where(PurchaseOrder.id == ref))
 
 
-#: (yol öneki, yol parametresi) → çözücü. Önek `request.url.path`in ilk segmentidir.
+async def _warehouse_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.inventory.models import Warehouse  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    # Deponun projesi bağlı olduğu ŞANTİYEDEN gelir; merkez depo (`site_id IS NULL`) projesizdir
+    # → `None` (iç birleşim satır vermez; birleşim, fail-closed).
+    return await _unique(
+        session,
+        select(Site.project_id)
+        .join(Warehouse, Warehouse.site_id == Site.id)
+        .where(Warehouse.id == ref),
+    )
+
+
+async def _treasury_payment_project(
+    session: AsyncSession, ref: uuid.UUID | str
+) -> uuid.UUID | None:
+    from app.modules.invoicing.models import Invoice  # döngüyü önler
+    from app.modules.treasury.models import Payment  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    # Ödemenin projesi FATURASININ projesidir; şirket geneli fatura `project_id IS NULL` → `None`.
+    return await _unique(
+        session,
+        select(Invoice.project_id)
+        .join(Payment, Payment.invoice_id == Invoice.id)
+        .where(Payment.id == ref),
+    )
+
+
+async def _section_link_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.documents.models.links import SectionDocument  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    return await _unique(
+        session,
+        select(Site.project_id)
+        .join(Section, Section.site_id == Site.id)
+        .join(SectionDocument, SectionDocument.section_id == Section.id)
+        .where(SectionDocument.id == ref),
+    )
+
+
+async def _unit_link_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.documents.models.links import UnitDocument  # döngüyü önler
+    from app.modules.units.models import Unit  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    return await _unique(
+        session,
+        select(Unit.project_id)
+        .join(UnitDocument, UnitDocument.unit_id == Unit.id)
+        .where(UnitDocument.id == ref),
+    )
+
+
+async def _sale_link_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.documents.models.links import UnitSaleDocument  # döngüyü önler
+    from app.modules.sales.models import UnitSale  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    return await _unique(
+        session,
+        select(UnitSale.project_id)
+        .join(UnitSaleDocument, UnitSaleDocument.unit_sale_id == UnitSale.id)
+        .where(UnitSaleDocument.id == ref),
+    )
+
+
+async def _sub_contract_link_project(
+    session: AsyncSession, ref: uuid.UUID | str
+) -> uuid.UUID | None:
+    from app.modules.contracts.models import SubcontractorContract  # döngüyü önler
+    from app.modules.documents.models.links import SubcontractorContractDocument  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    return await _unique(
+        session,
+        select(SubcontractorContract.project_id)
+        .join(
+            SubcontractorContractDocument,
+            SubcontractorContractDocument.subcontractor_contract_id == SubcontractorContract.id,
+        )
+        .where(SubcontractorContractDocument.id == ref),
+    )
+
+
+async def _company_wide(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    """Proje kolonu OLMAYAN şirket geneli kayıtlar (stok kartı `stock_items`, EV disiplini
+    `ev_disciplines`, EV katalog kalemi `ev_catalog_items`): proje bağlamı HİÇBİR ZAMAN yoktur →
+    `None` (ana rol kararı). Anahtarın RESOLVERS'ta AÇIKÇA durması "unutulmadı, ölçüldü: projeden
+    bağımsız" kaydıdır. UYARI: bu önek altına PROJEYE BAĞLI bir kimlik parametresi eklenirse
+    (`/earned-value/.../{item_id}` BOQ kalemi gibi) kendi çözücüsü yazılmalıdır."""
+    return None
+
+
+#: (yol öneki, yol parametresi) → çözücü. Önek eşleşen rotanın köksüz yolunun ilk segmentidir
+#: (`_route_path`; rota yoksa `request.url.path`).
 RESOLVERS: Mapping[tuple[str, str], Resolver] = {
     ("/projects", "project_id"): _project_itself,
     ("/sites", "site_id"): _site_project,
@@ -383,6 +486,20 @@ RESOLVERS: Mapping[tuple[str, str], Resolver] = {
     ("/equipment", "line_id"): _rental_line_project,
     ("/purchase-requests", "request_id"): _purchase_request_project,
     ("/purchase-orders", "order_id"): _purchase_order_project,
+    # IZN-B5a: belge bağı uçları (`/<sahip>/documents/{link_id}`) bağın SAHİBİNİN projesinde;
+    # satış belge listesi/bağlama (`/sales/{owner_id}/documents`) satışın projesinde.
+    ("/sections", "link_id"): _section_link_project,
+    ("/units", "link_id"): _unit_link_project,
+    ("/sales", "link_id"): _sale_link_project,
+    ("/sales", "owner_id"): _sale_project,
+    ("/subcontractor-contracts", "link_id"): _sub_contract_link_project,
+    # IZN-B5a: depo (şantiyesinin projesi; merkez depo `None`) ve ödeme (faturasının projesi).
+    ("/warehouses", "warehouse_id"): _warehouse_project,
+    ("/payments", "payment_id"): _treasury_payment_project,
+    # IZN-B5a: şirket geneli kayıtlar — projeden bağımsız (ölçüldü, bkz. `_company_wide`).
+    ("/stock", "item_id"): _company_wide,
+    ("/earned-value", "discipline_id"): _company_wide,
+    ("/earned-value", "item_id"): _company_wide,
 }
 
 #: Gövdedeki kimlik anahtarı → çözücü (oluşturma uçları: `project_id` / `site_id`).
@@ -390,6 +507,21 @@ BODY_RESOLVERS: Mapping[str, Resolver] = {
     "project_id": _project_itself,
     "site_id": _site_project,
 }
+
+
+def _route_path(request: Request) -> str:
+    """Bağlam öneki için yol: istek yolundan `root_path` ÖNEKİ atılmış hâli (Starlette'in
+    `get_route_path` kuralı). `request.url.path` uygulama `root_path` ile yayınlanınca
+    ('/api/units/…') o öneki taşır (IZN-B5a 23c). `scope["route"].path_format` KULLANILMAZ:
+    FastAPI'de orijinal rotadır ve iç içe `include_router(prefix=…)` önekini taşımaz; ETKİN
+    (önekli) yol istek yolundan güvenle türer."""
+    path = request.scope.get("path") or request.url.path
+    root = request.scope.get("root_path") or ""
+    if root and path.startswith(root):
+        rest = path[len(root) :]
+        if not rest or rest.startswith("/"):
+            return rest or "/"
+    return path
 
 
 def _segment(path: str) -> str:
@@ -558,7 +690,9 @@ async def request_project(session: AsyncSession, request: Request) -> uuid.UUID 
     """
     if SCOPE_KEY in request.scope:
         return request.scope[SCOPE_KEY]
-    matched, project_id = await resolve_path_project(session, request.url.path, request.path_params)
+    matched, project_id = await resolve_path_project(
+        session, _route_path(request), request.path_params
+    )
     body = await _read_body(session, request)
     if body.invalid:
         project_id = None

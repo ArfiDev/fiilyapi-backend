@@ -263,6 +263,7 @@ async def list_active_published_document_rows(
             PersonnelDocumentType.is_mandatory,
             PersonnelDocumentType.validity_months,
             Project.name,
+            Personnel.assigned_project_id,
         )
         .join(Personnel, PersonnelDocument.personnel_id == Personnel.id)
         .outerjoin(

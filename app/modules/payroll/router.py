@@ -90,6 +90,8 @@ _SGK_SUBMIT = require_pages(("mali.sgk_bildirimi",), "approve")
 #: **silme yalnız `admin`**tir. `payroll_rates`in PUT'u satırın ÜSTÜNE yazar,
 #: o yüzden orası `full` kalır.
 #: IZN-B2 §2.4: vergi dilimi = "Bordro Oranları" sayfası DÜZENLER (eşik eski `admin` ile aynı).
+#: IZN-B5a (madde 8): `PUT /payroll/rates/{yıl}/{kaynak}` de AYNI kapıyı alır — ayar sayfası vergi
+#: dilimini açıp oranı açmıyordu; oran yazmak bordro sayfası Düzenler ile (`payroll:full`) mümkündü.
 _ADMIN = require_page("ayarlar.bordro_oranlari", "edit")
 
 # TB3 sayfalama standardı: varsayılan 50, tavan 200 — aşım sessizce KIRPILMAZ,
@@ -538,7 +540,7 @@ async def list_payroll_rates_endpoint(
     responses={
         409: {"description": "Bu yılda onaylanmış/ödenmiş dönem var: oranlar değiştirilemez"}
     },
-    dependencies=[_FULL],
+    dependencies=[_ADMIN],
 )
 async def upsert_payroll_rate_endpoint(
     request: Request,

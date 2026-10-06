@@ -21,11 +21,9 @@ _SIRA = [L.none, L.view, L.draft, L.request, L.approve, L.full, L.admin]
 # --- GÖRME: varsayılan = sayfanın eski modülünde view; istisnalar ---
 GORME_ISTISNA = {
     2: [("approvals", L.none)],  # Onay Kutusu: bilerek kapısız
-    36: [("projects", L.draft)],  # FE `permission.canWrite` değilse AccessDenied
-    37: [("projects", L.draft)],
+    # 36, 37, 39, 40 (satış alt sayfaları): IZN-B5a madde 3 (CEO onaylı bilinçli genişleme) —
+    # Görür biti veri getirmiyordu (eşik draft); eşik `view`e çekildi → varsayılan (istisna YOK).
     38: [("projects", L.full)],  # FE hasAtLeast(full) değilse AccessDenied
-    39: [("projects", L.draft)],
-    40: [("projects", L.draft)],
     61: [("projects", L.view), ("sites", L.view)],  # iki modül
     89: [("settings", L.none)],  # GET /company kapısız
     96: [("approvals", L.none)],  # GET /approvals/settings kapısız
@@ -49,7 +47,8 @@ YAZMA_YOK = {
 # request → approve. "Onayı Geri Al" (admin) Onaylar'a BAĞLI DEĞİL: yalnız Sistem Yöneticisi.
 ONAY_REQUEST: set[int] = set()
 ONAY_APPROVE = {17, 18, 31, 50, 51, 65, 66, 72, 78, 80}
-ONAY_FULL = {2, 11, 14, 34, 35, 41, 47, 49, 55, 57}
+# 2 (Onay Kutusu): IZN-B5a madde 5 — Onaylar biti işlevsizdi, katalogda onay_var=False.
+ONAY_FULL = {11, 14, 34, 35, 41, 47, 49, 55, 57}
 # yeniden aç · dönemi yeniden aç · onayı geri al = yalnız admin
 ONAY_ADMIN = {12, 46, 73, 88}
 ONAY_ISTISNA = {22: [("projects", L.admin), ("contracts", L.full)]}  # dönüştür
@@ -57,8 +56,8 @@ ONAY_ISTISNA = {22: [("projects", L.admin), ("contracts", L.full)]}  # dönüşt
 #: Eski sade eşlemeye ("approve/full/admin → Onaylar, draft+ → Düzenler") göre eşiği DEĞİŞEN
 #: sayfa sayıları (modüllü 93 sayfa içinde) — rapora yazılan özet.
 YAZMA_ESIGI_DRAFTTAN_FARKLI = 85
-ONAY_ESIGI_APPROVE_DISI = 15
-GORME_ESIGI_VIEW_DISI = 9
+ONAY_ESIGI_APPROVE_DISI = 14
+GORME_ESIGI_VIEW_DISI = 5
 
 
 def _modul(no: int) -> str:
@@ -211,7 +210,12 @@ def test_seed_rollerinin_hucreleri_esik_tablosuyla_BIREBIR_ve_GENISLEME_SIFIR() 
         ("project_manager", "stok.teklif_karsilastirma", ("view", False)),
         ("procurement", "stok.teklif_karsilastirma", ("edit", True)),
         # (C) Görmez → Görür menü genişlemesi YOK
-        ("hr_manager", "mali.satis_blok", ("none", False)),
+        # IZN-B5a madde 3 (CEO onaylı bilinçli genişleme): 4 satış alt sayfasının Görür biti artık
+        # `projects:view` ile açılır (eşik draft → view); Düzenler eşiği (full) DEĞİŞMEDİ.
+        ("hr_manager", "mali.satis_blok", ("view", False)),
+        ("hr_manager", "mali.satis_unite", ("view", False)),
+        ("hr_manager", "mali.satis_excel", ("view", False)),
+        ("hr_manager", "mali.satis_paylasim", ("view", False)),
         ("project_manager", "mali.satis_blok", ("edit", False)),
         ("site_chief", "mali.satis_toplu_uretim", ("none", False)),
         ("patron", "mali.satis_toplu_uretim", ("edit", False)),

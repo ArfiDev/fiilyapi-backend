@@ -3,7 +3,7 @@
 | Uç | Yetki |
 |---|---|
 | `GET /payroll/rates` | `payroll:view` |
-| `PUT /payroll/rates/{year}/{source}` | `payroll:full` |
+| `PUT /payroll/rates/{year}/{source}` | `ayarlar.bordro_oranlari` Düzenler (B5a) |
 
 ## 🔴 BU DOSYANIN ASIL İŞİ: GEÇMİŞ DÖNEM DEĞİŞMEZ
 
@@ -94,8 +94,8 @@ async def test_yila_gore_suzulur(client, ik_headers, oranlar, db_session):
 # --- PUT /payroll/rates/{year}/{source} ------------------------------------
 
 
-async def test_yeni_set_OLUSTURULUR(client, ik_headers, seeded_db, db_session):
-    resp = await _put(client, ik_headers, 2027, "company")
+async def test_yeni_set_OLUSTURULUR(client, ik_headers, seeded_db, db_session, admin_headers):
+    resp = await _put(client, admin_headers, 2027, "company")
     assert resp.status_code == 200, resp.text
     assert resp.json()["year"] == 2027
 
@@ -109,9 +109,11 @@ async def test_yeni_set_OLUSTURULUR(client, ik_headers, seeded_db, db_session):
     assert kayit.sgk_employee_pct == Decimal("14.000")
 
 
-async def test_mevcut_set_GUNCELLENIR_ikinci_satir_ACILMAZ(client, ik_headers, oranlar, db_session):
+async def test_mevcut_set_GUNCELLENIR_ikinci_satir_ACILMAZ(
+    client, ik_headers, oranlar, db_session, admin_headers
+):
     """UQ `(year, personnel_source)` — PUT ikinci satır YARATMAZ."""
-    resp = await _put(client, ik_headers, YIL, "company", sgk_employee_pct="15.000")
+    resp = await _put(client, admin_headers, YIL, "company", sgk_employee_pct="15.000")
     assert resp.status_code == 200, resp.text
     assert Decimal(resp.json()["sgk_employee_pct"]) == Decimal("15.000")
 
@@ -125,11 +127,13 @@ async def test_mevcut_set_GUNCELLENIR_ikinci_satir_ACILMAZ(client, ik_headers, o
     assert sayi == 1
 
 
-async def test_negatif_oran_422(client, ik_headers, seeded_db):
-    assert (await _put(client, ik_headers, 2027, "company", short_work_pct="-1")).status_code == 422
+async def test_negatif_oran_422(client, ik_headers, seeded_db, admin_headers):
+    assert (
+        await _put(client, admin_headers, 2027, "company", short_work_pct="-1")
+    ).status_code == 422
 
 
-async def test_yuzden_buyuk_oran_422(client, ik_headers, seeded_db):
+async def test_yuzden_buyuk_oran_422(client, ik_headers, seeded_db, admin_headers):
     """Üst sınır **%100**: bir oran brütün TAMAMINDAN fazlasını kesemez.
 
     Sınırsız bırakılsaydı bir yazım hatası (%2000) neti eksiye düşürür ve
@@ -137,11 +141,11 @@ async def test_yuzden_buyuk_oran_422(client, ik_headers, seeded_db):
     hatası sunucu hatası gibi görünürdü.
     """
     assert (
-        await _put(client, ik_headers, 2027, "company", income_tax_pct="150")
+        await _put(client, admin_headers, 2027, "company", income_tax_pct="150")
     ).status_code == 422
 
 
-async def test_isci_paylari_toplami_yuzu_ASAMAZ_422(client, ik_headers, seeded_db):
+async def test_isci_paylari_toplami_yuzu_ASAMAZ_422(client, ik_headers, seeded_db, admin_headers):
     """🔴 Dört işçi kaleminin TOPLAMI da %100'ü aşamaz — net EKSİYE düşerdi.
 
     Tek tek geçerli (her biri ≤ %100) ama toplamı %101 olan bir set, brütü
@@ -150,7 +154,7 @@ async def test_isci_paylari_toplami_yuzu_ASAMAZ_422(client, ik_headers, seeded_d
     """
     resp = await _put(
         client,
-        ik_headers,
+        admin_headers,
         2027,
         "company",
         sgk_employee_pct="60",
@@ -159,11 +163,11 @@ async def test_isci_paylari_toplami_yuzu_ASAMAZ_422(client, ik_headers, seeded_d
     assert resp.status_code == 422, resp.text
 
 
-async def test_gecersiz_personel_tipi_422(client, ik_headers, seeded_db):
-    assert (await _put(client, ik_headers, 2027, "yok_boyle_tip")).status_code == 422
+async def test_gecersiz_personel_tipi_422(client, ik_headers, seeded_db, admin_headers):
+    assert (await _put(client, admin_headers, 2027, "yok_boyle_tip")).status_code == 422
 
 
-async def test_eksik_oran_alani_422(client, ik_headers, seeded_db):
+async def test_eksik_oran_alani_422(client, ik_headers, seeded_db, admin_headers):
     """PUT TAM SETTİR: yedi oranın hepsi zorunludur.
 
     Kısmi gönderim kabul edilseydi eksik alan sessizce 0 olur ve "kesinti yok"
@@ -171,13 +175,15 @@ async def test_eksik_oran_alani_422(client, ik_headers, seeded_db):
     """
     eksik = _govde()
     eksik.pop("short_work_pct")
-    resp = await client.put("/payroll/rates/2027/company", json=eksik, headers=ik_headers)
+    resp = await client.put("/payroll/rates/2027/company", json=eksik, headers=admin_headers)
     assert resp.status_code == 422
 
 
-async def test_oran_yazimi_TEK_denetim_satiri_yazar(client, ik_headers, seeded_db, db_session):
+async def test_oran_yazimi_TEK_denetim_satiri_yazar(
+    client, ik_headers, seeded_db, db_session, admin_headers
+):
     once = (await db_session.execute(select(func.count()).select_from(AuditLog))).scalar_one()
-    await _put(client, ik_headers, 2027, "company")
+    await _put(client, admin_headers, 2027, "company")
     sonra = (await db_session.execute(select(func.count()).select_from(AuditLog))).scalar_one()
     assert sonra == once + 1
 
@@ -202,7 +208,9 @@ async def _onayli_donem(client, headers, donem) -> dict:
     return detay["summary"]
 
 
-async def test_ONAYLI_DONEMIN_YILINDA_oran_yazilamaz_409(client, ik_headers, donem, dort_tip):
+async def test_ONAYLI_DONEMIN_YILINDA_oran_yazilamaz_409(
+    client, ik_headers, donem, dort_tip, admin_headers
+):
     """🔴 PARA KORKULUĞU — onaylanmış geçmiş oranla oynanarak değiştirilemez.
 
     Yazmaya izin verilseydi `total_employer_cost` ve `sgk_employer_total`
@@ -211,14 +219,16 @@ async def test_ONAYLI_DONEMIN_YILINDA_oran_yazilamaz_409(client, ik_headers, don
     """
     once = await _onayli_donem(client, ik_headers, donem)
 
-    resp = await _put(client, ik_headers, YIL, "company", sgk_employer_pct="30.000")
+    resp = await _put(client, admin_headers, YIL, "company", sgk_employer_pct="30.000")
     assert resp.status_code == 409, resp.text
 
     sonra = (await client.get(f"/payroll/periods/{donem.id}", headers=ik_headers)).json()["summary"]
     assert sonra == once
 
 
-async def test_onayli_donemin_yilinda_YENI_TIP_de_acilamaz_409(client, ik_headers, donem, dort_tip):
+async def test_onayli_donemin_yilinda_YENI_TIP_de_acilamaz_409(
+    client, ik_headers, donem, dort_tip, admin_headers
+):
     """Kapı GÜNCELLEMEYE değil YILA kapanır.
 
     Yalnız var olan satırın güncellenmesi engellenseydi, oran satırı OLMAYAN bir
@@ -226,35 +236,39 @@ async def test_onayli_donemin_yilinda_YENI_TIP_de_acilamaz_409(client, ik_header
     maliyet toplamına EKLERDİ — onaylı dönemin toplamı yine değişirdi.
     """
     once = await _onayli_donem(client, ik_headers, donem)
-    resp = await _put(client, ik_headers, YIL, "general")
+    resp = await _put(client, admin_headers, YIL, "general")
     assert resp.status_code == 409, resp.text
     sonra = (await client.get(f"/payroll/periods/{donem.id}", headers=ik_headers)).json()["summary"]
     assert sonra == once
 
 
-async def test_TASLAK_donemin_yilinda_oran_yazilabilir(client, ik_headers, donem, dort_tip):
+async def test_TASLAK_donemin_yilinda_oran_yazilabilir(
+    client, ik_headers, donem, dort_tip, admin_headers
+):
     """Kural bordroyu TIKAMAZ: kilit yalnız `approved`/`paid` dönemle gelir."""
     await client.post(f"/payroll/periods/{donem.id}/compute", headers=ik_headers)
-    resp = await _put(client, ik_headers, YIL, "company", sgk_employer_pct="30.000")
+    resp = await _put(client, admin_headers, YIL, "company", sgk_employer_pct="30.000")
     assert resp.status_code == 200, resp.text
 
 
-async def test_BASKA_yila_yazmak_serbesttir(client, ik_headers, donem, dort_tip):
+async def test_BASKA_yila_yazmak_serbesttir(client, ik_headers, donem, dort_tip, admin_headers):
     """2026 onaylı olsa da 2027 seti açılabilir — mevzuat değişimi engellenmez."""
     await _onayli_donem(client, ik_headers, donem)
-    resp = await _put(client, ik_headers, 2027, "company")
+    resp = await _put(client, admin_headers, 2027, "company")
     assert resp.status_code == 200, resp.text
 
 
-async def test_odenmis_donemin_yilinda_da_yazilamaz_409(client, ik_headers, donem, dort_tip):
+async def test_odenmis_donemin_yilinda_da_yazilamaz_409(
+    client, ik_headers, donem, dort_tip, admin_headers
+):
     await _onayli_donem(client, ik_headers, donem)
     assert (
         await client.post(f"/payroll/periods/{donem.id}/pay", headers=ik_headers)
     ).status_code == 200
-    resp = await _put(client, ik_headers, YIL, "company", sgk_employer_pct="30.000")
+    resp = await _put(client, admin_headers, YIL, "company", sgk_employer_pct="30.000")
     assert resp.status_code == 409, resp.text
 
 
-async def test_donemi_olmayan_yil_serbesttir(client, ik_headers, seeded_db):
+async def test_donemi_olmayan_yil_serbesttir(client, ik_headers, seeded_db, admin_headers):
     """Regresyon: kapı YILA bakar, hiç dönemi olmayan yılı kilitlemez."""
-    assert (await _put(client, ik_headers, 2098, "company")).status_code == 200
+    assert (await _put(client, admin_headers, 2098, "company")).status_code == 200

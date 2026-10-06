@@ -87,6 +87,7 @@ from sqlalchemy.orm import aliased
 
 from app.modules.accounting import statement_map
 from app.modules.accounting.balance import ZERO, posting_filter
+from app.modules.accounting.bordro_hesaplari import bordro_hesabi_mi
 from app.modules.accounting.models import ChartAccount, JournalEntry, JournalLine
 from app.modules.accounting.reports_schemas import (
     CashFlowStatementLine,
@@ -293,6 +294,12 @@ async def build_cash_flow_statement(
 
     bolumler, net_degisim = _bolumler(tutarlar, kodlar)
 
+    # IZN-B5a: bordro iceren bir donem akisi kumulatif nakit noktalarina da yansir (fail-closed).
+    bordro_var = any(
+        bordro_hesabi_mi(kod) for b in bolumler for k in b.lines for kod in k.account_codes
+    )
+    for nokta in seri:
+        nokta._bordro_dahil = bordro_var
     return CashFlowStatementResponse(
         year=year,
         month=month,

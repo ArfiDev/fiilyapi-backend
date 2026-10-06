@@ -36,7 +36,10 @@ L = AccessLevel
 #:   timesheet/sales/sites/treasury/procurement/invoicing/user_management/ai: canView · canWrite
 FE_ESIKLERI: dict[str, tuple[AccessLevel, ...]] = {
     "accounting": (L.view, L.draft, L.full, L.admin),
-    "approvals": (L.view, L.draft, L.admin),
+    # IZN-B5a madde 5: `genel.onay_kutusu` Onaylar biti kalktı → `approvals` GÖSTERGE düzeyi
+    # (Onaylar bitinden türeyen `full`) artık `view`. FE bu modülde YALNIZ `admin` eşiğini okur
+    # (ApprovalRolesScreen; `draft` eşiği fazladan duruyordu, FE okuması yok) → `draft` çıktı.
+    "approvals": (L.view, L.admin),
     "payroll": (L.view, L.draft, L.full, L.admin),
     "contracts": (L.view, L.draft, L.full, L.admin),
     "projects": (L.view, L.draft, L.full, L.admin),
