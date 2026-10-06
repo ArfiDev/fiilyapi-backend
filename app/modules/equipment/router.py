@@ -46,6 +46,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -79,7 +80,12 @@ from app.modules.equipment.schemas import (
 )
 from app.modules.users.models import User
 
-router = APIRouter(prefix="/equipment", tags=["equipment"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(
+    prefix="/equipment",
+    tags=["equipment"],
+    responses=COMMON_ERROR_RESPONSES,
+    route_class=MaskeRotasi,
+)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _FULL = require_permission(service.PERMISSION_MODULE, AccessLevel.full)
@@ -262,6 +268,8 @@ async def work_summary_export_endpoint(
     (`units/router.py` P4 T7 kuralı).
     """
     ozet = await service.work_summary(session, user, year=year, month=month, site_id=site_id)
+    # IZN-B4d: maliyet gizliyse `cost` None'dır; hücre boş kalır (`maskele_baglamli`).
+    ozet = await maskele_baglamli(ozet)
     return Response(
         content=work_summary_export.build_work_summary_workbook(ozet).getvalue(),
         media_type=work_summary_export.XLSX_MEDIA_TYPE,

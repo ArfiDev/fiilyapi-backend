@@ -92,7 +92,7 @@ def _total_cells(totals: WorkSummaryTotals) -> tuple[str | None, ...]:
         str(totals.hours),
         _text(totals.usage_pct_avg),
         str(totals.breakdown_hours),
-        str(totals.cost),
+        _text(totals.cost),
     )
 
 

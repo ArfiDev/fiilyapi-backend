@@ -24,11 +24,18 @@ kacinilmaz sekilde saparadi.
 
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.text import FREE_TEXT_MAX_LENGTH
+from app.modules.procurement.mask_types import (
+    Maliyet,
+    MaliyetGirdi,
+    Sayac,
+    Yok,
+    YokGirdi,
+    YokMetin,
+)
 from app.modules.procurement.models import (
     PaymentTerms,
     PurchaseOrderStatus,
@@ -77,8 +84,8 @@ class SupplierCreate(BaseModel):
 
     name: str = _SUPPLIER_NAME
     category: str | None = _CATEGORY
-    tax_no: str | None = _TAX_NO
-    phone: str | None = _PHONE
+    tax_no: YokMetin = _TAX_NO
+    phone: YokMetin = _PHONE
     payment_terms: PaymentTerms
     is_active: bool = True
 
@@ -96,8 +103,8 @@ class SupplierUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     category: str | None = _CATEGORY
-    tax_no: str | None = _TAX_NO
-    phone: str | None = _PHONE
+    tax_no: YokMetin = _TAX_NO
+    phone: YokMetin = _PHONE
     payment_terms: PaymentTerms | None = None
     is_active: bool | None = None
 
@@ -115,8 +122,8 @@ class SupplierResponse(BaseModel):
     id: uuid.UUID
     name: str
     category: str | None
-    tax_no: str | None
-    phone: str | None
+    tax_no: YokMetin
+    phone: YokMetin
     payment_terms: PaymentTerms
     is_active: bool
     created_at: datetime
@@ -136,8 +143,8 @@ class SupplierCard(SupplierResponse):
     (`repository` gerekcesi) — katalog global olsa da PARA degildir.
     """
 
-    orders_total_this_year: Decimal
-    orders_count_this_year: int
+    orders_total_this_year: Maliyet
+    orders_count_this_year: Sayac
 
 
 class SupplierListResponse(BaseModel):
@@ -173,20 +180,58 @@ class PurchaseRequestLineCreate(BaseModel):
     stock_item_id: uuid.UUID | None = None
     free_text_name: str | None = _FREE_TEXT_NAME
     free_text_unit: str | None = _FREE_TEXT_UNIT
-    quantity: Decimal = _QUANTITY
-    estimated_unit_price: Decimal | None = _UNIT_PRICE
+    quantity: YokGirdi = _QUANTITY
+    estimated_unit_price: Maliyet = _UNIT_PRICE
 
-    @model_validator(mode="after")
-    def _xor(self) -> "PurchaseRequestLineCreate":
-        serbest = self.free_text_name is not None or self.free_text_unit is not None
-        if self.stock_item_id is not None:
+    @staticmethod
+    def _xor_kurali(
+        stock_item_id: uuid.UUID | None, free_text_name: str | None, free_text_unit: str | None
+    ) -> None:
+        serbest = free_text_name is not None or free_text_unit is not None
+        if stock_item_id is not None:
             if serbest:
                 raise ValueError(
                     "Kalem ya stok kartından seçilir ya da serbest tanımlanır, ikisi birden olmaz."
                 )
-            return self
-        if self.free_text_name is None or self.free_text_unit is None:
+            return
+        if free_text_name is None or free_text_unit is None:
             raise ValueError("Katalogsuz kalemde malzeme adı ve birim zorunludur.")
+
+    @model_validator(mode="after")
+    def _xor(self) -> "PurchaseRequestLineCreate":
+        self._xor_kurali(self.stock_item_id, self.free_text_name, self.free_text_unit)
+        return self
+
+
+class PurchaseRequestLineUpdate(BaseModel):
+    """`PATCH` kalem girdisi (IZN-B4d onarimi): satir bazinda KISMI birlestirme.
+
+    GECE KARARI: `lines` gonderilince tam degistirme semantigi surer (govdede OLMAYAN eski
+    satir silinir) AMA satir `id` ile eslesirse GONDERILMEYEN alan (`model_fields_set` disi)
+    eski degerden KORUNUR ve satir kimligi degismez. Boylece `maliyet_kar` gizli rolun formu
+    (fiyat gelmez) yalniz miktari duzeltince tahmini fiyati SILMEZ. `id`siz satir YENIDIR ve
+    `PurchaseRequestLineCreate` kurallarina (XOR, miktar zorunlu) tabidir. POST girdisi
+    (`PurchaseRequestLineCreate`) degismedi.
+    """
+
+    id: uuid.UUID | None = None
+    stock_item_id: uuid.UUID | None = None
+    free_text_name: str | None = _FREE_TEXT_NAME
+    free_text_unit: str | None = _FREE_TEXT_UNIT
+    quantity: Yok = Field(default=None, gt=0, max_digits=14, decimal_places=3)
+    estimated_unit_price: Maliyet = _UNIT_PRICE
+
+    @model_validator(mode="after")
+    def _yeni_satir_kurallari(self) -> "PurchaseRequestLineUpdate":
+        if self.id is not None:
+            if "quantity" in self.model_fields_set and self.quantity is None:
+                raise ValueError("Miktar boş olamaz.")
+            return self
+        PurchaseRequestLineCreate._xor_kurali(
+            self.stock_item_id, self.free_text_name, self.free_text_unit
+        )
+        if self.quantity is None:
+            raise ValueError("Yeni kalemde miktar zorunludur.")
         return self
 
 
@@ -218,10 +263,10 @@ class PurchaseRequestLineResponse(BaseModel):
     free_text_unit: str | None
     name: str
     unit: str | None
-    quantity: Decimal
-    estimated_unit_price: Decimal | None
-    line_total: Decimal | None
-    current_stock: Decimal | None
+    quantity: YokGirdi
+    estimated_unit_price: Maliyet
+    line_total: Maliyet
+    current_stock: Yok
 
 
 # --- Talep basligi (FST + SAT) ---
@@ -266,7 +311,8 @@ class PurchaseRequestUpdate(BaseModel):
 
     **`lines` gondermek REPLACE'tir:** gelen liste eskisinin YERINE gecer (tek
     atomik islem). Hic GONDERMEMEK kalemlere DOKUNMAZ, BOS liste gondermek
-    hepsini SILER — iki durum `model_fields_set` ile ayrilir. Satir bazli
+    hepsini SILER — iki durum `model_fields_set` ile ayrilir. Satir `id` tasirsa
+    o satirla KISMI birlestirilir (bkz. `PurchaseRequestLineUpdate`). Satir bazli
     ekle/cikar ucu ACILMAZ: FST kalem tablosu tek "Kaydet" ile gonderilir ve
     parcali uclar yarim kaydedilmis bir tablo birakabilirdi.
     """
@@ -279,7 +325,7 @@ class PurchaseRequestUpdate(BaseModel):
     needed_by: date | None = None
     justification: str | None = Field(default=None, max_length=FREE_TEXT_MAX_LENGTH)
     quote_deadline: date | None = None
-    lines: list[PurchaseRequestLineCreate] | None = None
+    lines: list[PurchaseRequestLineUpdate] | None = None
 
 
 class PurchaseRequestBase(BaseModel):
@@ -318,7 +364,7 @@ class PurchaseRequestBase(BaseModel):
     rejection_reason: str | None
     created_by_user_id: uuid.UUID
     created_at: datetime
-    estimated_total: Decimal
+    estimated_total: Maliyet
     can_delete: bool
 
 
@@ -390,12 +436,12 @@ class PurchaseQuoteCreate(BaseModel):
     """
 
     supplier_id: uuid.UUID
-    unit_price: Decimal = _MONEY
+    unit_price: MaliyetGirdi = _MONEY
     delivery_time: str = _DELIVERY_TIME
     warranty_note: str | None = _WARRANTY_NOTE
     payment_terms: PaymentTerms
     shipping_included: bool = False
-    shipping_cost: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    shipping_cost: Maliyet = Field(default=None, ge=0, max_digits=18, decimal_places=2)
 
     @model_validator(mode="after")
     def _nakliye(self) -> "PurchaseQuoteCreate":
@@ -415,12 +461,12 @@ class PurchaseQuoteUpdate(BaseModel):
     verdigi fiyattir, tedarikcisi degisen sey artik BASKA bir tekliftir.
     """
 
-    unit_price: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    unit_price: Maliyet = Field(default=None, ge=0, max_digits=18, decimal_places=2)
     delivery_time: str | None = Field(default=None, min_length=1, max_length=100)
     warranty_note: str | None = _WARRANTY_NOTE
     payment_terms: PaymentTerms | None = None
     shipping_included: bool | None = None
-    shipping_cost: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    shipping_cost: Maliyet = Field(default=None, ge=0, max_digits=18, decimal_places=2)
 
 
 class PurchaseQuoteResponse(BaseModel):
@@ -432,12 +478,12 @@ class PurchaseQuoteResponse(BaseModel):
     request_id: uuid.UUID
     supplier_id: uuid.UUID
     supplier_name: str
-    unit_price: Decimal
+    unit_price: Maliyet
     delivery_time: str
     warranty_note: str | None
     payment_terms: PaymentTerms
     shipping_included: bool
-    shipping_cost: Decimal | None
+    shipping_cost: Maliyet
     is_selected: bool
     created_at: datetime
 
@@ -459,7 +505,7 @@ class PurchaseQuoteCard(PurchaseQuoteResponse):
     secmek yaniltici olurdu.
     """
 
-    total_cost: Decimal
+    total_cost: Maliyet
     is_best_price: bool
 
 
@@ -477,7 +523,7 @@ class PurchaseQuoteListResponse(BaseModel):
 
     items: list[PurchaseQuoteCard]
     total: int
-    request_quantity_total: Decimal
+    request_quantity_total: YokGirdi
 
 
 # --- Siparis (SIP) ---
@@ -498,7 +544,7 @@ class PurchaseOrderCreate(BaseModel):
 
     project_id: uuid.UUID
     supplier_id: uuid.UUID
-    total_amount: Decimal = _MONEY
+    total_amount: MaliyetGirdi = _MONEY
     expected_delivery: date | None = None
     note: str | None = Field(default=None, max_length=FREE_TEXT_MAX_LENGTH)
 
@@ -531,7 +577,7 @@ class PurchaseOrderResponse(BaseModel):
     supplier_id: uuid.UUID
     supplier_name: str
     project_id: uuid.UUID
-    total_amount: Decimal
+    total_amount: Maliyet
     expected_delivery: date | None
     status: PurchaseOrderStatus
     note: str | None
@@ -566,7 +612,7 @@ class PurchasingSummaryResponse(BaseModel):
     open_requests: int
     quote_wait_requests: int
     pending_approval_requests: int
-    orders_this_month_total: Decimal
+    orders_this_month_total: Maliyet
     active_orders: int
     in_transit_orders: int
     delivered_orders: int

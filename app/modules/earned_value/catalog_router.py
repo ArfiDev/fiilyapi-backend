@@ -25,6 +25,7 @@ from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_scope import UNRESTRICTED
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_any_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -53,7 +54,7 @@ discipline_adapter.register()
 # adam-saati sessizce kaybeder (bekci: tests/earned_value_budget/test_tkl_b6_adapter.py).
 contract_adapter.register()
 
-router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _User = Annotated[User, Depends(get_current_user)]
 _Session = DbSession

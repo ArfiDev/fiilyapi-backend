@@ -14,8 +14,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.modules.earned_value.decimal_out import EvDecimal
 from app.modules.earned_value.engine import ContractorType, PfBand, RowKind, Status
+from app.modules.earned_value.mask_types import Yok, YokOpt
 
 
 class UserRef(BaseModel):
@@ -46,20 +46,20 @@ class WarningOut(BaseModel):
     message: str
     target: Literal["node", "day", "leaf"]
     target_id: str | None  # dugum kimligi ya da ISO gun
-    value: EvDecimal | None = None
+    value: YokOpt = None
     # EV-BORC-3 G7: yalniz YAPRAK hedefli uyarilarda dolar (ekran metni ayristirmasin)
     item_name: str | None = None
     section_name: str | None = None  # None = Bolumsuz
     uom: str | None = None
     # §3.15 S9: yalniz `qty_overrun`da (asim = qty_cum − planned_qty = `value`)
-    qty_cum: EvDecimal | None = None
-    planned_qty: EvDecimal | None = None
+    qty_cum: YokOpt = None
+    planned_qty: YokOpt = None
 
 
 class PfBandOut(BaseModel):
-    red_below: EvDecimal
-    green_from: EvDecimal
-    high_above: EvDecimal | None
+    red_below: Yok
+    green_from: Yok
+    high_above: YokOpt
 
 
 class PfBandsOut(BaseModel):
@@ -84,24 +84,24 @@ class QurrRow(BaseModel):
     contractor_type: ContractorType | None
     is_direct: bool | None
     parent_id: str | None = None  # §3.15 S1: grup dugumu (g:…) — deterministik agac
-    a_prev_qty: EvDecimal | None
-    b_qty: EvDecimal | None
-    c_qty_cum: EvDecimal | None
-    d_remaining_qty: EvDecimal | None
-    e_qty_week: EvDecimal | None
-    f_prev_budget_mhr: EvDecimal | None
-    g_budget_mhr: EvDecimal
-    h_earned_cum: EvDecimal
-    i_spent_cum: EvDecimal
-    j_remaining_mhr: EvDecimal  # K26: remaining_qty × unit_mhr (togo)
-    k_earned_week: EvDecimal
-    l_spent_week: EvDecimal
-    m_prev_unit_mhr: EvDecimal | None
-    n_unit_mhr: EvDecimal | None
-    o_actual_unit_mhr_cum: EvDecimal | None
-    p_actual_unit_mhr_week: EvDecimal | None
-    q_pf_cum: EvDecimal | None
-    r_pf_week: EvDecimal | None
+    a_prev_qty: YokOpt
+    b_qty: YokOpt
+    c_qty_cum: YokOpt
+    d_remaining_qty: YokOpt
+    e_qty_week: YokOpt
+    f_prev_budget_mhr: YokOpt
+    g_budget_mhr: Yok
+    h_earned_cum: Yok
+    i_spent_cum: Yok
+    j_remaining_mhr: Yok  # K26: remaining_qty × unit_mhr (togo)
+    k_earned_week: Yok
+    l_spent_week: Yok
+    m_prev_unit_mhr: YokOpt
+    n_unit_mhr: YokOpt
+    o_actual_unit_mhr_cum: YokOpt
+    p_actual_unit_mhr_week: YokOpt
+    q_pf_cum: YokOpt
+    r_pf_week: YokOpt
     q_band: PfBand | None
     r_band: PfBand | None
     changed_qty: bool  # a ≠ b
@@ -120,21 +120,21 @@ class QurrTotal(BaseModel):
     contractor_mix: str | None = None  # S2: own | subcon | mixed (direct yapraklardan, S7)
     q_band: PfBand | None = None  # S2: kumulatif esik (motor kurali, K18)
     r_band: PfBand | None = None
-    f_prev_budget_mhr: EvDecimal | None
-    g_budget_mhr: EvDecimal
-    h_earned_cum: EvDecimal
-    i_spent_cum: EvDecimal
-    j_remaining_mhr: EvDecimal
-    k_earned_week: EvDecimal
-    l_spent_week: EvDecimal
-    q_pf_cum: EvDecimal | None
-    r_pf_week: EvDecimal | None
+    f_prev_budget_mhr: YokOpt
+    g_budget_mhr: Yok
+    h_earned_cum: Yok
+    i_spent_cum: Yok
+    j_remaining_mhr: Yok
+    k_earned_week: Yok
+    l_spent_week: Yok
+    q_pf_cum: YokOpt
+    r_pf_week: YokOpt
 
 
 class KpiPf(BaseModel):
     scope: Literal["overall_own", "overall_subcon"]
-    pf_cum: EvDecimal | None
-    pf_week: EvDecimal | None
+    pf_cum: YokOpt
+    pf_week: YokOpt
     pf_cum_band: PfBand | None
     pf_week_band: PfBand | None
 
@@ -144,9 +144,9 @@ class CompositeCard(BaseModel):
     name: str
     measure: Literal["spent", "earned", "budget"]
     unit: str | None  # payda is tipinin birimi
-    actual: EvDecimal | None
-    planned: EvDecimal | None  # B3-3: pay butcesi ÷ payda planli miktar
-    deviation: EvDecimal | None  # (gercek − planli) ÷ planli
+    actual: YokOpt
+    planned: YokOpt  # B3-3: pay butcesi ÷ payda planli miktar
+    deviation: YokOpt  # (gercek − planli) ÷ planli
     # EV-BORC-3 G5: tanim PARCALARI (bicimi frontend kurar); baseline'da olmayan kalem yazilmaz
     numerator_names: list[str] = Field(default_factory=list)
     denominator_name: str | None = None
@@ -181,20 +181,20 @@ class KpiRowOut(BaseModel):
     node_id: str | None
     name: str | None
     contractor_mix: str | None
-    budget_mhr: EvDecimal
-    earned_day: EvDecimal
-    earned_cum: EvDecimal
-    spent_day: EvDecimal
-    spent_cum: EvDecimal
-    progress_pct_day: EvDecimal | None
-    progress_pct_cum: EvDecimal | None
-    planned_pct_day: EvDecimal | None
-    planned_pct_cum: EvDecimal | None
-    variance: EvDecimal | None
+    budget_mhr: Yok
+    earned_day: Yok
+    earned_cum: Yok
+    spent_day: Yok
+    spent_cum: Yok
+    progress_pct_day: YokOpt
+    progress_pct_cum: YokOpt
+    planned_pct_day: YokOpt
+    planned_pct_cum: YokOpt
+    variance: YokOpt
     status: Status | None
-    pf_day: EvDecimal | None
-    pf_cum: EvDecimal | None
-    pf_week: EvDecimal | None
+    pf_day: YokOpt
+    pf_cum: YokOpt
+    pf_week: YokOpt
     pf_day_band: PfBand | None
     pf_cum_band: PfBand | None
     pf_week_band: PfBand | None
@@ -205,13 +205,13 @@ class TrendPoint(BaseModel):
     is_holiday: bool
     is_draft: bool
     is_future: bool
-    planned_pct_cum: EvDecimal | None
-    progress_pct_cum: EvDecimal | None
-    delta: EvDecimal | None
-    earned_day: EvDecimal | None
-    spent_day: EvDecimal | None
-    pf_day: EvDecimal | None
-    pf_rolling: EvDecimal | None
+    planned_pct_cum: YokOpt
+    progress_pct_cum: YokOpt
+    delta: YokOpt
+    earned_day: YokOpt
+    spent_day: YokOpt
+    pf_day: YokOpt
+    pf_rolling: YokOpt
 
 
 class QtyTreeRow(BaseModel):
@@ -221,35 +221,35 @@ class QtyTreeRow(BaseModel):
     uom: str | None
     contractor_type: ContractorType | None
     is_direct: bool | None
-    planned_unit_mhr: EvDecimal | None
-    actual_unit_mhr_day: EvDecimal | None
-    actual_unit_mhr_cum: EvDecimal | None
-    planned_qty: EvDecimal | None
-    qty_day: EvDecimal | None
-    qty_cum: EvDecimal | None
-    remaining_qty: EvDecimal | None
-    pf_day: EvDecimal | None
+    planned_unit_mhr: YokOpt
+    actual_unit_mhr_day: YokOpt
+    actual_unit_mhr_cum: YokOpt
+    planned_qty: YokOpt
+    qty_day: YokOpt
+    qty_cum: YokOpt
+    remaining_qty: YokOpt
+    pf_day: YokOpt
     pf_day_band: PfBand | None
-    spent_day: EvDecimal
-    progress_pct_cum: EvDecimal | None
-    pf_cum: EvDecimal | None = None  # §3.15 S4
+    spent_day: Yok
+    progress_pct_cum: YokOpt
+    pf_cum: YokOpt = None  # §3.15 S4
     pf_cum_band: PfBand | None = None
 
 
 class WeatherDay(BaseModel):
     day: date
     condition: str | None
-    temp_min_c: EvDecimal | None
-    temp_max_c: EvDecimal | None
-    wind_ms: EvDecimal | None
+    temp_min_c: YokOpt
+    temp_max_c: YokOpt
+    wind_ms: YokOpt
 
 
 class DailyFooter(BaseModel):
-    spent_total_day: EvDecimal
-    timesheet_total_day: EvDecimal  # puantaj + taseron kaynak saati (§4 mutabakat)
-    undistributed_day: EvDecimal  # K14 "dagitilmamis saat" = kaynak − dagitilan
+    spent_total_day: Yok
+    timesheet_total_day: Yok  # puantaj + taseron kaynak saati (§4 mutabakat)
+    undistributed_day: Yok  # K14 "dagitilmamis saat" = kaynak − dagitilan
     undistributed_reason: str | None
-    unallocated_day: EvDecimal  # K14 "atanamayan saat" (§3.3 prorata miktarsiz)
+    unallocated_day: Yok  # K14 "atanamayan saat" (§3.3 prorata miktarsiz)
 
 
 class DailyReport(BaseModel):
@@ -268,7 +268,7 @@ class DailyReport(BaseModel):
     approved_by: UserRef | None
     missing_diary_dates: list[date]
     draft_diary_dates: list[date]
-    tolerance_points: EvDecimal | None
+    tolerance_points: YokOpt
     weather: list[WeatherDay]
     kpis: list[KpiRowOut]
     trend: list[TrendPoint]
@@ -291,28 +291,28 @@ class ApprovalResult(BaseModel):
 
 
 class PanelKpi(BaseModel):
-    budget_mhr: EvDecimal
-    earned_day: EvDecimal | None
-    earned_cum: EvDecimal | None
-    spent_day: EvDecimal | None
-    progress_pct_cum: EvDecimal | None
-    planned_pct_cum: EvDecimal | None
-    variance: EvDecimal | None
+    budget_mhr: Yok
+    earned_day: YokOpt
+    earned_cum: YokOpt
+    spent_day: YokOpt
+    progress_pct_cum: YokOpt
+    planned_pct_cum: YokOpt
+    variance: YokOpt
     status: Status | None
-    pf_cum: EvDecimal | None
-    pf_week: EvDecimal | None
+    pf_cum: YokOpt
+    pf_week: YokOpt
     pf_cum_band: PfBand | None
     pf_week_band: PfBand | None
-    timesheet_total_day: EvDecimal | None  # puantaj + taseron (filtresiz — kisi disipline atanmaz)
-    undistributed_day: EvDecimal | None  # K14 "dagitilmamis saat" (filtresiz)
+    timesheet_total_day: YokOpt  # puantaj + taseron (filtresiz — kisi disipline atanmaz)
+    undistributed_day: YokOpt  # K14 "dagitilmamis saat" (filtresiz)
 
 
 class CurvePoint(BaseModel):
     day: date
     is_future: bool
-    planned_pct_cum: EvDecimal | None
-    progress_pct_cum: EvDecimal | None
-    variance: EvDecimal | None = None  # §3.15 S22: motor (tek kaynak)
+    planned_pct_cum: YokOpt
+    progress_pct_cum: YokOpt
+    variance: YokOpt = None  # §3.15 S22: motor (tek kaynak)
     status: Status | None = None  # K27: gosterilen puanla karar
 
 
@@ -320,14 +320,14 @@ class BarPoint(BaseModel):
     day: date
     is_holiday: bool
     diary_status: Literal["none", "draft", "submitted"]
-    earned_day: EvDecimal | None
-    spent_day: EvDecimal | None
+    earned_day: YokOpt
+    spent_day: YokOpt
 
 
 class PfPoint(BaseModel):
     day: date
-    pf_day: EvDecimal | None
-    pf_rolling: EvDecimal | None  # B3-4: son 7 is gunu Σearned/Σspent
+    pf_day: YokOpt
+    pf_rolling: YokOpt  # B3-4: son 7 is gunu Σearned/Σspent
 
 
 class HistogramWeek(BaseModel):
@@ -336,8 +336,8 @@ class HistogramWeek(BaseModel):
     week_end: date | None = None  # takvimle kirpilmis
     working_days: int
     is_future: bool  # hafta d'den sonra baslar → gerceklesen yok
-    planned_people: EvDecimal | None  # planli a-s ÷ (is gunu × standart saat)
-    actual_people: EvDecimal | None  # basis'e gore: kisi SAYIMI ya da ESDEGER kisi (is gunu ort.)
+    planned_people: YokOpt  # planli a-s ÷ (is gunu × standart saat)
+    actual_people: YokOpt  # basis'e gore: kisi SAYIMI ya da ESDEGER kisi (is gunu ort.)
 
 
 class PanelRow(BaseModel):
@@ -357,15 +357,15 @@ class PanelRow(BaseModel):
     uom: str | None
     contractor_type: ContractorType | None
     contractor_mix: str | None
-    budget_mhr: EvDecimal
-    earned_cum: EvDecimal | None
-    spent_cum: EvDecimal | None
-    planned_pct_cum: EvDecimal | None
-    progress_pct_cum: EvDecimal | None
-    variance: EvDecimal | None
+    budget_mhr: Yok
+    earned_cum: YokOpt
+    spent_cum: YokOpt
+    planned_pct_cum: YokOpt
+    progress_pct_cum: YokOpt
+    variance: YokOpt
     status: Status | None
-    pf_cum: EvDecimal | None
-    pf_week: EvDecimal | None
+    pf_cum: YokOpt
+    pf_week: YokOpt
     pf_cum_band: PfBand | None
     pf_week_band: PfBand | None
     #: EV-BORC-9 (spec S32, mockup "Planlama - Panel"): yalnız `non_direct` satırında dolu —
@@ -393,7 +393,7 @@ class PanelReport(BaseModel):
     week_start: date | None
     week_end: date | None
     revision: RevisionRef | None
-    tolerance_points: EvDecimal | None
+    tolerance_points: YokOpt
     kpi: PanelKpi | None
     s_curve: list[CurvePoint]
     bars: list[BarPoint]
@@ -402,7 +402,7 @@ class PanelReport(BaseModel):
     # headcount = puantaj kisi + gunluk taseron kisi (kendi/taseron filtresi uygulanir) ·
     # equivalent = filtreli harcanan ÷ (is gunu × standart saat) — DISIPLIN filtresinde
     actual_basis: Literal["headcount", "equivalent"]
-    standard_daily_hours: EvDecimal | None
+    standard_daily_hours: YokOpt
     rows: list[PanelRow]
     warnings: list[WarningOut]
     disciplines: list[PanelDiscipline] = Field(default_factory=list)  # EV-BORC-3 G1
@@ -418,9 +418,9 @@ class CompositeValueOut(BaseModel):
     """Duzenlenen (kaydedilmemis) pacal metrigin canli degeri — B3-3 formulu."""
 
     unit: str | None
-    actual: EvDecimal | None
-    planned: EvDecimal | None
-    deviation: EvDecimal | None
+    actual: YokOpt
+    planned: YokOpt
+    deviation: YokOpt
 
 
 class SettingsPreview(BaseModel):
@@ -433,11 +433,11 @@ class SettingsPreview(BaseModel):
     week_no: int | None
     week_start: date | None
     week_end: date | None
-    variance: EvDecimal | None  # Overall (yalniz direct)
-    variance_points: EvDecimal | None  # K27: round_half_up(variance × 100, 1)
+    variance: YokOpt  # Overall (yalniz direct)
+    variance_points: YokOpt  # K27: round_half_up(variance × 100, 1)
     status: Status | None
-    pf_day: EvDecimal | None
-    pf_week: EvDecimal | None
+    pf_day: YokOpt
+    pf_week: YokOpt
     pf_day_band: PfBand | None
     pf_week_band: PfBand | None
     composites: list[CompositeCard]

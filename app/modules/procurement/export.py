@@ -67,12 +67,14 @@ EMPTY_VALUE = "—"
 _COLUMN_WIDTHS = (28, 16, 18, 18, 24, 18, 22)
 
 
-def _money(value: Decimal) -> str:
+def _money(value: Decimal | None) -> str:
     """TR para bicimi: `₺ 322.500,00`.
 
     Ayraclar mockup'la birebirdir (binlik nokta, ondalik virgul). Bicim
     burada TEK yerde durur; iki sutun da ondan gecer.
     """
+    if value is None:
+        return ""  # IZN-B4d: maliyet gizli rolde tutar hücresi boş
     ingiliz = f"{value:,.2f}"
     return "₺ " + ingiliz.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
 

@@ -25,10 +25,10 @@ K11 "sunucu hesabının üzerine yazma girişimi 422'dir" kararının aynısı.
 
 import uuid
 from datetime import datetime
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.modules.equipment.mask_types import Maliyet, Yok, YokGirdi
 from app.modules.equipment.models import (
     DEFAULT_VAT_RATE,
     EquipmentRatePeriod,
@@ -64,14 +64,14 @@ class RentalInvoiceCreate(BaseModel):
     supplier_id: uuid.UUID
     invoice_no: str | None = _INVOICE_NO
     # K1: KDV HARİÇ matrah.
-    invoice_amount: Decimal | None = _MONEY
+    invoice_amount: Maliyet = _MONEY
     period_year: int = _YEAR
     period_month: int = _MONTH
     # M5:73 "Tüm Projeler" = NULL.
     site_id: uuid.UUID | None = None
     rate_period: EquipmentRatePeriod
     # K1: oran VERİDİR, koda gömülü sabit değil.
-    vat_rate: Decimal = _VAT_RATE
+    vat_rate: YokGirdi = _VAT_RATE
 
 
 class RentalInvoiceUpdate(BaseModel):
@@ -88,12 +88,12 @@ class RentalInvoiceUpdate(BaseModel):
 
     supplier_id: uuid.UUID | None = None
     invoice_no: str | None = _INVOICE_NO
-    invoice_amount: Decimal | None = _MONEY
+    invoice_amount: Maliyet = _MONEY
     period_year: int | None = Field(default=None, ge=2000, le=2200)
     period_month: int | None = Field(default=None, ge=1, le=12)
     site_id: uuid.UUID | None = None
     rate_period: EquipmentRatePeriod | None = None
-    vat_rate: Decimal | None = _VAT_RATE_OPTIONAL
+    vat_rate: Yok = _VAT_RATE_OPTIONAL
 
 
 class RentalInvoiceLineUpdate(BaseModel):
@@ -107,8 +107,8 @@ class RentalInvoiceLineUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    rate_amount: Decimal | None = _MONEY
-    invoiced_hours: Decimal | None = _RENTAL_HOURS
+    rate_amount: Maliyet = _MONEY
+    invoiced_hours: Yok = _RENTAL_HOURS
 
 
 class RentalInvoiceLineResponse(BaseModel):
@@ -127,14 +127,14 @@ class RentalInvoiceLineResponse(BaseModel):
     site_id: uuid.UUID | None
     site_name: str | None
     line_kind: RentalLineKind
-    worked_hours: Decimal
-    breakdown_hours: Decimal
-    rate_amount: Decimal | None
-    effective_rate_amount: Decimal | None
-    our_amount: Decimal | None
-    breakdown_amount: Decimal | None
-    invoiced_hours: Decimal | None
-    hours_variance: Decimal | None
+    worked_hours: YokGirdi
+    breakdown_hours: YokGirdi
+    rate_amount: Maliyet
+    effective_rate_amount: Maliyet
+    our_amount: Maliyet
+    breakdown_amount: Maliyet
+    invoiced_hours: Yok
+    hours_variance: Yok
     variance_status: VarianceStatus
 
 
@@ -150,16 +150,16 @@ class RentalInvoiceTotals(BaseModel):
     bir parayı TAM gösterirdi.
     """
 
-    our_total: Decimal
+    our_total: Maliyet
     our_total_unknown_count: int
-    owned_total: Decimal
+    owned_total: Maliyet
     owned_total_unknown_count: int
-    excluded_breakdown_amount: Decimal
+    excluded_breakdown_amount: Maliyet
     excluded_breakdown_unknown_count: int
-    invoice_amount: Decimal | None
-    vat_rate: Decimal
-    vat_amount: Decimal | None
-    payable_total: Decimal | None
+    invoice_amount: Maliyet
+    vat_rate: YokGirdi
+    vat_amount: Maliyet
+    payable_total: Maliyet
 
 
 class RentalSiteDistributionEquipment(BaseModel):
@@ -179,8 +179,8 @@ class RentalSiteDistributionEntry(BaseModel):
 
     site_id: uuid.UUID | None
     site_name: str | None
-    hours: Decimal
-    amount: Decimal
+    hours: YokGirdi
+    amount: Maliyet
     unknown_count: int
     equipments: list[RentalSiteDistributionEquipment]
 
@@ -199,15 +199,15 @@ class RentalInvoiceResponse(BaseModel):
     supplier_id: uuid.UUID
     supplier_name: str | None
     invoice_no: str | None
-    invoice_amount: Decimal | None
+    invoice_amount: Maliyet
     period_year: int
     period_month: int
     site_id: uuid.UUID | None
     site_name: str | None
     rate_period: EquipmentRatePeriod
-    vat_rate: Decimal
-    vat_amount: Decimal | None
-    payable_total: Decimal | None
+    vat_rate: YokGirdi
+    vat_amount: Maliyet
+    payable_total: Maliyet
     status: RentalInvoiceStatus
     approved_by_id: uuid.UUID | None
     approved_at: datetime | None

@@ -56,6 +56,7 @@ from app.core import http
 from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
@@ -93,7 +94,7 @@ from app.modules.procurement.schemas import (
 )
 from app.modules.users.models import User
 
-router = APIRouter(tags=["procurement"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["procurement"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _REQUEST = require_permission(service.PERMISSION_MODULE, AccessLevel.request)
@@ -522,7 +523,9 @@ async def export_quote_comparison_endpoint(
     durduğu için tarayıcı indirmesi ayrıca bir tahmine muhtaç kalmaz.
     """
     purchase_request = await service.visible_request(session, user, request_id)
-    kartlar = (await service.list_quotes(session, purchase_request)).items
+    karsilastirma = await service.list_quotes(session, purchase_request)
+    # IZN-B4d: maliyet gizliyse tutar hücreleri boş kalır (`maskele_baglamli`).
+    kartlar = (await maskele_baglamli(karsilastirma)).items
     buffer = export.build_quote_comparison_workbook(kartlar)
     dosya_adi = f"{purchase_request.request_no}-{export.XLSX_FILENAME_SUFFIX}"
     return Response(

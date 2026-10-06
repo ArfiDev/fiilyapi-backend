@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.core.timezone import today
@@ -37,7 +38,7 @@ from app.modules.earned_value.schemas_reports import CompositeValueOut, Settings
 from app.modules.earned_value.schemas_settings import SettingsRead, SettingsSave
 from app.modules.users.models import User
 
-router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _User = Annotated[User, Depends(get_current_user)]
 _Session = DbSession

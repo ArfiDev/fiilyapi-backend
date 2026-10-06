@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, Request
 from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
+from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -49,7 +50,7 @@ from app.modules.users.models import User
 
 adp.register()
 
-router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _User = Annotated[User, Depends(get_current_user)]
 _Db = DbSession

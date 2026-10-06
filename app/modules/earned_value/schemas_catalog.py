@@ -21,11 +21,13 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from app.core.discipline_ref import DisciplineRef
+from app.core.field_mask import Hassas
 from app.core.text import FREE_TEXT_MAX_LENGTH
 from app.modules.catalog.models import RATE_PRECISION
 from app.modules.earned_value.contractor_bridge import to_engine_ct
 from app.modules.earned_value.decimal_out import EvDecimal
 from app.modules.earned_value.engine import ContractorType
+from app.modules.earned_value.mask_types import Yok, YokOpt
 
 _STRICT = ConfigDict(extra="forbid")
 _NULL_REJECTED = "Alan boşaltılamaz; değiştirmemek için gövdeden çıkarın."
@@ -44,7 +46,9 @@ Description = Annotated[str, StringConstraints(max_length=FREE_TEXT_MAX_LENGTH)]
 #: `ck_ev_catalog_items_rate_positive` (> 0) + Numeric(12,4): fazla ondalik SESSIZ
 #: yuvarlanmasin diye semada reddedilir.
 StandardRate = Annotated[
-    EvDecimal, Field(gt=0, max_digits=RATE_PRECISION[0], decimal_places=RATE_PRECISION[1])
+    EvDecimal,
+    Field(gt=0, max_digits=RATE_PRECISION[0], decimal_places=RATE_PRECISION[1]),
+    Hassas.yok,
 ]
 
 
@@ -122,7 +126,7 @@ class CatalogItemUpdate(BaseModel):
     discipline_id: uuid.UUID | None = None
     name: ItemName | None = None
     uom: Uom | None = None
-    standard_unit_mhr: StandardRate | None = None
+    standard_unit_mhr: Annotated[StandardRate | None, Hassas.yok] = None
     default_contractor_type: ContractorType | None = None
     description: Description | None = None
 
@@ -146,16 +150,16 @@ class CatalogActualSite(BaseModel):
     site_id: uuid.UUID
     site_name: str
     end_date: date | None
-    qty: EvDecimal
-    rate: EvDecimal
+    qty: Yok
+    rate: Yok
 
 
 class CatalogActual(BaseModel):
     """K4: yalniz tamamlanmis santiyeler, miktar agirlikli ortalama = Σspent / Σqty."""
 
-    avg: EvDecimal | None
-    min: EvDecimal | None
-    max: EvDecimal | None
+    avg: YokOpt
+    min: YokOpt
+    max: YokOpt
     site_count: int
     sites: list[CatalogActualSite]
 
@@ -166,7 +170,7 @@ class CatalogItemRead(BaseModel):
     discipline: DisciplineRef
     name: str
     uom: str
-    standard_unit_mhr: EvDecimal
+    standard_unit_mhr: Yok
     default_contractor_type: ContractorType
     description: str | None
     standard_updated_at: datetime
@@ -174,4 +178,4 @@ class CatalogItemRead(BaseModel):
     actual: CatalogActual
     #: (avg − standart) ÷ standart, ORAN (0,139 = %13,9); avg yoksa `null`. Yuvarlama
     #: yalniz sunumda (spec §3.6); ±%10 "buyuk fark" esigi (K4) istemcide uygulanir.
-    diff_pct: EvDecimal | None
+    diff_pct: YokOpt

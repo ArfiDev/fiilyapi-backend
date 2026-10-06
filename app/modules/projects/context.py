@@ -18,13 +18,18 @@ TAŞIMA kuralı (IZN-HF1): yol çözücüsü eşleştiyse gövde bağlamı DEĞ�
 başka projeye "taşınıyormuş" gibi o projenin rolüyle okunup yazılamaz); P == Q → P; açık `null`
 (hedef = projesiz) P doluyken de taşımadır → `None`. Rota bağlam anahtarı bildirip gövde JSON olarak
 okunamıyorsa (tür/boş/bozuk/dict değil/değer dize-null değil) bağlam `None`. İçerik türü FastAPI'nin
-kuralıyla çözülür (büyük harf, `+json`). Bilinen borç: `RESOLVERS` dışı PATCH/PUT uçları kayıt
-çözücüsü almadıkça gövdeden bağlam alır (saha ve satınalma çözücüleri IZN-B4d'de eklenecek;
-`/financial-instruments` HF1'de eklendi; kalan liste `BILINEN_COZUCUSUZ_PATCH` testinde).
+kuralıyla çözülür (büyük harf, `+json`). `RESOLVERS` dışı PATCH/PUT ucu kayıt çözücüsü almadıkça
+gövdeden bağlam alır; böyle uç KALMADI (`/financial-instruments` HF1'de, saha ve satınalma
+IZN-B4d'de çözücü aldı). Bekçi: `BILINEN_COZUCUSUZ_PATCH` boş küme testi.
 Slug (`/projects/{slug}`, `/sites/{slug}` …) ÇÖZÜLÜR: UUID ile slug aynı projeyi verir.
 Slug kapsamı tekil değilse (şantiye / bölüm slug'ı proje / şantiye içinde tekildir)
 ve birden çok projede eşleşirse bağlam ÇÖZÜLMEZ
 (`None`): ekip rolü sayılmaz, kesin karar `visible_projects` süzgecine kalır (fail-closed).
+
+IZN-B4d onarımı: saha kayıt yolları (`/equipment/...`, `/purchase-requests/...`,
+`/purchase-orders/...`) da `RESOLVERS`ta: kaydın kendi projesi (makine/yakıt/kira → `site_id` →
+şantiyenin projesi; talep/sipariş → `project_id`) yol parametresinden çözülür;
+projesiz kayıt `None`.
 
 `None` = proje bağlamı YOK ya da çözülemedi (liste ucu, bilinmeyen/belirsiz kayıt). Yeni bir
 proje bağlamlı uç eklenip çözücü yazılmazsa `tests/core/test_proje_baglami_cozucu_bekcisi.py`
@@ -250,6 +255,95 @@ async def _sub_item_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid
     )
 
 
+async def _equipment_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.equipment.models import Equipment  # döngüyü önler
+
+    # Makinenin projesi bağlı olduğu ŞANTİYEDEN gelir; şirket havuzundaki makine (`site_id IS
+    # NULL`) projesizdir → `None` (birleşim, fail-closed).
+    return await _unique(
+        session,
+        select(Site.project_id)
+        .join(Equipment, Equipment.site_id == Site.id)
+        .where(ref_filter(Equipment.id, Equipment.slug, ref)),
+    )
+
+
+async def _equipment_log_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.equipment.models import EquipmentFuelLog, EquipmentWorkLog  # döngüyü önler
+
+    # `/equipment/fuel-logs/{log_id}` ile `/equipment/work-logs/{log_id}` AYNI (önek, parametre)
+    # anahtarını paylaşır; kimlikler tekil olduğundan iki tabloya da bakılır.
+    if not isinstance(ref, uuid.UUID):
+        return None
+    for model in (EquipmentFuelLog, EquipmentWorkLog):
+        found = await _unique(
+            session,
+            select(Site.project_id).join(model, model.site_id == Site.id).where(model.id == ref),
+        )
+        if found is not None:
+            return found
+    return None
+
+
+async def _equipment_document_project(
+    session: AsyncSession, ref: uuid.UUID | str
+) -> uuid.UUID | None:
+    from app.modules.equipment.models import Equipment, EquipmentDocument  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    return await _unique(
+        session,
+        select(Site.project_id)
+        .join(Equipment, Equipment.site_id == Site.id)
+        .join(EquipmentDocument, EquipmentDocument.equipment_id == Equipment.id)
+        .where(EquipmentDocument.id == ref),
+    )
+
+
+async def _rental_invoice_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.equipment.models import EquipmentRentalInvoice  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    model = EquipmentRentalInvoice
+    return await _unique(
+        session,
+        select(Site.project_id).join(model, model.site_id == Site.id).where(model.id == ref),
+    )
+
+
+async def _rental_line_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.equipment.models import EquipmentRentalInvoiceLine  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    model = EquipmentRentalInvoiceLine
+    return await _unique(
+        session,
+        select(Site.project_id).join(model, model.site_id == Site.id).where(model.id == ref),
+    )
+
+
+async def _purchase_request_project(
+    session: AsyncSession, ref: uuid.UUID | str
+) -> uuid.UUID | None:
+    from app.modules.procurement.models import PurchaseRequest  # döngüyü önler
+
+    model = PurchaseRequest
+    # Detay ucu `request_no` (slug) de kabul eder; kimlik ya da numara tekildir.
+    cond = model.id == ref if isinstance(ref, uuid.UUID) else model.request_no == ref
+    return await _unique(session, select(model.project_id).where(cond))
+
+
+async def _purchase_order_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
+    from app.modules.procurement.models import PurchaseOrder  # döngüyü önler
+
+    if not isinstance(ref, uuid.UUID):
+        return None
+    return await _unique(session, select(PurchaseOrder.project_id).where(PurchaseOrder.id == ref))
+
+
 #: (yol öneki, yol parametresi) → çözücü. Önek `request.url.path`in ilk segmentidir.
 RESOLVERS: Mapping[tuple[str, str], Resolver] = {
     ("/projects", "project_id"): _project_itself,
@@ -279,6 +373,16 @@ RESOLVERS: Mapping[tuple[str, str], Resolver] = {
     ("/units", "owner_id"): _unit_project,
     ("/documents", "document_id"): _document_project,
     ("/document-folders", "folder_id"): _folder_project,
+    # IZN-B4d onarımı: saha KAYIT bağlamı (makine, yakıt/iş kaydı, kira faturası + kalemi, belge,
+    # satınalma talebi + teklif alt yolu, sipariş). Gövdedeki `site_id`/`project_id` kaydı
+    # TAŞIMADAN okuma/yazma kararını vermesin diye kaydın KENDİ projesi önceliklidir.
+    ("/equipment", "equipment_id"): _equipment_project,
+    ("/equipment", "log_id"): _equipment_log_project,
+    ("/equipment", "document_id"): _equipment_document_project,
+    ("/equipment", "invoice_id"): _rental_invoice_project,
+    ("/equipment", "line_id"): _rental_line_project,
+    ("/purchase-requests", "request_id"): _purchase_request_project,
+    ("/purchase-orders", "order_id"): _purchase_order_project,
 }
 
 #: Gövdedeki kimlik anahtarı → çözücü (oluşturma uçları: `project_id` / `site_id`).

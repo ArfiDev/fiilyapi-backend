@@ -16,10 +16,10 @@ ve detayı aynı şemadan okuyan her istemci kırılırdı.
 """
 
 from datetime import date
-from decimal import Decimal
 
 from pydantic import BaseModel
 
+from app.modules.equipment.mask_types import Maliyet, Yok
 from app.modules.equipment.models import EquipmentMaintenancePeriod
 from app.modules.equipment.schemas import EquipmentResponse
 
@@ -40,16 +40,16 @@ class EquipmentMaintenanceBlock(BaseModel):
     #: `monthly` periyotta `None` — saat cinsinden bir pencere YOKTUR.
     period_hours: int | None
     last_service_date: date | None
-    last_service_hourmeter: Decimal | None
-    hourmeter_hours: Decimal | None
-    next_service_hourmeter: Decimal | None
+    last_service_hourmeter: Yok
+    hourmeter_hours: Yok
+    next_service_hourmeter: Yok
     #: MD:160 `286 / 500 saat çalışıldı` — çubuğun PAYI.
-    used_hours: Decimal | None
+    used_hours: Yok
     #: MD:155 `214 sa`. NEGATİF olabilir: bakımı geçmiş makine gerçektir.
-    remaining_hours: Decimal | None
+    remaining_hours: Yok
     #: MD:159 `%57`. Yüzde SUNUCU DAMGASIDIR (F-P10 kanonu) — istemci payı
     #: paydaya kendi bölseydi iki ekran aynı çubuğu farklı doldururdu.
-    usage_pct: Decimal | None
+    usage_pct: Yok
     #: MD:157 `~05.09.2026` — son `ESTIMATE_WINDOW_DAYS` günün temposundan.
     estimated_service_date: date | None
 
@@ -67,7 +67,7 @@ class EquipmentRentalTotals(BaseModel):
 
     #: YALNIZ `paid` hakedişlerin `rented` satırlarından (MK-2 K3: `owned` ve
     #: `breakdown` hiçbir ödenecek toplamın kaynağı değildir).
-    cumulative_paid: Decimal
+    cumulative_paid: Maliyet
     cumulative_paid_unknown_count: int
     #: Toplamı üreten ÖDENMİŞ hakediş adedi — 0 ise `cumulative_paid`in `0`ı
     #: "hiç ödeme yok" demektir, "hepsi hesaplanamadı" değil.

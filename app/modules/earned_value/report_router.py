@@ -24,6 +24,7 @@ from app.core.discipline_deps import DisciplineScoped, RequireUnrestricted
 from app.core.discipline_scope import DisciplineScope
 from app.core.errors import ConflictError, NotFoundError
 from app.core.http import content_disposition
+from app.core.mask_route import MaskeRotasi, maskele_baglamli
 from app.core.openapi import COMMON_ERROR_RESPONSES
 from app.core.ratelimit import client_ip
 from app.modules.audit.models import AuditAction
@@ -50,7 +51,7 @@ from app.modules.earned_value.schemas_reports import (
 )
 from app.modules.users.models import User
 
-router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES)
+router = APIRouter(tags=["earned-value"], responses=COMMON_ERROR_RESPONSES, route_class=MaskeRotasi)
 
 _User = Annotated[User, Depends(get_current_user)]
 _Db = DbSession
@@ -243,6 +244,9 @@ async def export_weekly_report(
     """QURR Excel — okuma ucuyla AYNI hesap (`_qurr`); export saf sunumdur."""
     ctx = await visible_site(session, user, site_id)
     report = await _qurr(session, site_id, week, scope)
+    # IZN-B4d: QURR yuzeyi TL tasimaz (hepsi `yok`) — maske bugun no-op; ileride eklenecek
+    # etiketli alan Excel'e sizmasin diye export da `maskele_baglamli`dan gecer.
+    report = await maskele_baglamli(report)
     return Response(
         content=qurr_workbook(report),
         media_type=XLSX,

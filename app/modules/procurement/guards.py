@@ -47,6 +47,9 @@ __all__ = [
     "ORDER_MISSING",
     "QUOTE_MISSING",
     "QUOTE_SHIPPING_CONFLICT",
+    "REQUEST_LINE_DUPLICATE",
+    "REQUEST_LINE_INVALID",
+    "REQUEST_LINE_SOURCE_CONFLICT",
     "REQUEST_MISSING",
     "REQUEST_NOT_DRAFT",
     "REQUEST_NOT_QUOTE_WAIT",
@@ -86,6 +89,17 @@ REQUEST_SECTION_INVALID = "Seçilen bölüm bulunamadı"
 # kardesi). Metin KAC satirin ya da HANGI kimligin hatali oldugunu SOYLEMEZ:
 # kimlik sizdirmaz ve eyleme donuktur (`SITE_HAS_BLOCKS` dersi).
 REQUEST_STOCK_ITEM_INVALID = "Seçilen malzeme kartı bulunamadı"
+
+# 404 — PATCH kalemindeki `id` bu talebin satirlariyla eslesmiyor (yok ya da baska talebin).
+REQUEST_LINE_INVALID = "Seçilen talep kalemi bulunamadı"
+
+# 422 — ayni satir `id`si govdede birden cok kez.
+REQUEST_LINE_DUPLICATE = "Aynı talep kalemi birden fazla kez gönderildi"
+
+# 422 — birlestirilmis kalem stok kartina VE serbest tanima ayni anda bagli ya da ikisi de bos.
+REQUEST_LINE_SOURCE_CONFLICT = (
+    "Kalem ya stok kartından seçilir ya da serbest tanımlanır (ad ve birim); ikisi birden olmaz"
+)
 
 # 409 — taslak disinda duzenleme/silme. Onaya gonderilmis bir talebin kalemi
 # degistirilebilseydi ONAY EDILEN SEY ile SIPARIS EDILEN SEY ayrisirdi (esik

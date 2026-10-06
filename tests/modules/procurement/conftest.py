@@ -41,6 +41,7 @@ from app.modules.procurement.models import PaymentTerms, Supplier
 from app.modules.projects.models import Project
 from app.modules.sites.models import Section, Site
 from app.modules.users.models import ProjectMember, User
+from tests._hassas_alan import rol_gizle
 
 
 async def _login(client: AsyncClient, user_factory, role_key: str, email: str) -> str:
@@ -113,6 +114,9 @@ async def satinalma_headers(
     """
     email = "satinalma@satinalma.co"
     user = await user_factory(email=email, password="parola1234", role_key="procurement")
+    # IZN-B4d: rolün gizli bayrakları temizlenir; bu dosyalar tutarları GÖRÜR varsayar.
+    # Maske davranışı `test_izn_b4d_procurement_maske.py`de ayrıca sınanır.
+    await rol_gizle(seeded_db, "procurement")
     seeded_db.add(ProjectMember(user_id=user.id, project_id=gorunen_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
@@ -130,6 +134,9 @@ async def sef_headers(
     """`site_chief` — `procurement=_REQ`: TALEP açar, TEDARİKÇİ açamaz (403)."""
     email = "sef@satinalma.co"
     user = await user_factory(email=email, password="parola1234", role_key="site_chief")
+    # IZN-B4d: rolün gizli bayrakları temizlenir; bu dosyalar tutarları GÖRÜR varsayar.
+    # Maske davranışı `test_izn_b4d_procurement_maske.py`de ayrıca sınanır.
+    await rol_gizle(seeded_db, "site_chief")
     seeded_db.add(ProjectMember(user_id=user.id, project_id=gorunen_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})
@@ -152,6 +159,9 @@ async def pm_headers(
     """
     email = "pm@satinalma.co"
     user = await user_factory(email=email, password="parola1234", role_key="project_manager")
+    # IZN-B4d: rolün gizli bayrakları temizlenir; bu dosyalar tutarları GÖRÜR varsayar.
+    # Maske davranışı `test_izn_b4d_procurement_maske.py`de ayrıca sınanır.
+    await rol_gizle(seeded_db, "project_manager")
     seeded_db.add(ProjectMember(user_id=user.id, project_id=gorunen_proje.id, role_id=user.role_id))
     await seeded_db.flush()
     resp = await client.post("/auth/login", json={"email": email, "password": "parola1234"})

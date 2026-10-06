@@ -644,7 +644,11 @@ async def makine_calisma(ctx: AracBaglami, girdi: Any) -> AracSonucu:
         total_cost=t["cost"],
         usage_pct_avg=t.get("usage_pct_avg"),
         bilinmeyen_bedel_notu=(
-            f"{bilinmeyen} makinenin bedeli BİLİNMİYOR ve toplama UYDURMA bir 0 "
+            # IZN-B4d: maliyet kategorisi gizliyken toplam `null`dur ve satır bedelleri de
+            # `null`dır — bu "bilinmiyor" DEĞİL "bu rolde gösterilmiyor"dur; ikisi karıştırılmaz.
+            "Bedeller bu rolde GİZLİ; saat alanları geçerlidir."
+            if t["cost"] is None
+            else f"{bilinmeyen} makinenin bedeli BİLİNMİYOR ve toplama UYDURMA bir 0 "
             "ile GİRMEDİ; `total_cost` yalnız bilinenlerin toplamıdır."
             if bilinmeyen
             else "Her satırın bedeli biliniyor; toplam eksiksizdir."
