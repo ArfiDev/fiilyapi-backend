@@ -216,6 +216,8 @@ PAGE_GATE_OLD: dict[tuple[frozenset[str], str], list[tuple[str, AccessLevel]]] =
     (_B5C_SITE_GORUR, "view"): [("sites", L.view)],
     (_B5C_SECTION_GORUR, "view"): [("sites", L.view)],
     (_B5C_SECTIONS_LISTE_GORUR, "view"): [("sites", L.view)],
+    # IZN-B5d: panel ucu (kart kümeleri servis içi, `test_izn_b5d_panel_kartlari.py`).
+    (frozenset({"genel.gosterge_paneli"}), "view"): [("dashboard", L.view)],
 }
 
 #: Kasıtlı fark listesi (yukarıdaki docstring). `(yöntem, yol)` kümeleri. DELETE'ler listede YOK:

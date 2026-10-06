@@ -76,7 +76,6 @@ VIEW_GATE_PAGES: dict[str, frozenset[str]] = {
         "teklif.is_kalemi_katalogu",
         "proje.is_kalemleri",
     ),
-    "dashboard": _p("genel.gosterge_paneli"),
     "documents": _p("mali.belge_arsivi", "proje.belgeler", "santiye.belgeler"),
     "earned_value": _p(
         "planlama.panel",
@@ -407,7 +406,9 @@ _B5C_VIEW: dict[tuple[str, str], frozenset[str]] = {
 }  # fmt: skip
 
 PAGE_EDIT_ROUTES = {**PAGE_EDIT_ROUTES, **_B5B_EDIT_A, **_B5B_EDIT_B, **_B5B_EDIT_C, **_B5C_EDIT}
-PAGE_VIEW_ROUTES = {**PAGE_VIEW_ROUTES, **_B5C_VIEW}
+# IZN-B5d: panel ucu modül kapısından sayfa kapısına geçti (kart kümeleri servis içi).
+_B5D_VIEW = {("GET", "/dashboard/summary"): _p("genel.gosterge_paneli")}
+PAGE_VIEW_ROUTES = {**PAGE_VIEW_ROUTES, **_B5C_VIEW, **_B5D_VIEW}
 
 
 # --------------------------------------------------------------------------- #
