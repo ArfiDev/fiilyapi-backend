@@ -51,12 +51,14 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES
+from app.core.page_gate import gate_flags
 from app.core.permissions import require_pages, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
+from app.core.tasima import assert_tasima_yetkisi
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
-from app.modules.invoicing import service, state_service, summary
+from app.modules.invoicing import guards, service, state_service, summary
 from app.modules.invoicing.models import InvoiceDirection, InvoiceStatus
 from app.modules.invoicing.schemas import (
     InvoiceCreate,
@@ -281,6 +283,15 @@ async def update_invoice_endpoint(
     (spec §8, TOCTOU). Oran değişirse başlık toplamları `amounts`tan YENİDEN
     hesaplanır; kalemler değişmez (onların yolu `PUT lines`).
     """
+    await assert_tasima_yetkisi(
+        session,
+        request,
+        user,
+        gate_flags(service.PERMISSION_MODULE, AccessLevel.full),
+        data,
+        proje_yok=guards.INVOICE_PROJECT_INVALID,
+        santiye_yok=guards.INVOICE_SITE_INVALID,
+    )
     invoice = await service.visible_invoice(session, user, invoice_id, for_update=True)
     invoice, detail = await service.update_invoice(session, user, invoice, data)
     await _audit(request, session, user, AuditAction.update, detail)

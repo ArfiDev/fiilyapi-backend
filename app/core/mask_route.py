@@ -71,6 +71,7 @@ from app.core.field_mask import (
     yazilan_hassas_alanlar,
 )
 from app.core.mask_context import kumeleri_coz
+from app.core.tasima import TASIMA_KAYNAK_KEY
 
 __all__ = ["MaskeBaglami", "MaskeRotasi", "maskele_baglamli"]
 
@@ -111,7 +112,25 @@ class MaskeBaglami:
                 if user is None
                 else await kumeleri_coz(self._session, user, self._request)
             )
-        return self._kumeler
+        return self._tasima_oncesi(self._kumeler)
+
+    def _tasima_oncesi(self, kumeler: MaskeKumeleri) -> MaskeKumeleri:
+        """IZN-B5f (madde 22): kaydı projeler arası TAŞIYAN istekte yanıt taşıma ÖNCESİ bağlamla
+        maskelenir. Satırın yeni `project_id`'si hedef projenin rolüne geçip gizliliği açmasın
+        diye satır başına maske kapanır; hepsi kaynak projedeki rolün kümesiyle (kaynak yoksa
+        isteğin birleşimiyle) maskelenir. Bayrağı `core.tasima` uçtan çağrıldığında yazar."""
+        kaynak = self._request.scope.get(TASIMA_KAYNAK_KEY)
+        if kaynak is None:
+            return kumeler
+        (proje_id,) = kaynak
+        secilen = (
+            kumeler.varsayilan
+            if proje_id is None
+            else kumeler.proje_basina.get(
+                proje_id, kumeler.varsayilan if kumeler.ana is None else kumeler.ana
+            )
+        )
+        return MaskeKumeleri(varsayilan=secilen, proje_basina={}, ana=secilen)
 
 
 _BAGLAM: ContextVar[MaskeBaglami | None] = ContextVar("_hassas_alan_baglami", default=None)

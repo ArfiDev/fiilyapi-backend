@@ -201,10 +201,11 @@ async def _installment_project(session: AsyncSession, ref: uuid.UUID | str) -> u
 async def _invoice_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
     from app.modules.invoicing.models import Invoice  # döngüyü önler
 
-    if not isinstance(ref, uuid.UUID):
-        return None
+    # Detay ucu fatura NUMARASINI da kabul eder (`visible_invoice` str dalı); numara belirsizse
+    # (birden çok proje) `_unique` → `None`. IZN-B5f: numarayla detay UUID ile AYNI kapıdan geçer.
+    cond = Invoice.id == ref if isinstance(ref, uuid.UUID) else Invoice.invoice_no == ref
     # Şirket geneli fatura `project_id IS NULL` → `None` (birleşim, fail-closed).
-    return await _unique(session, select(Invoice.project_id).where(Invoice.id == ref))
+    return await _unique(session, select(Invoice.project_id).where(cond))
 
 
 async def _instrument_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
@@ -304,12 +305,13 @@ async def _equipment_document_project(
 async def _rental_invoice_project(session: AsyncSession, ref: uuid.UUID | str) -> uuid.UUID | None:
     from app.modules.equipment.models import EquipmentRentalInvoice  # döngüyü önler
 
-    if not isinstance(ref, uuid.UUID):
-        return None
     model = EquipmentRentalInvoice
+    # IZN-B5f: detay ucu kira faturasını SLUG ile de açar → kimlik ya da slug aynı çözücüden.
     return await _unique(
         session,
-        select(Site.project_id).join(model, model.site_id == Site.id).where(model.id == ref),
+        select(Site.project_id)
+        .join(model, model.site_id == Site.id)
+        .where(ref_filter(model.id, model.slug, ref)),
     )
 
 

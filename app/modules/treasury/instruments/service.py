@@ -60,7 +60,7 @@ from app.core.errors import (
     TreasuryValidationError,
 )
 from app.modules.audit import messages
-from app.modules.projects.service import visible_projects
+from app.modules.projects.service import sirket_liste_ciftleri, visible_projects
 from app.modules.treasury import posting as treasury_posting
 from app.modules.treasury.instruments import (
     derive,
@@ -126,8 +126,13 @@ _NOT_NULL_FIELDS = (
 )
 
 
-async def _visible_project_ids(session: AsyncSession, actor: User) -> list[uuid.UUID]:
-    return [p.id for p in await visible_projects(session, actor)]
+async def _visible_project_ids(
+    session: AsyncSession, actor: User, *, liste: bool = False
+) -> list[uuid.UUID]:
+    """`liste=True`: şirket türü liste/özet ucu (IZN-B5f 23b) — satırlar kişinin O PROJEDEKİ
+    rolünün `çek/senet` sayfa izniyle süzülür (detay ucuyla aynı kural)."""
+    ciftler = sirket_liste_ciftleri(PERMISSION_MODULE) if liste else ()
+    return [p.id for p in await visible_projects(session, actor, sirket_ciftleri=ciftler)]
 
 
 def _assert_date_order(issue_date: date, due_date: date) -> None:
@@ -218,7 +223,7 @@ async def list_instruments(
         "due_after": due_after,
         "q": q,
     }
-    project_ids = await _visible_project_ids(session, actor)
+    project_ids = await _visible_project_ids(session, actor, liste=True)
     kayitlar = await repository.list_instruments(
         session, project_ids, limit=limit, offset=offset, **suzgecler
     )
@@ -452,5 +457,5 @@ async def delete_instrument(session: AsyncSession, actor: User, instrument_id: u
 
 async def build_summary(session: AsyncSession, actor: User) -> FinancialInstrumentSummaryResponse:
     """E10:69-90'in dort karti — kapsam suzgeci `summary.py`nin `WHERE`indedir."""
-    project_ids: Sequence[uuid.UUID] = await _visible_project_ids(session, actor)
+    project_ids: Sequence[uuid.UUID] = await _visible_project_ids(session, actor, liste=True)
     return await summary.build_summary(session, project_ids, as_of=derive.as_of_today())

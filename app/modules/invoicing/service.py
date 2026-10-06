@@ -75,7 +75,7 @@ from app.modules.invoicing.schemas import (
 from app.modules.procurement.models import PurchaseOrder, Supplier
 from app.modules.progress_payments.models import ProgressPayment
 from app.modules.projects.models import Employer
-from app.modules.projects.service import visible_projects
+from app.modules.projects.service import sirket_liste_ciftleri, visible_projects
 from app.modules.sites import repository as sites_repository
 from app.modules.subcontractor_progress_payments.models import SubcontractorProgressPayment
 from app.modules.users.models import User
@@ -113,8 +113,13 @@ _NOT_NULL_FIELDS = ("document_type", "issue_date", "party_name")
 _ENGEL_AYRACI = " · "
 
 
-async def _visible_project_ids(session: AsyncSession, actor: User) -> list[uuid.UUID]:
-    return [p.id for p in await visible_projects(session, actor)]
+async def _visible_project_ids(
+    session: AsyncSession, actor: User, *, liste: bool = False
+) -> list[uuid.UUID]:
+    """`liste=True`: şirket türü liste/özet ucu (IZN-B5f 23b) — satırlar kişinin O PROJEDEKİ
+    rolünün `fatura` sayfa izniyle süzülür (detay ucuyla aynı kural)."""
+    ciftler = sirket_liste_ciftleri(PERMISSION_MODULE) if liste else ()
+    return [p.id for p in await visible_projects(session, actor, sirket_ciftleri=ciftler)]
 
 
 def _raise_blockers(*bloklar: list[str]) -> None:
@@ -171,7 +176,8 @@ async def visible_invoice(
         return invoice
 
     adaylar = await repository.list_invoices_by_no(session, invoice_ref)
-    gorunen = await _visible_project_ids(session, actor)
+    # IZN-B5f: numara dalı liste ile AYNI kapsamı kullanır (UUID'siz yoldan sızma yok).
+    gorunen = await _visible_project_ids(session, actor, liste=True)
     gorunur = [fatura for fatura in adaylar if _invoice_visible(fatura, gorunen)]
     if not gorunur:
         raise NotFoundError(guards.INVOICE_MISSING)
@@ -345,7 +351,7 @@ async def list_invoices(
         "date_from": date_from,
         "date_to": date_to,
     }
-    project_ids = await _visible_project_ids(session, actor)
+    project_ids = await _visible_project_ids(session, actor, liste=True)
     kayitlar = await repository.list_invoices(
         session, project_ids, limit=limit, offset=offset, **suzgecler
     )

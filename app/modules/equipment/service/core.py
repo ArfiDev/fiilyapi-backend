@@ -48,7 +48,7 @@ from app.modules.equipment.schemas import EquipmentCreate, EquipmentUpdate
 from app.modules.equipment.service.periods import _month_bounds
 from app.modules.personnel.models import Personnel
 from app.modules.procurement.models import Supplier
-from app.modules.projects.service import visible_projects
+from app.modules.projects.service import sirket_liste_ciftleri, visible_projects
 from app.modules.sites import repository as sites_repository
 from app.modules.users.models import User
 
@@ -90,17 +90,26 @@ async def get_equipment_or_404(session: AsyncSession, equipment_ref: uuid.UUID |
     return equipment
 
 
-async def _visible_project_ids(session: AsyncSession, actor: User) -> list[uuid.UUID]:
-    return [p.id for p in await visible_projects(session, actor)]
+async def _visible_project_ids(
+    session: AsyncSession, actor: User, *, liste: bool = False
+) -> list[uuid.UUID]:
+    """`liste=True`: şirket türü liste/özet ucu (IZN-B5f 23b) — satırlar kişinin O PROJEDEKİ
+    rolünün `makine` sayfa izniyle süzülür (detay ucuyla aynı kural)."""
+    ciftler = sirket_liste_ciftleri(PERMISSION_MODULE) if liste else ()
+    return [p.id for p in await visible_projects(session, actor, sirket_ciftleri=ciftler)]
 
 
-async def _is_visible_site(session: AsyncSession, actor: User, site_id: uuid.UUID | None) -> bool:
+async def _is_visible_site(
+    session: AsyncSession, actor: User, site_id: uuid.UUID | None, *, liste: bool = False
+) -> bool:
     """K20'nin TEKİL kayıt için okunuşu. `None` (depodaki makine) HER ZAMAN
     görünür — kapsamı boş küme olan kullanıcı da onu görür."""
     if site_id is None:
         return True
     site = await sites_repository.get_site(session, site_id)
-    return site is not None and site.project_id in await _visible_project_ids(session, actor)
+    return site is not None and site.project_id in await _visible_project_ids(
+        session, actor, liste=liste
+    )
 
 
 async def visible_equipment(
@@ -178,7 +187,7 @@ async def list_equipment(
     offset: int,
 ) -> tuple[list[Equipment], int]:
     """Liste + `total` TEK kapsam kararını paylaşır (TB3 kanonu)."""
-    project_ids = await _visible_project_ids(session, actor)
+    project_ids = await _visible_project_ids(session, actor, liste=True)
     suzgecler = {
         "status": status,
         "category": category,
@@ -293,7 +302,7 @@ async def summarize(session: AsyncSession, actor: User) -> EquipmentSummary:
     ADETÇE bildirilir (K21: sunucu mockup'tan fazla veri verebilir) — yoksa
     kullanıcı eksik bir parayı tam sanırdı.
     """
-    project_ids = await _visible_project_ids(session, actor)
+    project_ids = await _visible_project_ids(session, actor, liste=True)
     sayaclar = await repository.status_counts(session, project_ids)
     ilk, son = _month_bounds(today())
     satirlar = await repository.worked_hours_by_equipment(

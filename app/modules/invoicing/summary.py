@@ -46,10 +46,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import today
 from app.modules.invoicing import repository
+from app.modules.invoicing.guards import PERMISSION_MODULE
 from app.modules.invoicing.models import Invoice, InvoiceDirection, InvoiceStatus
 from app.modules.invoicing.repository import DirectionAggregate
 from app.modules.invoicing.schemas import InvoiceSummaryMetric, InvoiceSummaryResponse
-from app.modules.projects.service import visible_projects
+from app.modules.projects.service import sirket_liste_ciftleri, visible_projects
 from app.modules.users.models import User
 
 __all__ = ["build_summary", "current_month_bounds"]
@@ -84,7 +85,12 @@ async def build_summary(session: AsyncSession, actor: User) -> InvoiceSummaryRes
     ve tarih/arama seçimleriyle birlikte değişmez (SAT şeridinin `project_id`
     süzgecinin aksine — orada mockup böyle çiziyordu, burada çizmiyor).
     """
-    project_ids = [p.id for p in await visible_projects(session, actor)]
+    project_ids = [
+        p.id
+        for p in await visible_projects(
+            session, actor, sirket_ciftleri=sirket_liste_ciftleri(PERMISSION_MODULE)
+        )
+    ]
     ay_ilk, ay_son = current_month_bounds()
 
     bu_ay = await repository.aggregate_by_direction(

@@ -41,6 +41,7 @@ from app.core.permissions import (
 )
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
+from app.core.tasima import assert_tasima_yetkisi
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.equipment import rental_service
@@ -54,6 +55,7 @@ from app.modules.equipment.rental_schemas import (
     RentalInvoiceResponse,
     RentalInvoiceUpdate,
 )
+from app.modules.equipment.service import SITE_MISSING
 from app.modules.users.models import User
 
 router = APIRouter(
@@ -66,6 +68,7 @@ router = APIRouter(
 _VIEW = require_permission(rental_service.PERMISSION_MODULE, AccessLevel.view)
 # IZN-B5b madde 11: kira yazmaları `saha.makine_kira` Düzenler'i (eskiden `equipment:full`).
 _KIRA = require_page("saha.makine_kira", "edit")
+_KIRA_SAYFASI = (("saha.makine_kira", "edit"),)  # IZN-B5f madde 22: taşıma hedef kapısı
 #: IZN-B2: kira Onayla / Öde / Reddet = Kira Hakedişi sayfası ONAYLAR (eşik eski `full`).
 _RENTAL_APPROVE = require_pages(("saha.makine_kira",), "approve")
 
@@ -194,6 +197,15 @@ async def update_rental_invoice_endpoint(
     Dönem/şantiye değişikliği satırları KENDİLİĞİNDEN tazelemez (K2): tazeleme
     `POST …/reload` ile AÇIKÇA yapılır.
     """
+    await assert_tasima_yetkisi(
+        session,
+        request,
+        user,
+        _KIRA_SAYFASI,
+        data,
+        proje_yok=SITE_MISSING,
+        santiye_yok=SITE_MISSING,
+    )
     detay, detail = await rental_service.update_invoice(session, user, invoice_id, data)
     await _audit(request, session, user, AuditAction.update, detail)
     return detay

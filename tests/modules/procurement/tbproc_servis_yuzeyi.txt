@@ -59,7 +59,7 @@ def _strip(deger: str | None) -> str | None
 def _to_line_response(line: app.modules.procurement.models.PurchaseRequestLine, item: app.modules.inventory.models.StockItem | None, balances: dict[uuid.UUID, decimal.Decimal]) -> app.modules.procurement.schemas.PurchaseRequestLineResponse
 def _to_order_response(row: sqlalchemy.engine.row.Row) -> app.modules.procurement.schemas.PurchaseOrderResponse
 def _to_supplier_card(row: sqlalchemy.engine.row.Row) -> app.modules.procurement.schemas.SupplierCard
-async def _visible_project_ids(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User) -> list[uuid.UUID]
+async def _visible_project_ids(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, *, liste: bool = False) -> list[uuid.UUID]
 async def _visible_quote(session: sqlalchemy.ext.asyncio.session.AsyncSession, request: app.modules.procurement.models.PurchaseRequest, quote_id: uuid.UUID) -> app.modules.procurement.models.PurchaseQuote
 module approvals_service -> app.modules.approvals.service
 async def build_request_detail(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, request: app.modules.procurement.models.PurchaseRequest) -> app.modules.procurement.schemas.PurchaseRequestResponse
@@ -92,7 +92,7 @@ async def update_request(session: sqlalchemy.ext.asyncio.session.AsyncSession, a
 async def update_supplier(session: sqlalchemy.ext.asyncio.session.AsyncSession, supplier_id: uuid.UUID, data: app.modules.procurement.schemas.SupplierUpdate) -> tuple[app.modules.procurement.models.Supplier, str]
 module uuid -> uuid
 async def visible_order(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, order_id: uuid.UUID) -> app.modules.procurement.models.PurchaseOrder
-async def visible_projects(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, *, pairs: tuple[tuple[str, typing.Literal['view', 'edit', 'approve']], ...] | None = None) -> list[app.modules.projects.models.Project]
+async def visible_projects(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, *, pairs: tuple[tuple[str, typing.Literal['view', 'edit', 'approve']], ...] | None = None, sirket_ciftleri: tuple[tuple[str, typing.Literal['view', 'edit', 'approve']], ...] = ()) -> list[app.modules.projects.models.Project]
 async def visible_request(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, request_ref: uuid.UUID | str) -> app.modules.procurement.models.PurchaseRequest
 async def visible_request_locked(session: sqlalchemy.ext.asyncio.session.AsyncSession, actor: app.modules.users.models.User, request_id: uuid.UUID) -> app.modules.procurement.models.PurchaseRequest
 

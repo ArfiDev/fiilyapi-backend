@@ -51,6 +51,7 @@ from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.permissions import require_page, require_permission, require_system_admin
 from app.core.ratelimit import client_ip
 from app.core.slug import parse_ref
+from app.core.tasima import assert_tasima_yetkisi
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.equipment import detail_service, service, work_summary_export
@@ -93,6 +94,10 @@ _VIEW = require_permission(service.PERMISSION_MODULE, AccessLevel.view)
 _EKIPMAN = require_page("saha.makine_ekipman", "edit")
 _CALISMA = require_page("saha.makine_calisma", "edit")
 _YAKIT = require_page("saha.makine_yakit", "edit")
+# IZN-B5f madde 22: taşıma hedefinde aynı sayfanın Düzenler'i aranır (`core/tasima`).
+_EKIPMAN_SAYFASI = (("saha.makine_ekipman", "edit"),)
+_CALISMA_SAYFASI = (("saha.makine_calisma", "edit"),)
+_YAKIT_SAYFASI = (("saha.makine_yakit", "edit"),)
 
 
 async def _audit(
@@ -331,6 +336,15 @@ async def update_work_log_endpoint(
     session: DbSession,
 ) -> WorkLogResponse:
     """Kayıt hatası düzeltilebilir; K11/K12 BİRLEŞİK değerler üzerinde koşar."""
+    await assert_tasima_yetkisi(
+        session,
+        request,
+        user,
+        _CALISMA_SAYFASI,
+        data,
+        proje_yok=service.SITE_MISSING,
+        santiye_yok=service.SITE_MISSING,
+    )
     log = await service.visible_work_log(session, user, log_id)
     log, detail = await service.update_work_log(session, user, log, data)
     await _audit(request, session, user, AuditAction.update, detail)
@@ -445,6 +459,15 @@ async def update_fuel_log_endpoint(
     session: DbSession,
 ) -> FuelLogResponse:
     """Kayıt hatası düzeltilebilir."""
+    await assert_tasima_yetkisi(
+        session,
+        request,
+        user,
+        _YAKIT_SAYFASI,
+        data,
+        proje_yok=service.SITE_MISSING,
+        santiye_yok=service.SITE_MISSING,
+    )
     log = await service.visible_fuel_log(session, user, log_id)
     log, detail = await service.update_fuel_log(session, user, log, data)
     await _audit(request, session, user, AuditAction.update, detail)
@@ -535,6 +558,15 @@ async def update_equipment_endpoint(
     (`{"is_active": false}`) — DELETE ucu yoktur (modül docstring'i).
 
     K2 burada da koşar ve MEVCUT SATIR + GÖVDE birleşimine bakar."""
+    await assert_tasima_yetkisi(
+        session,
+        request,
+        user,
+        _EKIPMAN_SAYFASI,
+        data,
+        proje_yok=service.SITE_MISSING,
+        santiye_yok=service.SITE_MISSING,
+    )
     equipment = await service.visible_equipment(session, user, equipment_id)
     equipment, detail = await service.update_equipment(session, equipment, user, data)
     await _audit(request, session, user, AuditAction.update, detail)

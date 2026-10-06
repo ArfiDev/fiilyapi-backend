@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import AccessLevel
 from app.core.config import settings
 from app.core.discipline_scope import DisciplineScope
 from app.core.errors import (
@@ -22,7 +23,7 @@ from app.core.gate_context import (
     project_pairs,
     recorded_groups,
 )
-from app.core.page_gate import is_admin_role
+from app.core.page_gate import gate_flags, is_admin_role
 from app.core.project_access import roles_satisfying
 from app.core.slug import allocate_slug, slugify, unique_slug
 from app.core.timezone import today
@@ -195,8 +196,18 @@ async def add_creator_membership(session: AsyncSession, actor: User, project: Pr
         await session.flush()
 
 
+def sirket_liste_ciftleri(module_key: str) -> tuple[PageFlag, ...]:
+    """Şirket türü liste/özet kapısının (sayfa, bayrak) çiftleri: `(modül, view)` kapısı
+    (IZN-B5f 23b). `visible_projects(..., sirket_ciftleri=...)` ile verilir."""
+    return gate_flags(module_key, AccessLevel.view)
+
+
 async def visible_projects(
-    session: AsyncSession, actor: User, *, pairs: tuple[PageFlag, ...] | None = None
+    session: AsyncSession,
+    actor: User,
+    *,
+    pairs: tuple[PageFlag, ...] | None = None,
+    sirket_ciftleri: tuple[PageFlag, ...] = (),
 ) -> list[Project]:
     """Kişinin GÖREBİLDİĞİ projeler (IZN-B3, KARARLAR §1.7): yalnız EKİBİNDE olduğu projeler.
 
@@ -205,6 +216,13 @@ async def visible_projects(
       PROJEDEKİ rolün karşıladığı projeler. Çiftler iki yerden gelir: rota kapısının bağlama
       KENDİ yazdıkları (`core/gate_context`) ve çağıranın AÇIKÇA verdiği `pairs` (kapısız
       yollar: onay kutusu, AI aracı, panel kartları). Hepsi VE'lenir.
+    * `sirket_ciftleri` (IZN-B5f, madde 23b): ŞİRKET TÜRÜ liste/özet kapılarının (sayfa, bayrak)
+      çiftleri. `record_gate` şirket çiftlerini gruba YAZMAZ; bu yüzden şirket kapılı liste, ekip
+      rolünün o sayfadaki hücresine bakmadan üye olunan TÜM projeleri döndürüyordu (detay ucu ise
+      yol çözücüsüyle o projedeki rolle karar verip 403 veriyordu). Verilirse çiftler EK BİR GRUP
+      olarak (VEYA'lı) eklenir ve her projede O PROJEDEKİ rolün hücresiyle sınanır (detayla aynı
+      kural). Varsayılan boş = eski davranış; yalnızca bilinçli çağıranlar verir (global DEĞİL:
+      panel/personel görünürlüğü bundan etkilenmez). Ek maliyet: istek başına +1 sorgu.
     * 🔴 HTTP isteği içinde hiçbir kapı geçmediyse ve `pairs` verilmediyse üyelik TEK BAŞINA yetki
       sayılmaz: test/dev'de `MissingGateContextError`, üretimde boş küme (fail-closed).
       HTTP DIŞI doğrudan servis çağrısında (test/betik) yalnız üyelik süzgeci.
@@ -226,6 +244,8 @@ async def visible_projects(
                 "çiftlerini `pairs=` ile açıkça verin"
             )
         return []
+    if sirket_ciftleri:
+        groups = [*groups, tuple(sirket_ciftleri)]
     members = await repository.list_member_projects(session, actor.id)
     if not groups or not members:
         return [project for project, _role_id in members]

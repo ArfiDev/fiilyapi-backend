@@ -134,7 +134,7 @@ async def list_requests(
     toplam ve kalem sayisi JOIN'li alt sorgudan) · sayim · aktorun izin
     seviyesi · gorunur projeler.
     """
-    project_ids = await _visible_project_ids(session, actor)
+    project_ids = await _visible_project_ids(session, actor, liste=True)
     totals = repository.request_totals()
     suzgec = {"status": status, "project_id": project_id, "priority": priority, "q": q}
 

@@ -34,9 +34,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import today
 from app.modules.procurement import repository, transitions
+from app.modules.procurement.guards import PERMISSION_MODULE
 from app.modules.procurement.models import PurchaseOrderStatus, PurchaseRequestStatus
 from app.modules.procurement.schemas import PurchasingSummaryResponse
-from app.modules.projects.service import visible_projects
+from app.modules.projects.service import sirket_liste_ciftleri, visible_projects
 from app.modules.users.models import User
 
 __all__ = ["build_summary"]
@@ -53,7 +54,12 @@ async def build_summary(
     GENİŞLETMEZ, daraltır — görünmeyen bir proje kimliği verildiğinde kesişim
     boştur ve sayaçlar sıfır kalır (liste uçlarındaki kuralın aynısı).
     """
-    project_ids = [p.id for p in await visible_projects(session, actor)]
+    project_ids = [
+        p.id
+        for p in await visible_projects(
+            session, actor, sirket_ciftleri=sirket_liste_ciftleri(PERMISSION_MODULE)
+        )
+    ]
     bugun = today()
 
     talepler = await repository.request_status_counts(session, project_ids, project_id=project_id)
