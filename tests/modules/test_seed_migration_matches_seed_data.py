@@ -22,6 +22,13 @@ satirlari bellekte toplayan sahte bir `op` ile cagrilir (bulk_insert cagrilarini
 yakalar). Ikinci migration satirlari calisma aninda DB'den okunan id'lerle
 INSERT ettigi icin bulk_insert kullanmaz; onun yerine upgrade()'in SQL uretirken
 okudugu modul-duzeyi sabitleri karsilastirilir.
+
+IZN-B6b: `seed_data.MODULES` ve `Scope` uygulamadan kalkti; `seed_data.MATRIX` yalniz DUZEY
+tasir. (duzey, kapsam) ciftleri ve modul satirlari migration'larin DONMUS kopyasiyla
+(`tests/_donmus_eski_matris.py`, HEAD 3d04f8f) cakilir; CANLI `seed_data.MATRIX`in duzeyleri
+ve CANLI kapi modul uzayi (`sayfalar.MODUL_ANAHTARLARI`) ayrica migration bileskesine esitlenir
+(sayfa hucreleri izn_b1'de bu duzeylerden turedigi icin canli/migration ayrismasi = sessiz
+yetki farki).
 """
 
 import importlib.util
@@ -30,7 +37,9 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
+from app.core.sayfalar import MODUL_ANAHTARLARI
 from app.modules.roles import seed_data as app_seed_data
+from tests import _donmus_eski_matris as eski_seed
 
 VERSIONS_DIR = Path(__file__).parents[2] / "alembic" / "versions"
 SEED_MIGRATION_PATH = VERSIONS_DIR / "a477fdf00fdf_seed_roller_modul_ve_izinler.py"
@@ -104,10 +113,20 @@ def _captured_bulk_inserts(migration) -> dict[str, list[dict]]:
 
 
 def _permission_map_from_app() -> dict[tuple[str, str], tuple[str, str]]:
+    """DONMUS kopyanin (duzey, kapsam) ciftleri (IZN-B6b: canli seed kapsam tasimaz)."""
     result: dict[tuple[str, str], tuple[str, str]] = {}
-    for module_key, cells in app_seed_data.MATRIX.items():
-        for role_key, (level, scope) in zip(app_seed_data.ROLE_ORDER, cells, strict=True):
+    for module_key, cells in eski_seed.MATRIX.items():
+        for role_key, (level, scope) in zip(eski_seed.ROLE_ORDER, cells, strict=True):
             result[(role_key, module_key)] = (_value(level), _value(scope))
+    return result
+
+
+def _level_map_from_live_app() -> dict[tuple[str, str], str]:
+    """CANLI `seed_data.MATRIX`in duzeyleri (sayfa hucrelerinin kaynagi)."""
+    result: dict[tuple[str, str], str] = {}
+    for module_key, cells in app_seed_data.MATRIX.items():
+        for role_key, level in zip(app_seed_data.ROLE_ORDER, cells, strict=True):
+            result[(role_key, module_key)] = _value(level)
     return result
 
 
@@ -164,7 +183,7 @@ def _roles_set_from_migration(captured: dict[str, list[dict]]) -> set[tuple[str,
 def _modules_set_from_app() -> set[tuple[str, str, str, int]]:
     return {
         (row["key"], row["name"], _value(row["group"]), row["sort_order"])
-        for row in app_seed_data.MODULES
+        for row in eski_seed.MODULES
     }
 
 
@@ -197,7 +216,11 @@ def _all_uuids_unique(captured: dict[str, list[dict]]) -> bool:
 
 
 def test_migration_permission_matrix_matches_seed_data():
-    assert _permission_map_from_app() == _permission_map_from_migrations()
+    migration_map = _permission_map_from_migrations()
+    assert _permission_map_from_app() == migration_map
+    assert _level_map_from_live_app() == {
+        key: level for key, (level, _scope) in migration_map.items()
+    }
 
 
 def test_migration_permission_matrix_has_184_cells():
@@ -205,6 +228,7 @@ def test_migration_permission_matrix_has_184_cells():
     migration_map = _permission_map_from_migrations()
     assert len(app_map) == 184
     assert len(migration_map) == 184
+    assert len(_level_map_from_live_app()) == 184
 
 
 def test_migration_role_keys_match_seed_data():
@@ -225,7 +249,8 @@ def test_migration_module_keys_match_seed_data():
     keys = set(migration.MODULE_IDS.keys())
     for path in EXTENSION_MIGRATION_PATHS:
         keys.add(_load_migration_module(path).MODULE_KEY)
-    assert keys == {row["key"] for row in app_seed_data.MODULES}
+    assert keys == {row["key"] for row in eski_seed.MODULES}
+    assert keys == set(MODUL_ANAHTARLARI)
 
 
 def test_migration_role_rows_match_seed_data():

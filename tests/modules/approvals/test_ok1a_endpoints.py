@@ -4,9 +4,10 @@
 GET  /approvals                    — onay kutusu (satır zenginleştirmesi T4'te)
 GET  /approvals/settings           — eşiği oku
 PUT  /approvals/settings           — eşiği yaz     [approvals: admin]
-GET  /approvals/roles              — 410 (IZN-B3b: onay rolü = proje rolü)
-PUT  /approvals/roles/{user_id}    — 410 (IZN-B3b)
+GET  /approvals/history            — geçmiş (OKT-B1)
 ```
+
+(`/approvals/roles` uçları IZN-B3b'de 410, IZN-B6b'de tamamen SÖKÜLDÜ: onay rolü = proje rolü.)
 
 YENİ izin modülü AÇILMADI: `approvals` seed'de ZATEN vardır
 (`roles/seed_data.py:74,176`) ve `admin` seviyesinden yalnız `system_admin` geçer.
@@ -28,8 +29,6 @@ _BEKLENEN_YOLLAR = {
     "/approvals",
     "/approvals/history",
     "/approvals/settings",
-    "/approvals/roles",
-    "/approvals/roles/{user_id}",
 }
 
 
@@ -49,11 +48,11 @@ async def muhasebe_basliklari(aktor_fabrikasi, giris):
 # --- Rota kümesi: `/approvals/{uuid}` YOKTUR, sabit yollar yutulmaz ---
 
 
-def test_modulun_ROTA_KUMESI_tam_olarak_alti_yoldur() -> None:
+def test_modulun_ROTA_KUMESI_tam_olarak_dort_yoldur() -> None:
     """MK-2 rota sırası tuzağı: `/approvals/{id}` açılsaydı `/approvals/settings`
     bir UUID sanılıp 422'ye düşerdi. Bugün böyle bir rota YOKTUR ve bu kilitlidir.
 
-    OKT-B1: `GET /approvals/history` ALTINCI yoldur (sabit yol, parametreli kardeşi yok)."""
+    OKT-B1: `GET /approvals/history` DÖRDÜNCÜ yoldur (sabit yol, parametreli kardeşi yok)."""
     from app.main import app
 
     yollar = {yol for yol in app.openapi()["paths"] if yol.startswith("/approvals")}
@@ -137,62 +136,23 @@ async def test_PUT_company_esigi_DEGISTIREMEZ(client, admin_basliklari):
     assert Decimal(oku.json()["approval_threshold_try"]) == Decimal("750000.00")
 
 
-# --- Onay rolü atama uçları: IZN-B3b'de 410 (onay rolü = proje rolü) ---
-
-_ROLLER_GONE = "Onay rolleri artık proje rolünden gelir"
+# --- Onay rolü atama uçları: IZN-B6b'de SÖKÜLDÜ (410 gövdeleri de gitti) ---
 
 
-async def test_rol_atama_PUT_410_doner_ve_HICBIR_SEY_yazmaz(
-    client, seeded_db, admin_basliklari, aktor_fabrikasi
+async def test_rol_atama_uclari_SOKULDU_yetkili_icin_de_404(
+    client, admin_basliklari, aktor_fabrikasi
 ):
-    """Eski ucu çağıran eski ekran yönlendirici mesaj alır; ekip satırları DEĞİŞMEZ."""
-    from sqlalchemy import func, select
-
-    from app.modules.users.models import ProjectMember
-
+    """410 gövdeleri kalktı: yol artık YOK (admin için de 404/405), hiçbir şey yazılmaz."""
     hedef = await aktor_fabrikasi("atama-hedef@ok1a.co", role_key="project_manager")
-    once = await seeded_db.scalar(select(func.count()).select_from(ProjectMember))
 
-    yanit = await client.put(
+    get_yanit = await client.get("/approvals/roles", headers=admin_basliklari)
+    put_yanit = await client.put(
         f"/approvals/roles/{hedef.id}",
-        json={"approval_roles": ["project_manager", "accounting"]},
+        json={"approval_roles": ["project_manager"]},
         headers=admin_basliklari,
     )
-
-    assert yanit.status_code == 410, yanit.text
-    assert _ROLLER_GONE in yanit.json()["detail"]
-    assert "PUT /users/{id}/access" in yanit.json()["detail"]
-    assert await seeded_db.scalar(select(func.count()).select_from(ProjectMember)) == once
-
-
-async def test_rol_atama_uclari_KAPI_eski_kapiyla_AYNI_yetkisize_403(
-    client, muhasebe_basliklari, admin_basliklari, aktor_fabrikasi
-):
-    """410 kapının ARKASINDADIR: yetkisiz 403 alır (yönlendirme mesajı bile sızmaz), yetkili 410."""
-    hedef = await aktor_fabrikasi("atama-yetkisiz@ok1a.co")
-
-    put_yetkisiz = await client.put(
-        f"/approvals/roles/{hedef.id}",
-        json={"approval_roles": ["patron"]},
-        headers=muhasebe_basliklari,
-    )
-    get_yetkisiz = await client.get("/approvals/roles", headers=muhasebe_basliklari)
-    assert put_yetkisiz.status_code == 403, put_yetkisiz.text
-    assert get_yetkisiz.status_code == 403, get_yetkisiz.text
-
-    get_yetkili = await client.get("/approvals/roles", headers=admin_basliklari)
-    assert get_yetkili.status_code == 410, get_yetkili.text
-    assert _ROLLER_GONE in get_yetkili.json()["detail"]
-
-
-def test_rol_atama_uclari_DEPRECATED_ve_410_belgeli() -> None:
-    from app.main import app
-
-    yollar = app.openapi()["paths"]
-    for yol, yontem in (("/approvals/roles", "get"), ("/approvals/roles/{user_id}", "put")):
-        uc = yollar[yol][yontem]
-        assert uc.get("deprecated") is True, (yol, yontem)
-        assert "410" in uc["responses"], (yol, yontem)
+    assert get_yanit.status_code in (404, 405), get_yanit.text
+    assert put_yanit.status_code in (404, 405), put_yanit.text
 
 
 # --- 🔴 Liste ucu kanonu (TB3/T2): tavan aşımı 422, KIRPMA DEĞİL ---

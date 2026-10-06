@@ -111,10 +111,10 @@ def _rol_modul_seviyeleri() -> dict[str, dict[str, L]]:
         if role_key == "system_admin":
             continue
         i = seed_data.ROLE_ORDER.index(role_key)
-        roller[role_key] = {m: c[i][0] for m, c in seed_data.MATRIX.items()}
+        roller[role_key] = {m: c[i] for m, c in seed_data.MATRIX.items()}
     for role_key in seed_data.IZN_ROLE_ORDER:
         i = seed_data.IZN_ROLE_ORDER.index(role_key)
-        roller[role_key] = {m: c[i][0] for m, c in seed_data.IZN_MATRIX.items()}
+        roller[role_key] = {m: c[i] for m, c in seed_data.IZN_MATRIX.items()}
     return roller
 
 

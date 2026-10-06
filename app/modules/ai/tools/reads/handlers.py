@@ -18,14 +18,17 @@ ve bekçileri `test_ai0b_yapisal.py::test_B14_*` + `::test_B15_*`tir.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.modules.ai import guards
 from app.modules.ai.navigation import EKRAN_ADLARI
 from app.modules.ai.registry import AracBaglami
-from app.modules.ai.result import AracSonucu, Ok, liste_sonucu
+from app.modules.ai.result import AracSonucu, Ok, ToolError, liste_sonucu
 from app.modules.ai.tools import schemas
 from app.modules.ai.tools.zarf import kod_hali
+
+_log = logging.getLogger(__name__)
 
 
 async def projeleri_listele(ctx: AracBaglami, girdi: Any) -> AracSonucu:
@@ -160,18 +163,27 @@ async def yetkilerim(ctx: AracBaglami, girdi: Any) -> AracSonucu:
 
     Uç **kapısızdır** (`UNGATED_ALLOWLIST` üyesi) ve bu bilinçlidir: aktör kendi
     yetkisini görmek için ek bir yetkiye ihtiyaç duymaz.
+
+    IZN-B6b (R1): yetki haritası `/auth/me.pages` + `hidden_fields`ten okunur
+    (`permissions` alanı söküldü). 🔴 Beklenen alan YOKSA sessiz boş harita
+    DÖNMEZ: model "hiç yetkin yok" derdi. Açık hata zarfı (`yetki_alani_eksik`) döner.
     """
     yanit = await ctx.get()
     if (hal := kod_hali(yanit.status_code, guards.PERMISSION_MODULE)) is not None:
         return hal
     g = yanit.json()
+    sayfalar, gizli = g.get("pages"), g.get("hidden_fields")
+    if not isinstance(sayfalar, dict) or not isinstance(gizli, list) or "role_key" not in g:
+        _log.error("/auth/me yanıtında pages/hidden_fields/role_key eksik: %s", sorted(g))
+        return ToolError("yetki_alani_eksik")
     veri = schemas.AiYetkilerim(
         role_key=g["role_key"],
-        permissions={k: str(v) for k, v in (g.get("permissions") or {}).items()},
+        sayfalar=schemas.sayfa_yetkileri(sayfalar),
+        gizli_alanlar=sorted(str(k) for k in gizli),
         yaniti_besleyen_not=(
-            "Bu harita INNER JOIN ile üretilir: izin SATIRI olmayan bir modülün "
-            "anahtarı burada HİÇ görünmez. Bir modülün adı listede yoksa bu "
-            "'öyle bir modül yok' DEMEK DEĞİLDİR."
+            "`sayfalar` yalnız erişimi OLAN sayfaları listeler (view/edit; '+onaylar' = "
+            "onay eylemi de var). Listede olmayan sayfa 'yetkin yok' demektir. "
+            "`gizli_alanlar` bu rolün hiçbir ekranda göremediği alan kategorileridir."
         ),
     )
     return Ok(data=veri.model_dump(mode="json"), row_count=1)

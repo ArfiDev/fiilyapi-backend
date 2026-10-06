@@ -302,8 +302,8 @@ async def test_ev_view_olup_contracts_yok_roller_403(
     from app.modules.roles.seed_data import MATRIX, ROLE_ORDER
 
     sira = ROLE_ORDER.index(role_key)
-    assert MATRIX["contracts"][sira][0] == AccessLevel.none  # on kosul: seed matrisi
-    assert MATRIX["earned_value"][sira][0] != AccessLevel.none  # EV okuyabilen rol
+    assert MATRIX["contracts"][sira] == AccessLevel.none  # on kosul: seed matrisi
+    assert MATRIX["earned_value"][sira] != AccessLevel.none  # EV okuyabilen rol
     created = await client.post(URL, json=_govde(kab), headers=admin)
     kisi = await _giris(client, db_session, user_factory, role_key)
 

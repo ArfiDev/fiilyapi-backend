@@ -3,10 +3,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from app.core.access import AccessLevel
 from app.core.db import DbSession
 from app.core.deps import get_current_user
-from app.core.errors import NotFoundError
 from app.core.mask_route import MaskeRotasi
 from app.core.openapi import COMMON_ERROR_RESPONSES, DELETE_403_YANITI
 from app.core.page_gate import decide
@@ -14,7 +12,6 @@ from app.core.permissions import (
     _DENIED,
     require_page,
     require_pages,
-    require_permission,
     require_system_admin,
 )
 from app.core.ratelimit import client_ip
@@ -23,9 +20,6 @@ from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.roles import repository, service
 from app.modules.roles.schemas import (
-    ModuleResponse,
-    PermissionCell,
-    PermissionUpdate,
     RoleCopy,
     RoleCreate,
     RolePagesResponse,
@@ -38,8 +32,8 @@ from app.modules.users.models import User
 router = APIRouter(route_class=MaskeRotasi, tags=["roles"], responses=COMMON_ERROR_RESPONSES)
 
 #: IZN-B5a (madde 15): rol uçlarını `ayarlar.kullanicilar` GÖRÜR bitinin açması bir sızıntıydı
-#: (rol ekranlarına bağımsız). Rol ayrıntı uçları (`/modules`, `/roles/{id}/permissions|pages`)
-#: yalnız rol ekranlarının Görür'üyle açılır.
+#: (rol ekranlarına bağımsız). Rol ayrıntı ucu (`/roles/{id}/pages`) yalnız rol ekranlarının
+#: Görür'üyle açılır.
 _ROL_EKRANLARI = ("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri")
 _ROL_EKRANI_GORUR = require_pages(_ROL_EKRANLARI, "view")
 
@@ -63,37 +57,6 @@ async def list_roles_endpoint(
     session: DbSession,
 ) -> list[RoleResponse]:
     return await service.role_responses(session, await repository.list_roles(session))
-
-
-@router.get(
-    "/modules",
-    response_model=list[ModuleResponse],
-    dependencies=[_ROL_EKRANI_GORUR],
-)
-async def list_modules_endpoint(
-    session: DbSession,
-) -> list[ModuleResponse]:
-    return [ModuleResponse.model_validate(m) for m in await repository.list_modules(session)]
-
-
-@router.get(
-    "/roles/{role_id}/permissions",
-    response_model=list[PermissionCell],
-    dependencies=[_ROL_EKRANI_GORUR],
-)
-async def get_role_permissions_endpoint(
-    role_id: uuid.UUID,
-    session: DbSession,
-) -> list[PermissionCell]:
-    """KALDIRILACAK (B6): modül düzeyi SAYFA HÜCRELERİNDEN türetilmiş salt-okur görünümdür."""
-    role = await repository.get_role(session, role_id)
-    if role is None:
-        raise NotFoundError("Rol bulunamadı")
-    matrix = await repository.derived_role_matrix(session, role_id, role.key)
-    return [
-        PermissionCell(module_key=module.key, access_level=level, scope=scope)
-        for module, level, scope in matrix
-    ]
 
 
 @router.post(
@@ -143,38 +106,6 @@ async def rename_role_endpoint(
         ip_address=client_ip(request),
     )
     return (await service.role_responses(session, [role]))[0]
-
-
-#: 410 gövdesi: eski modül hücresi yazma ucu kalktı (IZN-B2). Mesaj yeni ekranı işaret eder.
-PERMISSION_WRITE_GONE_DETAIL = (
-    "Modül bazlı izin matrisi kaldırıldı. İzinleri Ayarlar > Sayfa İzinleri ekranından "
-    "(PUT /roles/{id}/pages) düzenleyin."
-)
-
-
-@router.put(
-    "/roles/{role_id}/permissions/{module_key}",
-    deprecated=True,
-    status_code=status.HTTP_410_GONE,
-    response_model=None,
-    responses={
-        status.HTTP_410_GONE: {
-            "description": "Uç kaldırıldı: izinler artık sayfa bazlı (PUT /roles/{id}/pages)"
-        }
-    },
-    dependencies=[require_permission("user_management", AccessLevel.admin)],
-)
-async def update_permission_endpoint(
-    role_id: uuid.UUID,
-    module_key: str,
-    data: PermissionUpdate,
-) -> None:
-    """KALDIRILDI (IZN-B2): her çağrı 410 döner, hiçbir şey yazılmaz.
-
-    Eski modül hücreleri DONDURULDU; kapılar sayfa hücrelerinden karar verir. Gövde şeması
-    yalnız istemci tiplerinin kırılmaması için durur (B6'da uç ve şema birlikte sökülür).
-    """
-    raise HTTPException(status_code=status.HTTP_410_GONE, detail=PERMISSION_WRITE_GONE_DETAIL)
 
 
 @router.get(

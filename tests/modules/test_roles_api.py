@@ -15,13 +15,13 @@ async def _rid(session, key):
     return str((await session.execute(select(Role).where(Role.key == key))).scalar_one().id)
 
 
-async def test_list_roles_and_modules(client, user_factory):
+async def test_list_roles_and_modules_ucu_sokuldu(client, user_factory):
     token = await _login(client, user_factory, "system_admin")
     h = {"Authorization": f"Bearer {token}"}
     roles = await client.get("/roles", headers=h)
     assert roles.status_code == 200 and len(roles.json()) == 8
-    modules = await client.get("/modules", headers=h)
-    assert modules.status_code == 200 and len(modules.json()) == 23  # PLN-B1
+    # IZN-B6b: `modules` tablosu ve `GET /modules` söküldü.
+    assert (await client.get("/modules", headers=h)).status_code == 404
 
 
 async def test_create_and_delete_custom_role(client, user_factory):
@@ -44,7 +44,4 @@ async def test_roles_forbidden_for_non_admin(client, user_factory):
     assert resp.status_code == 403
 
 
-# IZN-B2: `PUT /roles/{id}/permissions/{module}` 410 oldu; modül hücresi yazma kuralları
-# (kapsam, kablolu modül, maskeleyen kapsam + yazan seviye) servis düzeyinde
-# `tests/modules/test_role_service.py` ile çakılır;
-# 410 davranışı `tests/modules/test_izn_b2_roles_api.py` içindedir.
+# IZN-B6b: eski hücre yazma ucu söküldü; bekçisi `tests/modules/test_izn_b2_roles_api.py`.

@@ -367,9 +367,10 @@ def test_permission_module_already_seeded():
     seed'de ("Stok & Depo", STOK_SATINALMA) — bu yuzden 21. modul ACILMAZ, izin
     migration'i YOKTUR. Anahtar bir gun degisirse bu test ST'nin izin
     varsayimini dusurur ve uclar sessizce yetkisiz kalmaz."""
-    from app.modules.roles.seed_data import MATRIX, MODULES
+    from app.core.sayfalar import MODUL_ANAHTARLARI
+    from app.modules.roles.seed_data import MATRIX
 
-    keys = {module["key"] for module in MODULES}
+    keys = set(MODUL_ANAHTARLARI)
     assert "inventory" in keys, "ST uclarinin dayandigi izin modulu seed'den kalkmis"
     assert "inventory" in MATRIX
     assert "stock" not in keys, "ikinci bir stok modulu acilmis — tek anahtar `inventory`"

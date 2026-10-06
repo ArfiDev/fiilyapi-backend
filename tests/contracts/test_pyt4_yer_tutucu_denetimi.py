@@ -27,6 +27,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
+from app.core.sayfalar import MODUL_ANAHTARLARI
 from app.modules.contracts.models import (
     ContractStatus,
     Subcontractor,
@@ -36,7 +37,6 @@ from app.modules.contracts.models import (
 from app.modules.contracts.schemas import EmployerContractDetail, SubcontractorContractDetail
 from app.modules.documents.models import Document, DocumentFolder
 from app.modules.projects.models import Project
-from app.modules.roles.seed_data import MODULES
 from app.modules.sites.models import SectionMilestone
 from app.modules.subcontractor_progress_payments.models import (
     SubcontractorPaymentStatus,
@@ -420,7 +420,7 @@ def test_gerekce_pending_modules_anahtarlari_FOSIL_OLAMAZ() -> None:
     import pathlib
 
     kok = pathlib.Path(__file__).resolve().parents[2]
-    izin_modulleri = {m["key"] for m in MODULES}
+    izin_modulleri = set(MODUL_ANAHTARLARI)
     semalar = _pending_modules_semalari()
 
     # Denetimin bildiği İKİ sözleşme şeması mutlaka taranmış olmalı — bekçi

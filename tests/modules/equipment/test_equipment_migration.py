@@ -399,9 +399,16 @@ def test_forbidden_columns_are_absent():
 def test_permission_module_is_seeded_as_21st():
     """Spec §6: `equipment` 21. modüldür ve `sort_order` SONA eklenir —
     mevcut modüllerin sırası KAYDIRILMAZ (boq 17 / contracts 18 / sales 19 /
-    documents 20 deseni)."""
-    from app.modules.roles.models import ModuleGroup
-    from app.modules.roles.seed_data import MATRIX, MODULES
+    documents 20 deseni).
+
+    IZN-B6b: `modules` tablosu/`seed_data.MODULES` uygulamadan kalktı; modül kaydının
+    meta verisi (ad/grup/sıra) yalnız migration'ın tarihidir → DONMUŞ kopyadan okunur
+    (`tests/_donmus_eski_matris.py`; migration eşitliği
+    `test_seed_migration_matches_seed_data.py`ta). Canlı kapı modülü olduğu ayrıca çakılır.
+    """
+    from app.core.sayfalar import MODUL_ANAHTARLARI
+    from app.modules.roles.seed_data import MATRIX
+    from tests._donmus_eski_matris import MODULES, ModuleGroup
 
     (row,) = [module for module in MODULES if module["key"] == MODULE_KEY]
     assert row["name"] == "Makine & Ekipman"
@@ -417,16 +424,23 @@ def test_permission_module_is_seeded_as_21st():
         "earned_value",  # PLN-B1: 23. sira
     }
     assert MODULE_KEY in MATRIX
+    assert MODULE_KEY in MODUL_ANAHTARLARI
 
 
 def test_permission_row_matches_spec_semantics():
+    """IZN-B6b: canlı `seed_data.MATRIX` yalnız DÜZEY taşır (Scope kalktı) → düzeyler canlıdan,
+    (düzey, kapsam) çiftinin tamamı migration'ın donmuş kopyasından çakılır."""
     from app.modules.roles.seed_data import MATRIX, ROLE_ORDER
+    from tests import _donmus_eski_matris as eski_seed
 
     cells = dict(zip(ROLE_ORDER, MATRIX[MODULE_KEY], strict=True))
-    actual = {role: (level.value, scope.value) for role, (level, scope) in cells.items()}
-    assert actual == EXPECTED_PERMISSIONS
+    actual = {role: level.value for role, level in cells.items()}
+    assert actual == {role: level for role, (level, _scope) in EXPECTED_PERMISSIONS.items()}
+    eski_cells = dict(zip(eski_seed.ROLE_ORDER, eski_seed.MATRIX[MODULE_KEY], strict=True))
+    eski_actual = {role: (level.value, scope.value) for role, (level, scope) in eski_cells.items()}
+    assert eski_actual == EXPECTED_PERMISSIONS
     # Silme YALNIZ system_admin'dedir: `full` silmeyi kapsamaz (core/access.py).
-    assert actual["patron"][0] == "full"
+    assert actual["patron"] == "full"
 
 
 # --------------------------------------------------------------------------- #

@@ -8,7 +8,7 @@ from app.core.db import DbSession
 from app.core.deps import get_current_user
 from app.core.mask_route import MaskeRotasi
 from app.core.ratelimit import client_ip, limiter
-from app.core.sayfalar import SAYFA_BY_KEY, PageLevel, sistem_yoneticisi_sayfalari
+from app.core.sayfalar import SAYFA_BY_KEY, sistem_yoneticisi_sayfalari
 from app.core.security import TokenError, create_access_token, create_refresh_token, decode_token
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -18,7 +18,6 @@ from app.modules.auth.service import AuthError, authenticate
 from app.modules.auth.team import load_team, team_projects, team_role_pages
 from app.modules.pages.grants import grants_from_cells
 from app.modules.roles.repository import (
-    derived_role_matrix,
     list_role_hidden_categories,
     list_role_page_cells,
 )
@@ -117,11 +116,9 @@ async def me(
     user: Annotated[User, Depends(get_current_user)],
     session: DbSession,
 ) -> MeResponse:
-    """`permissions` (IZN-B2): SAYFA HÜCRELERİNDEN türetilmiş salt-okur modül düzeyi
-    (`roles.repository.derived_role_matrix`; `/roles/{id}/permissions` ucuyla ayni kaynak).
-    Frontend B6/F5'e kadar onu okur; kapılar `pages` hücrelerinden karar verir."""
+    """Oturum sahibi: kimlik + sayfa hücreleri (`pages`) + gizli alanlar + proje ekibi.
+    Kapılar `pages` hücrelerinden karar verir (IZN-B6b: eski `permissions` haritası kalktı)."""
     admin = is_system_admin(user)
-    cells: dict[str, tuple[PageLevel, bool]] = {}
     if admin:
         pages = {
             key: PageGrant(level=level, approve=approve)
@@ -135,11 +132,9 @@ async def me(
             for cell in await list_role_page_cells(session, user.role_id)
             if cell.page_key in SAYFA_BY_KEY
         ]
-        # Hücresiz sayfa katalogdan `none` ile dolar (IZN-B6a-me); `cells` YALNIZ gerçek satırlar.
+        # Hücresiz sayfa katalogdan `none` ile dolar (IZN-B6a-me).
         pages = grants_from_cells(rows)
-        cells = {cell.page_key: (cell.level, cell.can_approve) for cell in rows}
         hidden_fields = await list_role_hidden_categories(session, user.role_id)
-    matrix = await derived_role_matrix(session, user.role_id, user.role.key, cells)
     # "Tüm projeler" ve Sistem Yöneticisi kişide ekip satırı YOK SAYILIR: ana rolle çalışır.
     team = [] if (user.all_projects or admin) else await load_team(session, user.id)
     return MeResponse(
@@ -150,7 +145,6 @@ async def me(
         role_key=user.role.key,
         is_system_admin=admin,
         status=user.status,
-        permissions={module.key: level for module, level, _scope in matrix},
         pages=pages,
         hidden_fields=hidden_fields,
         all_projects=user.all_projects,

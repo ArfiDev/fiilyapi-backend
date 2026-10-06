@@ -353,11 +353,12 @@ def test_forbidden_columns_are_absent():
 
 def test_permission_module_already_seeded():
     """S9 "21. modül" der ama `payroll` izin modülü seed'de ZATEN VARDIR
-    (`roles/seed_data.py` MODULES, sort_order 8) — ST/`inventory` emsali: yeni
-    izin modülü AÇILMAZ, izin migration'ı YAZILMAZ."""
-    from app.modules.roles.seed_data import MATRIX, MODULES
+    (IZN-B6b: `core/sayfalar.py` MODUL_ANAHTARLARI; eskiden `seed_data.MODULES`, sort_order 8)
+    — ST/`inventory` emsali: yeni izin modülü AÇILMAZ, izin migration'ı YAZILMAZ."""
+    from app.core.sayfalar import MODUL_ANAHTARLARI
+    from app.modules.roles.seed_data import MATRIX
 
-    keys = {module["key"] for module in MODULES}
+    keys = set(MODUL_ANAHTARLARI)
     assert "payroll" in keys, "İK-3 uçlarının dayandığı izin modülü seed'den kalkmış"
     assert "payroll" in MATRIX
     assert "bordro" not in keys, "ikinci bir bordro modülü açılmış — tek anahtar `payroll`"

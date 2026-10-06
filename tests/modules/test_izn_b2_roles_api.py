@@ -4,8 +4,6 @@ rol silme kuralı, eski hücre yazma ucunun 410'u, `RoleResponse.user_count/is_l
 Kapı köprüsü ve parite testi AYRI dosyalardadır (bu dosya yalnız `roles` yüzeyini çakar).
 """
 
-import uuid
-
 import pytest
 from sqlalchemy import select
 
@@ -15,7 +13,6 @@ from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.roles import seed_data
 from app.modules.roles.models import Role, RoleHiddenField, RolePagePermission
 from app.modules.roles.schemas import RoleCreate
-from app.modules.users.models import User
 
 SIFRE = "parola1234"
 ONAYSIZ_SAYFA = "genel.gosterge_paneli"  # has_approval=false
@@ -408,7 +405,7 @@ async def test_rol_listesi_user_count_ve_is_locked(client, izn_db, user_factory)
 # ---------------------------------------------------------------------------
 
 
-async def test_eski_hucre_yazma_ucu_410_ve_hicbir_sey_yazmaz(client, izn_db, user_factory):
+async def test_eski_hucre_yazma_ucu_sokuldu_ve_hicbir_sey_yazmaz(client, izn_db, user_factory):
     admin = await _giris(client, user_factory, "system_admin")
     rol = await _rol(izn_db, "accounting")
     sayfalar_once = (await client.get(f"/roles/{rol.id}/pages", headers=admin)).json()
@@ -417,22 +414,14 @@ async def test_eski_hucre_yazma_ucu_410_ve_hicbir_sey_yazmaz(client, izn_db, use
         json={"access_level": "view", "scope": "all"},
         headers=admin,
     )
-    assert cevap.status_code == 410
-    assert "Sayfa İzinleri" in cevap.json()["detail"]
+    assert cevap.status_code in (404, 405)
+    assert (await client.get(f"/roles/{rol.id}/permissions", headers=admin)).status_code in (
+        404,
+        405,
+        422,
+    )
     assert (await client.get(f"/roles/{rol.id}/pages", headers=admin)).json() == sayfalar_once
     assert await _denetim(izn_db, AuditAction.update) == []
-
-
-async def test_eski_hucre_yazma_ucu_yetkisiz_403_oturumsuz_401(client, izn_db, user_factory):
-    rol = await _rol(izn_db, "accounting")
-    govde = {"access_level": "view", "scope": "all"}
-    assert (
-        await client.put(f"/roles/{rol.id}/permissions/inventory", json=govde)
-    ).status_code == 401
-    pm = await _giris(client, user_factory, "project_manager")
-    assert (
-        await client.put(f"/roles/{rol.id}/permissions/inventory", json=govde, headers=pm)
-    ).status_code == 403
 
 
 async def test_put_pages_tekrar_yazimi_yinelenen_satir_acmaz(client, izn_db, user_factory):
@@ -471,77 +460,6 @@ async def test_hidden_fields_effective_her_rolde_true(client, izn_db, user_facto
     )
     govde = (await client.get(f"/roles/{kopya.json()['id']}/pages", headers=admin)).json()
     assert govde["hidden_fields_effective"] is True
-
-
-async def test_copy_eski_role_permissions_satirlarini_kopyalar_muhasebe_finance_maskesi_kalir(
-    client, izn_db, user_factory
-):
-    """CEO onarımı: kopya donmuş eski `scope`u korur (Muhasebe `finance` maskesini kaybetmez)."""
-    from app.core.access import Scope
-    from app.modules.roles.models import Role
-    from app.modules.roles.repository import derived_role_matrix
-
-    async def actor_scope(session, user, modul):
-        # IZN-B6a: `core.permissions.actor_scope` söküldü; aynı kuralı görüntü matrisi taşır.
-        rol = await session.get(Role, user.role_id)
-        matris = await derived_role_matrix(session, rol.id, rol.key)
-        return next(scope for m, _lvl, scope in matris if m.key == modul)
-
-    from app.modules.roles.models import RolePermission
-
-    admin = await _giris(client, user_factory, "system_admin")
-    muhasebe = await _rol(izn_db, "accounting")
-    kopya = await client.post(
-        f"/roles/{muhasebe.id}/copy", json={"name": "Muhasebe Kopya"}, headers=admin
-    )
-    assert kopya.status_code == 201, kopya.text
-    kopya_id = kopya.json()["id"]
-    kaynak_satirlar = {
-        (r.module_id, r.access_level, r.scope)
-        for r in (
-            await izn_db.execute(
-                select(RolePermission).where(RolePermission.role_id == muhasebe.id)
-            )
-        ).scalars()
-    }
-    kopya_satirlar = {
-        (r.module_id, r.access_level, r.scope)
-        for r in (
-            await izn_db.execute(
-                select(RolePermission).where(RolePermission.role_id == uuid.UUID(kopya_id))
-            )
-        ).scalars()
-    }
-    assert kopya_satirlar == kaynak_satirlar != set()
-    # Kopya rolün kullanıcısı için kapsam: `finance` (donmuş satırdan), `all` DEĞİL.
-    await user_factory(email="kopya@izn-b2.co", password=SIFRE, role_key="muhasebe_kopya")
-    kullanici = (
-        await izn_db.execute(select(User).where(User.email == "kopya@izn-b2.co"))
-    ).scalar_one()
-    assert await actor_scope(izn_db, kullanici, "boq") is Scope.finance
-
-
-async def test_copy_sistem_yoneticisi_kopyasinda_legacy_admin_full_olur(
-    client, izn_db, user_factory
-):
-    from app.modules.roles.models import RolePermission
-
-    admin = await _giris(client, user_factory, "system_admin")
-    kaynak = await _rol(izn_db, "system_admin")
-    kopya = await client.post(
-        f"/roles/{kaynak.id}/copy", json={"name": "Süper Kopya 2"}, headers=admin
-    )
-    seviyeler = {
-        r.access_level
-        for r in (
-            await izn_db.execute(
-                select(RolePermission).where(
-                    RolePermission.role_id == uuid.UUID(kopya.json()["id"])
-                )
-            )
-        ).scalars()
-    }
-    assert seviyeler == {AccessLevel.full}  # silme (admin) kopyalanmaz
 
 
 async def test_sistem_yoneticisi_rolunu_yalniz_sistem_yoneticisi_atar_rol_yonetimi_sahibi_dahil(

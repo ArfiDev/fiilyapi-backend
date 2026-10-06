@@ -593,8 +593,6 @@ async def test_get_denetim_satiri_yazmaz(client, admin, hedef, seeded_db) -> Non
     [
         ("GET", "project-access"),
         ("PUT", "project-access"),
-        ("GET", "disciplines"),
-        ("PUT", "disciplines"),
     ],
 )
 async def test_eski_uclar_410_ve_hicbir_sey_yazmaz(
@@ -608,6 +606,13 @@ async def test_eski_uclar_410_ve_hicbir_sey_yazmaz(
 
 async def test_eski_uclar_yetkisiz_aktore_403_gorunur(client, user_factory, hedef) -> None:
     muhasebe = await _headers(client, user_factory, "accounting")
-    for yol in ("project-access", "disciplines"):
-        resp = await client.put(f"/users/{hedef.id}/{yol}", json={}, headers=muhasebe)
-        assert resp.status_code == 403
+    resp = await client.put(f"/users/{hedef.id}/project-access", json={}, headers=muhasebe)
+    assert resp.status_code == 403
+
+
+@pytest.mark.parametrize("yontem", ["GET", "PUT"])
+async def test_disiplin_uclari_B6b_de_sokuldu(client, admin, hedef, seeded_db, yontem) -> None:
+    """IZN-B6b: `/users/{id}/disciplines` (410) tamamen söküldü; yol artık yok."""
+    resp = await client.request(yontem, f"/users/{hedef.id}/disciplines", json={}, headers=admin)
+    assert resp.status_code in (404, 405)
+    assert await _members(seeded_db, hedef.id) == {}

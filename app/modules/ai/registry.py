@@ -27,31 +27,12 @@ kapı `satisfies(permission.access_level, seviye)` ile **gerçekten** uygulanır
 
 ## `ActorContext`ta `scope` ALANI YOKTUR — ama gerekçesi artık BAŞKA
 
-IZN-B4/B6a: eski kapsam maskesi (`field_scope`, `scoped_route`, `kapsam_rotasi`,
-`kapsam_kapisi`) SÖKÜLDÜ; yerine `core/mask_route` + `core/field_mask`.
-Aşağıdaki metin TARİHSEL gerekçedir.
-
-🔴 **ESKİ GEREKÇE BAYATTI, KARAR AYNI KALDI** (ölçüldü, `tests/modules/ai/
-test_p8_kapsam_maskesi.py`). Burada *"`Scope` enum'unun 14 isabetinin hepsi
-`roles/` altındadır ve hiçbir süzgeç `permission.scope` OKUMAZ"* yazıyordu. Bu
-2026-09-19'dan beri YANLIŞTIR: `core/field_scope` + `core/scoped_route` altı
-modülde (`boq · contracts · dashboard · projects · sales · sites`) ALAN
-DÜZEYİNDE gerçek bir maske uygular ve AI hattı bu maskeden GEÇER — `ReadOnlyTransport`
-gerçek `APIRoute` nesnelerini (dolayısıyla `kapsam_rotasi` sarmalayıcısını ve
-router düzeyindeki `kapsam_kapisi` köprüsünü) taşır; araçlar SERVİSİ değil UCU
-sarar. Kalan iş #4 (2026-09-23) bu altı modülü ATANABİLİR kümeyle eşitledi
-(`app.modules.roles.scope_wiring.kablolu_moduller()`) ama AI'nin bu maskeyle
-ilişkisini DEĞİŞTİRMEDİ: değişen yalnız HANGİ modüllerin `limited`/`finance`
-kapsamını yönetici hücreye ATAYABİLDİĞİ, maskenin AI hattına NASIL bağlandığı
-DEĞİL.
-
-Sonuç yine de aynı kaldı ve gerekçesi ŞUDUR: maske `roles.RolePermission.scope`u
-route sarmalayıcısı düzeyinde okur ve yanıt modelini DÖNÜŞTE değiştirir —
-`ToolRegistry.invoke()`in KAPI kararına (izin + sysadmin + şema doğrulama)
-hiçbir şey EKLEMEZ, yalnız dönen VERİYİ daraltır. Bu yüzden `ActorContext`
-dataclass'ında (bir KAPI kararı taşıyan yapı) **`scope` ALANI hâlâ BULUNMAZ**
-(S1): kapı kararı zaten `permissions`/`role_is_system` alanlarıyla verilir,
-kapsam maskesi ayrı bir katmanda (yanıt zarfında) yaşar. Bekçisi tip testidir.
+Alan maskesi (`core/mask_route` + `core/field_mask`) araçların sardığı UCUN yanıtında
+çalışır ve `ToolRegistry.invoke()`in KAPI kararına (izin + sysadmin + şema doğrulama) hiçbir
+şey EKLEMEZ, yalnız dönen VERİYİ daraltır. Bu yüzden `ActorContext` dataclass'ında (bir KAPI
+kararı taşıyan yapı) **`scope` ALANI BULUNMAZ** (S1): kapı kararı `permissions` /
+`gecen_kapilar` / `role_is_system` alanlarıyla verilir, maske ayrı bir katmanda (yanıt
+zarfında) yaşar. Bekçisi tip testidir (`test_ai0b_yapisal.py`).
 """
 
 from __future__ import annotations
@@ -108,14 +89,16 @@ class ActorContext:
     user_id: uuid.UUID
     role_key: str
     role_is_system: bool
+    #: Kapı düzeyi (`level_from_cells`); sayfa Onaylar biti yansımaz — onay yetkisi
+    #: `yetkilerim.sayfalar`dan okunur.
     permissions: Mapping[str, AccessLevel]
     #: DSC-B5 (Ü2): kullanıcı disiplin kapsamıyla KISITLI mı (`user_scope(...).is_restricted`).
-    #: `scope` ALANI DEĞİL (S1 bekçisi, izin-matrisi `Scope`u ile karışmasın diye ayrı ad).
+    #: `scope` ALANI DEĞİL (S1 bekçisi; kapsam kararı ayrı katmanda yaşar).
     disiplin_kisitli: bool = False
     #: IZN-B5e: kataloğun GERÇEK kapı kararı — ana rolün `page_gate.gate_ok` ile (proje bağlamsız,
-    #: ekip rolü sayılmaz) GEÇTİĞİ `(modül, düzey)` çiftleri. `permissions` yalnız GÖSTERGEDİR
-    #: (`display_level`, kapıdan biraz geniş); katalog kapısı bunu okur. `None` = çözülmemiş aktör
-    #: (DB'siz test aktörü): eski `permissions` yoluna düşer.
+    #: ekip rolü sayılmaz) GEÇTİĞİ `(modül, düzey)` çiftleri. `permissions` modül başına GEÇEN en
+    #: yüksek düzeyin göstergesidir (IZN-B6b); katalog kapısı bu çiftleri okur. `None` =
+    #: çözülmemiş aktör (DB'siz test aktörü): eski `permissions` yoluna düşer.
     gecen_kapilar: frozenset[tuple[str, AccessLevel]] | None = None
 
 
@@ -225,8 +208,8 @@ class ToolRegistry:
         # LİSTELEME, dispatch bir KARARDIR; ama sağlayıcıya kapalı bir modülün
         # verisini taşıyan aracın **hiç var olmaması** gerekir. İhlalde
         # `IfsaIhlali` atılır → uygulama açılmaz (fail-closed). Bir liste ya da
-        # bir test dosyasına bırakılsaydı, `Scope` enum'unun ve
-        # `YONETISIM_DENYLIST`in düştüğü yere düşerdi: **dekoratif** olurdu.
+        # bir test dosyasına bırakılsaydı, `YONETISIM_DENYLIST`in düştüğü yere düşerdi:
+        # **dekoratif** olurdu.
         from app.modules.ai import exposure
 
         for spec in (*okuma_araclari, *propose_araclari):
@@ -445,7 +428,7 @@ class ToolRegistry:
         # --- 6b. ALAN MASKESİ, ÇALIŞMA ANINDA (S5-c / A1) --------------
         # 🔴 Kayıt anındaki şema taraması **YETMEZ** ve bu eşdeğer bir mutant
         # DEĞİLDİR: ölçüldü, `AiPuantajHaftasi.totals` `dict[str, Any]` ve
-        # `AiYetkilerim.permissions` `dict[str, str]`tir — bu iki alanın
+        # `AiYetkilerim.sayfalar` `dict[str, str]`tir — bu iki alanın
         # ANAHTARLARI şemada YOKTUR, yalnız gövdede vardır. Ucun gövdesine bir
         # gün `wage_amount` eklenirse şema kapısı sessiz kalır, bu kapı konuşur.
         #
@@ -488,9 +471,8 @@ class ToolRegistry:
         """Modele giden **tam** gövde: zarf + **KAPSAM NOTU** (S10).
 
         🔴 Bu, `SIRKET_GENELI` beyanının kullanıcıya ulaşan tek yoludur. Beyan
-        bir enum alanında kalsaydı `Scope` enum'unun kaderini paylaşırdı: kod
-        onu hiçbir yerde okumazdı ve `GET /ai/tools` çıktısındaki etiket
-        **dekoratif** olurdu.
+        bir enum alanında kalsaydı kod onu hiçbir yerde okumazdı ve `GET /ai/tools`
+        çıktısındaki etiket **dekoratif** olurdu.
 
         🔴 Bilinmeyen araç adı SESSİZCE atlanmaz — üçüncü bir not basılır. "Not
         yok" ile "kapsam iddiası yok" farklı iki şeydir.

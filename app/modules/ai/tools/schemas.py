@@ -189,28 +189,30 @@ class AiGostergeOzeti(BaseModel):
     risk_notu: str
 
 
+def sayfa_yetkileri(sayfalar: dict[str, Any]) -> dict[str, str]:
+    """`/auth/me.pages` → yalnız erişimi olan sayfalar: `view` | `edit` (+ `+onaylar`)."""
+    sonuc: dict[str, str] = {}
+    for anahtar, hucre in sayfalar.items():
+        duzey, onay = str(hucre["level"]), bool(hucre["approve"])
+        if duzey == "none" and not onay:
+            continue
+        sonuc[anahtar] = duzey + ("+onaylar" if onay else "")
+    return sonuc
+
+
 class AiYetkilerim(BaseModel):
     role_key: str
-    #: modül anahtarı → erişim seviyesi.
+    #: sayfa anahtarı → `view` | `edit` | `view+onaylar` | `edit+onaylar` (IZN-B6b R1).
     #:
-    #: 🔴 **ESKİ GEREKÇE BAYATTI, KARAR AYNI KALDI.** Burada *"`Scope` enum'u
-    #: dekoratiftir, hiçbir süzgeç `permission.scope` okumaz"* yazıyordu. Bu
-    #: 2026-09-19'dan beri YANLIŞTIR: kapsam altı modülde ALAN DÜZEYİNDE
-    #: uygulanır (`core/field_scope` + `core/scoped_route`) ve AI hattında da
-    #: koşar — araçlar servisi değil UCU sarar, ölçümü
-    #: `tests/modules/ai/test_p8_kapsam_maskesi.py`dedir.
-    #:
-    #: Alan yine de `Scope` TAŞIMAZ ve gerekçesi artık ŞUDUR: bu harita
-    #: `/auth/me`nin verdiği SEVİYE haritasıdır ve kapsam SEVİYEYLE aynı soruyu
-    #: cevaplamaz. "`projects=view`" ucun açık olduğunu söyler; "`limited`" o
-    #: uçtan hangi ALANLARIN geleceğini söyler. İkisini tek sözlükte
-    #: birleştirmek modeli, göremeyeceği bir alanı "yetkim var" diye istemeye
-    #: iterdi. Kapsamın AI'daki doğru ifadesi bir etiket değil, alanın KENDİSİNİN
-    #: `null` gelmesidir — model boş alanı zaten "bilmiyorum" diye okur.
-    permissions: dict[str, str]
-    #: 🔴 `/auth/me` INNER JOIN ile beslenir (`get_role_matrix`): izin satırı
-    #: OLMAYAN modülün anahtarı yanıtta HİÇ BULUNMAZ. Bu alan o eksikliği
-    #: görünür kılar — yoksa model "böyle bir modül yok" der.
+    #: Kaynak `/auth/me.pages`tir; modül düzeyi haritası (`permissions`) söküldü. Kapsam
+    #: (disiplin / alan maskesi) bu haritada YOKTUR: "`edit`" ucun açık olduğunu söyler,
+    #: hangi ALANLARIN geleceğini söylemez; alan kapsamının AI'daki ifadesi alanın
+    #: KENDİSİNİN `null` gelmesidir (`core/field_scope` + `core/scoped_route`; ölçümü
+    #: `tests/modules/ai/test_p8_kapsam_maskesi.py`).
+    sayfalar: dict[str, str]
+    #: `/auth/me.hidden_fields`: rolün hiçbir ekranda göremediği alan kategorileri.
+    gizli_alanlar: list[str]
+    #: Haritanın NASIL okunacağını söyleyen not (listede olmayan sayfa = yetki yok).
     yaniti_besleyen_not: str
 
 

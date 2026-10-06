@@ -275,7 +275,7 @@ async def test_B10_CIFT_KAPI_katalog_genis_olsa_da_ucun_kapisi_KOSAR(
 
     IZN-B5e: katalog kapısı artık GERÇEK kapıdır (`actor.gecen_kapilar`); bu test ucun kendi
     kapısını yalnız göstergeye (`gecen_kapilar=None` → `permissions`) düşürülmüş aktörle sınar.
-    Eski katalog kapısı `actor.permissions`tı (`derived_role_matrix` → `display_level`, gösterge
+    Eski katalog kapısı `actor.permissions`tı (modül düzeyi harita → `display_level`, gösterge
     düzeyi). Ölçüldü: tek hücre `mali.satis_toplu_uretim` Düzenler → `projects=full` gösterir,
     yani `proje_detayi` KATALOGDA görünür; ama sayfa uçta YOK (görme eşiği `(projects, full)`,
     `gate_flags(projects, view)` dışında). Uç 403 verir → araç `Restricted` döner, VERİ YOK.
@@ -670,10 +670,9 @@ def test_S15_invoke_actor_ZORUNLU_varsayilani_YOK() -> None:
 
 
 def test_S1_ActorContext_scope_ALANI_TASIMAZ() -> None:
-    """Ölçüldü: `Scope`un 14 isabetinin hepsi `roles/` altında, hiçbir süzgeç
-    `permission.scope` okumuyor — `_FIN` ile `_V` **bit bit aynı** veriyi
-    veriyor. Kapsam etiketini yetki gerekçesi diye taşımak, İzin Matrisi
-    ekranının bugünkü yalanını AI'a taşırdı."""
+    """Tarihçe: `Scope` enum'u dekoratifti (hiçbir süzgeç `permission.scope` okumuyordu) ve
+    IZN-B6b'de tamamen söküldü. Bekçi kalır: kapsam etiketini yetki gerekçesi diye taşıyan bir
+    alan `ActorContext`e geri girerse (yeni bir "scope" kavramı) bilinçli karar gerektirir."""
     import dataclasses
 
     from app.modules.ai.registry import ActorContext

@@ -39,7 +39,6 @@ from app.modules.earned_value.models import (
     EvItemSettings,
     EvRevision,
     EvWindow,
-    UserDiscipline,
 )
 from app.modules.earned_value.schemas_catalog import (
     CatalogActual,
@@ -106,7 +105,7 @@ async def update_discipline(
 class DisciplineUsage:
     item_count: int  # katalog is tipi sayisi
     site_count: int  # disipline BOQ grubu eslenmis (ya da donmus baseline'i olan) santiye
-    user_count: int = 0  # disipline atanmis kullanici (proje ekibi + donmus `user_disciplines`)
+    user_count: int = 0  # disipline atanmis kullanici (proje ekibi)
 
 
 async def discipline_usage(
@@ -146,15 +145,12 @@ async def discipline_usage(
             )
         ).all()
     )
-    # IZN-B3: disiplin artık PROJE EKİBİNDE atanır (`project_member_disciplines`); donmuş global
-    # `user_disciplines` satırları (B6'ya kadar) da FK RESTRICT ile bağlı kaldığı için SAYILIR.
-    # Sayı = disipline atanmış FARKLI kullanıcı (iki kaynakta birden olan bir kez sayılır).
+    # Disiplin PROJE EKİBİNDE atanır (`project_member_disciplines`); sayı = disipline atanmış
+    # FARKLI kullanıcı. (Donmuş global `user_disciplines` tablosu B6c'de düşer; kod okumaz.)
     assigned = (
-        select(UserDiscipline.discipline_id.label("d"), UserDiscipline.user_id.label("u")).union(
-            select(ProjectMemberDiscipline.discipline_id, ProjectMember.user_id).join(
-                ProjectMember, ProjectMember.id == ProjectMemberDiscipline.member_id
-            )
-        )
+        select(ProjectMemberDiscipline.discipline_id.label("d"), ProjectMember.user_id.label("u"))
+        .join(ProjectMember, ProjectMember.id == ProjectMemberDiscipline.member_id)
+        .distinct()
     ).subquery()
     users = dict(
         (

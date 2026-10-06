@@ -25,35 +25,13 @@ açtığı kapı kapanırdı) ya da tümüyle açılır (dolayısıyla `wage_amo
 | `AGREGA` | Yalnız toplam/KPI; satır ve kimlik YOK | kayıt: **şema** + dispatch: **zarf** |
 | `ACIK` | Kısıt yok (S5(c) yasağı yine geçerli) | — |
 
-## 🔴 `Scope`u KENDİ BAŞINA GÜVENLİK GEREKÇESİ SAYMA — ama artık DEKORATİF de DEĞİL
+## Alan maskesi KVKK korkuluğunun YERİNE GEÇMEZ
 
-[IZN-B4/B6a: eski kapsam maskesi (`field_scope`, `scoped_route`, `kapsam_rotasi`,
-`kapsam_kapisi`) SÖKÜLDÜ; yerine `core/mask_route` + `core/field_mask`.
-Aşağıdaki metin TARİHSEL gerekçedir.]
-🔴 **ESKİ GEREKÇE BAYATTI, KARAR AYNI KALDI** (ölçüldü, `tests/modules/ai/
-test_p8_kapsam_maskesi.py`; kardeşi `ai/tools/schemas.py:191`, `ai/registry.py`
-aynı düzeltmeyi taşır). Burada *"`Scope` enum'unun 14 isabetinin hepsi `roles/`
-altındadır ve hiçbir süzgeç `permission.scope` okumaz"* yazıyordu. Bu
-2026-09-19'dan beri YANLIŞTIR: `core/field_scope` + `core/scoped_route` altı
-modülde (`boq · contracts · dashboard · projects · sales · sites`) ALAN
-DÜZEYİNDE gerçek bir maske uygular ve AI hattı da bu maskeden GEÇER — araçlar
-gerçek `APIRoute`ları (dolayısıyla `kapsam_rotasi`/`kapsam_kapisi` köprüsünü)
-taşır. Kalan iş #4 (2026-09-23) bu altı modülü `update_role_permission`ın
-ATANABİLİR kümesiyle eşitledi (`kablolu_moduller()`); bu dosyanın konusu olan
-`personnel`/`payroll`/`customers`/`sales` KVKK ifşa seviyesi bundan
-ETKİLENMEZ — `sales` zaten kablolu altı modülün biridir, `personnel`/`payroll`
-ise DEĞİLDİR ve bu dosyanın KENDİ mekanizması (`AI_IFSA` bayrağı, kayıt
-anında yaptırım) onlarda hâlâ TEK korkuluktur; `Scope` maskesi onları
-kapsamaz.
-
-Bu yüzden bu dosyanın kendi kuralı geçerliliğini KORUR: modül bazlı ifşa
-seviyesi (`AI_IFSA`) `permission.scope`a değil sabit bir listeye dayanır ve
-öyle kalmalıdır — `Scope` altı modülde gerçek bir maske olsa da KVKK
-korkuluğunun YERİNE geçemez, çünkü (a) yalnız altı modülü kapsar, geri kalan
-16'sını (payroll dâhil) kapsamaz, (b) kapsam bir YÖNETİCİ kararıdır ve rol
-başına değişir, KVKK kısıtı ise sabittir ve role bakmaksızın uygulanmalıdır.
-Aynı hata `YONETISIM_DENYLIST`te de ölçüldü: bugün onu okuyan **tek** yer bir
-**test dosyasıdır**, üretim kodu değil.
+Alan maskesi (`core/mask_route` + `core/field_mask`) araçların sardığı ucun yanıtını rolün
+`hidden_fields` kümesine göre daraltır ve AI hattı bu maskeden GEÇER. Ama modül bazlı ifşa
+seviyesi (`AI_IFSA`) maskeye değil sabit bir listeye dayanır ve öyle kalmalıdır: maske bir
+YÖNETİCİ kararıdır ve rol başına değişir, KVKK kısıtı ise sabittir ve role bakmaksızın
+uygulanmalıdır (`personnel`/`payroll` bunun örneğidir).
 
 Bu yüzden burada bayrağın okunduğu yer bir liste değil, **kaydın kendisidir**:
 `dogrula_spec()` `ToolRegistry.__init__` içinde koşar ve ihlalli bir araç
@@ -63,7 +41,7 @@ kaydedilemeyen bir araç ne katalogda ne dispatch'te görünebilir.
 
 ⚠️ **Dürüst not (eşdeğer mutant değildir).** Kayıt anındaki şema taraması
 `ToolSpec.yanit_modeli`nin **statik** alan kümesini görür. Ama ölçüldü:
-`AiPuantajHaftasi.totals` `dict[str, Any]`dır ve `AiYetkilerim.permissions`
+`AiPuantajHaftasi.totals` `dict[str, Any]`dır ve `AiYetkilerim.sayfalar`
 `dict[str, str]`dir — bu iki alanın **anahtarları şemada YOKTUR**. Yani statik
 tarama bir handler'ın çalışma anında koyduğu `tc_no` anahtarını göremez. Bu
 yüzden `ToolRegistry.invoke` dönen zarfı **ayrıca** tarar; iki tarama farklı

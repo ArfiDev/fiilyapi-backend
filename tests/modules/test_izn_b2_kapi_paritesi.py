@@ -2,7 +2,7 @@
 
 İLKE (CEO): geçişte kimsenin fiilî yetkisi DEĞİŞMEZ — ne genişleme ne daralma.
 
-* ESKİ karar: B1 öncesi `role_permissions` modeli — rolün modül düzeyi (`seed_data.MATRIX` ya da
+* ESKİ karar: B1 öncesi `role_permissions` modeli — rolün modül düzeyi (`eski_seed.MATRIX` ya da
   test içinde kurulan hücre) kapının `(modül, düzey)`ini karşılıyor mu (`access.satisfies`).
 * YENİ karar: gerçek kapı bağımlılıkları (`require_permission`/`require_any_permission`/
   `require_page`) DB'deki SAYFA HÜCRELERİ üzerinde çalıştırılır.
@@ -20,7 +20,7 @@ KASITLI FARKLAR (hepsi `admin` düzeyi / silme anlamlı; seed rollerinde SIFIR f
 1. `POST /progress-payments/{id}/unapprove`, `POST /subcontractor-progress-payments/{id}/unapprove`
    ("Onayı Geri Al"): `progress_payments=admin` verilmiş ÖZEL rol artık geçmez; yalnız Sistem
    Yöneticisi (CEO kararı 1). Seed rollerinde fark yok (admin yalnız Sistem Yöneticisi'nde).
-2. `PATCH /users/{id}/password` ve `PUT /roles/{id}/permissions/{module}` (410): `user_management=
+2. `PATCH /users/{id}/password`: `user_management=
    admin` verilmiş özel rol artık geçmez (parola sıfırlama yalnız Sistem Yöneticisi; plan §2.4 KUL-D
    önerisi parite için uygulanmadı — CEO'ya soruldu).
 3. SİL (KESİNLEŞTİ, SIL-B1): her DELETE ucu `require_system_admin` kapısındadır (yeni kapı türü
@@ -38,7 +38,7 @@ from fastapi.routing import APIRoute, iter_route_contexts
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from app.core.access import AccessLevel, Scope, satisfies
+from app.core.access import AccessLevel, satisfies
 from app.core.page_gate import effective_level, gate_ok, pages_ok
 from app.main import app
 from app.modules.roles import seed_data
@@ -46,11 +46,12 @@ from app.modules.roles.models import Role
 from app.modules.roles.schemas import RoleCreate
 from app.modules.roles.service import create_custom_role
 from app.modules.users.models import User
+from tests import _donmus_eski_matris as eski_seed
 from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz, modul_duzeyleri_yaz
 
 L = AccessLevel
-MODULES = [m["key"] for m in seed_data.MODULES]
-SEED_ROLES = list(seed_data.ROLE_ORDER)
+MODULES = [m["key"] for m in eski_seed.MODULES]
+SEED_ROLES = list(eski_seed.ROLE_ORDER)
 
 #: `require_page` kapılarının ESKİ karşılığı: bayrağın yerine geçtiği `(modül, düzey)` VE'si.
 #: Yeni bir `require_page` kapısı eklenirse BURAYA eski kapı yazılmadan test kırmızıdır.
@@ -228,7 +229,6 @@ UNAPPROVE_ROTALARI = {
 }
 ADMIN_USER_MGMT_ROTALARI = {
     ("PATCH", "/users/{user_id}/password"),
-    ("PUT", "/roles/{role_id}/permissions/{module_key}"),
 }
 
 
@@ -442,8 +442,8 @@ async def _kullanici(session, role_key: str, email: str) -> User:
 
 
 def _seed_levels(role_key: str) -> dict[str, AccessLevel]:
-    index = seed_data.ROLE_ORDER.index(role_key)
-    return {module: cells[index][0] for module, cells in seed_data.MATRIX.items()}
+    index = eski_seed.ROLE_ORDER.index(role_key)
+    return {module: cells[index][0] for module, cells in eski_seed.MATRIX.items()}
 
 
 async def _ozel_rol(session, levels: dict[str, AccessLevel], tag: str) -> User:
@@ -460,8 +460,9 @@ async def _ozel_rol(session, levels: dict[str, AccessLevel], tag: str) -> User:
 
 
 def test_rota_tablosu_okundu_ve_kapi_turleri_tanindi() -> None:
-    # IZN-B3: +2 (`GET`/`PUT /users/{user_id}/access`) → 464
-    assert len(ROTALAR) == 464
+    # IZN-B3: +2 (`GET`/`PUT /users/{user_id}/access`) → 464; IZN-B6b: −7 (eski izin matrisi
+    # uçları: /modules, /roles/{id}/permissions, /users/{id}/disciplines, /approvals/roles)
+    assert len(ROTALAR) == 457
     turler = {g.kind for gates in ROTALAR.values() for g in gates}
     assert turler == {"perm", "chain", "any", "page", "sa"}
     sayfa_kapilari = {
@@ -649,46 +650,6 @@ async def test_effective_level_esik_karsilastirmalari_eski_duzeyle_ayni(
                 module,
                 esik,
             )
-
-
-# ---------------------------------------------------------------------------
-# Kapsam (maske) hibriti: CEO kararı
-# ---------------------------------------------------------------------------
-
-
-async def test_kapsam_hibriti_eski_satirli_rolde_donmus_scope_satirsiz_rolde_tum_tutarlar(
-    seeded_db,
-) -> None:
-    from app.modules.roles.models import Role
-    from app.modules.roles.repository import derived_role_matrix
-
-    async def actor_scope(session, user, modul):
-        # IZN-B6a: `core.permissions.actor_scope` söküldü; aynı kuralı görüntü matrisi taşır.
-        rol = await session.get(Role, user.role_id)
-        matris = await derived_role_matrix(session, rol.id, rol.key)
-        return next(scope for m, _lvl, scope in matris if m.key == modul)
-
-    from app.modules.roles.models import HiddenCategory, RoleHiddenField
-
-    muhasebe = await _kullanici(seeded_db, "accounting", "muh@scope.co")
-    sef = await _kullanici(seeded_db, "site_chief", "sef@scope.co")
-    # Muhasebe `finance` maskesi AYNEN (parite): donmuş eski satırdan.
-    assert await actor_scope(seeded_db, muhasebe, "boq") is Scope.finance
-    assert await actor_scope(seeded_db, sef, "boq") is Scope.limited
-    assert await actor_scope(seeded_db, sef, "site_diary") is Scope.all
-
-    # Eski satırı OLAN rolde kaydedilen gizli alan maskeyi DEĞİŞTİRMEZ.
-    seeded_db.add(RoleHiddenField(role_id=muhasebe.role_id, category=HiddenCategory.tum_tutarlar))
-    await seeded_db.flush()
-    assert await actor_scope(seeded_db, muhasebe, "boq") is Scope.finance
-
-    # Satırsız rol (özel/kopya): tum_tutarlar → limited, değilse all (fail-closed).
-    kapali = await _ozel_rol(seeded_db, {}, "satirsiz_gizli")
-    seeded_db.add(RoleHiddenField(role_id=kapali.role_id, category=HiddenCategory.tum_tutarlar))
-    acik = await _ozel_rol(seeded_db, {}, "satirsiz_acik")
-    await seeded_db.flush()
-    assert await actor_scope(seeded_db, kapali, "boq") is Scope.limited
-    assert await actor_scope(seeded_db, acik, "boq") is Scope.all
 
 
 # ---------------------------------------------------------------------------

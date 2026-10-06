@@ -22,8 +22,10 @@ import uuid
 
 import asyncpg
 
-from app.core.sayfalar import SAYFA_ANAHTARLARI, gizli_alanlar
+from app.core.sayfalar import SAYFA_ANAHTARLARI
 from app.modules.roles import seed_data
+from tests import _donmus_eski_matris as eski_seed
+from tests._donmus_eski_matris import gizli_alanlar
 from tests._izn_b1_esikleri import b1_rows
 from tests.modules.approvals.test_ok1a_migration import (
     ALEMBIC_CMD,
@@ -146,7 +148,7 @@ def _b1_hidden(role_key: str) -> set[str]:
         return kume
     cells = {
         m: (c[seed_data.ROLE_ORDER.index(role_key)][0], c[seed_data.ROLE_ORDER.index(role_key)][1])
-        for m, c in seed_data.MATRIX.items()
+        for m, c in eski_seed.MATRIX.items()
     }
     return {c.value for c in gizli_alanlar(cells)}
 
@@ -154,7 +156,7 @@ def _b1_hidden(role_key: str) -> set[str]:
 def _expected_pages(role_key: str) -> dict[str, tuple[str, bool]]:
     """B1 migration'ının ÜRETTİĞİ hücreler (B1 eşikleriyle; B2 düzeltmesi `izn_b2`de)."""
     if role_key in seed_data.IZN_ROLE_ORDER:
-        rows = b1_rows(seed_data.IZN_MATRIX, role_key)
+        rows = b1_rows(eski_seed.IZN_MATRIX, role_key)
         rows.update(
             {
                 k: (lv.value, ap)
@@ -162,7 +164,7 @@ def _expected_pages(role_key: str) -> dict[str, tuple[str, bool]]:
             }
         )
         return rows
-    return b1_rows(seed_data.MATRIX, role_key)
+    return b1_rows(eski_seed.MATRIX, role_key)
 
 
 # ---------------------------------------------------------------------------

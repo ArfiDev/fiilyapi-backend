@@ -64,9 +64,9 @@ def test_site_planning_ANAHTARI_bir_IZIN_MODULU_DEGILDIR():
     kendisi `site_diary` kapisini kullanir. Deger yanit govdesindedir ve
     degistirmek sozlesme kirar; bu yuzden DUZELTILMEZ, cakillir.
     """
-    from app.modules.roles.seed_data import MODULES
+    from app.core.sayfalar import MODUL_ANAHTARLARI
 
-    modul_anahtarlari = {modul["key"] for modul in MODULES}
+    modul_anahtarlari = set(MODUL_ANAHTARLARI)
 
     assert inventory_service.PENDING_SITE_PLANNING == "site_planning"
     assert inventory_service.PENDING_SITE_PLANNING not in modul_anahtarlari, (
@@ -84,8 +84,8 @@ def test_K4_inventory_okuyup_site_diary_okuyamayan_rol_HÂLÂ_VAR():
     sizdiran = {
         rol
         for sira, rol in enumerate(ROLE_ORDER)
-        if MATRIX["inventory"][sira][0] is not AccessLevel.none
-        and MATRIX["site_diary"][sira][0] is AccessLevel.none
+        if MATRIX["inventory"][sira] is not AccessLevel.none
+        and MATRIX["site_diary"][sira] is AccessLevel.none
     }
 
     assert sizdiran == {"procurement"}, (
@@ -107,8 +107,8 @@ def test_K4_procurement_KAYNAGI_izin_kapisiyla_engellenmez():
     sizdiran = {
         rol
         for sira, rol in enumerate(ROLE_ORDER)
-        if MATRIX["inventory"][sira][0] is not AccessLevel.none
-        and MATRIX["procurement"][sira][0] is AccessLevel.none
+        if MATRIX["inventory"][sira] is not AccessLevel.none
+        and MATRIX["procurement"][sira] is AccessLevel.none
     }
 
     assert sizdiran == set(), (

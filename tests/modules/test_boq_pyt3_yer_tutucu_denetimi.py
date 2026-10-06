@@ -78,8 +78,8 @@ def test_K4_boq_okuyup_contracts_okuyamayan_roller_HÂLÂ_VAR():
     sizdiran = {
         rol
         for sira, rol in enumerate(ROLE_ORDER)
-        if MATRIX["boq"][sira][0] is not AccessLevel.none
-        and MATRIX["contracts"][sira][0] is AccessLevel.none
+        if MATRIX["boq"][sira] is not AccessLevel.none
+        and MATRIX["contracts"][sira] is AccessLevel.none
     }
 
     assert sizdiran == {"site_chief", "procurement"}, (
@@ -102,8 +102,8 @@ def test_K4_boq_okuyup_progress_payments_okuyamayan_rol_HÂLÂ_VAR():
     sizdiran = {
         rol
         for sira, rol in enumerate(ROLE_ORDER)
-        if MATRIX["boq"][sira][0] is not AccessLevel.none
-        and MATRIX["progress_payments"][sira][0] is AccessLevel.none
+        if MATRIX["boq"][sira] is not AccessLevel.none
+        and MATRIX["progress_payments"][sira] is AccessLevel.none
     }
 
     assert sizdiran == {"procurement"}, (
@@ -176,9 +176,9 @@ def test_anahtarlarin_HEPSI_CANLI_bir_izin_modulunu_adlandirir():
     adlandiriyor. Yani bekleyen sey MODUL degil, o modulden turemesi gereken
     DEGERIN izin kapisidir.
     """
-    from app.modules.roles.seed_data import MODULES
+    from app.core.sayfalar import MODUL_ANAHTARLARI
 
-    modul_anahtarlari = {modul["key"] for modul in MODULES}
+    modul_anahtarlari = set(MODUL_ANAHTARLARI)
     kullanilan = {boq_service._CONTRACTS, boq_service._PROGRESS_PAYMENTS}
 
     assert kullanilan == {"contracts", "progress_payments"}

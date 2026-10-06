@@ -29,7 +29,6 @@ from app.modules.earned_value import (
     schemas_day,
     schemas_settings,
     settings_router,
-    user_discipline_router,
 )
 from tests._hassas_alan import rol_gizle
 
@@ -137,7 +136,6 @@ async def test_tum_earned_value_routerlari_maske_rotasi_tasir():
         day_router,
         settings_router,
         report_router,
-        user_discipline_router,
     ):
         assert modul.router.routes, modul.__name__
         for rota in modul.router.routes:

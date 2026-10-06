@@ -11,9 +11,9 @@
 - Üstüne yazılır; `core/sayfalar.sayfa_matrisi` ile 100 sayfa hücresi YENİDEN üretilir
   (eski `sync_page_cells` ile aynı dönüşüm).
 - `tum_tutarlar`: `None` = dokunma, `True/False` = `role_hidden_fields`te aç/kapat.
-  (Eski yol `Scope.limited`i bayrağa çeviriyordu; yeni yolda bu AÇIK parametredir.)
+  (Kapsam kavramı (Scope) kalktı; bayrak AÇIK parametredir.)
 
-Eski yoldan bilinçli farklar (bkz. `tests/test_modul_duzeyi_yardimcisi.py`):
+Eski yoldan bilinçli farklar:
 1. DB'deki eski satır OKUNMAZ: eski yol `get_role_matrix` ile rol_permissions'ı okurdu; testin
    o satırı ORM ile elle değiştirmesi artık hücreye yansımaz (geçişte `modul_duzeyi_yaz`a çevrilir).
 2. Seed rolün başlangıç `Scope.limited` hücreleri bayrağı kendiliğinden TÜRETMEZ (eski yol
@@ -28,7 +28,7 @@ from collections.abc import Mapping
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.errors import NotFoundError, PermissionLockedError
 from app.core.sayfalar import ESKI_MODULLER, HiddenCategory, sayfa_matrisi
 from app.modules.roles.models import (
@@ -61,7 +61,7 @@ def _baslangic_haritasi(role_key: str) -> dict[str, AccessLevel]:
     for matrix, order in ((MATRIX, ROLE_ORDER), (IZN_MATRIX, IZN_ROLE_ORDER)):
         if role_key in order:
             index = order.index(role_key)
-            harita.update({modul: cells[index][0] for modul, cells in matrix.items()})
+            harita.update({modul: cells[index] for modul, cells in matrix.items()})
     return harita
 
 
@@ -75,7 +75,6 @@ def _harita(session: AsyncSession, role: Role) -> dict[str, AccessLevel]:
 async def _sayfa_hucrelerini_uret(
     session: AsyncSession, role_id: uuid.UUID, harita: Mapping[str, AccessLevel]
 ) -> None:
-    hucreler = {modul: (level, Scope.all) for modul, level in harita.items()}
     existing = {
         row.page_key: row
         for row in (
@@ -86,7 +85,7 @@ async def _sayfa_hucrelerini_uret(
         .scalars()
         .all()
     }
-    for page_key, (level, approve) in sayfa_matrisi(hucreler).items():
+    for page_key, (level, approve) in sayfa_matrisi(harita).items():
         row = existing.get(page_key)
         if row is None:
             session.add(
@@ -140,40 +139,3 @@ async def modul_duzeyi_yaz(
 ) -> None:
     """Rolün tek modül düzeyini yazar (eski `update_role_permission` + `sync_page_cells`)."""
     await modul_duzeyleri_yaz(session, role, {module_key: level}, tum_tutarlar=tum_tutarlar)
-
-
-def _kapsamdan_bayrak(scope: Scope) -> bool | None:
-    if scope is Scope.all:
-        return None
-    if scope is Scope.limited:
-        return True
-    raise PermissionLockedError("Bu kapsam uygulanmıyor; yalnız all ya da limited yazılabilir")
-
-
-async def set_permission_uyumlu(
-    session: AsyncSession,
-    role_key: str,
-    module_key: str,
-    level: AccessLevel,
-    scope: Scope = Scope.all,
-) -> None:
-    """15 kopya `_set_permission(session, role_key, module_key, level, scope)` imzası.
-
-    `Scope.limited` -> `tum_tutarlar=True`; `Scope.all` -> bayrağa dokunmaz.
-    """
-    await modul_duzeyi_yaz(
-        session, role_key, module_key, level, tum_tutarlar=_kapsamdan_bayrak(scope)
-    )
-
-
-async def update_role_permission_uyumlu(
-    session: AsyncSession,
-    role_id: uuid.UUID,
-    module_key: str,
-    level: AccessLevel,
-    scope: Scope = Scope.all,
-) -> None:
-    """`update_role_permission(session, role_id, module_key, level, scope)` imzası (None döner)."""
-    await modul_duzeyi_yaz(
-        session, role_id, module_key, level, tum_tutarlar=_kapsamdan_bayrak(scope)
-    )

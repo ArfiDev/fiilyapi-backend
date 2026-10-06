@@ -97,7 +97,7 @@ async def test_system_admin_passes_every_gate(guarded_client, client, seeded_db,
 async def test_role_with_no_permission_row_is_denied(
     guarded_client, client, seeded_db, user_factory
 ):
-    """NEGATİF: (rol, modül) için hiç RolePermission satırı yoksa erişim reddedilmeli.
+    """NEGATİF: rolün hiç sayfa hücresi (`role_page_permissions`) yoksa erişim reddedilmeli.
 
     `seeded_db` yalnızca 8 kanonik rol için 14x8=112 hücrelik matrisi doldurur; bu test için
     kasıtlı olarak matrisin DIŞINDA yeni bir rol oluşturuyoruz, dolayısıyla `progress_payments`

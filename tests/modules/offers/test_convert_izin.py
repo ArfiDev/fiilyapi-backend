@@ -50,7 +50,7 @@ async def test_seed_matrisi_projects_admin_yalniz_system_admin() -> None:
     """Ön koşul (SO-42): kirmizilanirsa patron/403 beklentisi ve SO-42 notu yeniden okunur."""
     admin_roller = [
         rol
-        for rol, (seviye, _kapsam) in zip(ROLE_ORDER, MATRIX["projects"], strict=True)
+        for rol, seviye in zip(ROLE_ORDER, MATRIX["projects"], strict=True)
         if seviye == AccessLevel.admin
     ]
     assert admin_roller == ["system_admin"]

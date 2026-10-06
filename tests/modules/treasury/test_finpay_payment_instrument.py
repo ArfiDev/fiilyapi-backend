@@ -868,5 +868,8 @@ async def test_YOL_ve_OPERASYON_sayisi_SABIT_kalir() -> None:
     # (K1: onay rolleri proje rolunden gelir; yol/operasyon sayisi degismez, B6'da sokulur).
     # Gelen kutusu ve gecmis yanitindaki `my_approval_roles` → satir basina `can_decide` ne yol
     # ne operasyon acar (surukleneyi `tests/contract/` yakalar).
-    assert len(yollar) == 326
-    assert operasyonlar == 464
+    # IZN-B6b: eski izin matrisi uçları söküldü (/modules, /roles/{id}/permissions[/{module_key}],
+    # /users/{id}/disciplines, /approvals/roles[/{user_id}]) = −6 yol / −7 operasyon
+    # (326→320 · 464→457).
+    assert len(yollar) == 320
+    assert operasyonlar == 457

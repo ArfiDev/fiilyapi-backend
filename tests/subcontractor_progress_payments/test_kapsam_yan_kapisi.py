@@ -52,9 +52,6 @@ from decimal import Decimal
 
 import pytest
 
-from app.core.access import Scope
-from app.modules.roles.seed_data import MATRIX
-
 #: `taseron_sozlesmesi_fabrikasi`nın ilk kalemine yazdığı birim fiyat.
 #: Elle yazılır: fabrikadan okunsaydı test, ölçtüğü değeri kendisi üretir ve
 #: fabrika bir gün `None` yazmaya başlasa bile yeşil kalırdı.
@@ -62,38 +59,7 @@ _BIRIM_FIYAT = Decimal("21500")
 
 
 # --------------------------------------------------------------------------- #
-# 1) YAPISAL ÇİVİ — kararın matristeki hâli
-# --------------------------------------------------------------------------- #
-
-
-def test_PROGRESS_PAYMENTS_matriste_KAPSAMSIZDIR_yan_kapi_ACIKTIR() -> None:
-    """🔴 Bu test KIRMIZI verdiyse biri yan kapıyı kapatmıştır — bu bir ÜRÜN
-    KARARIDIR ve `KARARLAR-BEKLEYEN.md` §1'de açıktır.
-
-    Kararı uygularken bu testi silmek YETMEZ; kapsam kısıtı gelir gelmez
-    `test_kapsam_baglantisi.py` routerın köprüsüz olduğunu, ardından
-    `test_para_alani_siniflandirmasi.py` 13 `Decimal` alanın etiketsiz olduğunu
-    çakar. Zincir kendiliğinden işler — o yüzden bu dosya bir SAYI değil bir
-    KAPI tutar.
-    """
-    kapsamlar = {kapsam for _seviye, kapsam in MATRIX["progress_payments"]}
-
-    assert kapsamlar == {Scope.all}, (
-        "`progress_payments` artık kapsam kısıtı taşıyor. Bu, taşeron ve işveren "
-        "hakediş ekranlarının HER İKİSİNİ birden etkiler; önce `KARARLAR-BEKLEYEN.md` "
-        "§1'i okuyun, sonra routerı maskeye bağlayın ve şemaları etiketleyin."
-    )
-    # 🔴 POZİTİF KONTROL: matris okuması gerçekten kısıtı GÖRÜYOR mu? Bu satır
-    #    olmasaydı `MATRIX` bir gün kapsamı hiç taşımaz hâle gelse (ör. alan
-    #    yeniden adlandırılsa) üstteki iddia BOŞ KÜME üzerinden yeşil kalırdı.
-    assert Scope.finance in {kapsam for _s, kapsam in MATRIX["contracts"]}, (
-        "`contracts` kısıtı kayboldu: bu okuma artık hiçbir kısıtı göremiyor, "
-        "yani üstteki iddia da anlamsızlaştı"
-    )
-
-
-# --------------------------------------------------------------------------- #
-# 2) DAVRANIŞ BEKÇİSİ — gerçek rol, gerçek iki uç
+# DAVRANIŞ BEKÇİSİ — gerçek rol, gerçek iki uç
 # --------------------------------------------------------------------------- #
 
 

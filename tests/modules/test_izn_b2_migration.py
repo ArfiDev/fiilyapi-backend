@@ -2,7 +2,7 @@
 
 Üç şey çakılır:
 1. DONMUŞ migration kopyası ↔ katalog: `AFFECTED_PAGES` eski/yeni eşikleri `core/sayfalar`
-   (`_ESIKLER` + `ESIK_SPEC_B1_FARKLARI`) ile, 6 yeni rolün iki modül düzeyi `seed_data.IZN_MATRIX`
+   (`_ESIKLER` + `ESIK_SPEC_B1_FARKLARI`) ile, 6 yeni rolün iki modül düzeyi `eski_seed.IZN_MATRIX`
    ile eşit (migration `app` import etmez; elle kopya).
 2. Gerçek PG'de upgrade (B1 → B2): tüm roller için sayfa hücreleri `seed_data.PAGE_MATRIX`
    (B2 eşikleri) ile BİREBİR; yalnız `can_approve` değişir; CANLI satırdan türetme (ekrandan
@@ -19,6 +19,7 @@ import pytest
 from app.core.access import AccessLevel
 from app.core.sayfalar import ESIK_SPEC_B1_FARKLARI, SAYFA_BY_KEY, SAYFALAR, esik_spec
 from app.modules.roles import seed_data
+from tests import _donmus_eski_matris as eski_seed
 from tests._izn_b1_esikleri import ESIK_SPEC_B5A_FARKLARI, b1_rows
 from tests.modules.approvals.test_ok1a_migration import (
     _create_scratch_database,
@@ -92,7 +93,7 @@ def test_etkilenen_sayfalar_katalogdaki_eski_ve_yeni_esiklerle_AYNI(migration) -
 def test_yeni_rol_modul_duzeyleri_seed_ile_AYNI(migration) -> None:
     assert list(migration.IZN_ROLE_ORDER) == list(seed_data.IZN_ROLE_ORDER)
     for module, levels in migration.IZN_MODULE_LEVELS.items():
-        assert levels == [a.value for a, _ in seed_data.IZN_MATRIX[module]], module
+        assert levels == [a.value for a, _ in eski_seed.IZN_MATRIX[module]], module
     modules = {module for module, _e, _y in migration.AFFECTED_PAGES.values()}
     assert set(migration.IZN_MODULE_LEVELS) == modules
     assert set(migration.LEVEL_RANK) == {a.value for a in AccessLevel}
@@ -111,7 +112,7 @@ def _beklenen_b2(role_key: str) -> dict[str, tuple[str, bool]]:
     HARİÇ: onlar B2 çıktısında B1 eşikleriyle türemiş değerde kalır (B5a hücre taşıması ayrı
     veri migration'ıdır; bilinçli fark, IZN-B5a maddeler 3 ve 5)."""
     beklenen = {k: (lv.value, ap) for k, (lv, ap) in seed_data.PAGE_MATRIX[role_key].items()}
-    matris = seed_data.MATRIX if role_key in seed_data.ROLE_ORDER else seed_data.IZN_MATRIX
+    matris = eski_seed.MATRIX if role_key in seed_data.ROLE_ORDER else eski_seed.IZN_MATRIX
     eski = b1_rows(matris, role_key)
     for sayfa in SAYFALAR:
         if sayfa.envanter_no in ESIK_SPEC_B5A_FARKLARI:
@@ -132,7 +133,7 @@ async def test_upgrade_tum_rollerin_hucreleri_PAGE_MATRIX_ile_birebir_yalniz_can
         finally:
             await conn.close()
         for role_key, hucreler in once.items():  # B1 çıktısı sanity
-            eski = b1_rows(seed_data.MATRIX, role_key) if role_key in seed_data.ROLE_ORDER else None
+            eski = b1_rows(eski_seed.MATRIX, role_key) if role_key in seed_data.ROLE_ORDER else None
             if eski is not None:
                 assert hucreler == eski, role_key
 
@@ -213,7 +214,7 @@ async def test_downgrade_B1_hucrelerine_ve_patron_is_system_true(migration) -> N
             for role_key in seed_data.ROLE_ORDER:
                 if role_key == "system_admin":
                     continue
-                assert await _page_cells(conn, role_key) == b1_rows(seed_data.MATRIX, role_key), (
+                assert await _page_cells(conn, role_key) == b1_rows(eski_seed.MATRIX, role_key), (
                     role_key
                 )
             assert await conn.fetchval("SELECT is_system FROM roles WHERE key = 'patron'") is True

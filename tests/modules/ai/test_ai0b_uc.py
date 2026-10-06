@@ -8,13 +8,13 @@ yapmıyor olurdu.
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import select
 
-from app.core.access import AccessLevel, Scope
-from app.core.sayfalar import PageLevel
+from app.core.access import AccessLevel
+from app.core.sayfalar import ESKI_MODULLER, SAYFA_BY_KEY, PageLevel
 from app.core.security import create_access_token
-from app.modules.roles.models import Module, ModuleGroup, RolePagePermission, RolePermission
-from app.modules.roles.seed_data import MATRIX, MODULES, ROLE_ORDER
+from app.modules.ai.actor import MODUL_ANAHTARLARI
+from app.modules.roles.models import RolePagePermission
+from app.modules.roles.seed_data import MATRIX, ROLE_ORDER
 from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 pytestmark = pytest.mark.asyncio
@@ -29,18 +29,17 @@ async def _bearer(client, user):
 # --------------------------------------------------------------------------- #
 
 
-def test_ai_modulu_MATRISTE_ve_MODULLERDE_var() -> None:
-    anahtarlar = [m["key"] for m in MODULES]
-    assert "ai" in anahtarlar
-    assert len(MODULES) == 23  # PLN-B1: 23. modül earned_value (ai 22. kalır)
-    assert set(MATRIX) == set(anahtarlar)
+def test_ai_modulu_MATRISTE_ve_modul_anahtarlarinda_var() -> None:
+    # IZN-B6b: `MODULES` tablosu/sabiti söküldü; modül kümesinin kaynağı sayfa eşikleridir.
+    assert "ai" in MODUL_ANAHTARLARI
+    assert len(MODUL_ANAHTARLARI) == 23  # PLN-B1: 23. modül earned_value (ai 22. kalır)
+    assert set(MATRIX) == set(MODUL_ANAHTARLARI) == set(ESKI_MODULLER)
 
 
-def test_ai_modulu_SISTEM_grubunda_ve_sort_order_22() -> None:
-    satir = next(m for m in MODULES if m["key"] == "ai")
-    assert satir["group"] is ModuleGroup.SISTEM
-    assert satir["sort_order"] == 22
-    assert satir["name"] == "FİİL AI"
+def test_ai_modulu_sayfa_katalogunda_FIIL_AI_sayfasina_baglidir() -> None:
+    # Eski "SISTEM grubu / sort_order 22" testinin yerini alır: modül tablosu yok, sayfa var.
+    sayfa = SAYFA_BY_KEY["genel.fiil_ai"]
+    assert sayfa.ad == "FİİL AI"
 
 
 def test_ai_satiri_KULLANICI_KARARINA_uyar() -> None:
@@ -53,25 +52,11 @@ def test_ai_satiri_KULLANICI_KARARINA_uyar() -> None:
     bunu ZORUNLU kılar — seçim değil, kısıt.
     """
     hucreler = dict(zip(ROLE_ORDER, MATRIX["ai"], strict=True))
-    assert hucreler["system_admin"] == (AccessLevel.admin, Scope.all)
-    assert hucreler["patron"] == (AccessLevel.view, Scope.all)
+    assert hucreler["system_admin"] == AccessLevel.admin
+    assert hucreler["patron"] == AccessLevel.view
     for rol in ROLE_ORDER[1:]:
-        assert hucreler[rol] == (AccessLevel.view, Scope.all), rol
-    assert all(seviye is not AccessLevel.none for seviye, _ in MATRIX["ai"])
-
-
-async def test_ai_izin_satirlari_SEED_ile_iner(seeded_db) -> None:
-    modul = (await seeded_db.execute(select(Module).where(Module.key == "ai"))).scalar_one()
-    satirlar = (
-        (
-            await seeded_db.execute(
-                select(RolePermission).where(RolePermission.module_id == modul.id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert len(satirlar) == 8
+        assert hucreler[rol] == AccessLevel.view, rol
+    assert all(seviye is not AccessLevel.none for seviye in MATRIX["ai"])
 
 
 async def test_ai_modulu_AUTH_ME_yanitinda_GORUNUR(client, user_factory, seeded_db) -> None:
@@ -86,7 +71,9 @@ async def test_ai_modulu_AUTH_ME_yanitinda_GORUNUR(client, user_factory, seeded_
     seeded_db.expunge(user)
     yanit = await client.get("/auth/me", headers=await _bearer(client, user))
     assert yanit.status_code == 200, yanit.text
-    assert yanit.json()["permissions"]["ai"] == "view"
+    govde = yanit.json()
+    assert "permissions" not in govde, "IZN-B6b: modül düzeyi harita /auth/me'den kalktı"
+    assert govde["pages"]["genel.fiil_ai"] == {"level": "view", "approve": False}
 
 
 # --------------------------------------------------------------------------- #
@@ -151,6 +138,8 @@ async def test_ai_context_yetkisiz_modulleri_ADIYLA_bildirir(client, user_factor
     assert yanit.status_code == 200, yanit.text
     govde = yanit.json()
     assert govde["role_key"] == "procurement"
+    # IZN-B6b: `permissions` artık sayfa hücrelerinden (`level_from_cells`) türer; `ai` view.
+    assert govde["permissions"]["ai"] == "view"
     assert "timesheet" in govde["yetkisiz_moduller"]
     assert "dashboard" in govde["yetkisiz_moduller"]
     assert govde["arac_adlari"], "kapısız araçlar her aktörde görünmeli"
@@ -299,42 +288,15 @@ async def test_ozel_rol_ai_hucresi_UPDATE_edilebilir(seeded_db, user_factory, cl
     assert hucre is not None and hucre.level is PageLevel.view
 
 
-async def test_ozel_rol_olusturma_eski_satir_yazmaz_100_sayfa_hucresi_yazar(seeded_db) -> None:
-    """IZN-B2: özel rol eski `role_permissions` satırı taşımaz; sayfa hücreleri (100) vardır."""
-    from app.modules.roles.schemas import RoleCreate
-    from app.modules.roles.service import create_custom_role
+async def test_izin_matrisi_ekrani_ai_sayfasini_GORUR(client, user_factory) -> None:
+    """Sayfa İzinleri ekranı (`GET /roles/{id}/pages`) FİİL AI sayfasını taşır.
 
-    rol = await create_custom_role(
-        seeded_db, RoleCreate(key="ai_sonda_2", name="AI Sonda 2", emoji="🧪")
-    )
-    await seeded_db.flush()
-    satirlar = (
-        (await seeded_db.execute(select(RolePermission).where(RolePermission.role_id == rol.id)))
-        .scalars()
-        .all()
-    )
-    assert satirlar == []
-
-
-async def test_roller_ve_moduller_ucu_22_modul_doner(client, user_factory) -> None:
-    admin = await user_factory("modul@fiil.example.com", "Sifre1234!", "system_admin")
-    yanit = await client.get("/modules", headers=await _bearer(client, admin))
-    assert yanit.status_code == 200
-    anahtarlar = [m["key"] for m in yanit.json()]
-    assert "ai" in anahtarlar
-    # PLN-B1: `ai` artık son DEĞİL — 23. modül `earned_value` sona eklendi (kaydırma yok).
-    assert anahtarlar[-2:] == ["ai", "earned_value"], "sort_order 22, 23 → listenin SONUNDA"
-
-
-async def test_izin_matrisi_ekrani_ai_satirini_GORUR(client, user_factory) -> None:
-    """A5 kodla cevaplandı: `PermissionMatrix.tsx` `useModules()` TÜM modülleri
-    çeker ve modül bazlı gizleme YOKTUR. Yani `ai` satırı ekranda **görünür**.
-    Bu bir karar değil, OLGUdur — ve backend tarafı burada kilitlenir."""
+    IZN-B6b: eski `/modules` ve `/roles/{id}/permissions` uçları söküldü; "ai satırı ekranda
+    görünür" olgusunun yeni ifadesi 100 sayfalık yanıtta `genel.fiil_ai`nin bulunmasıdır."""
     admin = await user_factory("matris@fiil.example.com", "Sifre1234!", "system_admin")
     roller = (await client.get("/roles", headers=await _bearer(client, admin))).json()
     sef = next(r for r in roller if r["key"] == "site_chief")
-    matris = (
-        await client.get(f"/roles/{sef['id']}/permissions", headers=await _bearer(client, admin))
+    govde = (
+        await client.get(f"/roles/{sef['id']}/pages", headers=await _bearer(client, admin))
     ).json()
-    anahtarlar = {satir["module_key"] for satir in matris}
-    assert "ai" in anahtarlar
+    assert govde["pages"]["genel.fiil_ai"]["level"] == "view"

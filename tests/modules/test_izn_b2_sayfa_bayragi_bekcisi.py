@@ -222,8 +222,6 @@ PAGE_EDIT_ROUTES: dict[tuple[str, str], frozenset[str]] = {
     # IZN-B5a madde 8: oran ucu vergi dilimi ucuyla AYNI kapıda (eskiden `payroll:full`).
     ("PUT", "/payroll/rates/{year}/{source}"): _p("ayarlar.bordro_oranlari"),
     ("PUT", "/approvals/settings"): _p("ayarlar.onay_rolleri"),
-    ("GET", "/approvals/roles"): _p("ayarlar.onay_rolleri"),
-    ("PUT", "/approvals/roles/{user_id}"): _p("ayarlar.onay_rolleri"),
     ("POST", "/roles"): _p("ayarlar.rol_yonetimi"),
     ("PATCH", "/roles/{role_id}"): _p("ayarlar.rol_yonetimi"),
     ("POST", "/roles/{role_id}/copy"): _p("ayarlar.rol_yonetimi"),
@@ -359,8 +357,6 @@ PAGE_VIEW_ROUTES: dict[tuple[str, str], frozenset[str]] = {
     ("GET", "/projects/{project_id}/costs"): _p(
         "genel.projeler", "genel.proje_takvimi", "proje.ozet", "proje.paylasim_tablosu"
     ),
-    ("GET", "/modules"): _p("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"),
-    ("GET", "/roles/{role_id}/permissions"): _p("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"),
     ("GET", "/roles/{role_id}/pages"): _p("ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"),
 }
 

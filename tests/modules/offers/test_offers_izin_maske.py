@@ -149,7 +149,7 @@ def _tum_uclar(dolu: dict) -> list[tuple[str, str, object]]:
 async def test_contracts_yok_roller_TUM_uclarda_403(
     client, admin, db_session, user_factory, dolu, role_key
 ) -> None:
-    assert MATRIX["contracts"][ROLE_ORDER.index(role_key)][0] == AccessLevel.none  # on kosul
+    assert MATRIX["contracts"][ROLE_ORDER.index(role_key)] == AccessLevel.none  # on kosul
     kisi = await _giris(client, db_session, user_factory, role_key)
     for yontem, yol, govde in _tum_uclar(dolu):
         resp = await client.request(yontem, yol, json=govde, headers=kisi)

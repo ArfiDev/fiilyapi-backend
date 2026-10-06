@@ -1,4 +1,4 @@
-from app.core.access import AccessLevel, Scope, satisfies
+from app.core.access import AccessLevel, satisfies
 
 
 def test_access_exports_pure_domain_without_fastapi():
@@ -17,8 +17,12 @@ def test_level_ordering():
     assert not satisfies(AccessLevel.view, AccessLevel.draft)
 
 
-def test_scope_values():
-    assert {s.value for s in Scope} == {"all", "own", "project", "finance", "stock", "limited"}
+def test_scope_sokuldu():
+    """IZN-B6b: veri kapsamı (`Scope`, `DROPPED_SCOPES`) uygulamadan söküldü."""
+    import app.core.access as access_module
+
+    assert not hasattr(access_module, "Scope")
+    assert not hasattr(access_module, "DROPPED_SCOPES")
 
 
 def test_can_delete_soekuldu_silme_yalniz_sistem_yoneticisi():
