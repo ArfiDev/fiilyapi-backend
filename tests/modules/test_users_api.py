@@ -1,8 +1,8 @@
 from sqlalchemy import select
 
 from app.core.access import AccessLevel
-from app.modules.roles.models import Module, Role, RolePermission
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from app.modules.roles.models import Role
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 
 async def _login(client, user_factory, role_key: str) -> str:
@@ -114,20 +114,7 @@ async def test_delete_user_admin_OLMAYANA_403(client, user_factory, seeded_db):
 
 
 async def _seviye_ver(session, role_key: str, level: AccessLevel) -> None:
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == "user_management"))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
+    await modul_duzeyi_yaz(session, role_key, "user_management", level)
 
 
 async def test_reset_password_FULL_seviyesine_de_403(client, user_factory, seeded_db):

@@ -9,14 +9,11 @@ Hiçbir testin iddiası bu bölmeyle değişmedi.
 
 from decimal import Decimal
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, Scope
 from app.modules.contracts.models import SubcontractorContract, SubcontractorContractItem
 from app.modules.customers.models import Customer, CustomerType
 from app.modules.projects.models import Project
-from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sales.models import SaleType, UnitSale, UnitSaleStatus
 from app.modules.sites.models import Site
 from app.modules.subcontractor_progress_payments.models import (
@@ -26,7 +23,6 @@ from app.modules.subcontractor_progress_payments.models import (
 )
 from app.modules.units.models import Block, Unit, UnitKind, UnitSalesStatus
 from app.modules.users.models import ProjectMember, User
-from tests._legacy_permission_yardimcisi import sync_page_cells
 
 _TENTH = Decimal("0.1")
 
@@ -52,26 +48,6 @@ async def _scoped_login(client, db_session, user_factory, project: Project | Non
         "/auth/login", json={"email": "kapsamli@p10.co", "password": "parola1234"}
     )
     return resp.json()["access_token"]
-
-
-async def _set_permission(
-    session: AsyncSession, role_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == "projects"))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
 
 
 def _set_budget_lines(project: Project, *, material="0", labor="0", sub="0", overhead="0") -> None:

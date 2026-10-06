@@ -16,8 +16,9 @@ from sqlalchemy import select
 from app.core.access import AccessLevel
 from app.core.sayfalar import HiddenCategory
 from app.modules.roles.models import Role, RoleHiddenField
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
-from .._boq import _auth, _login_with_access, _set_permission
+from .._boq import _auth, _login_with_access
 from ._offers import URL, gecis, kalem, rev_url, revizyon, teklif, tum_kalemler
 
 
@@ -127,7 +128,7 @@ async def test_yeni_revizyon_ve_detay_bayragi_tasir(client, admin, karisik) -> N
 async def test_gizli_alanlarda_bayrak_DOGRU_miktar_gorunur(
     client, admin, db_session, user_factory, karisik, kategori
 ) -> None:
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     rol_id = (
         await db_session.execute(select(Role.id).where(Role.key == "accounting"))
     ).scalar_one()

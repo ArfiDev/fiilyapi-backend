@@ -25,12 +25,12 @@ from decimal import Decimal
 
 from sqlalchemy import delete, func, select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.modules.audit.messages import section_updated
 from app.modules.audit.models import AuditAction, AuditLog
-from app.modules.roles.models import Module, Role, RoleHiddenField, RolePermission
+from app.modules.roles.models import Role, RoleHiddenField
 from app.modules.sites.models import Section, SectionStatus, Site
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._section_types import seed_section_types
 from tests._sites_sayfalari import sites_sayfalarini_kapat
 
@@ -74,26 +74,6 @@ async def _login(client, session, user_factory, role_key: str, *, grant_all: boo
     return resp.json()["access_token"]
 
 
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
-
-
 async def _tree(session, project_factory, slug: str, **section_fields) -> tuple[Site, Section]:
     project = await project_factory(f"{slug}-{uuid.uuid4().hex[:6]}")
     site = Site(project_id=project.id, code=f"SNT-{uuid.uuid4().hex[:6]}", name="Gizli Şantiye")
@@ -134,7 +114,7 @@ async def test_get_section_returns_every_new_column(
     )
     # Bu testler KOLON VARLIĞINI ölçer, kapsam maskesini değil; `site_chief`in
     # seed kapsamı `limited` olduğu için izin AÇIKÇA kurulur (varsayılan `all`).
-    await _set_permission(db_session, VIEW_ROLE, "sites", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, VIEW_ROLE, "sites", AccessLevel.view)
     token = await _login(client, db_session, user_factory, VIEW_ROLE, grant_all=True)
 
     resp = await client.get(f"/sections/{section.id}", headers=_auth(token))
@@ -171,7 +151,7 @@ async def test_get_section_keeps_placeholder_metrics(
     _, section = await _tree(db_session, project_factory, "P6T2-PH", budget_amount=Decimal("10.00"))
     # Bu testler KOLON VARLIĞINI ölçer, kapsam maskesini değil; `site_chief`in
     # seed kapsamı `limited` olduğu için izin AÇIKÇA kurulur (varsayılan `all`).
-    await _set_permission(db_session, VIEW_ROLE, "sites", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, VIEW_ROLE, "sites", AccessLevel.view)
     # IZN-B4: bu test BÜTÇE DEĞERİNİ okur; seed rolün gizli kategorileri (maliyet_kar) maskelerdi.
     role_id = (await db_session.execute(select(Role.id).where(Role.key == VIEW_ROLE))).scalar_one()
     await db_session.execute(delete(RoleHiddenField).where(RoleHiddenField.role_id == role_id))
@@ -196,7 +176,7 @@ async def test_get_section_nullable_columns_default_to_null(
     _, section = await _tree(db_session, project_factory, "P6T2-NULL")
     # Bu testler KOLON VARLIĞINI ölçer, kapsam maskesini değil; `site_chief`in
     # seed kapsamı `limited` olduğu için izin AÇIKÇA kurulur (varsayılan `all`).
-    await _set_permission(db_session, VIEW_ROLE, "sites", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, VIEW_ROLE, "sites", AccessLevel.view)
     token = await _login(client, db_session, user_factory, VIEW_ROLE, grant_all=True)
 
     body = (await client.get(f"/sections/{section.id}", headers=_auth(token))).json()
@@ -232,7 +212,7 @@ async def test_get_invisible_section_and_unknown_uuid_are_indistinguishable(
 async def test_get_section_without_permission_returns_403(
     client, db_session, user_factory, project_factory
 ):
-    await _set_permission(db_session, NONE_ROLE, "sites", AccessLevel.none)
+    await modul_duzeyi_yaz(db_session, NONE_ROLE, "sites", AccessLevel.none)
     await sites_sayfalarini_kapat(db_session, NONE_ROLE)  # IZN-B5c: dar görme genişlemesi
     _, section = await _tree(db_session, project_factory, "P6T2-403")
     token = await _login(client, db_session, user_factory, NONE_ROLE, grant_all=True)
@@ -397,11 +377,11 @@ async def test_patch_new_fields_rejected_for_view_permission(
     client, db_session, user_factory, project_factory
 ):
     """Yeni alanlar yazma kapisini GEVSETMEZ: `sites:view` yine 403 alir."""
-    await _set_permission(db_session, VIEW_ROLE, "sites", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, VIEW_ROLE, "sites", AccessLevel.view)
     _, section = await _tree(db_session, project_factory, "P6T2-VIEW")
     # Bu testler KOLON VARLIĞINI ölçer, kapsam maskesini değil; `site_chief`in
     # seed kapsamı `limited` olduğu için izin AÇIKÇA kurulur (varsayılan `all`).
-    await _set_permission(db_session, VIEW_ROLE, "sites", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, VIEW_ROLE, "sites", AccessLevel.view)
     token = await _login(client, db_session, user_factory, VIEW_ROLE, grant_all=True)
 
     resp = await client.patch(

@@ -12,14 +12,15 @@ import uuid
 import pytest
 from sqlalchemy import func, select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.modules.catalog.models import ContractorType, EvDiscipline
 from app.modules.projects.models import Project
 from app.modules.roles.seed_data import MATRIX, ROLE_ORDER
 from app.modules.users.models import ProjectMember, User
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._proje_ekibi import baska_projede_disiplinli
 
-from .._boq import _auth, _login_with_access, _set_permission
+from .._boq import _auth, _login_with_access
 from ._convert import govde, kazanilmis_teklif, url
 
 pytestmark = pytest.mark.usefixtures("tohum_kancasi")
@@ -75,8 +76,8 @@ async def test_diger_roller_403(client, db_session, user_factory, kz, rol) -> No
 async def test_projects_admin_tek_basina_yetmez_contracts_full_da_ister(
     client, db_session, user_factory, kz
 ) -> None:
-    await _set_permission(db_session, "accounting", "projects", AccessLevel.admin, Scope.all)
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(db_session, "accounting", "projects", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     kisi = await _giris(client, db_session, user_factory, "accounting")
     resp = await client.post(url(kz.offer_id), json=govde(kz), headers=kisi)
     assert resp.status_code == 403, resp.text
@@ -86,8 +87,8 @@ async def test_projects_admin_tek_basina_yetmez_contracts_full_da_ister(
 async def test_contracts_full_tek_basina_yetmez_projects_admin_de_ister(
     client, db_session, user_factory, kz
 ) -> None:
-    await _set_permission(db_session, "accounting", "projects", AccessLevel.full, Scope.all)
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.full, Scope.all)
+    await modul_duzeyi_yaz(db_session, "accounting", "projects", AccessLevel.full)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.full)
     kisi = await _giris(client, db_session, user_factory, "accounting")
     resp = await client.post(url(kz.offer_id), json=govde(kz), headers=kisi)
     assert resp.status_code == 403, resp.text
@@ -99,8 +100,8 @@ async def test_iki_izin_de_tamsa_proje_basina_disiplinli_kullanici_da_gecer(
     """IZN-B3: `RequireUnrestricted` KALKTI (disiplin proje basina, teklif sirket geneli):
     bir projede disiplinle kisitli kullanici AYNI izinlerle donusturmeyi YAPAR."""
     for rol in ("project_manager",):
-        await _set_permission(db_session, rol, "projects", AccessLevel.admin, Scope.all)
-        await _set_permission(db_session, rol, "contracts", AccessLevel.full, Scope.all)
+        await modul_duzeyi_yaz(db_session, rol, "projects", AccessLevel.admin)
+        await modul_duzeyi_yaz(db_session, rol, "contracts", AccessLevel.full)
     kisitli = await _giris(client, db_session, user_factory, "project_manager")
     disiplin = EvDiscipline(
         code="KIS", name="Kisitli", color="#2563EB", default_contractor_type=ContractorType.OWN
@@ -125,8 +126,8 @@ async def test_donusturen_kisi_yeni_projeye_ANA_rolunun_ekip_uyesi_yazilir_ve_go
     from .._boq import _login
 
     for rol in ("project_manager",):
-        await _set_permission(db_session, rol, "projects", AccessLevel.admin, Scope.all)
-        await _set_permission(db_session, rol, "contracts", AccessLevel.full, Scope.all)
+        await modul_duzeyi_yaz(db_session, rol, "projects", AccessLevel.admin)
+        await modul_duzeyi_yaz(db_session, rol, "contracts", AccessLevel.full)
     token = await _login(client, user_factory, "project_manager", "donusturen@cnv.co")
     kisi = (
         await db_session.execute(select(User).where(User.email == "donusturen@cnv.co"))

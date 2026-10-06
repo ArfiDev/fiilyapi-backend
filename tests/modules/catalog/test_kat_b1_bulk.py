@@ -12,13 +12,14 @@ from datetime import datetime
 import pytest
 from sqlalchemy import func, select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.modules.audit.models import AuditLog
 from app.modules.catalog.models import EvCatalogItem, EvDiscipline
 from app.modules.users.models import User
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._proje_ekibi import baska_projede_disiplinli
 
-from .._boq import _auth, _login_with_access, _set_permission
+from .._boq import _auth, _login_with_access
 from .test_catalog_items_api import (  # noqa: F401  (fikstur + yardimcilar yeniden kullanilir)
     URL,
     _disiplin,
@@ -335,7 +336,7 @@ async def test_yetki_contracts_view_ve_contracts_yok_403_kimliksiz_401_disiplinl
     assert (await client.post(BULK, json=govde)).status_code == 401
 
     # contracts:view (okur, yazamaz)
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     assert (await client.post(BULK, json=govde, headers=muhasebe)).status_code == 403
 

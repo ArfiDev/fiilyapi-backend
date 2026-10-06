@@ -11,9 +11,10 @@ from contextlib import contextmanager
 import pytest
 from sqlalchemy import event, text
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
-from .._boq import _auth, _login_with_access, _set_permission
+from .._boq import _auth, _login_with_access
 from ._convert import govde, kazanilmis_teklif, url
 from ._offers import URL, detay, teklif
 
@@ -202,12 +203,14 @@ async def test_N1_donusmus_tekliflerle_liste_sorgu_sayisi_sabit(
 # ------------------------------------------------------------------------------ maske
 
 
-@pytest.mark.parametrize("kapsam", [Scope.limited, Scope.finance])
+@pytest.mark.parametrize("tum_tutarlar", [True, None])
 async def test_maske_limited_ve_finance_kapsamda_donusturme_alanlari_gorunur(
-    client, admin, isveren, katalog, db_session, user_factory, kapsam
+    client, admin, isveren, katalog, db_session, user_factory, tum_tutarlar
 ) -> None:
     d = await _donustur(client, admin, isveren, katalog, "M")
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, kapsam)
+    await modul_duzeyi_yaz(
+        db_session, "accounting", "contracts", AccessLevel.view, tum_tutarlar=tum_tutarlar
+    )
     token = await _login_with_access(
         client, db_session, user_factory, "accounting", f"m.{uuid.uuid4().hex[:6]}@tkl.co"
     )

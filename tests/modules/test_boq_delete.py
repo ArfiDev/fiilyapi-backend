@@ -17,6 +17,7 @@ from app.core.access import AccessLevel
 from app.modules.audit.models import AuditAction
 from app.modules.boq.models import BoqGroup, BoqItem
 from app.modules.site_diary.models import DiaryStatus, SiteDiaryEntry, SiteDiaryLine
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 from ._boq import (
     _audit_details,
@@ -25,7 +26,6 @@ from ._boq import (
     _item,
     _login,
     _login_with_access,
-    _set_permission,
     _site,
 )
 
@@ -126,7 +126,7 @@ async def test_delete_boq_item_full_level_role_forbidden(
     site = await _site(db_session, project)
     group = await _group(db_session, site)
     item = await _item(db_session, site, group, code="01.001")
-    await _set_permission(db_session, "patron", "boq", AccessLevel.full)
+    await modul_duzeyi_yaz(db_session, "patron", "boq", AccessLevel.full)
     token = await _login_with_access(
         client, db_session, user_factory, "patron", "pat@boq-api-42b.co"
     )
@@ -149,7 +149,7 @@ async def test_delete_boq_item_admin_seviyesi_yetmez_yalniz_sistem_yoneticisi(
     site = await _site(db_session, project)
     group = await _group(db_session, site)
     item = await _item(db_session, site, group, code="01.001")
-    await _set_permission(db_session, "project_manager", "boq", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, "project_manager", "boq", AccessLevel.admin)
     token = await _login_with_access(
         client, db_session, user_factory, "project_manager", "pm@boq-api-42c.co"
     )
@@ -175,7 +175,7 @@ async def test_delete_boq_item_invisible_returns_403_not_404(
     site = await _site(db_session, project)
     group = await _group(db_session, site)
     item = await _item(db_session, site, group, code="01.001")
-    await _set_permission(db_session, "project_manager", "boq", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, "project_manager", "boq", AccessLevel.admin)
     token = await _login(client, user_factory, "project_manager", "pm@boq-api-43.co")
 
     resp = await client.delete(f"/boq/items/{item.id}", headers=_auth(token))
@@ -193,7 +193,7 @@ async def test_delete_boq_item_missing_is_indistinguishable_from_invisible(
     site = await _site(db_session, project)
     group = await _group(db_session, site)
     item = await _item(db_session, site, group, code="01.001")
-    await _set_permission(db_session, "project_manager", "boq", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, "project_manager", "boq", AccessLevel.admin)
     token = await _login(client, user_factory, "project_manager", "pm@boq-api-44.co")
 
     invisible = await client.delete(f"/boq/items/{item.id}", headers=_auth(token))
@@ -272,7 +272,7 @@ async def test_delete_boq_group_full_level_role_forbidden(
     project = await project_factory("BOQ-API-49")
     site = await _site(db_session, project)
     group = await _group(db_session, site, name="ESKI AD")
-    await _set_permission(db_session, "patron", "boq", AccessLevel.full)
+    await modul_duzeyi_yaz(db_session, "patron", "boq", AccessLevel.full)
     token = await _login_with_access(
         client, db_session, user_factory, "patron", "pat@boq-api-49.co"
     )
@@ -293,7 +293,7 @@ async def test_delete_boq_group_admin_seviyesi_yetmez_yalniz_sistem_yoneticisi(
     project = await project_factory("BOQ-API-50")
     site = await _site(db_session, project)
     group = await _group(db_session, site)
-    await _set_permission(db_session, "project_manager", "boq", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, "project_manager", "boq", AccessLevel.admin)
     token = await _login_with_access(
         client, db_session, user_factory, "project_manager", "pm@boq-api-50.co"
     )
@@ -311,7 +311,7 @@ async def test_delete_boq_group_invisible_returns_403_not_404(
     project = await project_factory("BOQ-API-51")
     site = await _site(db_session, project)
     group = await _group(db_session, site)
-    await _set_permission(db_session, "project_manager", "boq", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, "project_manager", "boq", AccessLevel.admin)
     token = await _login(client, user_factory, "project_manager", "pm@boq-api-51.co")
 
     resp = await client.delete(f"/boq/groups/{group.id}", headers=_auth(token))
@@ -327,7 +327,7 @@ async def test_delete_boq_group_missing_is_indistinguishable_from_invisible(
     project = await project_factory("BOQ-API-52")
     site = await _site(db_session, project)
     group = await _group(db_session, site)
-    await _set_permission(db_session, "project_manager", "boq", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, "project_manager", "boq", AccessLevel.admin)
     token = await _login(client, user_factory, "project_manager", "pm@boq-api-52.co")
 
     invisible = await client.delete(f"/boq/groups/{group.id}", headers=_auth(token))

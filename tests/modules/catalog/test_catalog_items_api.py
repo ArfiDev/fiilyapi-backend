@@ -13,15 +13,16 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.sayfalar import HiddenCategory
 from app.modules.audit.models import AuditLog
 from app.modules.catalog.models import ContractorType, EvDiscipline
 from app.modules.users.models import User
 from tests._hassas_alan import rol_gizle
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._proje_ekibi import baska_projede_disiplinli
 
-from .._boq import _auth, _login_with_access, _set_permission
+from .._boq import _auth, _login_with_access
 
 pytestmark = pytest.mark.asyncio
 
@@ -284,7 +285,7 @@ async def test_contracts_view_okur_ama_yazamaz(
     client, admin, kab, db_session, user_factory
 ) -> None:
     created = await client.post(URL, json=_govde(kab), headers=admin)
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     assert (await client.get(URL, headers=muhasebe)).status_code == 200
     assert (await client.post(URL, json=_govde(kab, name="Y"), headers=muhasebe)).status_code == 403
@@ -349,7 +350,7 @@ async def test_limited_kapsamda_ref_price_gizli_all_kapsamda_gorunur(
     await client.post(URL, json=_govde(kab, ref_price="99.90"), headers=admin)
     # Izin satiri DOGRUDAN yazilir (`test_kapsam_yazma_kapisi` deseni): matriste atanabilir
     # limited+contracts hucresi yok; olculen sey maske ZINCIRI.
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     await rol_gizle(db_session, "accounting", HiddenCategory.sozlesme_fiyat)
     sinirli = await _giris(client, db_session, user_factory, "accounting")
     gizli = (await client.get(URL, headers=sinirli)).json()["items"][0]
@@ -368,7 +369,7 @@ async def test_fiyat_kategorisini_gizleyen_rol_olustururken_serbest_GUNCELLERKEN
 ) -> None:
     """IZN-B4a yazma kapısı: POST (oluşturma) gizli alanla SERBEST (yanıt maskeli); PATCH'te gizli
     kategorili alanı gönderen aktör 403, ilgisiz alanı güncelleyebilir."""
-    await _set_permission(db_session, "project_manager", "contracts", AccessLevel.full)
+    await modul_duzeyi_yaz(db_session, "project_manager", "contracts", AccessLevel.full)
     await rol_gizle(db_session, "project_manager", HiddenCategory.sozlesme_fiyat)
     sinirli = await _giris(client, db_session, user_factory, "project_manager")
     resp = await client.post(URL, json=_govde(kab, ref_price="10.00"), headers=sinirli)
@@ -447,7 +448,7 @@ async def test_disiplin_listesi_contracts_view_rolu_okur(
     client, db_session, seeded_db, user_factory
 ) -> None:
     await _disiplin(db_session, "KAB")
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     resp = await client.get(DISC_URL, headers=muhasebe)
     assert resp.status_code == 200 and len(resp.json()["items"]) == 1
@@ -458,9 +459,9 @@ async def test_ozel_rol_contracts_view_EV_yok_cekirdek_200_EV_403(
 ) -> None:
     """Gerekce bekcisi: cekirdek uc EV izninden BAGIMSIZ; EV ucu hala kapali."""
     await _disiplin(db_session, "KAB")
-    await _set_permission(db_session, "procurement", "contracts", AccessLevel.view, Scope.all)
-    await _set_permission(db_session, "procurement", "earned_value", AccessLevel.none, Scope.all)
-    await _set_permission(db_session, "procurement", "user_management", AccessLevel.none)
+    await modul_duzeyi_yaz(db_session, "procurement", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "procurement", "earned_value", AccessLevel.none)
+    await modul_duzeyi_yaz(db_session, "procurement", "user_management", AccessLevel.none)
     kisi = await _giris(client, db_session, user_factory, "procurement")
     assert (await client.get(DISC_URL, headers=kisi)).status_code == 200
     assert (await client.get("/earned-value/disciplines", headers=kisi)).status_code == 403

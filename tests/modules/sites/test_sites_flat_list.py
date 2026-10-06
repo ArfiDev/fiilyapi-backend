@@ -11,13 +11,10 @@ gerçekten kullanıp kullanmadığını ölçmez.
 
 import uuid
 
-from sqlalchemy import select
-
-from app.core.access import AccessLevel, Scope
-from app.modules.roles.models import Module, Role, RolePermission
+from app.core.access import AccessLevel
 from app.modules.sites.models import Site
 from app.modules.users.models import ProjectMember
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 # Düz ucun yanıt alanları — K3 gereği YALIN küme. `SiteCard` alanları (status,
 # budget, facilities, ...) BİLEREK yoktur: `SiteCard`a `project_id` eklemek
@@ -53,26 +50,6 @@ async def _site(session, project, code: str, name: str | None = None) -> Site:
     return site
 
 
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
-
-
 # --- Kimlik/izin kapıları ---
 
 
@@ -86,7 +63,7 @@ async def test_izinsiz_rol_403(client, db_session, user_factory, project_factory
     await _site(db_session, project, "A-BLOK")
     # Seed matrisinde HİÇBİR rol sites=none taşımıyor; test kapıyı seed
     # değerinden BAĞIMSIZ doğrulamak için izni açıkça none'a çeker.
-    await _set_permission(db_session, "procurement", "sites", AccessLevel.none)
+    await modul_duzeyi_yaz(db_session, "procurement", "sites", AccessLevel.none)
     token = await _login(client, user_factory, "procurement")
 
     resp = await client.get("/sites", headers=_auth(token))

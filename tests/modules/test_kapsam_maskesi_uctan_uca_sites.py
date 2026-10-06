@@ -3,7 +3,7 @@
 Kardeşi `…_dashboard.py`; gerekçe orada yazılı. Kısa hâli: kısıtlı altı modülün
 İKİSİ (`dashboard`, `sites`) hiçbir davranış bekçisine düşmemişti. `sites`te
 ayrıca `tests/modules/sites/` altındaki yardımcı kapsamı **varsayılan olarak
-`Scope.all`a sıfırlıyordu** (`_set_permission(..., scope: Scope = Scope.all)`),
+`Scope.all`a sıfırlıyordu** (eski yardımcının `scope: Scope = Scope.all` varsayılanı),
 yani 11 ucun hiçbiri gerçek kısıtlı kapsamla koşmuyordu.
 
 ## Bu dosya ÜÇ yüzeyi birden ölçer — ve bu bilinçlidir

@@ -11,37 +11,9 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from app.core.access import AccessLevel, Scope
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.boq.models import BoqGroup, BoqItem
-from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Site
-from tests._legacy_permission_yardimcisi import sync_page_cells
-
-
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    """Bir rolun modul iznini dogrudan ayarlar (`test_projects_api` deseni).
-
-    Yetki kapisi testleri seed degerine BAGIMLI olmamali: matris degistiginde
-    test sessizce anlamsizlasmasin diye ilgili hucre testte acikca kurulur.
-    """
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
 
 
 async def _login(client, user_factory, role_key: str, email: str | None = None) -> str:

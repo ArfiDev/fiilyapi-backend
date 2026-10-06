@@ -46,5 +46,5 @@ async def test_roles_forbidden_for_non_admin(client, user_factory):
 
 # IZN-B2: `PUT /roles/{id}/permissions/{module}` 410 oldu; modül hücresi yazma kuralları
 # (kapsam, kablolu modül, maskeleyen kapsam + yazan seviye) servis düzeyinde
-# `tests/modules/test_role_service.py` + `tests/_legacy_permission_yardimcisi.py` ile çakılır;
+# `tests/modules/test_role_service.py` ile çakılır;
 # 410 davranışı `tests/modules/test_izn_b2_roles_api.py` içindedir.

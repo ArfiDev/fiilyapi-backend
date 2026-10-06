@@ -15,35 +15,14 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.boq.models import BoqGroup, BoqItem, BoqItemSectionAllocation
-from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.sites.models import Section, Site
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._silme_yardimci import sil_aile
 
 # --- Kurulum yardımcıları (test_boq_api.py deseniyle birebir) ---------------
-
-
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
 
 
 async def _login(client, session, user_factory, role_key: str, email: str) -> str:
@@ -374,7 +353,7 @@ async def test_tahsis_yazma_full_izin_ister(client, db_session, user_factory, pr
     group = await _group(db_session, site)
     item = await _item(db_session, site, group)
     kat = await _section(db_session, site, "Kat 6-10")
-    await _set_permission(db_session, "site_chief", "boq", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "site_chief", "boq", AccessLevel.view)
     token = await _login(client, db_session, user_factory, "site_chief", "s11@boqsec.co")
 
     resp = await client.put(

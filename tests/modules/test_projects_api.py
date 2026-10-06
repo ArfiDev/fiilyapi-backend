@@ -3,39 +3,13 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.sayfalar import PageLevel
 from app.modules.audit.models import AuditAction, AuditLog
 from app.modules.projects.models import ProjectContract
-from app.modules.roles.models import Module, Role, RolePermission
 from app.modules.users.models import ProjectMember
 from tests._ekip_dunyasi import rol_kur
-from tests._legacy_permission_yardimcisi import sync_page_cells
-
-
-async def _set_permission(
-    session, role_key: str, module_key: str, level: AccessLevel, scope: Scope = Scope.all
-) -> None:
-    """Bir rolun modul iznini dogrudan ayarlar.
-
-    Yetki kapisi testleri seed degerine BAGIMLI olmamali: matris degistiginde
-    test sessizce anlamsizlasmasin diye ilgili hucre testte acikca kurulur.
-    """
-    role_id = (await session.execute(select(Role.id).where(Role.key == role_key))).scalar_one()
-    module_id = (
-        await session.execute(select(Module.id).where(Module.key == module_key))
-    ).scalar_one()
-    permission = (
-        await session.execute(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id, RolePermission.module_id == module_id
-            )
-        )
-    ).scalar_one()
-    permission.access_level = level
-    permission.scope = scope
-    await session.flush()
-    await sync_page_cells(session, permission.role_id)
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 
 async def _login(client, user_factory, role_key: str) -> str:
@@ -143,7 +117,7 @@ async def test_create_requires_admin_not_full(client, db_session, user_factory):
     # is_draft: taahhüt zorunluluklarına takılmadan izin kapısını test etmek için (B4).
     body = {"code": "ADM-1", "name": "Admin Testi", "project_type": "taahhut", "is_draft": True}
 
-    await _set_permission(db_session, "patron", "projects", AccessLevel.full)
+    await modul_duzeyi_yaz(db_session, "patron", "projects", AccessLevel.full)
     full_token = await _login(client, user_factory, "patron")
     forbidden = await client.post("/projects", json=body, headers=_auth(full_token))
     assert forbidden.status_code == 403

@@ -12,6 +12,7 @@ import uuid
 from decimal import Decimal
 
 from app.core.access import AccessLevel
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._silme_yardimci import sil_aile
 
 from ._units_api import (
@@ -21,7 +22,6 @@ from ._units_api import (
     _count_units_in_block,
     _login,
     _login_with_access,
-    _set_permission,
     _site,
     _unit,
 )
@@ -510,7 +510,7 @@ async def test_delete_unit_admin_seviyesi_yetmez_yalniz_sistem_yoneticisi_siler(
     site = await _site(db_session, project)
     block = await _block(db_session, project, site)
     unit = await _unit(db_session, project, block, "1")
-    await _set_permission(db_session, "project_manager", "projects", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, "project_manager", "projects", AccessLevel.admin)
     token = await _login_with_access(client, db_session, user_factory, "project_manager")
 
     resp = await sil_aile(client, _auth(token), "unit", unit.id)
@@ -644,7 +644,7 @@ async def test_delete_block_admin_seviyesi_yetmez_yalniz_sistem_yoneticisi_siler
     project = await project_factory("B7-11C")
     site = await _site(db_session, project)
     block = await _block(db_session, project, site)
-    await _set_permission(db_session, "project_manager", "projects", AccessLevel.admin)
+    await modul_duzeyi_yaz(db_session, "project_manager", "projects", AccessLevel.admin)
     token = await _login_with_access(client, db_session, user_factory, "project_manager")
 
     resp = await sil_aile(client, _auth(token), "block", block.id)

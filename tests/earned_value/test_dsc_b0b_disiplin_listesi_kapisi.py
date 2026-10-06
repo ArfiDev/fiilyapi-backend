@@ -14,12 +14,12 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.modules.catalog.models import EvDiscipline
 from app.modules.roles import service as roles_service
 from app.modules.roles.models import Role
 from app.modules.roles.schemas import RoleCreate
-from tests._legacy_permission_yardimcisi import update_role_permission
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._proje_ekibi import disiplin_ata
 
 PASSWORD = "parola1234"
@@ -33,7 +33,7 @@ async def _rol(session: AsyncSession, key: str, izinler: dict[str, AccessLevel])
         session, RoleCreate(key=key, name=key, emoji="", description="")
     )
     for module_key, level in izinler.items():
-        await update_role_permission(session, role.id, module_key, level, Scope.all)
+        await modul_duzeyi_yaz(session, role.id, module_key, level)
     return role
 
 

@@ -26,7 +26,6 @@ from app.core.sayfalar import (
 from app.main import app
 from app.modules.roles import seed_data
 from app.modules.roles.models import (
-    Module,
     Role,
     RoleHiddenField,
     RolePagePermission,
@@ -34,7 +33,8 @@ from app.modules.roles.models import (
 )
 from app.modules.roles.schemas import RoleCreate
 from app.modules.roles.service import create_custom_role
-from tests._legacy_permission_yardimcisi import sync_page_cells, update_role_permission
+from tests._legacy_permission_yardimcisi import update_role_permission
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests.conftest import test_engine
 
 SIFRE = "parola1234"
@@ -479,11 +479,11 @@ async def test_write_through_hucreyi_DARALT_sayfa_hucresi_daralir(izn_db):
         PageLevel.edit,
         True,
     )  # accounting full
-    await update_role_permission(izn_db, muhasebe.id, "accounting", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(izn_db, muhasebe.id, "accounting", AccessLevel.view)
     assert await _sayfa(izn_db, muhasebe, "mali.yevmiye") == (PageLevel.view, False)
     assert await _sayfa(izn_db, muhasebe, "mali.mizan") == (PageLevel.view, False)
     assert await _sayfa(izn_db, muhasebe, "mali.hesap_plani") == (PageLevel.view, False)
-    await update_role_permission(izn_db, muhasebe.id, "accounting", AccessLevel.none, Scope.all)
+    await modul_duzeyi_yaz(izn_db, muhasebe.id, "accounting", AccessLevel.none)
     assert await _sayfa(izn_db, muhasebe, "mali.mizan") == (PageLevel.none, False)
     # Aynı modülden türemeyen sayfalar DEĞİŞMEZ.
     assert await _sayfa(izn_db, muhasebe, "mali.fatura") == (PageLevel.edit, True)
@@ -492,9 +492,9 @@ async def test_write_through_hucreyi_DARALT_sayfa_hucresi_daralir(izn_db):
 async def test_write_through_hucreyi_GENISLET_sayfa_hucresi_genisler(izn_db):
     sef = await _rol(izn_db, "site_chief")
     assert await _sayfa(izn_db, sef, "mali.yevmiye") == (PageLevel.none, False)
-    await update_role_permission(izn_db, sef.id, "accounting", AccessLevel.draft, Scope.all)
+    await modul_duzeyi_yaz(izn_db, sef.id, "accounting", AccessLevel.draft)
     assert await _sayfa(izn_db, sef, "mali.yevmiye") == (PageLevel.view, False)  # eşik full
-    await update_role_permission(izn_db, sef.id, "accounting", AccessLevel.full, Scope.all)
+    await modul_duzeyi_yaz(izn_db, sef.id, "accounting", AccessLevel.full)
     assert await _sayfa(izn_db, sef, "mali.yevmiye") == (PageLevel.edit, True)
     assert await _sayfa(izn_db, sef, "mali.mizan") == (PageLevel.view, False)
 
@@ -503,59 +503,40 @@ async def test_write_through_CAPRAZ_modul_esigi_projects_admin(izn_db):
     """Teklif "Dönüştür" Onaylar'ı = contracts full VE projects admin; iki modül de izlenir."""
     pm = await _rol(izn_db, "project_manager")
     assert await _sayfa(izn_db, pm, "teklif.teklif_hazirlama") == (PageLevel.edit, False)
-    await update_role_permission(izn_db, pm.id, "projects", AccessLevel.admin, Scope.all)
+    await modul_duzeyi_yaz(izn_db, pm.id, "projects", AccessLevel.admin)
     assert await _sayfa(izn_db, pm, "teklif.teklif_hazirlama") == (PageLevel.edit, True)
     assert await _sayfa(izn_db, pm, "genel.projeler") == (PageLevel.edit, False)  # proje oluştur
-    await update_role_permission(izn_db, pm.id, "contracts", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(izn_db, pm.id, "contracts", AccessLevel.view)
     assert await _sayfa(izn_db, pm, "teklif.teklif_hazirlama") == (PageLevel.view, False)
 
 
-async def _eski_hucre(izn_db, rol, modul: str, level: AccessLevel, scope: Scope) -> None:
-    """Eski matris hücresini DOĞRUDAN yazar + write-through türetimini koşar.
-
-    IZN-B4: `update_role_permission` artık `limited`i reddeder (hiçbir modül eski köprüyü
-    taşımıyor: `kablolu_moduller()` boş). Türetim (`sync_page_cells`) hâlâ eski satırlardan
-    `tum_tutarlar`ı çıkarır; B6'da bu yol söküldüğünde test birlikte silinir.
-    """
-    izin = (
-        await izn_db.execute(
-            select(RolePermission)
-            .join(Module, Module.id == RolePermission.module_id)
-            .where(RolePermission.role_id == rol.id, Module.key == modul)
-        )
-    ).scalar_one()
-    izin.access_level = level
-    izin.scope = scope
-    await izn_db.flush()
-    await sync_page_cells(izn_db, rol.id)
-
-
-async def test_write_through_limited_ac_kapa_tum_tutarlar_bayragi(izn_db):
+async def test_write_through_tum_tutarlar_bayragi_ac_kapa(izn_db):
+    """B6b-T: bayrak artık `tum_tutarlar=` ile AÇIK yazılır (eski `limited` kapsamından türemez)."""
     muhasebe = await _rol(izn_db, "accounting")
     assert await _gizli(izn_db, muhasebe) == set()
-    await _eski_hucre(izn_db, muhasebe, "dashboard", AccessLevel.view, Scope.limited)
+    await modul_duzeyi_yaz(izn_db, muhasebe, "dashboard", AccessLevel.view, tum_tutarlar=True)
     assert await _gizli(izn_db, muhasebe) == {HiddenCategory.tum_tutarlar}
-    await _eski_hucre(izn_db, muhasebe, "dashboard", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(izn_db, muhasebe, "dashboard", AccessLevel.view, tum_tutarlar=False)
     assert await _gizli(izn_db, muhasebe) == set()
-    # Şef üç `limited` hücreye sahip: birini kapatmak bayrağı DÜŞÜRMEZ, sonuncusu düşürür.
     # Başlangıç kümesi madde 20'nin onaylı kümesidir (`tum_tutarlar` YOK); write-through yalnız
     # `tum_tutarlar` bayrağını açar/kapatır, onaylı kategorilere dokunmaz.
     sef = await _rol(izn_db, "site_chief")
     onayli = set(seed_data.ESKI_ROL_GIZLI_ALANLAR["site_chief"])
     assert await _gizli(izn_db, sef) == onayli
-    await _eski_hucre(izn_db, sef, "dashboard", AccessLevel.view, Scope.limited)
+    await modul_duzeyi_yaz(izn_db, sef, "dashboard", AccessLevel.view, tum_tutarlar=True)
     assert await _gizli(izn_db, sef) == onayli | {HiddenCategory.tum_tutarlar}
-    for modul in ("dashboard", "projects", "sites"):
-        await _eski_hucre(izn_db, sef, modul, AccessLevel.view, Scope.all)
-    assert HiddenCategory.tum_tutarlar in await _gizli(izn_db, sef)  # boq hâlâ limited
-    await _eski_hucre(izn_db, sef, "boq", AccessLevel.view, Scope.all)
+    # Bayrağa dokunmayan yazım (tum_tutarlar=None) bayrağı DEĞİŞTİRMEZ.
+    for modul in ("dashboard", "projects", "sites", "boq"):
+        await modul_duzeyi_yaz(izn_db, sef, modul, AccessLevel.view)
+    assert HiddenCategory.tum_tutarlar in await _gizli(izn_db, sef)
+    await modul_duzeyi_yaz(izn_db, sef, "boq", AccessLevel.view, tum_tutarlar=False)
     assert await _gizli(izn_db, sef) == onayli
 
 
 async def test_write_through_me_yanitina_ve_endpointe_yansir(client, izn_db, user_factory):
     sef_headers = await _giris(client, user_factory, "site_chief")
     sef = await _rol(izn_db, "site_chief")
-    await update_role_permission(izn_db, sef.id, "accounting", AccessLevel.full, Scope.all)
+    await modul_duzeyi_yaz(izn_db, sef.id, "accounting", AccessLevel.full)
     me = await _me(client, sef_headers)
     assert me["pages"]["mali.yevmiye"] == {"level": "edit", "approve": True}
     assert me["permissions"]["accounting"] == "full"  # eski harita da aynı yönde
@@ -570,7 +551,7 @@ async def test_write_through_hucresi_olmayan_rolde_100_hucreyi_kurar(
         delete(RolePagePermission).where(RolePagePermission.role_id == muhasebe.id)
     )
     await seeded_db.flush()
-    await update_role_permission(seeded_db, muhasebe.id, "treasury", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(seeded_db, muhasebe.id, "treasury", AccessLevel.view)
     adet = await seeded_db.scalar(
         select(func.count())
         .select_from(RolePagePermission)

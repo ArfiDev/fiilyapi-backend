@@ -23,15 +23,15 @@ from decimal import Decimal
 
 from sqlalchemy import text
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.discipline_scope import UNRESTRICTED
 from app.modules.boq import progress
 from app.modules.progress_payments import project_progress
 from app.modules.progress_payments.models import ProgressPaymentStatus
 from app.modules.site_diary.models import DiaryStatus
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 from . import _ilr
-from ._boq import _set_permission
 
 # Canlidaki gercek sekil (`A1 · Kenar Ayak`): m² ile ton'un ortalamasi alinamaz.
 _FILIZ = {"quantity": "7440", "unit_price": "412.50", "unit": "adet"}
@@ -445,9 +445,9 @@ async def test_BOLUM_ucunde_yuzde_IZINLIDE_DOLAR_IZINSIZDE_KISITLANIR(
     #    OLCULDU (2026-09-19): `reads.py`deki iki `can_read` kapisi silinip test
     #    kosuldu, YESIL kaldi. Kapsam ACIKCA `all`a cekilir ki deneyin tek
     #    degiskeni izin hucresi olsun; hucrenin KENDISI de seed'e birakilmaz
-    #    (`_set_permission` kanonu: matris degisince test sessizce anlamsizlasmasin).
-    await _set_permission(seeded_db, "accounting", "sites", AccessLevel.view, Scope.all)
-    await _set_permission(seeded_db, "accounting", "site_diary", AccessLevel.none)
+    #    (`modul_duzeyi_yaz` kanonu: matris degisince test sessizce anlamsizlasmasin).
+    await modul_duzeyi_yaz(seeded_db, "accounting", "sites", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, "accounting", "site_diary", AccessLevel.none)
 
     izinli = await _ilr.login(client, seeded_db, user_factory, "patron", "e2a@ilr.co")
     izinsiz = await _ilr.login(client, seeded_db, user_factory, "accounting", "e2b@ilr.co")
@@ -507,10 +507,10 @@ async def test_KART_fiziksel_ve_mali_AYRI_izinlere_bakar(
     #    Kapsam ACIKCA `all`a cekilir ki olculen tek sey izin hucresi olsun.
     #    `patron` seed'de zaten `all` tasir ve ACIKCA kurulmaz: kapsami daralirsa
     #    OLUMLU kontrol KIRILIR (sessizce yesil kalmaz), istenen yon budur.
-    await _set_permission(seeded_db, "accounting", "projects", AccessLevel.view, Scope.all)
-    await _set_permission(seeded_db, "field_engineer", "projects", AccessLevel.view, Scope.all)
-    await _set_permission(seeded_db, "accounting", "site_diary", AccessLevel.none)
-    await _set_permission(seeded_db, "field_engineer", "progress_payments", AccessLevel.none)
+    await modul_duzeyi_yaz(seeded_db, "accounting", "projects", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, "field_engineer", "projects", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, "accounting", "site_diary", AccessLevel.none)
+    await modul_duzeyi_yaz(seeded_db, "field_engineer", "progress_payments", AccessLevel.none)
 
     async def _olc(role_key: str, email: str) -> dict:
         headers = await _ilr.login(client, seeded_db, user_factory, role_key, email)
@@ -691,8 +691,8 @@ async def test_SANTIYE_KARTI_yuzdesi_para_agirliklidir_ve_KAPSAM_sizdirmaz(
     #    test kosuldu, YESIL kaldi. (Denetim bu dorduncu hâli KACIRDI; kardes uc
     #    testle AYNI sinif.) Kapsam ACIKCA `all`a cekilir ki olculen tek sey izin
     #    hucresi olsun; hucrenin KENDISI de seed'e birakilmaz.
-    await _set_permission(seeded_db, "accounting", "sites", AccessLevel.view, Scope.all)
-    await _set_permission(seeded_db, "accounting", "site_diary", AccessLevel.none)
+    await modul_duzeyi_yaz(seeded_db, "accounting", "sites", AccessLevel.view)
+    await modul_duzeyi_yaz(seeded_db, "accounting", "site_diary", AccessLevel.none)
 
     izinli = await _ilr.login(client, seeded_db, user_factory, "patron", "g1a@ilr.co")
     izinsiz = await _ilr.login(client, seeded_db, user_factory, "accounting", "g1b@ilr.co")

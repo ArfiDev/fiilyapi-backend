@@ -11,7 +11,7 @@ import uuid
 import pytest
 from sqlalchemy import func, select
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.router_registry import ROUTERS
 from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
@@ -20,9 +20,10 @@ from app.modules.offers.models import OfferTemplate
 from app.modules.offers.router import router as offers_router
 from app.modules.offers.template_router import router as templates_router
 from app.modules.users.models import User
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._proje_ekibi import baska_projede_disiplinli
 
-from .._boq import _audit_details, _auth, _login_with_access, _set_permission
+from .._boq import _audit_details, _auth, _login_with_access
 from ._offers import (
     TPL,
     D,
@@ -470,7 +471,7 @@ async def test_contracts_none_rol_HEPSI_403(client, admin, db_session, user_fact
 
 async def test_contracts_view_okur_ama_YAZAMAZ(client, admin, db_session, user_factory) -> None:
     s = await sablon(client, admin)
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     for yontem, yol, govde in _tum_uclar(s["id"]):
         resp = await client.request(yontem, yol, json=govde, headers=muhasebe)

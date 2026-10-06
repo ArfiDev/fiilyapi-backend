@@ -28,8 +28,8 @@ gömülü şemada kopması mümkündür — yapı testi onu göremez, çünkü y
 Üç testin tek farkı rolün `contracts` KAPSAMIDIR; seviye (`view`) sabittir.
 Seed'e bağlansaydı, matris bir gün değiştiğinde test sessizce ANLAMSIZLAŞIR
 (hep aynı kapsamı ölçen üç kopya olurdu) — kırmızı vermeden. Şimdi ölçülen şey
-maskenin kendisidir ve deneyin tek değişkeni kapsamdır (`_boq._set_permission`
-deseni).
+maskenin kendisidir ve deneyin tek değişkeni kapsamdır (`modul_duzeyi_yaz`
+deseni; kapsam = `tum_tutarlar` bayrağı).
 """
 
 import uuid
@@ -46,8 +46,9 @@ from app.modules.progress_payments.models import (
 from app.modules.projects.models import ProjectContract
 from app.modules.sites.models import Site
 from tests._hassas_alan import rol_gizle
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
-from ._boq import _auth, _login_with_access, _set_permission
+from ._boq import _auth, _login_with_access
 
 #: Ölçülen senaryonun sayıları. Hepsi BİRBİRİNDEN FARKLI seçildi: eşit sayılar
 #: kullanılsaydı "yanlış alanı okuyan" bir assert de yeşil kalırdı.
@@ -140,7 +141,13 @@ async def _sozlesme_detayi(
     )
     project_id = await _hakedisli_proje(db_session, project_factory, olusturan.id)
     token = await _login_with_access(client, db_session, user_factory, "project_manager", eposta)
-    await _set_permission(db_session, "project_manager", "contracts", AccessLevel.view, kapsam)
+    await modul_duzeyi_yaz(
+        db_session,
+        "project_manager",
+        "contracts",
+        AccessLevel.view,
+        tum_tutarlar=kapsam is Scope.limited,
+    )
 
     resp = await client.get(f"/projects/{project_id}/contract", headers=_auth(token))
     assert resp.status_code == 200, resp.text

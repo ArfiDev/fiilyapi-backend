@@ -25,9 +25,10 @@ from app.modules.catalog.models import ContractorType, EvCatalogItem, EvDiscipli
 from app.modules.catalog.service import next_poz_no
 from app.modules.users.models import User
 from tests._hassas_alan import rol_gizle
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._proje_ekibi import baska_projede_disiplinli
 
-from .._boq import _auth, _login_with_access, _set_permission
+from .._boq import _auth, _login_with_access
 
 URL = "/catalog/items"
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -175,7 +176,7 @@ async def test_limited_kapsamda_fiyat_hucreleri_bos(
     son_fiyat.veri[kalem.id] = LastPrice(
         Decimal("123.45"), datetime(2026, 3, 1, tzinfo=UTC), "SZL", "PRJ-A", None
     )
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     await rol_gizle(db_session, "accounting", HiddenCategory.sozlesme_fiyat)
     token = await _login_with_access(
         client, db_session, user_factory, "accounting", f"lim.{uuid.uuid4().hex[:6]}@tkl.co"

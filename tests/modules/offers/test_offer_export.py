@@ -14,7 +14,7 @@ from io import BytesIO
 import openpyxl
 import pytest
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.modules.offers.export import (
     EMPLOYER_HEADERS,
     INTERNAL_HEADERS,
@@ -23,8 +23,9 @@ from app.modules.offers.export import (
 )
 from app.modules.offers.models import Offer
 from app.modules.offers.offer_read_schemas import OfferRevisionRead
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
-from .._boq import _auth, _login_with_access, _set_permission
+from .._boq import _auth, _login_with_access
 from ._offers import D, grup, kalem, rev_url, revizyon, teklif
 
 #: Isveren ciktisinda HICBIR etiket/baslik hucresinde gecmemesi gereken kelimeler (kucuk harf).
@@ -408,7 +409,7 @@ async def test_contracts_yok_roller_403(client, db_session, user_factory, dolu, 
 async def test_muhasebe_contracts_view_200_ve_tam_deger(
     client, admin, db_session, user_factory, dolu
 ) -> None:
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.all)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     token = await _login_with_access(
         client, db_session, user_factory, "accounting", f"acc.{uuid.uuid4().hex[:6]}@tkl.co"
     )
@@ -462,7 +463,9 @@ async def test_limited_kapsamda_para_hucreleri_BOS_digerleri_gorunur(
         - {k["internal"]["man_hours"] for k in _kalemler(rev)}
         - {rev["totals"]["internal"]["man_hours"]}
     )
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.limited)
+    await modul_duzeyi_yaz(
+        db_session, "accounting", "contracts", AccessLevel.view, tum_tutarlar=True
+    )
     token = await _login_with_access(
         client, db_session, user_factory, "accounting", f"lim.{uuid.uuid4().hex[:6]}@tkl.co"
     )
@@ -529,7 +532,9 @@ async def test_limited_kapsamda_karisik_grubun_ara_toplami_BOS_adam_saat_gorunur
 ) -> None:
     """Gercekten maskeli (miktarli+fiyatli kalemin tutari gizli) → ara toplam BOS; kimlik kovasi
     olan adam-saat toplami maskelenmez."""
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view, Scope.limited)
+    await modul_duzeyi_yaz(
+        db_session, "accounting", "contracts", AccessLevel.view, tum_tutarlar=True
+    )
     token = await _login_with_access(
         client, db_session, user_factory, "accounting", f"kar.{uuid.uuid4().hex[:6]}@tkl.co"
     )

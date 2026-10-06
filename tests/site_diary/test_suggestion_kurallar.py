@@ -19,9 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import AccessLevel
 from app.modules.audit.models import AuditLog
-from app.modules.roles.repository import get_permission
 from app.modules.site_diary import guards
-from tests._legacy_permission_yardimcisi import sync_page_cells
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 from ._suggestion import (
     DONEM,
@@ -361,11 +360,9 @@ async def test_hakedis_izni_KALDIRILMIS_gunluk_rolu_403(
     """
     site, project, _ = santiye
     tas_sozlesme = await taseron_sozlesmesi_fabrikasi(project, site=site, code="TS-KAPALI")
-    izin = await get_permission(seeded_db, sef_kullanicisi.role_id, "progress_payments")
-    assert izin is not None
-    izin.access_level = AccessLevel.none
-    await seeded_db.flush()
-    await sync_page_cells(seeded_db, izin.role_id)
+    await modul_duzeyi_yaz(
+        seeded_db, sef_kullanicisi.role_id, "progress_payments", AccessLevel.none
+    )
 
     assert (await _isveren_onerisi(client, sef_headers, project.id, **DONEM)).status_code == 403
     assert (

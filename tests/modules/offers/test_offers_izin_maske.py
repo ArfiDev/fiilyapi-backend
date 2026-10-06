@@ -19,9 +19,10 @@ from app.modules.offers.models import Offer
 from app.modules.roles.models import Role, RoleHiddenField
 from app.modules.roles.seed_data import MATRIX, ROLE_ORDER
 from app.modules.users.models import User
+from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests._proje_ekibi import baska_projede_disiplinli
 
-from .._boq import _auth, _login_with_access, _set_permission
+from .._boq import _auth, _login_with_access
 from ._offers import URL, D, durum_yap, gecis, grup, kalem, rev_url, teklif
 
 #: Para anahtarlari (`Gorunurluk.para`): limited kapsamda HEPSI None olmali.
@@ -161,7 +162,7 @@ async def test_contracts_yok_roller_TUM_uclarda_403(
 async def test_contracts_view_okur_ama_YAZAMAZ(
     client, admin, db_session, user_factory, dolu
 ) -> None:
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     for yontem, yol, govde in _tum_uclar(dolu):
         resp = await client.request(yontem, yol, json=govde, headers=muhasebe)
@@ -210,7 +211,7 @@ async def test_proje_basina_disiplinli_kullanici_teklif_modulunu_gorur(
 async def test_gecis_uclari_da_kisitliya_kapali(
     client, admin, db_session, user_factory, isveren
 ) -> None:
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     o = await teklif(client, admin, isveren)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     for eylem in ("send", "win", "lose", "withdraw"):
@@ -233,7 +234,7 @@ async def test_limited_kapsamda_TUM_para_alanlari_None_diger_alanlar_gorunur(
         assert any(v is not None for _, v in alanlar), f"{ad}: yonetici hic para gormuyor"
     assert D(yonetici["rev1"]["totals"]["customer"]["net"]) == D("1528.00")
 
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     await _gizle(db_session, "accounting", HiddenCategory.tum_tutarlar)
     sinirli = await _giris(client, db_session, user_factory, "accounting")
     gorulen = await _okumalar(client, sinirli, dolu)
@@ -265,7 +266,7 @@ async def test_yalniz_maliyet_kar_gizliyken_musteri_fiyati_gorunur_maliyet_ve_or
 ) -> None:
     """IZN-B4: eski `finance` kapsami karsiliksiz. Kategoriler BAGIMSIZDIR: `maliyet_kar` gizliyken
     musteriye verilen fiyat (`sozlesme_fiyat`) GORUNUR; maliyet birim fiyati ve oranlar None."""
-    await _set_permission(db_session, "accounting", "contracts", AccessLevel.view)
+    await modul_duzeyi_yaz(db_session, "accounting", "contracts", AccessLevel.view)
     await _gizle(db_session, "accounting", HiddenCategory.maliyet_kar)
     muhasebe = await _giris(client, db_session, user_factory, "accounting")
     rev = (await client.get(rev_url(dolu["offer_id"], 1), headers=muhasebe)).json()
