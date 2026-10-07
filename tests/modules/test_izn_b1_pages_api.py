@@ -5,7 +5,7 @@ Kapsam: katalog ucu (yanıt biçimi, kapı), `/auth/me.pages|hidden_fields|is_sy
 bekçisi (N+1 yok), yeni rollerin atama kilidi, özel rol oluşturunca sayfa hücreleri ve
 OpenAPI enum sözleşmesi.
 
-Mevcut `permissions` haritası AYNEN kalır (frontend bugün onu okuyor) — burada da çakılır.
+`/auth/me.permissions` alanı IZN-B6b'de kalktı; yalnız `pages`/`hidden_fields` vardır.
 """
 
 from collections.abc import Iterator
@@ -14,8 +14,7 @@ from contextlib import contextmanager
 import pytest
 from sqlalchemy import delete, event, func, select
 
-from app.core.access import AccessLevel, Scope
-from app.core.errors import PermissionLockedError
+from app.core.access import AccessLevel
 from app.core.sayfalar import (
     GRUP_ADLARI,
     SAYFA_ANAHTARLARI,
@@ -29,11 +28,9 @@ from app.modules.roles.models import (
     Role,
     RoleHiddenField,
     RolePagePermission,
-    RolePermission,
 )
 from app.modules.roles.schemas import RoleCreate
 from app.modules.roles.service import create_custom_role
-from tests._legacy_permission_yardimcisi import update_role_permission
 from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 from tests.conftest import test_engine
 
@@ -190,9 +187,6 @@ async def test_me_sirada_rol_kendi_matrisinden_turetilmis_sayfalari_ve_bayragini
     # "Yeniden aç" yalnız admin: şef günlüğü düzenler ama Onaylar'ı almaz (genişleme yok).
     assert me["pages"]["saha.gunluk_kayit"] == {"level": "edit", "approve": False}
     assert me["pages"]["mali.yevmiye"] == {"level": "none", "approve": False}
-    # Eski harita AYNEN kalır.
-    assert me["permissions"]["site_diary"] == "full"
-    assert me["permissions"]["accounting"] == "none"
 
 
 async def test_me_patron_ayarlar_sayfalarini_gormez_ve_gizli_alani_yok(
@@ -213,10 +207,6 @@ async def test_me_yeni_roller_kendi_baslangic_matrisini_alir(client, izn_db, rol
     assert me["role_key"] == role_key
     assert me["pages"] == _beklenen_pages(role_key)
     assert me["hidden_fields"] == sorted(c.value for c in seed_data.HIDDEN_FIELDS[role_key])
-    # IZN-B2: izin haritası SAYFA HÜCRELERİNDEN türetilir (kapı artık onları geçirir).
-    assert set(me["permissions"].values()) - {"none"}
-    if role_key == "viewer":
-        assert set(me["permissions"].values()) <= {"none", "view"}
 
 
 async def test_me_gorunteleyici_her_yeri_gorur_hicbir_yerde_duzenlemez(client, izn_db):
@@ -281,8 +271,6 @@ async def test_me_hucresi_olmayan_rol_katalogdan_none_ile_tamamlanir(
     assert len(me["pages"]) == 100
     assert all(g == {"level": "none", "approve": False} for g in me["pages"].values())
     assert me["hidden_fields"] == []
-    # IZN-B2: kapılar hücreden karar verir → hücresiz rol HER modülde `none` (fail-closed).
-    assert me["permissions"]["accounting"] == "none"
 
 
 async def test_me_ana_rolde_tek_hucre_silinince_sayfa_none_olarak_yanitta_kalir(
@@ -328,20 +316,6 @@ async def test_me_pages_ROLDEN_gelir_sabit_degerden_degil(client, izn_db, user_f
     assert muhasebe["pages"] == _beklenen_pages("accounting")
 
 
-async def test_me_permissions_haritasi_sayfa_hucrelerinden_turetilmis_eskiyle_ayni(
-    client, izn_db, user_factory
-):
-    """IZN-B2: `permissions` salt-okur TÜRETİLMİŞ görünümdür. Eski harita ile tek fark: sayfa
-    hücresinde ayrışmayan ara düzey (Proje Müdürü `dashboard`: eski `full`, görünen `view`)."""
-    me = await _me(client, await _giris(client, user_factory, "project_manager"))
-    beklenen = {
-        module_key: cells[seed_data.ROLE_ORDER.index("project_manager")][0].value
-        for module_key, cells in seed_data.MATRIX.items()
-    }
-    beklenen["dashboard"] = "view"
-    assert me["permissions"] == beklenen
-
-
 # ---------------------------------------------------------------------------
 # Sorgu sayısı: N+1 YOK
 # ---------------------------------------------------------------------------
@@ -372,10 +346,9 @@ async def test_me_sorgu_sayisi_hucre_sayisindan_BAGIMSIZ(client, izn_db, user_fa
     with _sorgu_sayaci() as yonetici:
         assert (await client.get("/auth/me", headers=admin)).status_code == 200
 
-    # Sayfa verisi: SABİT üç sorgu (hücreler + gizli alanlar + alan maskesi özeti), hücre
-    # sayısından bağımsız (türetilmiş `permissions` hücreleri YENİDEN okumaz).
-    assert len(_sayfa_sorgulari(dolu)) == 3
-    assert len(_sayfa_sorgulari(bos)) == 3
+    # Sayfa verisi: SABİT iki sorgu (hücreler + gizli alanlar), hücre sayısından bağımsız.
+    assert len(_sayfa_sorgulari(dolu)) == 2
+    assert len(_sayfa_sorgulari(bos)) == 2
     # Toplam sorgu sayısı hücre sayısına bağlı DEĞİL (satır başına sorgu yok).
     assert len(dolu) == len(bos)
     # Sistem Yöneticisi katalogdan türer: sayfa tablolarına HİÇ sormaz.
@@ -429,8 +402,6 @@ async def test_seed_DB_anahtar_kumesi_katalogla_birebir_ve_idempotent(izn_db):
     await seed_data.seed_izn_reference_data(izn_db)  # ikinci çağrı: değişmez
     assert await izn_db.scalar(select(func.count()).select_from(RolePagePermission)) == adet
     assert await izn_db.scalar(select(func.count()).select_from(Role)) == 14
-    # Eski tablo DOKUNULMADI.
-    assert await izn_db.scalar(select(func.count()).select_from(RolePermission)) == 184
 
 
 # ---------------------------------------------------------------------------
@@ -539,7 +510,6 @@ async def test_write_through_me_yanitina_ve_endpointe_yansir(client, izn_db, use
     await modul_duzeyi_yaz(izn_db, sef.id, "accounting", AccessLevel.full)
     me = await _me(client, sef_headers)
     assert me["pages"]["mali.yevmiye"] == {"level": "edit", "approve": True}
-    assert me["permissions"]["accounting"] == "full"  # eski harita da aynı yönde
 
 
 async def test_write_through_hucresi_olmayan_rolde_100_hucreyi_kurar(
@@ -559,17 +529,6 @@ async def test_write_through_hucresi_olmayan_rolde_100_hucreyi_kurar(
     )
     assert adet == 100
     assert await _sayfa(seeded_db, muhasebe, "mali.hazine") == (PageLevel.view, False)
-
-
-# ---------------------------------------------------------------------------
-# Yeni rollerde eski hücre yazımı REDDEDİLİR (atama kilidini aşmasın)
-# ---------------------------------------------------------------------------
-
-
-async def test_yeni_rolde_servis_dogrudan_PermissionLockedError(izn_db):
-    rol = await _rol(izn_db, "viewer")
-    with pytest.raises(PermissionLockedError, match="yeni Sayfa İzinleri ekranından"):
-        await update_role_permission(izn_db, rol.id, "inventory", AccessLevel.view, Scope.all)
 
 
 # ---------------------------------------------------------------------------

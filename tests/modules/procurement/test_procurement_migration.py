@@ -538,9 +538,10 @@ def test_permission_module_already_seeded():
     """Spec §2: `procurement` ("Satinalma & Teklif", STOK_SATINALMA) izin modulu
     seed'de ZATEN VARDIR — yeni modul ACILMAZ, izin migration'i YOKTUR. Anahtar
     bir gun degisirse bu test SA uclarinin izin varsayimini dusurur."""
-    from app.modules.roles.seed_data import MATRIX, MODULES
+    from app.core.sayfalar import MODUL_ANAHTARLARI
+    from app.modules.roles.seed_data import MATRIX
 
-    keys = {module["key"] for module in MODULES}
+    keys = set(MODUL_ANAHTARLARI)
     assert "procurement" in keys, "SA uclarinin dayandigi izin modulu seed'den kalkmis"
     assert "procurement" in MATRIX
     assert "purchasing" not in keys, (

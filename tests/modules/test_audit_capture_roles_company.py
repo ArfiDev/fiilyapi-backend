@@ -177,8 +177,11 @@ async def test_tercih_uclari_denetim_satiri_yazmaz(client, user_factory, seeded_
 async def test_roller_ve_sirket_get_uclari_denetim_satiri_yazmaz(client, user_factory, seeded_db):
     headers = await _auth(client, user_factory, "system_admin")
 
-    assert (await client.get("/roles", headers=headers)).status_code == 200
-    assert (await client.get("/modules", headers=headers)).status_code == 200
+    roles = await client.get("/roles", headers=headers)
+    assert roles.status_code == 200
+    # IZN-B6b: `/modules` ucu kalkti; rolun izin okuma yuzu artik sayfa hucreleridir.
+    role_id = roles.json()[0]["id"]
+    assert (await client.get(f"/roles/{role_id}/pages", headers=headers)).status_code == 200
     assert (await client.get("/company", headers=headers)).status_code == 200
 
     # Yalnizca yukaridaki login satiri kalmali.

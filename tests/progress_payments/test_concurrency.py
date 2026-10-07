@@ -21,7 +21,6 @@ import pytest
 from sqlalchemy import delete, event, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.access import AccessLevel, Scope
 from app.core.errors import ConflictError
 from app.core.security import hash_password
 from app.core.silme.hatalar import DeletePreviewStaleError
@@ -29,7 +28,7 @@ from app.modules.accounting.models import JournalEntry
 from app.modules.progress_payments import schemas, service, transitions
 from app.modules.progress_payments.models import ProgressPayment, ProgressPaymentStatus
 from app.modules.projects.models import Project, ProjectContract
-from app.modules.roles.models import Module, ModuleGroup, Role, RolePermission
+from app.modules.roles.models import Role
 from app.modules.silme import service as silme_service
 from app.modules.silme.schemas import DeleteKind
 from app.modules.users.models import User
@@ -112,11 +111,6 @@ async def _attempt_create_and_hold(
         return "created"
 
 
-#: Bu testin aktörünün geçmesi gereken İKİ kapı: proje görünürlüğü
-#: (`projects.visible_projects`) ve silme yetkisi (`core.access.can_delete`).
-#: Başka modüle gerek YOKTUR — matrisin tamamı kurulmaz.
-_REFERANS_MODUL_ANAHTARLARI = ("projects", "progress_payments")
-
 #: Rol anahtarı bilinçli olarak TESTE ÖZELDİR: `seed_reference_data`'nın
 #: ürettiği `system_admin`/`patron` gibi üretim anahtarlarıyla çakışmaz.
 _REFERANS_ROL_ANAHTARI = "pp_conc_admin"
@@ -141,18 +135,6 @@ async def _referans_kur(session: AsyncSession) -> Role:
     session.add(role)
     await session.flush()
 
-    for sira, anahtar in enumerate(_REFERANS_MODUL_ANAHTARLARI, start=1):
-        module = Module(key=anahtar, name=anahtar, group=ModuleGroup.GENEL, sort_order=sira)
-        session.add(module)
-        await session.flush()
-        session.add(
-            RolePermission(
-                role_id=role.id,
-                module_id=module.id,
-                access_level=AccessLevel.admin,
-                scope=Scope.all,
-            )
-        )
     # IZN-B3: `visible_projects` artık "Projeler" sayfasına değil EKİBE bakar; aktörler
     # `users.all_projects` ile (ana rolle her projeyi görür) kurulur.
     await session.commit()
@@ -160,9 +142,8 @@ async def _referans_kur(session: AsyncSession) -> Role:
 
 
 async def _referans_temizle(session: AsyncSession) -> None:
-    """`_referans_kur`'un yarattığı HER satırı geri alır (izinler CASCADE ile gider)."""
+    """`_referans_kur`'un yarattığı HER satırı geri alır ."""
     await session.execute(delete(Role).where(Role.key == _REFERANS_ROL_ANAHTARI))
-    await session.execute(delete(Module).where(Module.key.in_(_REFERANS_MODUL_ANAHTARLARI)))
 
 
 async def _kurulum() -> tuple[uuid.UUID, uuid.UUID]:

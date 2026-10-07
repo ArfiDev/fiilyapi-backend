@@ -2,7 +2,6 @@ import uuid
 
 from pydantic import BaseModel, EmailStr
 
-from app.core.access import AccessLevel
 from app.core.sayfalar import HiddenCategory, PageKey
 from app.modules.pages.schemas import PageGrant
 from app.modules.users.models import UserStatus
@@ -50,20 +49,11 @@ class MeResponse(BaseModel):
     # IZN-B1: Sistem Yöneticisi her yere erişir, hücre taşımaz; silme yetkisi yalnız bunda.
     is_system_admin: bool
     status: UserStatus
-    # Aktörün KENDİ izin haritası: modül anahtarı -> erişim seviyesi.
-    # Ek yetki İSTEMEZ (bilinçli): `/roles/{id}/permissions` `user_management:view`
-    # arar, bu yüzden salt-okunur bir rol kendi seviyesini göremiyordu ve frontend
-    # yazma butonlarını gizleyemiyordu. Kendi izninin okunması yetki sızıntısı
-    # değildir — aktör zaten o seviyeyi uçları deneyerek keşfedebilir.
-    # İzin satırı olmayan modül haritada YER ALMAZ; frontend bunu "bilinmezlik"
-    # sayıp kontrolü görünür bırakır (güvenlik sınırı her zaman backend'dedir).
-    permissions: dict[str, AccessLevel]
     # IZN-B1 (EKLEYİCİ): aktörün ANA rolünün sayfa izinleri: sayfa anahtarı -> {level, approve}.
     # Anahtar kümesi `GET /pages` kataloğudur. Sistem Yöneticisi için her sayfa
     # {edit, approve=onay eylemi var mı}. Rolün satırı olmayan sayfa katalogdan `none`
     # (approve=false) ile DOLDURULUR (IZN-B6a-me; kapılar da eksik hücreyi none sayar).
-    # Henüz KAPI DEĞİL: uç kapıları
-    # `permissions` (eski modül matrisi) ile çalışmaya devam eder (B2'de köprülenir).
+    # Kapılar bu hücrelerden karar verir (IZN-B6b: eski `permissions` modül haritası kalktı).
     pages: dict[PageKey, PageGrant]
     # Ana rolün gizlediği hassas alan kategorileri (kutucuk işaretli olanlar), sıralı.
     hidden_fields: list[HiddenCategory]

@@ -110,7 +110,7 @@ görünür) ve hakediş için `project_id IN visible` (hakedişte NULL proje YOK
 🔴 **Bordronun kapsamı AYRIDIR ve sebebi ölçülmüştür:** `payroll_periods`ta
 `project_id` KOLONU YOKTUR — dönem şirket genelindedir, yani proje süzgeci
 bordroya UYGULANAMAZ. Bordronun görünürlük tanımı saf MODÜL iznidir
-(`payroll:view`) ve `roles/repository.get_permission` ile okunur; burada da
+(`payroll:view`) ve `page_gate.effective_level` ile okunur; burada da
 İKİNCİ bir tanım yazılmaz. Sızıntı yolu ÖLÇÜLDÜ: `project_manager` bu ucu OKUR
 (`treasury=_V`) ama `payroll=_N`dir — kapı olmasaydı şirketin AYLIK TOPLAM
 PERSONEL MALİYETİNİ okurdu. Ayrıntı `_payroll_visible`dedir.

@@ -124,7 +124,7 @@ def test_zarf_kurucu_YARDIMCILARI_BES_TANEDIR():
 def test_anahtar_uzayi_IZIN_MODULU_uzayindan_AYRISMIS():
     """🔴 P-YT2'nin OLCULMUS bulgusu — kod `pending_module` icin *"Bunlar MODUL
     ANAHTARIDIR"* diyor ama ALTI anahtarin IKISI tohumlanmis modul kaydinda
-    (`roles/seed_data.py:MODULES`) YOKTUR:
+    (`core/sayfalar.py:MODUL_ANAHTARLARI`; IZN-B6b oncesi `roles/seed_data.py:MODULES`) YOKTUR:
 
     | anahtar | izin modulu mu | not |
     |---|---|---|
@@ -137,9 +137,9 @@ def test_anahtar_uzayi_IZIN_MODULU_uzayindan_AYRISMIS():
     biri bu iki anahtari duzeltirse ya da `subcontracts` adinda bir modul
     acilirsa, `presenters.py`deki gerekce bayatlar ve bu test haber verir.
     """
-    from app.modules.roles.seed_data import MODULES
+    from app.core.sayfalar import MODUL_ANAHTARLARI
 
-    modul_anahtarlari = {modul["key"] for modul in MODULES}
+    modul_anahtarlari = set(MODUL_ANAHTARLARI)
     kullanilan = {
         presenters._PROGRESS_PAYMENTS,
         presenters._TIMESHEET,

@@ -5,7 +5,7 @@ değiştirdi (`core/sayfalar.ESIK_SPEC_B1_FARKLARI`). B1 migration testleri bekl
 yardımcıyla B1 eşiklerinden üretir.
 """
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.sayfalar import (
     ESIK_SPEC_B1_FARKLARI,
     MODULSUZ_VARSAYILAN,
@@ -15,7 +15,7 @@ from app.core.sayfalar import (
     esik_karsilaniyor,
     esik_spec,
 )
-from app.modules.roles import seed_data
+from tests import _donmus_eski_matris as eski_seed
 
 #: IZN-B5a (CEO onaylı): B1 migration'ının DONMUŞ eşik metinlerinden B5a'nın değiştirdikleri.
 #: madde 3 → 36/37/39/40 görme eşiği draft → view; madde 5 → #2 Onay Kutusu onay eşiği f → "-"
@@ -46,7 +46,12 @@ def b1_spec(sayfa) -> str:
 
 
 def b1_matrisi(cells) -> dict[str, tuple[PageLevel, bool]]:
-    """`core/sayfalar.sayfa_matrisi`nin B1 eşikleriyle çalışan kopyası."""
+    """`core/sayfalar.sayfa_matrisi`nin B1 eşikleriyle çalışan kopyası.
+
+    `cells`: modül -> `AccessLevel` ya da DONMUŞ eski `(AccessLevel, Scope)` çifti (kapsam eşiği
+    etkilemez).
+    """
+    cells = {m: c[0] if isinstance(c, tuple) else c for m, c in cells.items()}
     sonuc: dict[str, tuple[PageLevel, bool]] = {}
     for sayfa in SAYFALAR:
         if sayfa.eski_modul is None:
@@ -73,7 +78,7 @@ def app_cells(matrix, order, role_key) -> dict[str, tuple[str, str]]:
 
 
 def b1_rows(matrix, role_key: str) -> dict[str, tuple[str, bool]]:
-    order = seed_data.ROLE_ORDER if matrix is seed_data.MATRIX else seed_data.IZN_ROLE_ORDER
+    order = eski_seed.ROLE_ORDER if matrix is eski_seed.MATRIX else eski_seed.IZN_ROLE_ORDER
     cells = app_cells(matrix, order, role_key)
-    typed = {m: (AccessLevel(a), Scope(sc)) for m, (a, sc) in cells.items()}
+    typed = {m: AccessLevel(a) for m, (a, _scope) in cells.items()}
     return {k: (lv.value, ap) for k, (lv, ap) in b1_matrisi(typed).items()}

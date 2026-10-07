@@ -23,16 +23,17 @@ from pathlib import Path
 
 import pytest
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.sayfalar import (
     SAYFALAR,
     HiddenCategory,
     PageLevel,
-    gizli_alanlar,
     sayfa_matrisi,
 )
 from app.modules.roles import seed_data
 from app.modules.roles.models import IZN_ROLE_KEYS
+from tests import _donmus_eski_matris as eski_seed
+from tests._donmus_eski_matris import Scope, gizli_alanlar
 from tests._izn_b1_esikleri import b1_matrisi, b1_onay_var, b1_rows, b1_spec
 
 MIGRATION_PATH = next(
@@ -64,8 +65,8 @@ def test_migration_zinciri_okt_b1in_ustunde() -> None:
 
 def test_eski_matris_ve_rol_sirasi_seed_ile_ayni(migration) -> None:
     assert list(migration.ROLE_ORDER) == list(seed_data.ROLE_ORDER)
-    assert set(migration.MATRIX) == set(seed_data.MATRIX)
-    for module_key, cells in seed_data.MATRIX.items():
+    assert set(migration.MATRIX) == set(eski_seed.MATRIX)
+    for module_key, cells in eski_seed.MATRIX.items():
         assert migration.MATRIX[module_key] == [(a.value, s.value) for a, s in cells], module_key
 
 
@@ -82,8 +83,8 @@ def test_yeni_roller_seed_ile_ayni(migration) -> None:
 
 
 def test_yeni_rol_matrisi_seed_ile_ayni(migration) -> None:
-    assert set(migration.IZN_MATRIX) == set(seed_data.IZN_MATRIX) == set(seed_data.MATRIX)
-    for module_key, cells in seed_data.IZN_MATRIX.items():
+    assert set(migration.IZN_MATRIX) == set(eski_seed.IZN_MATRIX) == set(eski_seed.MATRIX)
+    for module_key, cells in eski_seed.IZN_MATRIX.items():
         assert len(cells) == len(seed_data.IZN_ROLE_ORDER)
         assert migration.IZN_MATRIX[module_key] == [(a.value, s.value) for a, s in cells], (
             module_key
@@ -126,8 +127,8 @@ def test_donusum_fonksiyonu_tum_roller_icin_ayni_sonucu_verir(migration) -> None
     for role_key in seed_data.ROLE_ORDER:
         if role_key == "system_admin":
             continue
-        cells = _app_cells(seed_data.MATRIX, seed_data.ROLE_ORDER, role_key)
-        assert _tuple_rows(migration._page_cells(cells)) == b1_rows(seed_data.MATRIX, role_key), (
+        cells = _app_cells(eski_seed.MATRIX, seed_data.ROLE_ORDER, role_key)
+        assert _tuple_rows(migration._page_cells(cells)) == b1_rows(eski_seed.MATRIX, role_key), (
             role_key
         )
         # B1'in TARİHİ: eski rol `limited` kapsamından küresel `tum_tutarlar` türetirdi. Seed bugün
@@ -137,10 +138,10 @@ def test_donusum_fonksiyonu_tum_roller_icin_ayni_sonucu_verir(migration) -> None
             c.value for c in gizli_alanlar(_modul_hucreleri(cells))
         }, role_key
     for role_key in seed_data.IZN_ROLE_ORDER:
-        cells = _app_cells(seed_data.IZN_MATRIX, seed_data.IZN_ROLE_ORDER, role_key)
+        cells = _app_cells(eski_seed.IZN_MATRIX, seed_data.IZN_ROLE_ORDER, role_key)
         rows = _tuple_rows(migration._page_cells(cells))
         rows.update(migration.IZN_SAYFA_ISTISNALARI.get(role_key, {}))
-        beklenen = b1_rows(seed_data.IZN_MATRIX, role_key)
+        beklenen = b1_rows(eski_seed.IZN_MATRIX, role_key)
         beklenen.update(
             {
                 k: (lv.value, ap)
@@ -155,7 +156,7 @@ def test_donusum_rastgele_modul_hucreleriyle_de_AYNI_migration_kopyasi(migration
     rng = random.Random(20261004)
     seviyeler = list(AccessLevel)
     kapsamlar = [Scope.all, Scope.limited, Scope.finance]
-    modules = list(seed_data.MATRIX)
+    modules = list(eski_seed.MATRIX)
     for _ in range(400):
         cells = {m: (rng.choice(seviyeler), rng.choice(kapsamlar)) for m in modules}
         beklenen = {k: (lv.value, ap) for k, (lv, ap) in b1_matrisi(cells).items()}
@@ -174,12 +175,6 @@ def _modul_hucreleri(cells: dict[str, tuple[str, str]]):
 
 def _tuple_rows(rows) -> dict[str, tuple[str, bool]]:
     return {page_key: (level, approve) for page_key, level, approve in rows}
-
-
-def _app_page_rows(role_key: str) -> dict[str, tuple[str, bool]]:
-    return {
-        k: (level.value, approve) for k, (level, approve) in seed_data.PAGE_MATRIX[role_key].items()
-    }
 
 
 def test_sistem_yoneticisi_sayfa_matrisinde_YOK() -> None:
@@ -201,8 +196,8 @@ def test_finance_kapsami_duzeyi_degistirmez_limited_rol_bayragi_olur() -> None:
 
 def test_esikli_donusum_ornekleri_ceo_karari() -> None:
     def hucre(key: str, **seviyeler: AccessLevel):
-        cells = {m: (AccessLevel.none, Scope.all) for m in seed_data.MATRIX}
-        cells.update({m: (lv, Scope.all) for m, lv in seviyeler.items()})
+        cells = dict.fromkeys(eski_seed.MATRIX, AccessLevel.none)
+        cells.update(seviyeler)
         return sayfa_matrisi(cells)[key]
 
     # Sade eski kural `full → Düzenler+Onaylar` idi; artık eşik gerçekten karşılanmalı.

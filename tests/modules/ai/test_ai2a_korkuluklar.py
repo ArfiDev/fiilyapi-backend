@@ -34,6 +34,7 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
 from app.core.access import AccessLevel
+from app.core.sayfalar import ESKI_MODULLER
 from app.core.security import create_access_token
 from app.main import app
 from app.modules.ai import audit as ai_audit
@@ -77,7 +78,6 @@ from app.modules.ai.result import (
 )
 from app.modules.ai.tools import schemas
 from app.modules.ai.tools.catalog import CATALOG, GOSTERGE_OZETI, READ_TOOLS, REGISTRY
-from app.modules.roles.seed_data import MODULES
 from tests.modules.ai.conftest import sahte_aktor, tam_izin
 
 AI_KOK = Path(__file__).parents[3] / "app" / "modules" / "ai"
@@ -130,7 +130,7 @@ def test_ifsa_haritasi_TUM_IZIN_MODULLERINI_ADIYLA_KAPSAR() -> None:
     KVKK kararı** vermek zorunda kalır. Varsayılan bir `ACIK` yedeği olsaydı
     yeni bir PII modülü **sessizce** sağlayıcıya açılırdı.
     """
-    tohumlu = {m["key"] for m in MODULES}
+    tohumlu = set(ESKI_MODULLER)
     assert set(AI_IFSA) == tohumlu, (
         f"Harita ile tohumlanan modüller ayrışıyor.\n"
         f"  haritada olmayan: {sorted(tohumlu - set(AI_IFSA))}\n"
@@ -150,9 +150,9 @@ def test_ifsa_UC_DURUMUN_UCU_de_GERCEKTEN_KULLANILIYOR() -> None:
 def test_K1_kullanici_kararinin_DORT_MODULU() -> None:
     """K1 (2026-09-04) birebir: dördü de `ACIK` DEĞİLDİR."""
     # 🔴 ÖLÇÜM K1'in bir premise'ini düzeltti: `customers` bir İZİN MODÜLÜ
-    # DEĞİLDİR (`MODULES`ta yok; `customers/router.py:42` kapısı `sales`).
+    # DEĞİLDİR (`ESKI_MODULLER`de yok; `customers/router.py:42` kapısı `sales`).
     # Yani karar "dört modül" der ama uygulanabilir hâli ÜÇ modüldür.
-    assert "customers" not in {m["key"] for m in MODULES}
+    assert "customers" not in ESKI_MODULLER
     assert exposure.seviye("customers") is IfsaSeviyesi.KAPALI  # fail-closed yedek
     assert exposure.seviye("sales") is IfsaSeviyesi.KAPALI
     # Agrega istisnası YALNIZ bu ikisine tanındı ("bordro dönem toplamları" +
@@ -456,7 +456,7 @@ def test_CANLI_araclarin_YANIT_SEMALARI_maske_TASIMAZ(spec: ToolSpec) -> None:
 def test_SEMA_TARAMASI_SERBEST_SOZLUGU_GOREMEZ_bu_yuzden_IKINCI_KAPI_VAR() -> None:
     """🔴 İki kapının **eşdeğer olmadığının** kanıtı.
 
-    `AiPuantajHaftasi.totals` `dict[str, Any]`dır ve `AiYetkilerim.permissions`
+    `AiPuantajHaftasi.totals` `dict[str, Any]`dır ve `AiYetkilerim.sayfalar`
     `dict[str, str]`tir: bu alanların ANAHTARLARI şemada YOKTUR. Yani ucun
     gövdesine bir gün `wage_amount` girse kayıt anındaki tarama **sessiz
     kalırdı**. Çalışma anındaki tarama bu yüzden ikinci bir kapıdır, kopya

@@ -14,8 +14,9 @@ bolum, santiye). Cekirdek bu dosyayi import ETMEZ.
   `ev_group_disciplines` (BOQ grubu → disiplin) · `ev_item_settings` (is tipi) ·
   `ev_leaf_settings` (kalem × bolum orani + ezmeler) · `ev_distributions` ·
   `ev_windows` (disiplin × bolum penceresi ezmesi).
-* **Kullanici atamasi** (DSC-B0): `user_disciplines` (kullanici → disiplin; atama YOKSA
-  kullanici kisitsizdir). Cekirdek bunu `app.core.discipline_scope` portu uzerinden sorar.
+* **Kullanici atamasi**: proje ekibinde (`project_member_disciplines`, IZN-B3; atama YOKSA
+  kullanici kisitsizdir; global `user_disciplines` modeli IZN-B6b'de sokuldu).
+  Cekirdek bunu `app.core.discipline_scope` portu uzerinden sorar.
 * **Donmus baseline** (K8): `ev_baseline_leaves` + `ev_baseline_curve`. Dondurma aninin
   fotografidir; BOQ sonradan degisse de DEGISMEZ — bu yuzden BOQ kalem/bolum
   kimlikleri FK DEGIL duz kolondur (kod/ad snapshot'iyla).
@@ -279,33 +280,6 @@ class EvRevision(Base):
     )
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
-
-
-class UserDiscipline(Base):
-    """Kullanici → disiplin atamasi (DSC-B0, spec Ü9). Satir yok = kisitsiz kullanici.
-
-    IZN-B3: DONDURULDU. Disiplin artik PROJE BASINA (`project_member_disciplines`); bu tabloya
-    YAZILMAZ ve kapsam buradan OKUNMAZ. Yalniz disiplin silme sayaci (FK RESTRICT) hala sayar;
-    tablo B6'da duser.
-
-    FK'ler: kullanici silinince atamalari CASCADE ile gider; disiplin RESTRICT (atanmis
-    disiplin silinemez — `catalog_service.delete_discipline` sayaci ANLAMLI 409 verir; yoksa
-    FK ihlali genel 409 'Veri butunlugu hatasi'na duserdi). PK `(user_id, discipline_id)`
-    kullanici tarafi aramasini karsilar; disiplin
-    tarafi (silme sayimi + RESTRICT denetimi) icin AYRI indeks vardir — yoksa her disiplin
-    silme/sayimi tabloyu tarardi.
-    """
-
-    __tablename__ = "user_disciplines"
-    __table_args__ = (Index("ix_user_disciplines_discipline_id", "discipline_id"),)
-
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    discipline_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("ev_disciplines.id", ondelete="RESTRICT"), primary_key=True
-    )
-    created_at: Mapped[datetime] = _created_at()
 
 
 # ------------------------------------------------- revizyona bagli butce girdileri

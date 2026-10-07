@@ -35,7 +35,7 @@ deseni; kapsam = `tum_tutarlar` bayrağı).
 import uuid
 from decimal import Decimal
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from app.core.sayfalar import HiddenCategory
 from app.modules.contracts.models import EmployerContractGroup, EmployerContractItem
 from app.modules.progress_payments.models import (
@@ -133,9 +133,9 @@ async def _hakedisli_proje(db_session, project_factory, olusturan_id: uuid.UUID)
 
 
 async def _sozlesme_detayi(
-    client, db_session, user_factory, project_factory, kapsam: Scope, eposta: str
+    client, db_session, user_factory, project_factory, gizli: bool, eposta: str
 ) -> dict:
-    """`GET /projects/{id}/contract` — `contracts` kapsamı `kapsam` olan rolle."""
+    """`GET /projects/{id}/contract` — `contracts` `tum_tutarlar` bayrağı = `gizli`."""
     olusturan = await user_factory(
         email=f"kurucu-{eposta}", password="parola1234", role_key="system_admin"
     )
@@ -146,7 +146,7 @@ async def _sozlesme_detayi(
         "project_manager",
         "contracts",
         AccessLevel.view,
-        tum_tutarlar=kapsam is Scope.limited,
+        tum_tutarlar=gizli,
     )
 
     resp = await client.get(f"/projects/{project_id}/contract", headers=_auth(token))
@@ -163,7 +163,7 @@ async def test_ALL_kapsamda_GOMULU_ozetin_HER_SAYISI_GORUNUR(
     testi de yeşil bırakırdı ve E14 "Hakediş Özeti" kartı HERKES için boşalırdı.
     """
     govde = await _sozlesme_detayi(
-        client, db_session, user_factory, project_factory, Scope.all, "all@capraz.co"
+        client, db_session, user_factory, project_factory, False, "all@capraz.co"
     )
     ozet = govde["progress_payment_summary"]
 
@@ -189,7 +189,7 @@ async def test_LIMITED_kapsamda_GOMULU_ozetin_PARASI_da_GIZLENIR(
     hesaplanırdı.
     """
     govde = await _sozlesme_detayi(
-        client, db_session, user_factory, project_factory, Scope.limited, "lim@capraz.co"
+        client, db_session, user_factory, project_factory, True, "lim@capraz.co"
     )
     ozet = govde["progress_payment_summary"]
 
@@ -204,22 +204,6 @@ async def test_LIMITED_kapsamda_GOMULU_ozetin_PARASI_da_GIZLENIR(
     # etiketli; bedeli gizleyen rol oranı da görmez (yoksa bedel oran × tutardan geri hesaplanırdı).
     assert ozet["progress_pct"] is None, "TÜREV İLERLEME ORANI SIZDI"
     assert govde["contract_no"] == "SZL-KPS-CPR", "KİMLİK GİZLENDİ"
-
-
-async def test_FINANCE_kapsamda_GOMULU_ozet_PARA_ve_ILERLEME_DURUR(
-    client, db_session, user_factory, project_factory
-):
-    """IZN-B4: eski `finance` kapsamı karşılıksız (IZN-PLAN §3, GECE KARARI) — rolün gizli bayrağı
-    yok → gömülü özet TAM görünür (ilerleme dahil)."""
-    govde = await _sozlesme_detayi(
-        client, db_session, user_factory, project_factory, Scope.finance, "fin@capraz.co"
-    )
-    ozet = govde["progress_payment_summary"]
-
-    assert ozet["progress_pct"] == _ILERLEME
-    assert govde["amount"] == str(_BEDEL), "PARA YANLIŞLIKLA GİZLENDİ"
-    assert ozet["contract_amount"] == str(_BEDEL), "GÖMÜLÜ BEDEL YANLIŞLIKLA GİZLENDİ"
-    assert ozet["net_total"] == _NET, "GÖMÜLÜ NET ÖDEME YANLIŞLIKLA GİZLENDİ"
 
 
 async def test_OZETIN_KENDI_UCU_DA_MASKELENIR_K2(client, db_session, user_factory, project_factory):

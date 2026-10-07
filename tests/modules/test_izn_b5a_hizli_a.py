@@ -44,10 +44,10 @@ async def _rol_id(session, key: str):
 
 # --- Madde 15 -----------------------------------------------------------------------------------
 
-ROL_DETAY_UCLARI = ("/roles/{id}/permissions", "/roles/{id}/pages")
+ROL_DETAY_UCLARI = ("/roles/{id}/pages",)
 
 
-@pytest.mark.parametrize("yol", ["/roles/{id}/permissions", "/roles/{id}/pages", "/modules"])
+@pytest.mark.parametrize("yol", ["/roles/{id}/pages"])
 async def test_kullanicilar_gorur_rol_detay_uclarini_ACAMAZ(client, seeded_db, user_factory, yol):
     await _rol_hucreli(seeded_db, "kul_gorur", {"ayarlar.kullanicilar": PageLevel.view})
     basliklar = await _baslik(client, user_factory, "kul_gorur")
@@ -57,7 +57,7 @@ async def test_kullanicilar_gorur_rol_detay_uclarini_ACAMAZ(client, seeded_db, u
 
 
 @pytest.mark.parametrize("sayfa", ["ayarlar.rol_yonetimi", "ayarlar.sayfa_izinleri"])
-@pytest.mark.parametrize("yol", ["/roles/{id}/permissions", "/roles/{id}/pages", "/modules"])
+@pytest.mark.parametrize("yol", ["/roles/{id}/pages"])
 async def test_rol_ekranlari_gorur_rol_detay_uclarini_acar(
     client, seeded_db, user_factory, yol, sayfa
 ):
@@ -99,7 +99,7 @@ async def test_roles_hicbir_sayfa_hucresi_olmayan_403(client, seeded_db, user_fa
 async def test_sistem_yoneticisi_rol_uclarini_acar(client, seeded_db, user_factory):
     basliklar = await _baslik(client, user_factory, "system_admin")
     rid = await _rol_id(seeded_db, "system_admin")
-    for yol in ("/roles", "/modules", f"/roles/{rid}/permissions", f"/roles/{rid}/pages"):
+    for yol in ("/roles", f"/roles/{rid}/pages"):
         assert (await client.get(yol, headers=basliklar)).status_code == 200, yol
 
 

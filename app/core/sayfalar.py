@@ -31,7 +31,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Final
 
-from app.core.access import AccessLevel, Scope, satisfies
+from app.core.access import AccessLevel, satisfies
 
 
 class PageLevel(str, enum.Enum):
@@ -389,6 +389,20 @@ SAYFA_BY_KEY: Final[dict[str, Sayfa]] = {s.key: s for s in SAYFALAR}
 SAYFA_ANAHTARLARI: Final[tuple[str, ...]] = tuple(s.key for s in SAYFALAR)
 ONAY_VAR_ANAHTARLARI: Final[frozenset[str]] = frozenset(s.key for s in SAYFALAR if s.onay_var)
 
+#: Kapı modüllerinin (23) anahtarları — SAYFA EŞİKLERİNDEN türer (IZN-B6b; `modules` tablosu yok).
+#: `ai.actor` katalog kapısı bu sabiti sürer; sayısı `ESKI_MODULLER` ile eşittir (bekçide).
+MODUL_ANAHTARLARI: Final[tuple[str, ...]] = tuple(
+    sorted(
+        {
+            modul
+            for s in SAYFALAR
+            for esik in (s.gorme, s.yazma, s.onay)
+            if esik is not None
+            for modul, _seviye in esik
+        }
+    )
+)
+
 #: OpenAPI'de `page_key` bir enum olur → frontend'e TS birleşik tip (union) olarak iner ve
 #: `nav-config.ts`teki yazım hatası tip denetiminde yakalanır. Üyeler katalogdan DİNAMİK
 #: üretilir; ikinci bir elle liste TUTULMAZ.
@@ -414,15 +428,12 @@ def sistem_yoneticisi_sayfalari() -> dict[str, tuple[PageLevel, bool]]:
 # `tests/modules/test_izn_b1_seed_migration_esitligi.py` ikisini çakar.
 # ---------------------------------------------------------------------------
 
-#: Bir rolün modül hücreleri: modül anahtarı -> (düzey, kapsam). Eksik modül = (none, all).
-ModulHucreleri = Mapping[str, tuple[AccessLevel, Scope]]
+#: Bir rolün modül hücreleri: modül anahtarı -> düzey. Eksik modül = none.
+ModulHucreleri = Mapping[str, AccessLevel]
 
 
 def esik_karsilaniyor(esik: Esik, hucreler: ModulHucreleri) -> bool:
-    return all(
-        satisfies(hucreler.get(modul, (AccessLevel.none, Scope.all))[0], seviye)
-        for modul, seviye in esik
-    )
+    return all(satisfies(hucreler.get(modul, AccessLevel.none), seviye) for modul, seviye in esik)
 
 
 def sayfa_hucresi(sayfa: Sayfa, hucreler: ModulHucreleri) -> tuple[PageLevel, bool]:
@@ -448,15 +459,3 @@ def sayfa_hucresi(sayfa: Sayfa, hucreler: ModulHucreleri) -> tuple[PageLevel, bo
 def sayfa_matrisi(hucreler: ModulHucreleri) -> dict[str, tuple[PageLevel, bool]]:
     """Bir rolün modül hücrelerinden 100 sayfalık hücre kümesi."""
     return {sayfa.key: sayfa_hucresi(sayfa, hucreler) for sayfa in SAYFALAR}
-
-
-#: `limited` kapsamı rol bayrağı `tum_tutarlar`a çevrilir (§1.3); `finance` karşılıksızdır.
-#: 🔴 YALNIZ B1 migration'ının TARİHİNİ anlatır (+ test yardımcısı): seed artık bundan TÜRETİLMEZ,
-#: eski rollerin kümesi `seed_data.ESKI_ROL_GIZLI_ALANLAR` (IZN-B4c madde 20).
-def gizli_alanlar(hucreler: ModulHucreleri) -> frozenset[HiddenCategory]:
-    """Rolün herhangi bir (erişimi olan) hücresinde `limited` kapsam varsa `tum_tutarlar`."""
-    limited = any(
-        level is not AccessLevel.none and scope is Scope.limited
-        for level, scope in hucreler.values()
-    )
-    return frozenset({HiddenCategory.tum_tutarlar}) if limited else frozenset()

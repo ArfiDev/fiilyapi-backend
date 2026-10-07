@@ -217,7 +217,7 @@ async def test_logout_revokes_existing_tokens(client, user_factory) -> None:
     assert (await client.get("/auth/me", headers=headers)).status_code == 401
 
 
-# --- BE-A — /auth/me izin haritasi (frontend `useModulePermission` icin) ---
+# --- /auth/me sayfa hucreleri ---
 
 
 async def _me(client, user_factory, role_key: str, email: str) -> dict:
@@ -229,34 +229,13 @@ async def _me(client, user_factory, role_key: str, email: str) -> dict:
     return resp.json()
 
 
-async def test_me_returns_permission_map_keyed_by_module(client, seeded_db, user_factory):
-    """Frontend `readLevel` yuku: me.permissions[moduleKey] -> AccessLevel dizesi."""
-    body = await _me(client, user_factory, "system_admin", "sa@me-perms.co")
-
-    permissions = body["permissions"]
-    assert isinstance(permissions, dict)
-    assert permissions["boq"] == "admin"
-    assert permissions["user_management"] == "admin"
-
-
-async def test_me_permission_map_covers_every_seeded_module(client, seeded_db, user_factory):
-    from sqlalchemy import select
-
-    from app.modules.roles.models import Module
-
-    body = await _me(client, user_factory, "system_admin", "sa2@me-perms.co")
-
-    module_keys = {m.key for m in (await seeded_db.execute(select(Module))).scalars().all()}
-    assert set(body["permissions"]) == module_keys
-
-
-async def test_me_permission_map_is_role_specific(client, seeded_db, user_factory):
-    """Salt-okunur rol kendi seviyesini gorur — ek yetki (user_management:view) GEREKMEZ."""
+async def test_me_permissions_alani_sokuldu_sayfa_hucreleri_vardir(client, seeded_db, user_factory):
+    """IZN-B6b: modül düzeyi harita (`permissions`) kalktı; yetki `pages` + `hidden_fields`tir."""
     body = await _me(client, user_factory, "site_chief", "sc@me-perms.co")
 
-    assert body["permissions"]["boq"] == "view"
-    # Kanit: bu rol /roles/{id}/permissions'i cagiramaz ama kendi haritasini aldi.
-    assert body["permissions"]["user_management"] == "none"
+    assert "permissions" not in body
+    assert body["pages"]["genel.projeler"]["level"] in {"view", "edit"}
+    assert isinstance(body["hidden_fields"], list)
 
 
 async def test_readonly_role_cannot_read_role_matrix_endpoint(client, seeded_db, user_factory):
@@ -279,18 +258,11 @@ async def test_me_keeps_existing_fields(client, seeded_db, user_factory):
     assert body["role_key"] == "patron"
 
 
-def test_me_response_permissions_schema_references_access_level_enum() -> None:
-    """Frontend `AccessLevel` tipi schema'dan uretilir — deger AccessLevel enum'una
-
-    referans vermeli, duz `string` olmamali (yoksa `gen:api` tipi genisletir).
-    """
+def test_me_response_semasinda_permissions_alani_yok() -> None:
     schema = app.openapi()
-    prop = schema["components"]["schemas"]["MeResponse"]["properties"]["permissions"]
-
-    values = prop["additionalProperties"]
-    ref_target = values.get("$ref") or values.get("allOf", [{}])[0].get("$ref")
-    assert ref_target is not None
-    assert ref_target.endswith("AccessLevel")
+    props = schema["components"]["schemas"]["MeResponse"]["properties"]
+    assert "permissions" not in props
+    assert {"pages", "hidden_fields"} <= set(props)
 
 
 async def test_refresh_does_not_extend_absolute_session_lifetime(client, seeded_db, user_factory):

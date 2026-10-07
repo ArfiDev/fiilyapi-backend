@@ -366,7 +366,7 @@ async def test_yetkisiz_rol_403_ve_BOLUMDE_boyle_bir_rol_YOK(
         from app.modules.roles.seed_data import MATRIX
 
         seviyeler = MATRIX["sites"]
-        assert all(s[0] is not AccessLevel.none for s in seviyeler), (
+        assert all(s is not AccessLevel.none for s in seviyeler), (
             "`sites` satirina NONE girmis — bolum ucu icin yetkisiz-rol testi "
             "artik KURULABILIR, bu dal gerceklenmelidir."
         )

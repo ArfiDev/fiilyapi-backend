@@ -17,35 +17,6 @@ class AccessLevel(str, enum.Enum):
     admin = "admin"
 
 
-class Scope(str, enum.Enum):
-    """Veri kapsamı — aktörün modül içinde hangi kayıtları görebildiği."""
-
-    all = "all"
-    own = "own"
-    project = "project"
-    finance = "finance"
-    stock = "stock"
-    limited = "limited"
-
-
-#: 🔴 MATRİSTEN DÜŞEN KAPSAMLAR (kullanıcı kararı 2026-09-19).
-#:
-#: Bu üçü uygulanmıyordu ve uygulanmaları ya KUSUR ya FAZLALIK olurdu:
-#:   `own`     — `GET /approvals` bilerek kapısızdır ve `_pending_filter`in
-#:               "Bekçi 5"i senin AÇTIĞIN zinciri onay kutundan ZATEN çıkarır;
-#:               `created_by == aktör` süzgeci o bekçiyi TERS ÇEVİRİRDİ.
-#:   `project` — proje kapsamı proje ekibinden (`project_members`) sürülür ve ilgili iki
-#:               modül onu ZATEN uygular; ikinci bir kopya bir gün ayrışırdı.
-#:   `stock`   — onay kutusu zaten kişiseldir.
-#:
-#: Enum ÜYELERİ dokunulmadan bırakıldı (PG tipini daraltmak OpenAPI kırar ve
-#: tek başına fayda üretmez); kapı bunun yerine YAZMA yolunda fail-closed
-#: kapatılır. Canlı satırları `b2c3d4e5f8a1` migration'ı `all`a çeker.
-#: Bekçileri: `tests/modules/test_izin_kapsami_bekcisi.py` ve
-#: `tests/modules/test_role_service.py::test_DUSEN_kapsam_MEVCUT_OLSA_BILE_*`.
-DROPPED_SCOPES: frozenset[Scope] = frozenset({Scope.own, Scope.project, Scope.stock})
-
-
 _LEVEL_ORDER: dict[AccessLevel, int] = {
     AccessLevel.none: 0,
     AccessLevel.view: 1,

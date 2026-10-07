@@ -36,8 +36,9 @@ gösteriyor; başka sembol DEĞİŞMEDİ. Referans 422 → 428 satır.
 
 ## 🔴 REFERANSTAN DÜŞEN SEMBOL (IZN-B3b, 2026-10-05)
 
-`approval_roles_assigned` KALDIRILDI: `PUT /approvals/roles/{user_id}` 410 oldu (onay rolü artık
-proje rolünden gelir; atama `PUT /users/{id}/access`te, denetim satırı `user_access_updated`).
+`approval_roles_assigned` KALDIRILDI: `PUT /approvals/roles/{user_id}` 410 oldu (B6b'de
+söküldü); onay rolü artık proje rolünden gelir; atama `PUT /users/{id}/access`te,
+denetim satırı `user_access_updated`).
 Referans `python -m tests.test_tbaudit_denetim_metni_anlik_goruntu` ile tazelendi; fark
 (`git diff`): YALNIZ bu fonksiyonun İKİ satırı silindi; başka metin DEĞİŞMEDİ.
 Sayaçlar 251/232 → 250/231.

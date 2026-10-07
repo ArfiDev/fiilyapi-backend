@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.access import AccessLevel
 from app.core.errors import (
     ConflictError,
     DomainError,
@@ -28,7 +27,6 @@ from app.modules.roles.models import (
     Role,
     RoleHiddenField,
     RolePagePermission,
-    RolePermission,
 )
 from app.modules.roles.repository import (
     list_role_hidden_categories,
@@ -299,26 +297,6 @@ async def copy_role(session: AsyncSession, source_id: uuid.UUID, data: RoleCopy)
             description=data.description,
         ),
     )
-    # Eski `role_permissions` satırları da kopyalanır (CEO onarım kararı): kopya, kaynağın alan
-    # maskesi kapsamını (`finance`/`limited`) DONMUŞ eski satırdan korur ve `hidden_fields_
-    # effective` kaynakla aynı olur. Sistem Yöneticisi kaynağında `admin` düzeyi `full`a iner:
-    # silme (admin) kopyalanmaz.
-    legacy_rows = (
-        (await session.execute(select(RolePermission).where(RolePermission.role_id == source.id)))
-        .scalars()
-        .all()
-    )
-    for row in legacy_rows:
-        level = (
-            AccessLevel.full
-            if row.access_level is AccessLevel.admin and locked
-            else row.access_level
-        )
-        session.add(
-            RolePermission(
-                role_id=role.id, module_id=row.module_id, access_level=level, scope=row.scope
-            )
-        )
     # `create_custom_role` her sayfaya "Görmez" satırı açtı; üstüne kaynağın hücreleri yazılır.
     # Doğrulama atlanır: kaynak zaten kayıtlı bir roldür (bayat hücre kopyayı da reddetmesin).
     await _apply_page_cells(session, role.id, grants)

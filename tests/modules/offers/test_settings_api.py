@@ -217,7 +217,7 @@ async def test_kimliksiz_istek_401(client) -> None:
 async def test_contracts_yok_roller_403(client, admin, db_session, user_factory, role_key) -> None:
     from app.modules.roles.seed_data import MATRIX, ROLE_ORDER
 
-    assert MATRIX["contracts"][ROLE_ORDER.index(role_key)][0] == AccessLevel.none  # on kosul
+    assert MATRIX["contracts"][ROLE_ORDER.index(role_key)] == AccessLevel.none  # on kosul
     kisi = await _giris(client, db_session, user_factory, role_key)
     assert (await client.get(URL, headers=kisi)).status_code == 403
     assert (await client.put(URL, json=_govde(), headers=kisi)).status_code == 403

@@ -5,14 +5,11 @@ GET  /approvals                    — onay kutusu            (satir basina `can
 GET  /approvals/history            — onay gecmisi (onaylanan / reddedilen)  (`can_decide`)
 GET  /approvals/settings           — esigi oku
 PUT  /approvals/settings           — esigi yaz     [ayarlar.onay_rolleri: Duzenler]
-GET  /approvals/roles              — 410 (KALDIRILDI)  [ayarlar.onay_rolleri: Duzenler]
-PUT  /approvals/roles/{user_id}    — 410 (KALDIRILDI)  [ayarlar.onay_rolleri: Duzenler]
 ```
 
 🔴 IZN-B3b (K1): onay rolleri PROJE ROLUNDEN gelir. Adim rolu rol adiyla kalir; adimi, belgenin
 projesinde o role atanmis kisi (ya da "Tum projeler" + ana rol) onaylar. `user_approval_roles`
-tablosu SOKULDU; `GET /approvals/roles` ve `PUT /approvals/roles/{user_id}` B2/B3 emsaliyle 410 +
-deprecated YERINDE kalir (eski kapi ayni; B6'da topluca sokulur). Atama Ayarlar > Kullanicilar'da
+tablosu SOKULDU; `/approvals/roles` uclari IZN-B6b'de SOKULDU. Atama Ayarlar > Kullanicilar'da
 (`PUT /users/{id}/access`). Yanittaki `my_approval_roles` yerine satir basina `can_decide` gelir.
 
 🔴 YENI IZIN MODULU ACILMADI: `approvals` ("Onay Kutusu", ModuleGroup.GENEL)
@@ -20,7 +17,7 @@ seed'de ZATEN vardir (`roles/seed_data.py:74,176`) ve matris satiri da mevcuttur
 
 🔴 ROTA SIRASI TUZAGI DEGERLENDIRILDI ve BU KOKTE YOKTUR: `/approvals/{id}`
 BICIMINDE HICBIR ROTA ACILMAMISTIR, dolayisiyla `/approvals/settings`,
-`/approvals/history` ve `/approvals/roles` sabit yollarinin UUID sanilmasi YAPISAL OLARAK
+`/approvals/history` sabit yolunun UUID sanilmasi YAPISAL OLARAK
 IMKANSIZDIR. Kural bir bekci testiyle kilitlidir
 (`test_modulun_ROTA_KUMESI_tam_olarak_alti_yoldur`).
 
@@ -29,10 +26,9 @@ Zincirin ONAY/RET uclari BURADA DEGILDIR: onlar evraklarin KENDI `/approve`
 anlamlarini devralir.
 """
 
-import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.core.db import DbSession
 from app.core.deps import get_current_user
@@ -54,18 +50,6 @@ from app.modules.audit import messages
 from app.modules.audit.models import AuditAction
 from app.modules.audit.service import record_audit
 from app.modules.users.models import User
-
-#: 410 gövdesi: onay rolü atama uçları kalktı (IZN-B3b). Mesaj yeni ucu işaret eder.
-APPROVAL_ROLES_GONE_DETAIL = (
-    "Onay rolleri artık proje rolünden gelir. Kimin hangi adımı onaylayacağını "
-    "Ayarlar > Kullanıcılar ekranından (PUT /users/{id}/access) düzenleyin."
-)
-
-_APPROVAL_ROLES_GONE_RESPONSES = {
-    status.HTTP_410_GONE: {
-        "description": "Uç kaldırıldı: onay rolü artık proje rolü (`PUT /users/{id}/access`)"
-    }
-}
 
 router = APIRouter(
     route_class=MaskeRotasi,
@@ -156,29 +140,3 @@ async def update_approval_settings_endpoint(
         ip_address=client_ip(request),
     )
     return ApprovalSettingsRead(approval_threshold_try=yeni)
-
-
-@router.get(
-    "/roles",
-    deprecated=True,
-    status_code=status.HTTP_410_GONE,
-    response_model=None,
-    responses=_APPROVAL_ROLES_GONE_RESPONSES,
-    dependencies=[_ADMIN],
-)
-async def list_approval_role_assignments_endpoint() -> None:
-    """KALDIRILDI (IZN-B3b): her çağrı 410 döner. Onay rolü = proje rolü (K1)."""
-    raise HTTPException(status_code=status.HTTP_410_GONE, detail=APPROVAL_ROLES_GONE_DETAIL)
-
-
-@router.put(
-    "/roles/{user_id}",
-    deprecated=True,
-    status_code=status.HTTP_410_GONE,
-    response_model=None,
-    responses=_APPROVAL_ROLES_GONE_RESPONSES,
-    dependencies=[_ADMIN],
-)
-async def set_approval_roles_endpoint(user_id: uuid.UUID) -> None:
-    """KALDIRILDI (IZN-B3b): her çağrı 410 döner, hiçbir şey yazılmaz."""
-    raise HTTPException(status_code=status.HTTP_410_GONE, detail=APPROVAL_ROLES_GONE_DETAIL)

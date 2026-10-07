@@ -2,10 +2,8 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.access import AccessLevel, Scope
 from app.core.sayfalar import HiddenCategory, PageKey
 from app.modules.pages.schemas import PageGrant
-from app.modules.roles.models import ModuleGroup
 
 
 class RoleResponse(BaseModel):
@@ -39,26 +37,6 @@ class RoleRename(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     emoji: str = Field(default="", max_length=8)
     description: str = Field(default="", max_length=2000)
-
-
-class ModuleResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: uuid.UUID
-    key: str
-    name: str
-    group: ModuleGroup
-    sort_order: int
-
-
-class PermissionCell(BaseModel):
-    module_key: str
-    access_level: AccessLevel
-    scope: Scope
-
-
-class PermissionUpdate(BaseModel):
-    access_level: AccessLevel
-    scope: Scope
 
 
 class RoleCopy(BaseModel):

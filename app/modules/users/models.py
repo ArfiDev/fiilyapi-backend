@@ -64,27 +64,6 @@ class User(Base):
     role: Mapped[Role] = relationship(lazy="raise")
 
 
-class UserProjectAccess(Base):
-    """Kullanıcının erişebildiği projeler (spec §4.1).
-
-    all_projects=True (project_id NULL) → tüm projeler. Aksi hâlde her satır bir proje.
-
-    IZN-B3: DONDURULDU. Yeni yazma yeri `users.all_projects` + `project_members`; bu tabloya artık
-    YAZILMAZ ve kapılar buradan karar vermeye geçişte (B3 DEVAM) bırakılır. Tablo B6'da düşer.
-    """
-
-    __tablename__ = "user_project_access"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    project_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
-    )
-    all_projects: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-
 class ProjectMember(Base):
     """Proje ekibi (IZN-B3, KARARLAR §1.7): kişi × proje × O PROJEDEKİ rol.
 

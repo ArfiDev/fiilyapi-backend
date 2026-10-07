@@ -105,9 +105,9 @@ def test_her_scope_uyesinin_bir_sahibi_var_ve_kokler_ayrik() -> None:
 
 
 def test_izin_anahtari_MEVCUT_modullerdir_yeni_modul_ACILMADI() -> None:
-    from app.modules.roles.seed_data import MODULES
+    from app.core.sayfalar import MODUL_ANAHTARLARI
 
-    tohumlu = {m["key"] for m in MODULES}
+    tohumlu = set(MODUL_ANAHTARLARI)
     for spec in link_owners.OWNER_SPECS:
         assert spec.permission_module in tohumlu, spec.key
     assert {s.permission_module for s in link_owners.OWNER_SPECS} == {

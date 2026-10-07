@@ -108,9 +108,9 @@ def test_pending_modules_etiketlerinin_HEPSI_CANLI_bir_izin_modulunu_adlandirir(
     etiketler canli modulleri adlandiriyor. `documents` ve `invoicing` icin bu
     ISIMLE cakilir — bekleyen sey MODUL degil, o modulle satis arasindaki BAGdir.
     """
-    from app.modules.roles.seed_data import MODULES
+    from app.core.sayfalar import MODUL_ANAHTARLARI
 
-    modul_anahtarlari = {modul["key"] for modul in MODULES}
+    modul_anahtarlari = set(MODUL_ANAHTARLARI)
 
     assert set(sales_schemas.PENDING_MODULES) <= modul_anahtarlari, (
         "etiketlerden biri artik canli bir izin modulunu adlandirmiyor: "

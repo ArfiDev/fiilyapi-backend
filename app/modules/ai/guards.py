@@ -103,6 +103,10 @@ HATA_METINLERI: dict[str, str] = {
     "gecersiz_argüman": "Araç argümanları geçersiz.",
     "gecersiz_yol": ("Yol parametresi reddedildi: '/', '..', '.' ya da boş segment içeremez."),
     "yol_kapsam_disi": "Bu araç o yola çağrı yapamaz.",
+    "yetki_alani_eksik": (
+        "Yetki bilgisi alınamadı: yanıtta beklenen alan yok. Bu 'hiç yetkiniz yok' "
+        "DEMEK DEĞİLDİR; yetkiyi tahmin etmeyin."
+    ),
     "oturum_suresi_doldu": (
         "Oturumunuzun süresi doldu. Bu 'yetkiniz yok' DEMEK DEĞİLDİR; "
         "yeniden giriş yapıldığında aynı sorgu çalışır."

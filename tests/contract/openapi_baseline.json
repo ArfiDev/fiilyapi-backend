@@ -1,20 +1,6 @@
 {
   "components": {
     "schemas": {
-      "AccessLevel": {
-        "description": "Erişim seviyesi. Sıralıdır: none < view < draft < request < approve < full < admin.\n\nfull silmeyi KAPSAMAZ — silme yalnızca admin seviyesindedir (spec §5.0).",
-        "enum": [
-          "none",
-          "view",
-          "draft",
-          "request",
-          "approve",
-          "full",
-          "admin"
-        ],
-        "title": "AccessLevel",
-        "type": "string"
-      },
       "AccountingPeriodListItem": {
         "description": "DKAP-B — liste satırı, `AccountingPeriodResponse`e ÜÇ türetilmiş alan\nEKLER (SIRA-B ile DÖRT). `close`/`reopen` cevabı hâlâ çıplak `AccountingPeriodResponse`dir\n(görev emri kapsamı yalnız `GET /accounting-periods`); tek bir dönemi\ndöndüren o iki uç için bu alanları hesaplamak GEREKSİZ bir sorgu turudur\nve emrin \"kod/uçlar DEĞİŞMEZ\" maddesini ihlal ederdi.\n\n🔴 K9 — bu ekranda İKİ AYRI kapı vardır (ayrıntı `repository.\ncount_entries_by_period` docstring'i): (1) kapalı döneme YAZMA yasağı —\nSTATÜ AYRIMI YAPMAZ; (2) kapanışın ÖN KOŞULU (`has_draft_entries`) —\nYALNIZ `draft` fişe bakar. `entry_count` (1)e, `draft_count` (2)ye karşılık\ngelir; ikisi AYNI alanmış gibi anlatılırsa (önceki tur böyleydi, K2\nçürütüldü) ekranın \"142 fiş var ama kapatamıyorum\" sorusu cevapsız kalır.\n\n`entry_count` — o döneme (`period_year`/`period_month`) ait TÜM yevmiye\nfişi sayısı, STATÜ AYRIMI YAPMADAN. Kapalı dönemde zaten `draft` KALMAZ\n(kapanış onu reddeder), bu yüzden toplamda ayrıma gerek yoktur ve\nmockup'ın \"Fiş\" sütunu (defter hacmi) budur. Mockup kanıtı: Temmuz satırı\n\"3 taslak fiş var\" uyarısıyla birlikte Fiş=218 basar — taslak sayının\nİÇİNDEDİR, toplamdan ayrı bir sayı DEĞİLDİR.\n\n`draft_count` — AYNI dönemdeki `draft` fiş sayısı (`has_draft_entries`in\nbaktığı KÜME). Mockup özet şeridindeki \"1 engelli\" bunun türevidir: ekran\n`draft_count > 0` ile \"bu dönem kapatılamaz\" OLGUSUNU üretir. 🔴\nKapanabilirlik KARARININ kendisi (`can_close` gibi) burada TAŞINMAZ —\nkarar `periods_service`in kapısıdır; ikinci bir karar kopyası kapı bir gün\ndeğişince ekranı sessizce yanlış bırakırdı.\n\n`previous_period_open` — SIRA-B: takvim olarak BİR ÖNCEKİ ayın\n`accounting_periods`ta KAYITLI ve `open` olup olmadığı. 🔴 Anlamı bu kadar\nDARDIR ve `draft_count` ile AYNI sınıftandır: bir OLGU taşır, bir KARAR\ndeğil. Adı `can_close` DEĞİLDİR ve olmayacaktır — kapatılabilirlik\n`status` + `draft_count` + bu olgunun BİRLEŞİMİDİR ve o birleşimi\n`periods_service.close_period` tanımlar; kararın bir kopyası burada\ndursaydı kapı bir gün değiştiğinde ekran SESSİZCE yanlış kalırdı\n(DKAP-B kanonu).\n\n🔴 Ekran bunu KENDİ listesinden türetemez, bu yüzden alan ŞART: Ocak'ın\nöncesi bir önceki yılın Aralığıdır ve liste `year` süzgeciyle tek yıl\nçeker — o satır sayfada HİÇ olmaz. Ayrıca sayfa sınırındaki dönemin\nöncesi de sayfada olmayabilir.\n\n🔴 K10 — olgu ile kapı AYNI iki yardımcıdan beslenir\n(`periods_service.previous_period` + `repository.open_periods_among`);\n\"kaydı olmayan ay\" ikisinde de `false`/engel-değil demektir (K2).\n\n🔴 Bu alan YALNIZ liste satırındadır. `close`/`reopen` cevabı çıplak\n`AccountingPeriodResponse` KALIR: tek bir dönem için fazladan bir sorgu\nturudur ve o iki uç zaten kararı KENDİSİ vermiştir — cevabına \"önceki\naçık mı\" iliştirmek, az önce geçilmiş bir kapıyı tekrar anlatmak olurdu.\n\n`closed_by_name` — `users.full_name` (K5: depodaki TEK ad kolonu,\n`audit/repository.py`nin `outerjoin(User, ...)` deseniyle AYNI yoldan\nokunur). NULL olabilir (K4): açık dönemde veya kapatan kullanıcı\nsilinmişse `None` kalır, `\"Bilinmiyor\"` gibi bir metin UYDURULMAZ.",
         "properties": {
@@ -18869,13 +18855,6 @@
             "title": "Pages",
             "type": "object"
           },
-          "permissions": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/AccessLevel"
-            },
-            "title": "Permissions",
-            "type": "object"
-          },
           "projects": {
             "items": {
               "$ref": "#/components/schemas/MeProject"
@@ -18910,7 +18889,6 @@
           "role_key",
           "is_system_admin",
           "status",
-          "permissions",
           "pages",
           "hidden_fields",
           "all_projects",
@@ -18981,50 +18959,6 @@
           }
         },
         "title": "MetricPlaceholder",
-        "type": "object"
-      },
-      "ModuleGroup": {
-        "enum": [
-          "GENEL",
-          "SAHA",
-          "STOK_SATINALMA",
-          "MALI",
-          "SISTEM"
-        ],
-        "title": "ModuleGroup",
-        "type": "string"
-      },
-      "ModuleResponse": {
-        "properties": {
-          "group": {
-            "$ref": "#/components/schemas/ModuleGroup"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "sort_order": {
-            "title": "Sort Order",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "key",
-          "name",
-          "group",
-          "sort_order"
-        ],
-        "title": "ModuleResponse",
         "type": "object"
       },
       "MonthlyCashPoint": {
@@ -24367,43 +24301,6 @@
           "pending_module"
         ],
         "title": "PendingApprovalsPlaceholder",
-        "type": "object"
-      },
-      "PermissionCell": {
-        "properties": {
-          "access_level": {
-            "$ref": "#/components/schemas/AccessLevel"
-          },
-          "module_key": {
-            "title": "Module Key",
-            "type": "string"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/Scope"
-          }
-        },
-        "required": [
-          "module_key",
-          "access_level",
-          "scope"
-        ],
-        "title": "PermissionCell",
-        "type": "object"
-      },
-      "PermissionUpdate": {
-        "properties": {
-          "access_level": {
-            "$ref": "#/components/schemas/AccessLevel"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/Scope"
-          }
-        },
-        "required": [
-          "access_level",
-          "scope"
-        ],
-        "title": "PermissionUpdate",
         "type": "object"
       },
       "PersonnelCreate": {
@@ -33649,19 +33546,6 @@
         ],
         "title": "ScheduleOut",
         "type": "object"
-      },
-      "Scope": {
-        "description": "Veri kapsamı — aktörün modül içinde hangi kayıtları görebildiği.",
-        "enum": [
-          "all",
-          "own",
-          "project",
-          "finance",
-          "stock",
-          "limited"
-        ],
-        "title": "Scope",
-        "type": "string"
       },
       "SectionCreate": {
         "description": "`Form - Bolum Ekle`in tam govdesi (P6 §5, T3).\n\nYer tutucu `budget` alani BURADA DA YOKTUR (spec §2.2): o BOQ turevidir ve\ngirdi olarak alinmaz. BLF-B1: eski elle `budget_amount` alani da KALKTI; eski\nistemci onu gonderirse Pydantic varsayilani (`extra=\"ignore\"`) sessizce yok sayar.\n\nMockup'ta gorunup burada OLMAYANLAR — spec §6, bu dilimde ARA COZUM\nYAZILMAZ: BOQ atamalari (Form 131-211), taseron/makine (88-98),\nbagimlilik/milestone/Gantt (115-123, 237), belgeler (214-233).\n\"Süre (Gün)\" (Form 109) `readonly` bir TUREVDIR, saklanmaz.",
@@ -51718,92 +51602,6 @@
         ]
       }
     },
-    "/approvals/roles": {
-      "get": {
-        "deprecated": true,
-        "description": "KALDIRILDI (IZN-B3b): her çağrı 410 döner. Onay rolü = proje rolü (K1).",
-        "operationId": "list_approval_role_assignments_endpoint_approvals_roles_get",
-        "responses": {
-          "403": {
-            "description": "Yetkisiz işlem"
-          },
-          "404": {
-            "description": "Kayıt bulunamadı"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Uç kaldırıldı: onay rolü artık proje rolü (`PUT /users/{id}/access`)"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Approval Role Assignments Endpoint",
-        "tags": [
-          "approvals"
-        ]
-      }
-    },
-    "/approvals/roles/{user_id}": {
-      "put": {
-        "deprecated": true,
-        "description": "KALDIRILDI (IZN-B3b): her çağrı 410 döner, hiçbir şey yazılmaz.",
-        "operationId": "set_approval_roles_endpoint_approvals_roles__user_id__put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "user_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "User Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "403": {
-            "description": "Yetkisiz işlem"
-          },
-          "404": {
-            "description": "Kayıt bulunamadı"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Uç kaldırıldı: onay rolü artık proje rolü (`PUT /users/{id}/access`)"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Set Approval Roles Endpoint",
-        "tags": [
-          "approvals"
-        ]
-      }
-    },
     "/approvals/settings": {
       "get": {
         "description": "Esik OKUMASI kapisizdir (`GET /company` emsali): ekran, zincirin neden\nPatron adimi tasidigini aciklamak icin esigi bilmek zorundadir.",
@@ -52238,7 +52036,7 @@
     },
     "/auth/me": {
       "get": {
-        "description": "`permissions` (IZN-B2): SAYFA HÜCRELERİNDEN türetilmiş salt-okur modül düzeyi\n(`roles.repository.derived_role_matrix`; `/roles/{id}/permissions` ucuyla ayni kaynak).\nFrontend B6/F5'e kadar onu okur; kapılar `pages` hücrelerinden karar verir.",
+        "description": "Oturum sahibi: kimlik + sayfa hücreleri (`pages`) + gizli alanlar + proje ekibi.\nKapılar `pages` hücrelerinden karar verir (IZN-B6b: eski `permissions` haritası kalktı).",
         "operationId": "me_auth_me_get",
         "responses": {
           "200": {
@@ -61897,42 +61695,6 @@
         ]
       }
     },
-    "/modules": {
-      "get": {
-        "operationId": "list_modules_endpoint_modules_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ModuleResponse"
-                  },
-                  "title": "Response List Modules Endpoint Modules Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "403": {
-            "description": "Yetkisiz işlem"
-          },
-          "404": {
-            "description": "Kayıt bulunamadı"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Modules Endpoint",
-        "tags": [
-          "roles"
-        ]
-      }
-    },
     "/offers": {
       "get": {
         "description": "Teklif listesi (son revizyonun durumu/tutari). `q`: no / is adi / isveren;\n`offer_date_from`/`offer_date_to`: son revizyonun teklif tarihi (dahil-dahil). Zarfta durum\nbasina adet + KDV haric toplam, suresi gecmis adedi ve kazanma orani (`status`\nfiltresinden bagimsiz). `conversion`: `won_not_converted` (son revizyon kazanildi, proje\nyok) | `converted` (proje var); `status` gibi yalniz listeyi daraltir, ozeti degil.",
@@ -70765,138 +70527,6 @@
           }
         ],
         "summary": "Update Role Pages Endpoint",
-        "tags": [
-          "roles"
-        ]
-      }
-    },
-    "/roles/{role_id}/permissions": {
-      "get": {
-        "description": "KALDIRILACAK (B6): modül düzeyi SAYFA HÜCRELERİNDEN türetilmiş salt-okur görünümdür.",
-        "operationId": "get_role_permissions_endpoint_roles__role_id__permissions_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "role_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Role Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PermissionCell"
-                  },
-                  "title": "Response Get Role Permissions Endpoint Roles  Role Id  Permissions Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "403": {
-            "description": "Yetkisiz işlem"
-          },
-          "404": {
-            "description": "Kayıt bulunamadı"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get Role Permissions Endpoint",
-        "tags": [
-          "roles"
-        ]
-      }
-    },
-    "/roles/{role_id}/permissions/{module_key}": {
-      "put": {
-        "deprecated": true,
-        "description": "KALDIRILDI (IZN-B2): her çağrı 410 döner, hiçbir şey yazılmaz.\n\nEski modül hücreleri DONDURULDU; kapılar sayfa hücrelerinden karar verir. Gövde şeması\nyalnız istemci tiplerinin kırılmaması için durur (B6'da uç ve şema birlikte sökülür).",
-        "operationId": "update_permission_endpoint_roles__role_id__permissions__module_key__put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "role_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Role Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "module_key",
-            "required": true,
-            "schema": {
-              "title": "Module Key",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PermissionUpdate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "403": {
-            "description": "Yetkisiz işlem"
-          },
-          "404": {
-            "description": "Kayıt bulunamadı"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Uç kaldırıldı: izinler artık sayfa bazlı (PUT /roles/{id}/pages)"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Update Permission Endpoint",
         "tags": [
           "roles"
         ]
@@ -80569,114 +80199,6 @@
         ],
         "summary": "Set User Access Endpoint",
         "tags": [
-          "users"
-        ]
-      }
-    },
-    "/users/{user_id}/disciplines": {
-      "get": {
-        "deprecated": true,
-        "description": "KALDIRILDI (IZN-B3): her çağrı 410 döner.",
-        "operationId": "get_user_disciplines_endpoint_users__user_id__disciplines_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "user_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "User Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "403": {
-            "description": "Yetkisiz işlem"
-          },
-          "404": {
-            "description": "Kayıt bulunamadı"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Uç kaldırıldı: disiplin artık proje ekibinde (`/users/{id}/access`)"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get User Disciplines Endpoint",
-        "tags": [
-          "earned-value",
-          "users"
-        ]
-      },
-      "put": {
-        "deprecated": true,
-        "description": "KALDIRILDI (IZN-B3): her çağrı 410 döner, hiçbir şey yazılmaz.",
-        "operationId": "set_user_disciplines_endpoint_users__user_id__disciplines_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "user_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "User Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "403": {
-            "description": "Yetkisiz işlem"
-          },
-          "404": {
-            "description": "Kayıt bulunamadı"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Uç kaldırıldı: disiplin artık proje ekibinde (`/users/{id}/access`)"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Set User Disciplines Endpoint",
-        "tags": [
-          "earned-value",
           "users"
         ]
       }

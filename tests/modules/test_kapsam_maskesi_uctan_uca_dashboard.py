@@ -35,7 +35,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.core.access import AccessLevel, Scope
+from app.core.access import AccessLevel
 from tests._modul_duzeyi_yardimcisi import modul_duzeyi_yaz
 
 from ._boq import _auth, _login_with_access
@@ -170,14 +170,14 @@ async def test_SAYACLAR_ve_RISK_metinleri_her_kapsamda_DURUR(
 # Çözüm fail-CLOSED'dır: alan, İKİ kapsamdan HERHANGİ BİRİ gizliyorsa düşer.
 
 
-async def _kapsamli_panel(client, db_session, user_factory, eposta: str, projects_kapsami: Scope):
+async def _kapsamli_panel(client, db_session, user_factory, eposta: str, gizli: bool):
     token = await _login_with_access(client, db_session, user_factory, "project_manager", eposta)
     await modul_duzeyi_yaz(
         db_session,
         "project_manager",
         "projects",
         AccessLevel.view,
-        tum_tutarlar=projects_kapsami is Scope.limited,
+        tum_tutarlar=gizli,
     )
     resp = await client.get("/dashboard/summary", headers=_auth(token))
     assert resp.status_code == 200, resp.text
@@ -188,7 +188,7 @@ async def test_PANEL_proje_kartini_PROJECTS_kapsamiyla_da_maskeler(
     client, db_session, user_factory, dashboard_projesi
 ):
     """`projects = view/limited` + `dashboard = full/all` → BÜTÇE DÜŞER."""
-    govde = await _kapsamli_panel(client, db_session, user_factory, "cpr@dash.co", Scope.limited)
+    govde = await _kapsamli_panel(client, db_session, user_factory, "cpr@dash.co", True)
     kart = _kart(govde)
 
     assert kart["budget"] is None, (
@@ -198,22 +198,11 @@ async def test_PANEL_proje_kartini_PROJECTS_kapsamiyla_da_maskeler(
     assert kart["progress_pct"] == "37.50", "operasyonel alan yanlışlıkla gizlendi"
 
 
-async def test_PANEL_PROJECTS_finance_kapsaminda_ILERLEME_DE_PARA_DA_gorunur(
-    client, db_session, user_factory, dashboard_projesi
-):
-    """AYNA — eski `finance` kapsamı artık hiçbir şeyi gizlemez (GECE KARARI, bkz. yukarısı)."""
-    govde = await _kapsamli_panel(client, db_session, user_factory, "cpf@dash.co", Scope.finance)
-    kart = _kart(govde)
-
-    assert kart["progress_pct"] == "37.50"
-    assert kart["budget"] == "12500000.00"
-
-
 async def test_POZITIF_KONTROL_PROJECTS_all_iken_kart_DOLU(
     client, db_session, user_factory, dashboard_projesi
 ):
     """🔴 Bu olmadan üstteki ikisi "kartı hep boşalt" hâlinde de yeşil kalırdı."""
-    govde = await _kapsamli_panel(client, db_session, user_factory, "cpa@dash.co", Scope.all)
+    govde = await _kapsamli_panel(client, db_session, user_factory, "cpa@dash.co", False)
     kart = _kart(govde)
 
     assert kart["budget"] == "12500000.00"

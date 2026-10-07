@@ -14,6 +14,7 @@ from collections import Counter
 from app.core.sayfalar import (
     ESKI_MODULLER,
     GRUP_ADLARI,
+    MODUL_ANAHTARLARI,
     ONAY_VAR_ANAHTARLARI,
     SAYFA_ANAHTARLARI,
     SAYFA_BY_KEY,
@@ -24,7 +25,7 @@ from app.core.sayfalar import (
     PageLevel,
     sistem_yoneticisi_sayfalari,
 )
-from app.modules.roles.seed_data import MODULES, MODULSUZ_VARSAYILAN
+from app.modules.roles.seed_data import MODULSUZ_VARSAYILAN
 
 #: IZN-ENVANTER §4 "birincil satır numaraları" (modül → envanter satırları).
 ENVANTER_MODUL_SATIRLARI: dict[str, list[int]] = {
@@ -103,10 +104,18 @@ def test_envanter_numaralari_1den_100e_tam_ve_tekil() -> None:
 
 
 def test_eski_modul_ESKI_23_modulden_biridir_ya_da_anahtarsiz_yedidir() -> None:
-    seed_modulleri = {row["key"] for row in MODULES}
-    assert len(seed_modulleri) == 23
-    # Katalogdaki 23'lük küme `roles/seed_data.MODULES` ile birebir aynı (iki liste ayrışamaz).
-    assert seed_modulleri == ESKI_MODULLER
+    seed_modulleri = set(MODUL_ANAHTARLARI)
+    # Sayfa eşiklerinden BAĞIMSIZ türetilen küme (katalogdaki her eşik parçası).
+    esik_modulleri = {
+        modul
+        for s in SAYFALAR
+        for esik in (s.gorme, s.yazma, s.onay)
+        if esik is not None
+        for modul, _seviye in esik
+    }
+    assert len(MODUL_ANAHTARLARI) == len(seed_modulleri) == 23
+    # `MODUL_ANAHTARLARI == eşik modülleri == ESKI_MODULLER` (üç küme ayrışamaz).
+    assert seed_modulleri == esik_modulleri == ESKI_MODULLER
     for sayfa in SAYFALAR:
         assert sayfa.eski_modul is None or sayfa.eski_modul in seed_modulleri, sayfa.key
 

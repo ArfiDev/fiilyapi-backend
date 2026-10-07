@@ -74,30 +74,9 @@ def gate_flags(module_key: str, level: AccessLevel) -> tuple[tuple[str, Flag], .
 
 
 @cache
-def display_flags(module_key: str, level: AccessLevel) -> tuple[tuple[str, Flag], ...]:
-    """YALNIZ GÖSTERGE (`/auth/me.permissions`): kapı bayrakları + eşiği `(M, L)` olan Onaylar.
-
-    Onaylar bayrağı kapıyı AÇMAZ ama eski modül düzeyini (örn. `progress_payments=approve`)
-    ekrana yansıtmak için gösterge türetimine girer.
-    """
-    found = list(gate_flags(module_key, level))
-    for sayfa in SAYFALAR:
-        esik = sayfa.onay
-        if esik is not None and len(esik) == 1 and esik[0] == (module_key, level):
-            found.append((sayfa.key, "approve"))
-    return tuple(found)
-
-
-@cache
 def module_page_keys(module_key: str) -> tuple[str, ...]:
     """Bir modülün kapı bayrağı veren sayfaları (`effective_level` sorgusu için)."""
     keys = {page_key for level in _DESCENDING for page_key, _flag in gate_flags(module_key, level)}
-    return tuple(sorted(keys))
-
-
-@cache
-def display_page_keys(module_key: str) -> tuple[str, ...]:
-    keys = {page_key for level in _DESCENDING for page_key, _f in display_flags(module_key, level)}
     return tuple(sorted(keys))
 
 
@@ -127,6 +106,13 @@ def level_from_cells(cells: Cells, module_key: str) -> AccessLevel:
         if gate_ok_from_cells(cells, module_key, level):
             return level
     return AccessLevel.none
+
+
+def gosterge_duzeyi(cells: Cells, module_key: str, *, sistem_yoneticisi: bool) -> AccessLevel:
+    """GÖSTERGE düzeyi: Sistem Yöneticisi `admin`, diğerleri geçilen en yüksek düzey."""
+    if sistem_yoneticisi:
+        return AccessLevel.admin
+    return level_from_cells(cells, module_key)
 
 
 async def load_cells(
@@ -347,38 +333,3 @@ async def effective_level(session: AsyncSession, user: object, module_key: str) 
         return AccessLevel.admin
     cells = await load_cells(session, user.role_id, module_page_keys(module_key))  # type: ignore[attr-defined]
     return level_from_cells(cells, module_key)
-
-
-@cache
-def _module_pages(module_key: str) -> tuple[str, ...]:
-    return tuple(s.key for s in SAYFALAR if s.eski_modul == module_key)
-
-
-def display_level(cells: Cells, module_key: str) -> AccessLevel:
-    """`/auth/me.permissions` ve `GET /roles/{id}/permissions` için TÜRETİLMİŞ salt-okur düzey.
-
-    Kapı bayrakları + Onaylar bayrakları (`display_flags`) üzerinden en yüksek sağlanan düzey;
-    `view` kapısına bayrak vermeyen ama sayfası görünen modül (`approvals`: Onay Kutusu herkese
-    açık) `view` gösterir. GÖSTERGEDİR, kapı değildir: kapılar `gate_ok`tur ve frontend F5'te
-    `pages`e geçince bu alan kalkar. Ara düzeyler (örn. Patron `dashboard=full`) sayfa hücresinde
-    ayrışmadığı için görünen düzey daha düşük olabilir; frontend'in okuduğu her (modül, eşik)
-    kararı seed rollerinde eskiyle AYNIDIR (`test_izn_b2_fe_esik_paritesi`).
-    """
-    level = AccessLevel.none
-    for candidate in _DESCENDING:
-        if any(
-            key in cells and flag_true(cells[key], flag)
-            for key, flag in display_flags(module_key, candidate)
-        ):
-            level = candidate
-            break
-    if (
-        level is AccessLevel.none
-        and not gate_flags(module_key, AccessLevel.view)
-        and any(
-            key in cells and cells[key][0] is not PageLevel.none
-            for key in _module_pages(module_key)
-        )
-    ):
-        return AccessLevel.view
-    return level
